@@ -139,7 +139,7 @@ changed in them since is merged in by `apply.cmake --since`, as Snap64's are; ti
 N64Recomp-browser 54e69b8 (`TIMER_MERGED_FROM`), since N64ModernRuntime a25ea81's ordered set of timers is upstream's
 set and Conker's patch replaces it with a list, which has no order to lose. rt64-web
 03b9dcc and d5121c9 keep rt64's web includes off the lines Conker's rt64 patch adds to; a new web include goes where a
-game's patch adds none, or the next retest's Conker build stops on it. N64ModernRuntime 6456ba6 keeps the VI thread's
+game's patch adds none, or the next update's Conker build stops on it. N64ModernRuntime 6456ba6 keeps the VI thread's
 frame wait off the lines Conker's runtime patch moves its retrace count to, and CI's `cbfd-patches` job applies the
 patches over all of Conker's own (`recomp/*.patch`, then `tools/web_patch.sh`, from the fork's main), so a collision is
 red on the PR that makes it. In headless Chrome: launcher, Add ROM, the intro,

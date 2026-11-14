@@ -2230,6 +2230,13 @@ previews, the default-browser check and the upgrade page off in the profile, sta
 
 The measurements behind rules CLAUDE.md and the other docs state without them.
 
+- No run on a schedule moves every game (CLAUDE.md, The pins): 23 runs that each moved every game onto main's newest
+  tag, v0.46.0 to v0.184.0, took 5-10 hours with 18 games and 25-38 hours with 38, each starting as the last ended,
+  and played 35-70 pages a run in 1-2 hours of plays (`plays.jsonl`); the rest was builds a game at a time, the own
+  recomps' pin PRs and their releases. Nearly every run changed nearly every page's files (27-38 of 38 played). From
+  v0.58.0's run (Pilotwings 64 in Firefox, 10% fewer presents) on, none held a page back for playing worse, and each
+  failed play played clean again; what they found were game forks' own patches that stopped applying over a new tag
+  (CI's patch checks find those at the PR) and the runs' own tools.
 - `thread_stdio.js`: Emscripten proxies every write to stdout or stderr to the page's thread, WebGPU's, and waits, so
   each line held its thread for up to a frame. Banjo-Tooie's upstream logs ~100 lines a second: its title screen's sound
   was 12,900-13,400 frames short of ~2.1 million before, 235-1,325 with it.

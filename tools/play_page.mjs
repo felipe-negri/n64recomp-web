@@ -149,7 +149,7 @@
 // Firefox with its own report of which part grew (page_driver.mjs's gpuProcessMemory); --json writes it as JSON too, a
 // failed run's with "failed" (tools/ab_pages.mjs reads it).
 // A run the host slept through (its clock jumped more than 30 s between two of play_page's 1 s ticks) is stopped and
-// fails: its samples would span the sleep, and one such run read as a clean one in a retest.
+// fails: its samples would span the sleep, and one such run read as a clean one in an update's plays.
 // The GPU readings are the whole adapter's, so note what else ran beside a number.
 //
 // Every shader the game asks for that the page's prebuilt list doesn't have is a miss (docs/porting.md,
@@ -189,7 +189,7 @@
 // failed), when it fails where they didn't, has WebGPU errors where the last had none, presents a second more than 3
 // below the lowest of theirs, a 99th percentile gap between presents over 50 ms and half again the longest of theirs,
 // or waits for shaders over 2 s and half again longer than the longest of theirs: outside
-// the runs' own noise, but a busy host reads the same, so a flag is a reason to look again (docs/publishing.md, The retest).
+// the runs' own noise, but a busy host reads the same, so a flag is a reason to look again (docs/publishing.md, Updating games).
 // Presents aren't compared for a run at the display's rate whose browser drew fewer than 57 animation frames a second:
 // the host had no display to pace them, and every page that interpolates reads the same.
 import fs from 'fs';

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# One run of the retest (docs/publishing.md, The retest) from build to publish, a game at a time: what each run
-# otherwise wrote by hand around publish_pages.sh, ab_pages.mjs and play_pages.sh.
+# One update of games onto a tag (docs/publishing.md, Updating games) from build to publish, a game at a time: what
+# each update otherwise wrote by hand around publish_pages.sh, ab_pages.mjs and play_pages.sh.
 #
-#   bash tools/retest.sh <rush-2049-recomp checkout> <tag> <dir> [<game>...] [--ab <game>...] [--cpu-throttle <rate>]
+#   bash tools/update_games.sh <rush-2049-recomp checkout> <tag> <dir> [<game>...] [--ab <game>...] [--cpu-throttle <rate>]
 #       [--queue <command>] [--note <text>]
 #
 # <game>s are publish_pages.sh's names (all of them without), --ab the games that stand for the rest in Chrome's A/B
@@ -21,14 +21,14 @@
 #   A/B gate open, then moves its fork's pin onto the tag (a commit on its main, the built main with only
 #   N64Recomp-browser moved, pushed as a fast-forward) and is published as played (publish_pages.sh --played, which
 #   boots it from Pages in headless Chrome). An --ab game, and one whose repo changed more than its pin since the main
-#   Pages served, is then played from Pages in Firefox (play_pages.sh); the rest are not (docs/publishing.md, The
-#   retest). Rush 2049, Perfect Dark, Super Mario 64, F-Zero X, Mario Party 1, 2 and 3, Super Smash Bros., Paper
+#   Pages served, is then played from Pages in Firefox (play_pages.sh); the rest are not (docs/publishing.md,
+#   Updating games). Rush 2049, Perfect Dark, Super Mario 64, F-Zero X, Mario Party 1, 2 and 3, Super Smash Bros., Paper
 #   Mario, Rayman 2, Donald Duck: Goin' Quackers, Dinosaur Planet, Turok: Dinosaur Hunter, Turok 2 and Turok 3 move by a PR on their own repos (CLAUDE.md, The
 #   pins), though a game publish_pages.sh holds as unreleased (none now) is left out of a run that names no
 #   game, since Pages serves no page of its own to play against: for each, the run pushes the pin commit, which also
 #   moves its submodules of upstream's to the commits the tag's patches/patches.txt names, as the build did
 #   (publish_pages.sh's pin_tree), as branch n64recomp-browser-<tag> and opens that PR, and stops there; a main whose
-#   pin is already at the tag (a critical fix moved it) gets no commit and no PR, fork or own recomp, and is published
+#   pin is already at the tag (other work moved it) gets no commit and no PR, fork or own recomp, and is published
 #   from main as it is. Its merge is the run's by hand (Rush 2049's after its
 #   desktop build has run); started again with the same <dir>, the run publishes and plays each one whose main now has
 #   the tree that was built, as it does a fork's above, and the recomp's own release tool releases its desktop build
@@ -37,7 +37,7 @@
 # uncapped). --queue <command> takes each build and play's turn in the machine's GPU queue (CLAUDE.md, Playing a page):
 # it is run as `<command> <shared|whole> <minutes> <command line...>`, a build and a smoke play, a boot and a play from
 # Pages a shared turn, an A/B's play a whole one, the minutes the turn's limit. Without it each runs at once.
-# --note <text> goes into every play's note in plays.jsonl after "retest <tag>": the host, and what else ran beside it.
+# --note <text> goes into every play's note in plays.jsonl after "update <tag>": the host, and what else ran beside it.
 # At the end it prints each game's outcome: same (no new bytes, nothing to publish), published, PR (an own
 # recomp's, to merge, publish and release), held (the gate is shut, its plays done), or what failed, with the step's log.
 # It needs what publish_pages.sh, ab_pages.mjs and play_pages.sh need (BUILD_HOST, ROMS, gh, push access to the forks)
@@ -105,7 +105,7 @@ pin_commit() {
     moved="$(moved_subs "$1")"
     [[ -z $moved ]] || msg+=(-m "With $moved at the upstream commits $tag's patches/patches.txt names, which its patches are made on.")
     git -C "$clone" commit-tree "$tree" -p "$was" "${msg[@]}" \
-        -m "N64Recomp-browser's retest: the page built on $tag played clean in Firefox$([[ ${#ab[@]} -gt 0 ]] &&
+        -m "N64Recomp-browser's update: the page built on $tag played clean in Firefox$([[ ${#ab[@]} -gt 0 ]] &&
             echo ", and Chrome's A/B against Pages on ${ab[*]} read no worse")."
 }
 # move_pin <game>: a fork's main fast-forwarded to the pin commit; an own recomp's PR opened with it.
@@ -115,7 +115,7 @@ move_pin() {
     git -C "$clone" fetch -q origin main
     read -r was _ tree < "$run/keep/$g/built"
     [[ "$(git -C "$clone" rev-parse origin/main)" == "$was" ]] || { echo "$repo's main moved since the build"; return 1; }
-    # A main already pinned to the tag (a critical fix moved it) was built as it is: no commit, no PR, and the
+    # A main already pinned to the tag (other work moved it) was built as it is: no commit, no PR, and the
     # publish below finds main's own tree.
     [[ "$(git -C "$clone" rev-parse "$was^{tree}")" != "$tree" ]] ||
         { echo "$repo's main ${was:0:7} already has its pin at $tag: nothing to move"; return 0; }
@@ -126,7 +126,7 @@ move_pin() {
     fi
     git -C "$clone" push -f origin "$commit:refs/heads/$branch" || return 1
     moved="$(moved_subs "$g")"
-    local body="Moves the N64Recomp-browser pin to $tag, the tag N64Recomp-browser's retest builds every page on: what it"
+    local body="Moves the N64Recomp-browser pin to $tag, the tag N64Recomp-browser's update builds its pages on: what it"
     body+=" brings is \`git log <the old pin>..$tag\` there. Only the pin changes$([[ -z $moved ]] ||
         echo ", and with it $moved, to the upstream commits $tag's patches/patches.txt names"). The page built from this commit played"
     body+=" clean in Firefox (N64Recomp-browser's plays.jsonl); once this merges, \`publish_pages.sh --played\` publishes"
@@ -177,7 +177,7 @@ for g in "${order[@]}"; do
     git -C "$clone" diff --quiet "${served:-none}" "$was" -- . ':!lib/N64Recomp-browser' ':!tools/N64Recomp-browser' \
         2> /dev/null || own_changes=yes
     abp=(env NODE="$node" "$node" "$here/ab_pages.mjs" "$g" "$hub_url$folder/" "$build" "$(rom_of "$g")" "$plan"
-        --pages-build "$pages_build" --build "$tag" --record "$here/../plays.jsonl" --note "retest $tag${note:+; $note}")
+        --pages-build "$pages_build" --build "$tag" --record "$here/../plays.jsonl" --note "update $tag${note:+; $note}")
     if [[ " ${ab[*]} " == *" $g "* || $gate == shut ]]; then
         step "$g" ab "${abp[@]}" --cpu-throttle "$throttle" --out "$run/ab/$g" -- $(qwords whole 8)
         [[ $(cat "$run/$g.ab") == 0 ]] || gate=shut
@@ -200,7 +200,7 @@ for g in "${order[@]}"; do
     if [[ " ${ab[*]} " != *" $g "* && $own_changes == no && ! -f "$run/$g.firefox" ]]; then
         outcome "$g" "published (its pin alone changed: no Firefox play from Pages)"
     else
-        step "$g" firefox bash "$here/play_pages.sh" "$rush" firefox "$g" --note "retest $tag${note:+; $note}" -- $(qwords shared 8) &&
+        step "$g" firefox bash "$here/play_pages.sh" "$rush" firefox "$g" --note "update $tag${note:+; $note}" -- $(qwords shared 8) &&
             outcome "$g" "published" || outcome "$g" "published; its Firefox play from Pages failed: $run/$g.firefox.log"
     fi
 done

@@ -452,15 +452,15 @@ take the web support without moving its submodules to the forks (Using it in a r
   deploy after a change: it rebuilds every game's page in the Games table from its main on a build host, publishes
   only those whose files differ from what Pages serves (a commit builds the same bytes in any checkout), and boots
   each one it published from Pages in headless Chrome; `play_pages.sh` then plays the pages Pages serves by their
-  regular plans, most often in Firefox, which needs no build, so another machine can do it during a retest. `timer_tick.c`, linked into a test build, makes a desktop's
+  regular plans, most often in Firefox, which needs no build, so another machine can do it during an update of every game. `timer_tick.c`, linked into a test build, makes a desktop's
   timed waits end on Windows' default 15.6 ms tick, as Firefox's do on a laptop. `record_shaders.mjs` records a
   prebuilt shader list by a plan, and `play_page.mjs` plays a page, a build or one on Pages, by the same kind of plan in
   Chrome or Firefox and measures it: presents a second, sound frames short, WebGPU errors, the shader waits, the GPU's
   load and the browser's cores, a line every few seconds and a summary, for a game's notes and `plays.jsonl`;
   `--record` appends the run to `plays.jsonl`, every page play kept, a JSON line each, so how each game's page plays
   can be followed day by day; `ab_pages.mjs` plays a new build and the page Pages serves interleaved in Chrome, says
-  whether the build plays worse, and with `--smoke` plays the build once in Firefox for crashes and errors (the retest's
-  checks); `retest.sh` runs a whole retest with them, a game at a time from build to publish. `pass_probe.js`, a preload for it, says what a page's presents spend the GPU on: its
+  whether the build plays worse, and with `--smoke` plays the build once in Firefox for crashes and errors (an update's
+  checks); `update_games.sh` runs a whole update of games onto a tag with them, a game at a time from build to publish. `pass_probe.js`, a preload for it, says what a page's presents spend the GPU on: its
   passes, their size, their draws by shader and the GPU time of each; `webgpu_census.js`, another, counts its WebGPU calls
   and bytes a second by kind, and `gpu_growth.mjs` plays those kinds one at a time in a test page, `gpu_growth.html`,
   reading Firefox's GPU process memory around each; `memory_scan.ps1` says whose code made what that process grows.
@@ -480,7 +480,7 @@ take the web support without moving its submodules to the forks (Using it in a r
   `build/`, every library of a page built with Emscripten from the forks. CI (`.github/workflows/ci.yml`) runs all
   four.
 - `docs/`: notes for whoever changes this repo, beside `CLAUDE.md`: what the web needs from a recomp and RT64
-  (`porting.md`), how a page is played and measured (`playing.md`), the retest and publishing (`publishing.md`), every
+  (`porting.md`), how a page is played and measured (`playing.md`), updating games and publishing (`publishing.md`), every
   fork commit (`forks.md`), what porting each game fork found (`game-forks.md`), and what has been measured about the
   pages in Chrome and Firefox (`findings.md`).
 

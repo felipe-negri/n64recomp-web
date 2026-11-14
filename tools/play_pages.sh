@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Plays each published page from Pages by its game's regular plan, one after another: the play from Pages after a
 # publish (CLAUDE.md, The games table), most often in Firefox, since publish_pages.sh boots each page from Pages only in
-# headless Chrome. It needs no build, so a second machine with the ROMs can play the pages a retest publishes while the
-# retest's own machine builds and plays the next ones.
+# headless Chrome. It needs no build, so a second machine with the ROMs can play the pages an update publishes while the
+# update's own machine builds and plays the next ones.
 #
 #   bash tools/play_pages.sh <rush-2049-recomp checkout> <chrome|firefox> <game>... [--build <label>] [--note <text>]
 #       [--backcheck] [--logs <dir>] [-- <queue command>...]

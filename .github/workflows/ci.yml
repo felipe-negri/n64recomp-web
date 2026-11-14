@@ -1345,7 +1345,7 @@ jobs:
           grep -x 'cache_miss	0' stats.txt
 
   # A push to main that changes what a page is built from (forks.txt, patches/, frontend/, renderer/) is tagged
-  # v0.<n+1>.0 once its jobs pass: a tag is a release, and the retest builds the newest one, so a change left untagged
+  # v0.<n+1>.0 once its jobs pass: a tag is a release, and a game's update moves it onto the newest, so a change left untagged
   # reaches no page. It compares against the newest tag, not the push before, so a run cancelled by the next merge is
   # covered by that one's, and the changes job builds a docs-only push's whenever this would tag. A tag pushed with
   # GITHUB_TOKEN starts no workflow: this run, on the same commit, is its CI.

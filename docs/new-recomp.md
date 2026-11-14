@@ -26,7 +26,7 @@ The lists and the record are kept by the work that plays the games, in the same 
   backchecked: it is someone else's recomp plus the same web support the own recomps run, so their plays check that
   support, and a backcheck across every game fork cost more than it found. A game fork's row keeps what its port left,
   and a later item reaches it only when work on that game plays it.
-- A play of a game for an item (a backcheck, a port, a fix, the retest) updates that game's row: the label leaves Left
+- A play of a game for an item (a backcheck, a port, a fix, an update) updates that game's row: the label leaves Left
   when the play shows it passes, or stays marked "fails" while the fix is filed. An item a game can't have (item 3 in
   a game of one player) leaves its row, and the game's own docs say why.
 - A new port or recomp gets its row in its port's work, every label that applies in Left, each removed only once played.
@@ -285,7 +285,7 @@ The web port list, every item of it.
 
 - **8a.** The desktop build runs on Windows and on Linux, Mesa's lavapipe included: its release's boot
   (`tools/boot_release.sh`, 90 s) passes on both. A build whose pin is older than plume a8e74eb crashes on lavapipe
-  seconds into its game (docs/findings.md, A desktop build on Mesa's lavapipe), so it fails until the retest moves it.
+  seconds into its game (docs/findings.md, A desktop build on Mesa's lavapipe), so it fails until an update moves it.
 - **8b.** Its icon, window title and launcher art are its own game's, not the recomp it was started from.
 - **8c.** Its README links its page.
 

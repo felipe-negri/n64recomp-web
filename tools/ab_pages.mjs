@@ -1,6 +1,6 @@
 // Plays the page Pages serves and a new build of it interleaved in Chrome, uncapped, and says whether the build plays
 // worse (the A/B), or with --smoke plays the build once in Firefox for what only Firefox turns up (the smoke play): the
-// retest's two checks (docs/publishing.md, The retest), one game a run.
+// update's two checks (docs/publishing.md, Updating games), one game a run.
 //
 //   node tools/ab_pages.mjs <game> <Pages URL> <build dir or its .html> <rom> <plan.json> --pages-build <label>
 //     --build <label> [--smoke] [--record <file>] [--note <text>] [--size <w>x<h>] [--cpu-throttle <rate>] [--port <n>]
