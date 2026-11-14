@@ -1018,4 +1018,10 @@ rt64 04dc9cf           RT64_KEEP_THIN_RECTS: Fix LR with Scissor leaves a rect o
                        specks every 32 pixels above the cutscenes' bottom bar, at any resolution. Its desktop build,
                        the blur forced to its strongest in Defection, showed them in all 20 captures, and with this in
                        none. Its page drew none either way: there the row is drawn from a tile copy that repeats it
+rt64 2ae34d1           the present draws a framebuffer's rows before the VI's origin (VI::rowsBeforeOrigin(): one in
+                       libultra's modes, none where the framebuffer is at the origin) as the origin's row, in the VI
+                       shader: a console never shows them, and F-Zero X keeps an arena's first bytes at the start of its
+                       third framebuffer, a dark-blue block at the window's top-left on its title screen. 0e21bce moves
+                       its lines to the start of their structs and blocks, clear of game forks' own rt64 lines (Snap's,
+                       JFG's, 1080's, Rogue Squadron's, THPS2's, Beetle's, PaxDino's, WWF's)
 ```

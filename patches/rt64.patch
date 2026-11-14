@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 04dc9cff65bbc802da00562de864c2c7f105f825
+rt64: https://github.com/n64hub/rt64-web 0e21bced534c88e7a98033a91dbc777b793d66f6
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -3316,7 +3316,7 @@ index e1889e5..3a6cb10 100644
  };
 \ No newline at end of file
 diff --git a/src/hle/rt64_present_queue.cpp b/src/hle/rt64_present_queue.cpp
-index 3227ab1..3ea827e 100644
+index 3227ab1..05bd59e 100644
 --- a/src/hle/rt64_present_queue.cpp
 +++ b/src/hle/rt64_present_queue.cpp
 @@ -7,6 +7,10 @@
@@ -3359,7 +3359,7 @@ index 3227ab1..3ea827e 100644
          presentThreadRunning = true;
          presentThread = new std::thread(&PresentQueue::threadLoop, this);
      }
-@@ -114,10 +133,25 @@ namespace RT64 {
+@@ -114,10 +133,28 @@ namespace RT64 {
              targetRate = ext.sharedResources->targetRate;
          }
  
@@ -3368,6 +3368,9 @@ index 3227ab1..3ea827e 100644
 +        if ((pacedRate > 0) && (pacedRate < targetRate)) {
 +            targetRate = pacedRate;
 +        }
++
++        // The rows of the shown framebuffer before the VI's origin, which the VI renderer draws as the origin's row.
++        uint32_t rowsBeforeOrigin = 0;
 +
          RenderTarget *colorTarget = nullptr;
          int32_t framesToPresent = 1;
@@ -3385,7 +3388,7 @@ index 3227ab1..3ea827e 100644
  
          // TODO: There's a possible race condition interactions that can happen while the workload
          // queue is rendering extra frames and the present event is processed while it's generating
-@@ -142,6 +176,11 @@ namespace RT64 {
+@@ -142,6 +179,11 @@ namespace RT64 {
              Framebuffer *viFb = nullptr;
              if (!viewRDRAM) {
                  viFb = fbManager.find(present.screenVI.fbAddress());
@@ -3397,7 +3400,7 @@ index 3227ab1..3ea827e 100644
              }
  
              Framebuffer *presentFb = viFb;
-@@ -170,7 +209,7 @@ namespace RT64 {
+@@ -170,7 +212,7 @@ namespace RT64 {
                      if (!present.debuggerFramebuffer.view && (presentationMode == EnhancementConfiguration::Presentation::Mode::SkipBuffering)) {
                          for (size_t h = 0; h < viHistory.history.size(); h++) {
                              const VIHistory::Present &entry = viHistory.history[h];
@@ -3406,7 +3409,7 @@ index 3227ab1..3ea827e 100644
                                  presentFb = colorFb;
                                  break;
                              }
-@@ -187,6 +226,17 @@ namespace RT64 {
+@@ -187,6 +229,17 @@ namespace RT64 {
                  }
  
                  if (presentFb->interpolationEnabled) {
@@ -3424,7 +3427,25 @@ index 3227ab1..3ea827e 100644
                      framesToPresent = frameCounters.count;
                  }
                  else {
-@@ -271,6 +321,7 @@ namespace RT64 {
+@@ -215,6 +268,9 @@ namespace RT64 {
+                 if (!present.paused && (viHistory.top().vi != present.screenVI)) {
+                     viHistory.pushVI(present.screenVI, viFb->width);
+                 }
++
++                // A framebuffer the game drew is laid out as the one at the VI, a framebuffer the debugger shows is shown whole.
++                rowsBeforeOrigin = present.debuggerFramebuffer.view ? 0 : present.screenVI.rowsBeforeOrigin(viFb->addressStart);
+             }
+             else {
+                 uint32_t fbAddress = present.screenVI.fbAddress();
+@@ -236,6 +292,7 @@ namespace RT64 {
+                 colorTarget->downsampleMultiplier = 1;
+ 
+                 scratchFb.nativeTarget.resetBufferHistory();
++                rowsBeforeOrigin = present.screenVI.rowsBeforeOrigin(fbAddress);
+ 
+                 {
+                     RenderWorkerExecution workerExecution(ext.presentGraphicsWorker);
+@@ -271,6 +328,7 @@ namespace RT64 {
              if ((framesToPresent > 1) && (usingMSAA || (i > 0))) {
                  // Stall until the interpolated color target is available.
                  const uint32_t targetIndex = usingMSAA ? i : (i - 1);
@@ -3432,7 +3453,7 @@ index 3227ab1..3ea827e 100644
                  std::unique_lock<std::mutex> interpolatedLock(ext.sharedResources->interpolatedMutex);
                  ext.sharedResources->interpolatedCondition.wait(interpolatedLock, [&]() {
                      return (frameCounters.available > targetIndex) || ((frameCounters.available == targetIndex) && frameCounters.skipped);
-@@ -287,7 +338,8 @@ namespace RT64 {
+@@ -287,7 +345,8 @@ namespace RT64 {
  
                  if (i < framesToPresent) {
                      uint32_t targetIndex = usingMSAA ? i : (i - 1);
@@ -3442,7 +3463,7 @@ index 3227ab1..3ea827e 100644
                  }
                  else {
                      colorTarget = nullptr;
-@@ -299,7 +351,9 @@ namespace RT64 {
+@@ -299,7 +358,9 @@ namespace RT64 {
  
              uint32_t swapChainIndex = 0;
              const bool presentFrame = (i < framesToPresent) && swapChainValid;
@@ -3452,7 +3473,15 @@ index 3227ab1..3ea827e 100644
                  swapChainValid = ext.swapChain->acquireTexture(acquiredSemaphore.get(), &swapChainIndex);
              }
  
-@@ -369,6 +423,7 @@ namespace RT64 {
+@@ -313,6 +374,7 @@ namespace RT64 {
+                 
+                 VIRenderer::RenderParams renderParams;
+                 if (colorTarget != nullptr) {
++                    renderParams.rowsBeforeOrigin = rowsBeforeOrigin;
+                     renderParams.device = ext.device;
+                     renderParams.commandList = commandList;
+                     renderParams.swapChain = ext.swapChain;
+@@ -369,6 +431,7 @@ namespace RT64 {
                  }
              }
  
@@ -3460,7 +3489,7 @@ index 3227ab1..3ea827e 100644
              if (lockedWorkloadMutex) {
                  ext.sharedResources->workloadMutex.unlock();
                  lockedWorkloadMutex = false;
-@@ -391,19 +446,67 @@ namespace RT64 {
+@@ -391,19 +454,67 @@ namespace RT64 {
              if (presentFrame && swapChainValid) {
                  // Wait until the approximate time the next present should be at the current intended rate.
                  if ((presentTimestamp != Timestamp()) && (targetRate > 0) && (targetRate > viOriginalRate)) {
@@ -3528,7 +3557,7 @@ index 3227ab1..3ea827e 100644
      }
  
      void PresentQueue::skipInterpolation() {
-@@ -416,6 +519,205 @@ namespace RT64 {
+@@ -416,6 +527,205 @@ namespace RT64 {
          ext.sharedResources->interpolatedCondition.notify_all();
      }
  
@@ -3734,7 +3763,7 @@ index 3227ab1..3ea827e 100644
      void PresentQueue::notifyPresentId(const Present &present) {
          {
              std::scoped_lock<std::mutex> cursorLock(presentIdMutex);
-@@ -446,12 +748,15 @@ namespace RT64 {
+@@ -446,12 +756,15 @@ namespace RT64 {
  
          int processCursor = -1;
          bool skipPresent = false;
@@ -3750,7 +3779,7 @@ index 3227ab1..3ea827e 100644
                  cursorCondition.wait(cursorLock, [&]() {
                      return (writeCursor != threadCursor) || !presentThreadRunning;
                  });
-@@ -459,7 +764,23 @@ namespace RT64 {
+@@ -459,7 +772,23 @@ namespace RT64 {
                  if (presentThreadRunning) {
                      processCursor = threadCursor;
                      threadCursor = (threadCursor + 1) % presents.size();
@@ -3775,7 +3804,7 @@ index 3227ab1..3ea827e 100644
                  }
              }
  
-@@ -501,15 +822,49 @@ namespace RT64 {
+@@ -501,15 +830,49 @@ namespace RT64 {
                      }
                  }
  
@@ -5309,10 +5338,32 @@ index 7a8c13b..0eff3fd 100644
          void setExtendedRDRAM(bool isExtended);
          void setTexcoordWrapPoint(int16_t wrapU, int16_t wrapV);
 diff --git a/src/hle/rt64_vi.cpp b/src/hle/rt64_vi.cpp
-index a870166..dce7792 100644
+index a870166..b6068ac 100644
 --- a/src/hle/rt64_vi.cpp
 +++ b/src/hle/rt64_vi.cpp
-@@ -93,6 +93,23 @@ namespace RT64 {
+@@ -63,6 +63,21 @@ namespace RT64 {
+             (yTransform.word != rhs.yTransform.word);
+     }
+ 
++    uint32_t VI::rowsBeforeOrigin(uint32_t fbAddress) const {
++        // The rows of a framebuffer at fbAddress that come before the VI's origin, which the VI never shows: libultra's
++        // modes put the origin a row in (fbAddress() estimates the framebuffer a row before it, two on an interlaced
++        // field), and a game can keep data there, as F-Zero X keeps an arena's first bytes at the start of its third
++        // framebuffer. The present draws the framebuffer from its first row, so they are counted for it to leave out.
++        const uint8_t siz = fbSiz();
++        const uint32_t fbWidth = fbSize().x;
++        if ((siz < G_IM_SIZ_16b) || (fbWidth == 0) || (origin <= fbAddress)) {
++            return 0;
++        }
++
++        const uint32_t rowBytes = fbWidth << (siz - 1);
++        return std::min((origin - fbAddress) / rowBytes, 2U);
++    }
++
+     uint8_t VI::fbSiz() const {
+         switch (status.type) {
+         case VI_STATUS_TYPE_16_BIT:
+@@ -93,6 +108,23 @@ namespace RT64 {
      }
  
      hlslpp::uint2 VI::fbSize() const {
@@ -5336,7 +5387,7 @@ index a870166..dce7792 100644
          hlslpp::uint2 size = { width, 0 };
          
          // In interlaced without deflickering, the stride of the framebuffer is usually double of 
-@@ -147,6 +164,10 @@ namespace RT64 {
+@@ -147,6 +179,10 @@ namespace RT64 {
          factorCursor = 0;
          history.fill({});
          factors.fill(0);
@@ -5347,7 +5398,7 @@ index a870166..dce7792 100644
      }
  
      void VIHistory::pushVI(const VI &vi, uint32_t fbWidth) {
-@@ -159,16 +180,37 @@ namespace RT64 {
+@@ -159,16 +195,37 @@ namespace RT64 {
      void VIHistory::pushFactor(uint32_t factor) {
          factorCursor = (factorCursor + 1) % factors.size();
          factors[factorCursor] = factor;
@@ -5389,7 +5440,7 @@ index a870166..dce7792 100644
  
      const VIHistory::Present &VIHistory::top() const {
 diff --git a/src/hle/rt64_vi.h b/src/hle/rt64_vi.h
-index 5b70e01..f7edef4 100644
+index 5b70e01..9497cae 100644
 --- a/src/hle/rt64_vi.h
 +++ b/src/hle/rt64_vi.h
 @@ -138,6 +138,10 @@ namespace RT64 {
@@ -5403,7 +5454,15 @@ index 5b70e01..f7edef4 100644
          uint8_t fbSiz() const;
          uint32_t fbAddress() const;
          hlslpp::uint2 fbSize() const;
-@@ -163,6 +167,11 @@ namespace RT64 {
+@@ -151,6 +155,7 @@ namespace RT64 {
+         bool compatibleWith(const VI &vi) const;
+         bool visible() const;
+         bool operator!=(const VI &rhs) const;
++        uint32_t rowsBeforeOrigin(uint32_t fbAddress) const;
+     };
+ 
+     struct VIHistory {
+@@ -163,6 +168,11 @@ namespace RT64 {
          std::array<uint32_t, 3> factors;
          int historyCursor;
          int factorCursor;
@@ -10313,7 +10372,7 @@ index c90b949..e827a4f 100644
          VertexProcessor(RenderDevice *device);
          ~VertexProcessor();
 diff --git a/src/render/rt64_vi_renderer.cpp b/src/render/rt64_vi_renderer.cpp
-index b4ff4e9..e39c8a0 100644
+index b4ff4e9..bbdd13b 100644
 --- a/src/render/rt64_vi_renderer.cpp
 +++ b/src/render/rt64_vi_renderer.cpp
 @@ -38,7 +38,13 @@ namespace RT64 {
@@ -10331,6 +10390,32 @@ index b4ff4e9..e39c8a0 100644
      }
  
      void VIRenderer::render(const RenderParams &p) {
+@@ -78,6 +84,12 @@ namespace RT64 {
+         pushConstants.textureResolution = { float(p.textureWidth), float(p.textureHeight) };
+         pushConstants.gamma = p.vi->gamma();
+ 
++        // The rows before the VI's origin, which a console never shows, in the texture's coordinates: the shader draws them
++        // as the origin's row (VIRenderer::RenderParams::rowsBeforeOrigin).
++        const uint32_t viFbHeight = p.vi->fbSize().y;
++        const float originTop = (viFbHeight > p.rowsBeforeOrigin) ? (float(p.rowsBeforeOrigin) / float(viFbHeight)) : 0.0f;
++        pushConstants.upperLeft = { 0.0f, originTop * pushConstants.videoResolution.y / pushConstants.textureResolution.y };
++
+         p.commandList->setPipeline(shader->pipeline.get());
+         p.commandList->setGraphicsPipelineLayout(shader->pipelineLayout.get());
+         p.commandList->setGraphicsDescriptorSet(descriptorSet->get(), 0);
+diff --git a/src/render/rt64_vi_renderer.h b/src/render/rt64_vi_renderer.h
+index 8a3782a..9b39583 100644
+--- a/src/render/rt64_vi_renderer.h
++++ b/src/render/rt64_vi_renderer.h
+@@ -16,6 +16,8 @@ namespace RT64 {
+         const RenderSampler *descriptorSetSampler = nullptr;
+ 
+         struct RenderParams {
++            // The framebuffer's rows before the VI's origin (VI::rowsBeforeOrigin()), drawn as the origin's row.
++            uint32_t rowsBeforeOrigin = 0;
+             RenderDevice *device = nullptr;
+             RenderCommandList *commandList = nullptr;
+             RenderTexture *texture = nullptr;
 diff --git a/src/rhi/rt64_render_hooks.cpp b/src/rhi/rt64_render_hooks.cpp
 index 2e60745..3981f76 100644
 --- a/src/rhi/rt64_render_hooks.cpp
@@ -12020,13 +12105,16 @@ index 1ceb2ce..39b86ec 100644
      textureSamples[0] = sampleTextureLevel(rdpTile, gpuTile, filterBilerp, filterAverage, linearFiltering, uvCoord, tlut, canDecodeTMEM, RDPMipLevels[0], usesHDR);
      
 diff --git a/src/shaders/VideoInterfacePS.hlsl b/src/shaders/VideoInterfacePS.hlsl
-index 3f33475..05a7536 100644
+index 3f33475..2d5a93a 100644
 --- a/src/shaders/VideoInterfacePS.hlsl
 +++ b/src/shaders/VideoInterfacePS.hlsl
-@@ -11,7 +11,14 @@ SamplerState gSampler : register(s2);
+@@ -11,7 +11,17 @@ SamplerState gSampler : register(s2);
  // Limit texture sampling to the area the VI can sample of the texture.
  
  float4 SampleInput(float2 uv) {
++    // The rows before the VI's origin are drawn as its first row: the VI never shows them, and a game can keep data there
++    // (VI::rowsBeforeOrigin()). Repeating the row below keeps the picture's size and its pixels where they were.
++    uv = max(uv, gConstants.upperLeft + float2(0.5f, 0.5f) / gConstants.textureResolution);
 +#ifdef WEBGPU
 +    // WebGPU has no border addressing, and plume clamps it to the edge, so where the VI shows more lines or columns than
 +    // the target has (a framebuffer the game draws only partway down) the target's last row would repeat to the
@@ -12335,6 +12423,18 @@ index 36fe3b8..3b0621b 100644
  };
  #endif
 \ No newline at end of file
+diff --git a/src/shared/rt64_video_interface.h b/src/shared/rt64_video_interface.h
+index b51cf09..f046373 100644
+--- a/src/shared/rt64_video_interface.h
++++ b/src/shared/rt64_video_interface.h
+@@ -10,6 +10,7 @@
+ namespace interop {
+ #endif
+     struct VideoInterfaceCB {
++        float2 upperLeft; // where the area the VI shows starts in the texture: below the rows before its origin
+         float2 videoResolution;
+         float2 textureResolution;
+         float gamma;
 diff --git a/src/tools/file_to_c/CMakeLists.txt b/src/tools/file_to_c/CMakeLists.txt
 index 22ee3eb..407b127 100644
 --- a/src/tools/file_to_c/CMakeLists.txt
