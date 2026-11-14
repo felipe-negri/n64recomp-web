@@ -82,8 +82,8 @@ options; `docs/findings.md` has what was measured this way.
 
 ## What a change plays
 
-A change is played by what it can break, before it merges (CLAUDE.md, Changing it) and in the retest
-(docs/publishing.md, The retest). A change that could be two kinds is played as the one that risks more.
+A change is played by what it can break, before it merges (CLAUDE.md, Changing it) and in an update
+(docs/publishing.md, Updating games). A change that could be two kinds is played as the one that risks more.
 
 - Can't change a page's bytes (`*.md`, `plays.jsonl`, `site/`, the tools that play, serve, read and publish pages):
   nothing is played. `site/touch_pad.js` is the exception: every game's page runs it on a phone, so a change to it
@@ -100,8 +100,8 @@ A change is played by what it can break, before it merges (CLAUDE.md, Changing i
 - Can crash or leak only over time (memory, a cache, a timing bug that takes minutes to show): a soak, played only for
   a card that says why.
 
-A card that moves a game's pin onto a tag the retest plays, or will, gives it the smoke play and leaves the A/B to the
-retest.
+A card that moves a game onto the newest tag first, beside work of its own (CLAUDE.md, The pins), gives it the smoke
+play: each change it takes was played by what it could break before it merged, the A/B among them.
 
 Each play takes its own turn in the machine's GPU queue (CLAUDE.md, Playing a page). A smoke play is a shared turn,
 beside others' shared turns, with a short limit (about 10 minutes); an A/B's play and a soak are each a whole turn, the
@@ -117,7 +117,7 @@ A series stands on its plan and the files its `evalFile` steps name, so they are
 
 ## Which browser, how long
 
-- Every automatic play (a test, the retest, an A/B, a smoke run) is 2-5 minutes from the launcher to the plan's last
+- Every automatic play (a test, an update's, an A/B, a smoke run) is 2-5 minutes from the launcher to the plan's last
   step, in either browser: a game's regular plan is 2-3 minutes and its extended one 5 or less (Plans), more levels
   fitting by playing each for less. A longer play (a plan of more, a run of 10 minutes or more) is for a card that
   needs one and says why: a soak, a leak or OOM hunt, a timing bug that takes many minutes to show.
@@ -257,13 +257,13 @@ collapse) shows on a desktop as `shader missed:` lines.
 
 ## A page's numbers
 
-The README's Games table shows no frame rates and no dates: a page's numbers are its runs in `plays.jsonl`, and the
-retest and every change are judged against them.
+The README's Games table shows no frame rates and no dates: a page's numbers are its runs in `plays.jsonl`, and an
+update and every change are judged against them.
 
 - A page's number is from a run on integrated graphics (a laptop report or a hand test there), or else from the
   stand-in: the page from Pages on a desktop GPU with a 3840x2000 canvas (about 7 times a laptop window's
   pixels), one CSS pixel a pixel, uncapped (`play_page.mjs --uncapped --size 3840x2000 --play 25`). Uncapped, its
-  presents a second are what the page can make: higher is a cheaper frame, 342 or more is the ceiling, and the retest
+  presents a second are what the page can make: higher is a cheaper frame, 342 or more is the ceiling, and an update
   compares with earlier uncapped runs only. The stand-in is gentler than a laptop and sees cost only, so it finds a
   problem but can't clear one, and a laptop result stays until a newer laptop run replaces it (docs/findings.md, The
   stand-in, measured, and A laptop, measured).
@@ -302,7 +302,7 @@ floppy where this browser, or the signed-in player's Drive, holds a save of it, 
 tiles by name (the default), score or saves (the game saved last first), which the browser remembers. The header says what the page is
 and whose the recomps are, What's new under it the first three entries of `site/news.html`, which it links, and a line under the games that it is written with AI, with the link to this repo. It
 shows no frame rates: every game plays smoothly but in Firefox on a laptop's built-in graphics, so only there does
-the header warn (`site.js`); a retest that finds otherwise changes that warning. Firefox on a phone plays no game, so
+the header warn (`site.js`); a play that finds otherwise changes that warning. Firefox on a phone plays no game, so
 there the header says so in red instead and a tile starts nothing. With its OAuth client (`GOOGLE_CLIENT_ID` in `site.js`, which says how the client is set up) the
 hub offers sign-in with Google, which keeps the player's saves in their own Google Drive (`frontend/save_sync.js` says
 how). Where this browser and the Drive hold a game's saves differently, a sign-in ends in a popup that asks which to

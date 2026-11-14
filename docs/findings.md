@@ -658,6 +658,22 @@ queue: in the one uncapped Firefox play of 2 where the 100 ms build lost 1,689, 
 over 5 s. Mario Party 2's 40 ms in Chrome 2.2 s after a show (docs/new-recomp.md) may be the same hold against a
 thinner ring.
 
+Most of that hold protected nothing. With render to RAM off (Rush 2049, Super Mario 64) a list's long part is RT64's own
+work after it has read everything of the game's: the uploads of its draw data and the wait for the GPU to take them,
+behind the interpolated frames or Firefox's in-line pipeline builds, and the wait for a free slot in the workload
+queue. So RT64 tells the game the RDP is done once a list's tiles are loaded with render to RAM off too, as it does for
+the late copy (rt64 dc57749), and the runtime holds no VI once the game has been told (N64ModernRuntime e3e2d06): the
+game's clock, and the sound it makes, go on through RT64's own waits, and a game whose logic steps every VI can't reach
+anything RT64 still reads. Rush 2049's page, uncapped at 3840x2000, its tab hidden 30 s, two interleaved pairs on one
+build with `?vi-hold-old` for the hold as it was, on a busy host (another browser outside the machine's queue held
+51-88% of the GPU; plays.jsonl sets vi-hold-ffu and vi-hold-chu): in Firefox 4 holds a play, all before its sound
+starts, against 91 and 105 (9.5 and 11.9 s held), and 0 frames of its sound short against 237,524 and 252,824, most of
+those in the 5 s wait for a section's prebuilt shaders as its attract race starts, which the sound now plays through;
+in Chrome 12 and 11 holds against 79 and 105, its sound the same, one run lost in one play of two either way, each at a
+400-760 ms stall of Chrome's page thread while RT64 still read the list, where the hold stays. Presents a second in the
+race read the same. A game that keeps render to RAM's exact copy still holds through its readback, since the copy
+writes RDRAM the game may read.
+
 ## A host that holds Chrome's presents
 
 For half an hour of 2026-10-19 (11:25-11:50 UTC) an RTX 5080 desktop held headless Chrome 155's pages uncapped at
@@ -2214,6 +2230,13 @@ previews, the default-browser check and the upgrade page off in the profile, sta
 
 The measurements behind rules CLAUDE.md and the other docs state without them.
 
+- No run on a schedule moves every game (CLAUDE.md, The pins): 23 runs that each moved every game onto main's newest
+  tag, v0.46.0 to v0.184.0, took 5-10 hours with 18 games and 25-38 hours with 38, each starting as the last ended,
+  and played 35-70 pages a run in 1-2 hours of plays (`plays.jsonl`); the rest was builds a game at a time, the own
+  recomps' pin PRs and their releases. Nearly every run changed nearly every page's files (27-38 of 38 played). From
+  v0.58.0's run (Pilotwings 64 in Firefox, 10% fewer presents) on, none held a page back for playing worse, and each
+  failed play played clean again; what they found were game forks' own patches that stopped applying over a new tag
+  (CI's patch checks find those at the PR) and the runs' own tools.
 - `thread_stdio.js`: Emscripten proxies every write to stdout or stderr to the page's thread, WebGPU's, and waits, so
   each line held its thread for up to a frame. Banjo-Tooie's upstream logs ~100 lines a second: its title screen's sound
   was 12,900-13,400 frames short of ~2.1 million before, 235-1,325 with it.
