@@ -1005,4 +1005,8 @@ N64ModernRuntime       ULTRAMODERN_VIS_WAIT_FOR_RENDERER holds no VI once the re
 e3e2d06                is done (renderer::rdp_done_pending): the game's clock and its sound go on through RT64's own
                        waits (docs/findings.md, A page in a hidden tab)
 RecompFrontend 7021771 rdp_done's comment says RT64 sends it early with render to RAM off too
+rt64 2ae34d1           the present draws a framebuffer's rows before the VI's origin (VI::rowsBeforeOrigin(): one in
+                       libultra's modes, none where the framebuffer is at the origin) as the origin's row, in the VI
+                       shader: a console never shows them, and F-Zero X keeps an arena's first bytes at the start of its
+                       third framebuffer, a dark-blue block at the window's top-left on its title screen
 ```
