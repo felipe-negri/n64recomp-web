@@ -8,11 +8,12 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Eighteen options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Nineteen options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_FREE_DISCARDED_TARGETS` (rt64 51c3fdd), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
-`RT64_PARTIAL_SCREEN_PAIRS` (rt64 89abe33), `RT64_STRETCH_SCREEN_COVERS` (rt64 4550e10),
+`RT64_PARTIAL_SCREEN_PAIRS` (rt64 89abe33), `RT64_STRETCH_SCREEN_COVERS` (rt64 4550e10), `RT64_KEEP_THIN_RECTS` (rt64
+04dc9cf, which Perfect Dark's desktop build turns on),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334), `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime
 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS` (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED`
 (N64ModernRuntime 0ec6c51), `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
@@ -1005,4 +1006,16 @@ N64ModernRuntime       ULTRAMODERN_VIS_WAIT_FOR_RENDERER holds no VI once the re
 e3e2d06                is done (renderer::rdp_done_pending): the game's clock and its sound go on through RT64's own
                        waits (docs/findings.md, A page in a hidden tab)
 RecompFrontend 7021771 rdp_done's comment says RT64 sends it early with render to RAM off too
+rt64 81c9893           render to RAM's late copy is dropped for the CPU's writes only where the copy writes, its rows
+                       from the drawn rect's top, not from the framebuffer's start: Perfect Dark's split screen points
+                       the bottom player's depth image half a screen before the z-buffer, over the players' structs
+                       the game writes every tick, and in a two-player match that player's depth rows were dropped in
+                       about one list of five (~250 times in 40 s)
+rt64 04dc9cf           RT64_KEEP_THIN_RECTS: Fix LR with Scissor leaves a rect one pixel tall or wide as the game drew
+                       it, not stretched to the scissor's edge. Perfect Dark copies the framebuffer back a row at a
+                       time for its motion blur and night vision, and its second to last row, a pixel above the view's
+                       bottom, was stretched over the last row, which then read TMEM's next line: green and purple
+                       specks every 32 pixels above the cutscenes' bottom bar, at any resolution. Its desktop build,
+                       the blur forced to its strongest in Defection, showed them in all 20 captures, and with this in
+                       none. Its page drew none either way: there the row is drawn from a tile copy that repeats it
 ```
