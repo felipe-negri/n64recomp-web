@@ -40,7 +40,7 @@ items by almost no game when the record began.
 
 | Game | New recomp: left | Web port: left |
 |---|---|---|
-| San Francisco Rush 2049 | 1a, 4c fails, 8a fails | W5, W6's Drive |
+| San Francisco Rush 2049 | 4c fails, 8a fails | W5, W6's Drive |
 | Perfect Dark | 2 fails, 4c, 8a fails | W5 fails, W6's Drive |
 | Super Mario 64 | | W5 fails, W6's Drive |
 | F-Zero X | 1a | W6's Drive |
@@ -173,7 +173,10 @@ picture's.
   players, one above the other) is widened by RT64 as one player's is, so its culling and its HUD are widened with it,
   or the window's sides draw black and the radar is stretched; a view narrower than the frame (side by side, quarters)
   stays 4:3, and the window beside it is cleared once a frame, or it keeps an old frame stretched to the sides
-  (Perfect Dark's Combat Simulator showed both, its `patches/widescreen.c`).
+  (Perfect Dark's Combat Simulator showed both, its `patches/widescreen.c`). Views widened past 4:3 with RT64's
+  origins stop where HUD Placement does, at 16:9's edges by default, so a 21:9 window is played too: the frame's clear
+  stays a fill RT64 widens to the window, not one anchored with the views, or the window past them keeps the last
+  menu's picture (Rush 2049's split screen, its `src/widescreen.cpp`).
 
 ### 2. A graphics sweep, played past the first level
 
