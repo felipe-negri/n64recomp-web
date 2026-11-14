@@ -173,10 +173,13 @@ picture's.
   players, one above the other) is widened by RT64 as one player's is, so its culling and its HUD are widened with it,
   or the window's sides draw black and the radar is stretched; a view narrower than the frame (side by side, quarters)
   stays 4:3, and the window beside it is cleared once a frame, or it keeps an old frame stretched to the sides
-  (Perfect Dark's Combat Simulator showed both, its `patches/widescreen.c`). Look at the window's outermost columns
-  too: what a game sizes to its view can end just short of it where the console's border hid that, and widened it
-  leaves a strip of an old frame at the edge (F-Zero X's two-player sky, 0.4% narrower than the view: 2-3 columns of
-  a 1680x720 window, its `patches/widescreen.c`).
+  (Perfect Dark's Combat Simulator showed both, its `patches/widescreen.c`). Views widened past 4:3 with RT64's
+  origins stop where HUD Placement does, at 16:9's edges by default, so a 21:9 window is played too: the frame's clear
+  stays a fill RT64 widens to the window, not one anchored with the views, or the window past them keeps the last
+  menu's picture (Rush 2049's split screen, its `src/widescreen.cpp`). Look at the window's outermost columns too:
+  what a game sizes to its view can end just short of it where the console's border hid that, and widened it leaves a
+  strip of an old frame at the edge (F-Zero X's two-player sky, 0.4% narrower than the view: 2-3 columns of a
+  1680x720 window, its `patches/widescreen.c`).
 
 ### 2. A graphics sweep, played past the first level
 
