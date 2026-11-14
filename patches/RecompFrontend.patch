@@ -1,4 +1,4 @@
-RecompFrontend: https://github.com/n64hub/RecompFrontend-web 9753051afe2773cca81b02d9b878c46ebd1e227a
+RecompFrontend: https://github.com/n64hub/RecompFrontend-web 702177195c8f3c013d19a4a66c1b79e6de3f2b0d
 on upstream b2c5c18d73054416c844486611fd2c2b9d8a4927 (tools/export_patches.sh)
 
 diff --git a/recompinput/CMakeLists.txt b/recompinput/CMakeLists.txt
@@ -1119,7 +1119,7 @@ index e99229a..d732a2b 100644
  #include "RmlUi/Core/StreamMemory.h"
  #include "RmlUi/../../Source/Core/DocumentHeader.h"
 diff --git a/recompui/src/renderer/rt64_render_context.cpp b/recompui/src/renderer/rt64_render_context.cpp
-index a7954c7..640a8cd 100644
+index a7954c7..ae85526 100644
 --- a/recompui/src/renderer/rt64_render_context.cpp
 +++ b/recompui/src/renderer/rt64_render_context.cpp
 @@ -20,6 +20,8 @@ using namespace recompui;
@@ -1136,9 +1136,9 @@ index a7954c7..640a8cd 100644
  void dummy_check_interrupts() {}
  
 +#if defined(__EMSCRIPTEN__)
-+// With render to RAM's late copy, RT64 tells the game the RDP is done before it records and submits a list's workload,
-+// so the game goes on meanwhile (ultramodern::renderer::rdp_done), once a game's task: never for a list RT64 draws by
-+// itself (a pipeline warm-up, a dummy workload).
++// With render to RAM off or its late copy, RT64 tells the game the RDP is done before it records and submits a list's
++// workload, so the game goes on meanwhile (ultramodern::renderer::rdp_done), once a game's task: never for a list RT64
++// draws by itself (a pipeline warm-up, a dummy workload).
 +static bool sending_game_dl = false;
 +
 +static void rdp_done() {

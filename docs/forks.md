@@ -999,6 +999,13 @@ rt64 aabee0e, 2eb3bbd  the workload thread puts the color images a frame draws (
                        with the map open lacked it in each of three plays, interpolated or not; 0 of 666 in two plays
                        after (0 of 1,199 in four with aabee0e). 2eb3bbd drops aabee0e's locked copy in the present and the set's removal, which met game
                        forks' own rt64 lines (Beetle's, DKR's, Rogue Squadron's)
+rt64 dc57749           without render to RAM, a list that ends at its full sync tells the game its RDP is done once its
+                       tiles are loaded, before RT64's uploads, their wait and the submission, as 1c9e639 does for the
+                       late copy; a desktop build (no rdpDone) is unchanged
+N64ModernRuntime       ULTRAMODERN_VIS_WAIT_FOR_RENDERER holds no VI once the renderer has told the game the list in hand
+e3e2d06                is done (renderer::rdp_done_pending): the game's clock and its sound go on through RT64's own
+                       waits (docs/findings.md, A page in a hidden tab)
+RecompFrontend 7021771 rdp_done's comment says RT64 sends it early with render to RAM off too
 rt64 04dc9cf           RT64_KEEP_THIN_RECTS: Fix LR with Scissor leaves a rect one pixel tall or wide as the game drew
                        it, not stretched to the scissor's edge. Perfect Dark copies the framebuffer back a row at a
                        time for its motion blur and night vision, and its second to last row, a pixel above the view's
