@@ -1,49 +1,55 @@
-# The retest and publishing
+# Updating games and publishing
 
-How a change here reaches every game's page: the retest, a critical fix, and how pages are built and published.
-CLAUDE.md (The pins) has the rules this carries out; `tools/publish_pages.sh`'s header has its options.
+How a change here reaches the games' pages and desktop builds: an update, a critical fix, and how pages are built and
+published. CLAUDE.md (The pins) has the rules this carries out; `tools/publish_pages.sh`'s header has its options.
 
-## The retest
+## Updating games
 
-A run on a schedule that takes every change since the last one at once:
+A game moves onto a newer tag of this repo in an update: when a change merged here gives the games it reaches something
+a player would notice, in that change's own work, and whenever the game is updated for any other reason, first
+(CLAUDE.md, The pins). There is no run on a schedule that moves every game: docs/findings.md (Behind CLAUDE.md's
+rules) has what one cost and found.
 
-- For each game fork it builds the page on main's newest tag and, if the page's files changed, plays that build by
-  what the tag can break (docs/playing.md, What a change plays), read from what it took since the last retest
-  (`git log <played>..<tag>`). Every changed page gets the smoke play of its build in Firefox,
-  `tools/ab_pages.mjs --smoke`, and Chrome's boot from Pages after it is published (`tools/publish_pages.sh`). A tag
-  that can move speed or timing also gets the A/B, `tools/ab_pages.mjs`, on two or three games that stand for the rest
-  (Banjo-Kazooie and Conker's Bad Fur Day, and the game a change in it was about): a shared change moves every page the
-  same way, so an A/B of each would measure the same thing again and again. If one of those plays worse, every other
-  changed page gets the A/B too before any moves. Each play is by the game's regular plan (2-3 minutes), uncapped at the
-  stand-in's size, and goes in `plays.jsonl` under one `--set` with its `--role` and a note saying so; ab_pages.mjs's
-  header says what it plays and how it reads a verdict: a build is worse only if its second Chrome run is worse too, a
-  drop within the noise is not, and a build whose Firefox play isn't clean is worse only if Pages' plays clean, its
-  failure filed either way. Leaks, OOMs and other faults that take many minutes to show are the soak's, not the
-  retest's.
+An update, for the games it moves:
+
+- Builds each game's page on the tag and, if its files changed, plays that build by what the changes since its last
+  tag can break (docs/playing.md, What a change plays), read from `git log <played>..<tag>`. Every changed page gets
+  the smoke play of its build in Firefox, `tools/ab_pages.mjs --smoke`, and Chrome's boot from Pages after it is
+  published (`tools/publish_pages.sh`). Changes that can move speed or timing also get the A/B, `tools/ab_pages.mjs`,
+  on two or three of the games that stand for the rest (Banjo-Kazooie and Conker's Bad Fur Day, and the game a change
+  was about) where the update moves them: a shared change moves every page the same way, so an A/B of each would
+  measure the same thing again and again. If one of those plays worse, every other changed page gets the A/B too
+  before any moves. Each play is by the game's regular plan (2-3 minutes), uncapped at the stand-in's size, and goes
+  in `plays.jsonl` under one `--set` with its `--role` and a note saying so; ab_pages.mjs's header says what it plays
+  and how it reads a verdict: a build is worse only if its second Chrome run is worse too, a drop within the noise is
+  not, and a build whose Firefox play isn't clean is worse only if Pages' plays clean, its failure filed either way.
+  Leaks, OOMs and other faults that take many minutes to show are a soak's, not an update's.
 - Only a page that boots with no WebGPU errors and plays no worse than its earlier runs moves its fork's
   N64Recomp-browser onto the tag (a commit to the fork's `main`) and is published. One that plays
   worse stays on Pages as it was, its fork on its last tag, and has work filed. So a fork's `main` is what its page was
   built from, and `git log <played>..<built>` here lists what a page took since it was last played.
 - Rush 2049, Perfect Dark, Super Mario 64, F-Zero X, Mario Party 1, 2 and 3, Super Smash Bros., Paper Mario,
-  Rayman 2, Donald Duck: Goin' Quackers, Dinosaur Planet, Turok: Dinosaur Hunter, Turok 2 and Turok 3, this project's own recomps, are retested in the same work, built, played and recorded the same way, never filed for later; only
-  their pins move differently, by a PR on each one's repo that moves `lib/N64Recomp-browser` to the tag, and its submodules of upstream's (`lib/rt64`,
+  Rayman 2, Donald Duck: Goin' Quackers, Dinosaur Planet, Turok: Dinosaur Hunter, Turok 2 and Turok 3, this project's
+  own recomps, are built, played and recorded the same way; only their pins move differently, by a PR on each one's
+  repo that moves `lib/N64Recomp-browser` to the tag, and its submodules of upstream's (`lib/rt64`,
   `lib/N64ModernRuntime`, `lib/RecompFrontend`) to the commits the tag's `patches/patches.txt` names, as its CI
-  checks, and builds the same bytes, which the retest merges before it publishes the page. Rush 2049's PR also runs the desktop game, and its pin moves even to a tag that
-  left its page's bytes alone, since its desktop build can take something from it. Once a pin's PR merges, the run
-  sees that recomp's desktop build released as CLAUDE.md's Releasing says, after one of its releases in flight if there
-  is one: a pin move is the desktop build's RT64 and runtime moving too. The pin's PR is the tree that was built, so
-  it adds nothing to `releases/next.md`; the run says what the move brings in the release it cuts, and a release cut by
-  other work meanwhile carries it unnamed. A critical fix that plays every game takes it along the same way. One whose
-  main already has its pin at the tag (a critical fix moved it) gets no PR: that main is what was built, and it is
-  published as it is (`tools/retest.sh`).
+  checks, and builds the same bytes, which the update merges before it publishes the page. Rush 2049's PR also runs
+  the desktop game, and an update moves it for a change that reaches only its desktop build too. Once a pin's PR
+  merges, the update sees that recomp's desktop build released as CLAUDE.md's Releasing says, after one of its
+  releases in flight if there is one: a pin move is the desktop build's RT64 and runtime moving too. The pin's PR is
+  the tree that was built, so it adds nothing to `releases/next.md`; the update says what the move brings in the
+  release it cuts, and a release cut by other work meanwhile carries it unnamed. One whose main already has its pin at
+  the tag (other work moved it) gets no PR: that main is what was built, and it is published as it is
+  (`tools/update_games.sh`). Work in an own recomp's repo that moves its pin first (CLAUDE.md, The pins) makes the
+  same move in its own PR, beside its change, built and played with it.
 - A recomp of the project's own is not published until its game is released (none is held now): its line in
   `tools/publish_pages.sh`'s `unreleased` holds it, builds it only as a dry run and leaves it out of a run that names
-  no game. The retest still moves its pin as it does the other recomps' (a PR on its repo that moves
+  no game. An update still moves its pin as it does the other recomps' (a PR on its repo that moves
   `lib/N64Recomp-browser` to the tag, its page built with `--dry-run` and played by the smoke play), merges it, and
   publishes nothing: else nothing moves it, and the fixes made here for it never reach its builds. The work that
   releases the game takes it off the list, publishes its page and adds its row to the README's Games table.
 - `tools/publish_pages.sh <rush-2049-recomp checkout> --browser <tag> --keep <dir>`, run where the ROMs are, builds
-  every game's main, Rush 2049's too, with its pin moved to the tag as that PR or commit moves it (in the build host's
+  every game's main, or the ones it is given, Rush 2049's too, with its pin moved to the tag as that PR or commit moves it (in the build host's
   copy only), names
   the pages whose files differ from what Pages serves and copies each of those builds into `<dir>/<game>` as it
   finishes; one with the same bytes took nothing and is left alone. Those are played from `<dir>`, and nothing waits
@@ -59,24 +65,24 @@ A run on a schedule that takes every change since the last one at once:
   <game>...`. The rest are not, about 3 minutes a page: their bytes played clean in Firefox from the build, and how the
   hub serves them is what those plays and the boots check. play_pages.sh needs no build: a second machine with the ROMs
   can play those while the first builds and plays the next games, and hand back its `plays.jsonl` lines as a branch for
-  the run's PR. Every play,
+  the update's PR. Every play,
   the boots included, takes its turn in the same queue, so one page plays at a time on the machine (CLAUDE.md,
   Playing a page). A game fork whose own patches have to change with its pin (one that no longer applies on the tag)
   builds that commit with `--ref <commit> --browser <tag>` and plays it before its main moves. So does one whose own
   patches carry a copy of a fix the tag now has (docs/forks.md names it beside the fork's commit): the commit that moves
   its pin drops the copy, which leaves the shared fix the only one, unless a desktop build of the fork applies its own
   patches and no web patch (Conker's build.cmd, Banjo-Tooie's): the copy stays for that build.
-- `tools/retest.sh <rush-2049-recomp checkout> <tag> <dir> --ab <game>...` runs all of the above for every game, a
-  game at a time and a play per GPU turn (`--queue`), up to the PRs on the own recomps' repos, which it opens: their
+- `tools/update_games.sh <rush-2049-recomp checkout> <tag> <dir> [<game>...] --ab <game>...` runs all of the above
+  for the games it is given (every game without), a game at a time and a play per GPU turn (`--queue`), up to the PRs on the own recomps' repos, which it opens: their
   merges (Rush 2049's after its desktop run) are the run's by hand. Started again with the same `<dir>` it goes on
   where it stopped, and publishes and plays from Pages each own recomp whose PR has merged; its header says what each
   step reads and writes.
 
 ## A critical fix
 
-A fix for a page on Pages that crashes, never boots, loses its WebGPU device or can't be played moves the pins of the
-games it fixes (this project's own recomps' by a PR), builds, plays in Chrome and Firefox and publishes each,
-in the same work; the others take it in the retest.
+A fix for a page on Pages that crashes, never boots, loses its WebGPU device or can't be played updates every game it
+fixes (this project's own recomps' by a PR), builds, plays in Chrome and Firefox and publishes each, in the same work;
+the others take it with their next update.
 
 A change only a desktop build compiles (code outside the WGSL build, rt64 7734fe4) reaches Rush 2049's desktop build
 through its pin, checked by a run of the desktop game: no page is republished and no game fork moves.
