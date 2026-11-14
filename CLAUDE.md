@@ -21,7 +21,7 @@ a doc points at the other.
   - `docs/porting.md`: what the web needs: WebGPU and the shaders, prebuilt shader lists, Emscripten, mods. Read it
     before a port or a change to a fork.
   - `docs/playing.md`: playing and measuring a page, a page's numbers, the games page (`site/`).
-  - `docs/publishing.md`: the retest, a critical fix, building and publishing pages.
+  - `docs/publishing.md`: updating games onto a tag, a critical fix, building and publishing pages.
   - `docs/forks.md`: every fork commit by its label. `docs/game-forks.md`: each game fork's port, its game's own frame
     rate, how the games compare. Read a game fork's part there and its own docs before changing it.
   - `docs/findings.md`: what has been measured, the numbers behind this file's rules included.
@@ -180,7 +180,7 @@ so commit to a fork from a separate clone of it:
    can, each a game fork's checkout with its N64Recomp-browser at the branch's commit. After the merge, CI's `tag` job
    tags main `v0.<n+1>.0` when its jobs pass, for a merge that changes `forks.txt`, `patches/`, `frontend/` or
    `renderer/`; check it came (`git ls-remote --tags origin`). A tag is a release: a recomp checks this repo out at
-   one, and the retest builds the newest.
+   one, and a game's update moves it onto the newest (The pins).
 
 Read docs/porting.md before a fork change, and docs/findings.md (WebGPU in Chrome and Firefox) before changing plume's
 backend or how RT64 builds pipelines or presents on the web.
@@ -188,22 +188,35 @@ backend or how RT64 builds pipelines or presents on the web.
 ## The pins
 
 A change to what a page runs (a fork, `forks.txt`, `patches/`, `frontend/`) ends at its merge and tag, played by what
-it can break (Changing it). Every game takes it in the next retest, a run on a schedule that takes every change since
-the last one at once (docs/publishing.md): it builds each game's page on the newest tag, plays the ones whose files
-changed (each once in Firefox for crashes and errors, and an A/B in Chrome against the page Pages serves on two or three
-games that stand for the rest when the tag can move speed), and only a page that boots with no WebGPU errors and plays
-no worse than Pages moves its fork onto the tag and is published. One that plays worse stays on
-Pages as it was and has work filed. Rush 2049, Perfect Dark, Super Mario 64, F-Zero X, Mario Party 1, 2 and 3,
-Super Smash Bros., Paper Mario, Rayman 2, Donald Duck: Goin' Quackers, Dinosaur Planet, Turok: Dinosaur Hunter, Turok 2 and Turok 3 are retested in the same work, never filed for later: each one's pin moves by a PR on its repo that the retest opens and merges, Rush 2049's even to a tag
-that left its page's bytes alone, and each is released (Releasing). A new recomp of the project's own whose game isn't released yet is held unreleased
-(docs/publishing.md): the retest moves its pin the same way, built and played, and publishes nothing for it.
+it can break (Changing it). One that might break a game is fixed before it merges, not after: that is what those plays
+are for, and a game it could break is played too. Its PR says what it reaches and what they gain, a line
+`Reaches: <every game | the games | no game>: <what a player gets>`, since that decides what moves. Nothing moves every
+game on a schedule: nearly every change reaches every page's files, and most give a player nothing they would notice,
+so moving each game for each one is work for nothing (docs/findings.md, Behind CLAUDE.md's rules, has what a
+scheduled run cost and found).
 
-A critical fix doesn't wait for the retest: a fix for a page on Pages that crashes, never boots, loses its WebGPU
-device or can't be played moves the pins of the games it fixes (this project's own recomps' by a PR), builds, plays in Chrome and
-Firefox and publishes each, in the same work. A bug only main has waits for the retest; once
-the retest publishes it, its fix is critical.
+- A change a player would notice in the games it reaches updates them in the same work, once its tag is out: a crash,
+  hang or stuck game fixed, sound, a feature, a desktop-build fix, or a speed-up they would see (a page below 60 or
+  its game's own rate that reaches it, hitches gone). One they wouldn't (a few presents on a page already at 60, a
+  refactor, a tool, an option that is off) updates nothing, and rides with each game's next update. Common sense
+  decides which, and the PR's line says it.
+- A game updated for any reason (a change to its own repo, its shader list, an update here) moves onto main's newest
+  tag first, in the same work, and is built and played on it.
+- An update moves a game fork's N64Recomp-browser by a commit to the fork's `main`, and Rush 2049's, Perfect Dark's,
+  Super Mario 64's, F-Zero X's, Mario Party 1, 2 and 3's, Super Smash Bros.', Paper Mario's, Rayman 2's, Donald Duck:
+  Goin' Quackers', Dinosaur Planet's, Turok: Dinosaur Hunter's, Turok 2's and Turok 3's by a PR on its repo that the
+  work merges. Each is built, played by what the change can break (docs/playing.md, What a change plays) and
+  published, and an own recomp's desktop build is released (Releasing). A page that plays worse on the tag stays on
+  Pages as it was and has work filed. One update carries every change merged before it (`tools/update_games.sh`): a
+  game with one in flight is left to it, and its next carries what came later. A new recomp of the project's own whose
+  game isn't released yet is held unreleased (docs/publishing.md): an update moves its pin the same way, built and
+  played, and publishes nothing for it.
 
-**Publishing** is the deploy; no CI job does it. A retest or critical fix publishes the pages it moves, and a change to
+A critical fix is the most urgent of these: a fix for a page on Pages that crashes, never boots, loses its WebGPU
+device or can't be played updates every game it fixes, played in Chrome and Firefox, in the same work. A bug only
+main has is fixed before a game is updated onto it; once a page on Pages has it, its fix is critical.
+
+**Publishing** is the deploy; no CI job does it. An update publishes the pages it moves, and a change to
 one game's own repo sees that game's page published, unasked, and its desktop build released (Releasing). One publish
 carries every change merged since the last, so the work that lands one doesn't publish a page of its own for it:
 
@@ -225,7 +238,7 @@ merge reaches nobody. How: docs/publishing.md.
 **Releasing** is the desktop build's deploy, and nothing waits for it: most players play the desktop build, on
 Windows or Linux, and the page's publish doesn't reach them. A recomp of the project's own with desktop releases gets a
 new one whenever its main has something its last release lacks that the desktop build runs: a fix or feature in its
-own code, or a pin moved by the retest, a critical fix or a fork change (the forks are the desktop build's RT64 and
+own code, or a pin moved by an update or a critical fix (the forks are the desktop build's RT64 and
 runtime too). One release carries every such change merged since the last, so the work that lands one doesn't cut a
 release of its own for it:
 
@@ -251,13 +264,13 @@ and its fix lands silently. A game fork has no desktop release of its own, so it
 ## The games table
 
 The README's Games table has each game's recomp, repo and page, and nothing about how it plays: a frame rate or a date
-means nothing to a player, so a page's numbers are kept in `plays.jsonl`, and kept good. Whoever plays a page that changed (a retest, a critical fix, a change to a game's repo or shader list) does all
+means nothing to a player, so a page's numbers are kept in `plays.jsonl`, and kept good. Whoever plays a page that changed (an update, a critical fix, a change to a game's repo or shader list) does all
 of this in the same work, as docs/playing.md says:
 
 - Plays it in Chrome and Firefox, always both (Chrome for the numbers, Firefox for what only it turns up: a race in
   the game's loads, an OOM), its build before it is published and from Pages after: launcher, Load ROM, the shader
   wait, menus (look at them, a `shot` step), a level or race, sound, the frame rate, WebGPU errors in the console.
-  A publish of the files that were played (a retest's, a game's own repo's) plays from Pages in Firefox only the
+  A publish of the files that were played (an update's, a game's own repo's) plays from Pages in Firefox only the
   A/B's games and each page whose `.html` differs from the hub's (its own shell, whose Content-Security-Policy once
   failed only from Pages): the others' bytes played clean in Firefox from the build, and their serving is the hub's,
   which those plays and every page's boot from Pages in headless Chrome check (docs/publishing.md).
@@ -269,7 +282,7 @@ of this in the same work, as docs/playing.md says:
 
 ## Playing a page
 
-- Every automatic play (a test, the retest, an A/B, a smoke run) is 2-5 minutes. A game is played by its regular plan
+- Every automatic play (a test, an update's, an A/B, a smoke run) is 2-5 minutes. A game is played by its regular plan
   (`play_plan.json`, 2-3 minutes); its extended plan (`play_plan_extended.json`, 5 at most) is played only when needed,
   written by the first card that needs it, and the shaders it misses go into the game's list. A longer one (a plan of
   more, a run of 10 minutes or more) is for a card that needs it and says why: a soak, a leak or OOM hunt, a timing

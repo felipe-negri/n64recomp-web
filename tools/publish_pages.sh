@@ -31,7 +31,7 @@
 # 6. Prints the pages it published, which are then played in Chrome and Firefox (CLAUDE.md,
 #    The games table): that needs Firefox in a window. A --played publish's were played before it.
 # --dry-run stops after 3, saying which pages differ.
-# --browser <commit> is the retest before the pins move (CLAUDE.md, "The pins"): a dry run of every game with its
+# --browser <commit> is an update before the pins move (CLAUDE.md, "The pins"): a dry run of every game with its
 # N64Recomp-browser moved to <commit> (a tag, or a commit this checkout has) in its copy only. An own recomp's (own,
 # below) is a commit of its own on top of main, made here (pin_tree), synced there and pushed nowhere, which also moves
 # the submodules N64Recomp-browser patches to the upstream commits <commit>'s patches/patches.txt names, as each one's
@@ -55,8 +55,8 @@
 # Every line names the commit built ("commit <sha>", not "main <sha>").
 # --keep <dir> (with a dry run: --dry-run, --browser, --ref) copies each build that differs into <dir>/<game>, with a
 # file `built` naming the commit and the N64Recomp-browser commit it was built from (- for its own pin) and the tree
-# it built (with --browser, the tree its pin commit has: pin_tree): what the retest or a game's publish plays, which
-# another run's build in the same copy can't overwrite, and the tree retest.sh's pin commit takes. --played <dir>
+# it built (with --browser, the tree its pin commit has: pin_tree): what an update or a game's publish plays, which
+# another run's build in the same copy can't overwrite, and the tree update_games.sh's pin commit takes. --played <dir>
 # then publishes those files as they were played, without building again, as the newest commit on origin/main's own
 # line since the one built with that tree (the same files, so the same bytes): that commit, or the one that moved its
 # pin. Main may have moved on since, a change merged during a publish being the next one's (CLAUDE.md, Publishing);
@@ -161,7 +161,7 @@ t3     n64hub/turok-3-recomp                 Turok3Recompiled     build/web turo
 # only as a dry run (--dry-run, --browser, --ref), so their pins can still be built and played.
 unreleased=" "
 # This project's own recomps, whose pins move by a pull request on their repos (CLAUDE.md, The pins), and which pin
-# upstream's own commits of what N64Recomp-browser patches as submodules (pin_tree). retest.sh reads this list.
+# upstream's own commits of what N64Recomp-browser patches as submodules (pin_tree). update_games.sh reads this list.
 own=" rush pd sm64 fzx mp1 mp2 mp3 ssb pm r2 ddgq dino t1 t2 t3 "
 selected=("${args[@]:1}")
 [[ ${#selected[@]} -gt 0 ]] || selected=($(awk -v u="$unreleased" 'NF && !index(u, " " $1 " ") { print $1 }' <<< "$games"))
@@ -206,7 +206,7 @@ exclude() {
         printf '%s\n' '# publish_pages.sh' '/build*/' '/host/build-web/' '/N64Recomp' '/RSPRecomp' '/OfflineModRecomp' \
             '*.z64' '/RecompiledFuncs/' '/RecompiledPatches/' '/reference/' '/.venv/' >> .git/info/exclude
 }
-# browser_at <commit>: N64Recomp-browser moved to <commit> in a commit of the copy's own, for a game fork's retest (an
+# browser_at <commit>: N64Recomp-browser moved to <commit> in a commit of the copy's own, for a game fork's update (an
 # own recomp's is a commit made here, pin_tree): the build is
 # then what main builds once the fork's pin is moved there, which a run after the move checks (the same bytes).
 browser_at() {
