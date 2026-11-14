@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web ba4aa1c69197937a04c2a78e6936a76374895833
+rt64: https://github.com/n64hub/rt64-web 81c9893c6017fd7244358fd014a1acefc9b1671e
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -1604,7 +1604,7 @@ index 785de27..1c18cf8 100644
          if (!appConfig.useConfigurationFile || userPaths.isEmpty()) {
              return false;
 diff --git a/src/hle/rt64_application.h b/src/hle/rt64_application.h
-index 6c83fe0..1e873a7 100644
+index 6c83fe0..4abc904 100644
 --- a/src/hle/rt64_application.h
 +++ b/src/hle/rt64_application.h
 @@ -90,6 +90,11 @@ namespace RT64 {
@@ -1612,8 +1612,8 @@ index 6c83fe0..1e873a7 100644
              void (*checkInterrupts)();
  
 +            // Optional: tells the game a list's RDP work is done before RT64 has recorded and submitted its workload, so
-+            // the game goes on meanwhile (State::fullSync(), with render to RAM's late copy). Called on the thread that
-+            // processes the list, once RDRAM holds nothing more RT64 reads for it.
++            // the game goes on meanwhile (State::fullSync(), with render to RAM off or its late copy). Called on the thread
++            // that processes the list, once RDRAM holds nothing more RT64 reads for it.
 +            void (*rdpDone)() = nullptr;
 +
              VI decodeVI() const;
@@ -4279,7 +4279,7 @@ index 8858dac..a9417c7 100644
          EnhancementConfiguration enhancementConfig;
          EmulatorConfiguration emulatorConfig;
 diff --git a/src/hle/rt64_state.cpp b/src/hle/rt64_state.cpp
-index 2970e71..8f2ae23 100644
+index 2970e71..a52915c 100644
 --- a/src/hle/rt64_state.cpp
 +++ b/src/hle/rt64_state.cpp
 @@ -7,6 +7,13 @@
@@ -4838,7 +4838,21 @@ index 2970e71..8f2ae23 100644
          }
          else {
              // Process all tiles.
-@@ -1591,11 +1934,18 @@ namespace RT64 {
+@@ -1569,6 +1912,13 @@ namespace RT64 {
+                 fullSyncFramebufferPairTiles(workload, workload.fbPairs[f], loadOpCursor, rdpTileCursor);
+             }
+ 
++            // Without render to RAM nothing of RDRAM is read for the list once its tiles are loaded: what is left is
++            // RT64's own uploads, the wait for the GPU to take them, and the workload's submission. So, as with the late
++            // copy above, if the list ends here the game is told the RDP is done now and goes on meanwhile.
++            if (listEndsAfterFullSync && (ext.app->core.rdpDone != nullptr)) {
++                ext.app->core.rdpDone();
++            }
++
+             // Do not render anything, just wait for the data to be uploaded.
+             ext.framebufferGraphicsWorker->commandList->begin();
+             ext.drawDataUploader->commandListBeforeBarriers(ext.framebufferGraphicsWorker);
+@@ -1591,11 +1941,18 @@ namespace RT64 {
              textureManager.removeHashes(evictedTextureHashes);
          }
  
@@ -4858,7 +4872,7 @@ index 2970e71..8f2ae23 100644
  
              advanceFramebufferRenderer();
  
-@@ -1805,7 +2155,7 @@ namespace RT64 {
+@@ -1805,7 +2162,7 @@ namespace RT64 {
  
                  for (size_t h = 0; (h < viHistory.history.size()) && !viPresented; h++) {
                      const VIHistory::Present &entry = viHistory.history[h];
@@ -4867,7 +4881,7 @@ index 2970e71..8f2ae23 100644
                      const hlslpp::uint2 fbSize = entry.vi.fbSize();
                      const uint8_t fbSiz = entry.vi.fbSiz();
                      if ((colorImg.address == fbAddress) &&
-@@ -1824,6 +2174,12 @@ namespace RT64 {
+@@ -1824,6 +2181,12 @@ namespace RT64 {
          Workload &nextWorkload = ext.workloadQueue->workloads[workloadCursor];
          nextWorkload.begin(workloadCounter++);
  
@@ -4880,7 +4894,7 @@ index 2970e71..8f2ae23 100644
          // Indicate on the framebuffer manager that all tile copies are free to be used again.
          framebufferManager.clearUsedTileCopies();
  
-@@ -1836,6 +2192,10 @@ namespace RT64 {
+@@ -1836,6 +2199,10 @@ namespace RT64 {
      }
      
      void State::updateScreen(const VI &newVI, bool fromEarlyPresent) {
@@ -4891,7 +4905,7 @@ index 2970e71..8f2ae23 100644
          // If the debugger has paused the plugin, keep submitting the last workload and screen VI for rendering and a present event.
          if (debuggerInspector.paused && !fromEarlyPresent) {
              if (ext.userConfig->developerMode) {
-@@ -1871,18 +2231,36 @@ namespace RT64 {
+@@ -1871,18 +2238,36 @@ namespace RT64 {
          const hlslpp::uint2 screenFbSize = newVI.fbSize();
          const uint8_t screenFbSiz = newVI.fbSiz();
          const bool viVisible = newVI.visible();
@@ -4930,7 +4944,7 @@ index 2970e71..8f2ae23 100644
              }
              else if (viVisible) {
                  lastScreenFactorCounter++;
-@@ -1897,11 +2275,12 @@ namespace RT64 {
+@@ -1897,11 +2282,12 @@ namespace RT64 {
          screenCpuProfiler.start();
          bool fbChangesMade = false;
          bool screenChangesMade = false;
@@ -4944,7 +4958,7 @@ index 2970e71..8f2ae23 100644
              if (screenFb != nullptr) {
                  // Check compatibility of the high resolution framebuffer with the VI first.
                  // Ensure both the siz and width are the same.
-@@ -1909,6 +2288,7 @@ namespace RT64 {
+@@ -1909,6 +2295,7 @@ namespace RT64 {
                      const uint8_t *fbRAM = &RDRAM[screenFb->addressStart];
                      uint64_t currentHash = XXH3_64bits(fbRAM, screenFb->RAMBytes);
                      if (currentHash != screenFb->RAMHash) {
@@ -4952,7 +4966,7 @@ index 2970e71..8f2ae23 100644
                          {
                              RenderWorkerExecution workerExecution(worker);
                              thread_local std::vector<uint32_t> fbDiscards;
-@@ -1924,12 +2304,16 @@ namespace RT64 {
+@@ -1924,12 +2311,16 @@ namespace RT64 {
                          // Only update the hash if it's not a discard.
                          if (present.fbOperations.front().type == FramebufferOperation::Type::WriteChanges) {
                              screenFb->RAMHash = currentHash;
@@ -4969,7 +4983,7 @@ index 2970e71..8f2ae23 100644
                  }
                  else {
                      screenFb = nullptr;
-@@ -1943,6 +2327,15 @@ namespace RT64 {
+@@ -1943,6 +2334,15 @@ namespace RT64 {
                  memcpy(present.storage.data(), &RDRAM[screenFbAddress], screenFbBytes);
                  uint64_t newScreenHash = XXH3_64bits(present.storage.data(), screenFbBytes);
                  screenChangesMade = (newScreenHash != lastScreenHash);
@@ -4985,7 +4999,7 @@ index 2970e71..8f2ae23 100644
                  lastScreenHash = newScreenHash;
              }
          }
-@@ -1950,9 +2343,18 @@ namespace RT64 {
+@@ -1950,9 +2350,18 @@ namespace RT64 {
          // We only push a new present event to the timeline when it's necessary.
          if (fromEarlyPresent || viDifferent || fbChangesMade || screenChangesMade) {
              // Push a new renderer event to the timeline for presenting this VI.
@@ -5005,7 +5019,7 @@ index 2970e71..8f2ae23 100644
  
              // This presentation originates from screen changes being made manually by the CPU
              // or the game somehow not doing some form of buffering (instant input romhacks).
-@@ -1971,6 +2373,9 @@ namespace RT64 {
+@@ -1971,6 +2380,9 @@ namespace RT64 {
          renderTargetManager.destroyAll();
          renderTargetManager.setMultisampling(multisampling);
          dummyDepthTarget.reset();
@@ -5015,7 +5029,7 @@ index 2970e71..8f2ae23 100644
          framebufferRenderer->updateMultisampling();
          updateRenderFlagSampleCount();
      }
-@@ -2660,12 +3065,101 @@ namespace RT64 {
+@@ -2660,12 +3072,101 @@ namespace RT64 {
          workload.debuggerCamera = debuggerInspector.camera;
          workload.debuggerRenderer = debuggerInspector.renderer;
          workload.paused = paused;
@@ -5117,7 +5131,7 @@ index 2970e71..8f2ae23 100644
          present.debuggerFramebuffer.address = debuggerInspector.renderer.framebufferAddress;
          present.debuggerFramebuffer.view = (debuggerInspector.renderer.framebufferIndex >= 0);
      }
-@@ -2724,6 +3218,25 @@ namespace RT64 {
+@@ -2724,6 +3225,25 @@ namespace RT64 {
          extended.renderToRAM = renderToRAM;
      }
  
