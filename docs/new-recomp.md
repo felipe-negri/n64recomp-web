@@ -41,7 +41,7 @@ items by almost no game when the record began.
 | Game | New recomp: left | Web port: left |
 |---|---|---|
 | San Francisco Rush 2049 | 1a, 4c fails, 8a fails | W5, W6's Drive |
-| Perfect Dark | 1a, 2 fails, 4c, 8a fails | W5 fails, W6's Drive |
+| Perfect Dark | 2 fails, 4c, 8a fails | W5 fails, W6's Drive |
 | Super Mario 64 | | W5 fails, W6's Drive |
 | F-Zero X | | W6's Drive |
 | Mario Party | 4c, 5b, 6a, 6b fails, 8a, 8b, 8c fails | W6's Drive, W8 |
