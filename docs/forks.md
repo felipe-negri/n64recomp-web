@@ -1006,6 +1006,11 @@ N64ModernRuntime       ULTRAMODERN_VIS_WAIT_FOR_RENDERER holds no VI once the re
 e3e2d06                is done (renderer::rdp_done_pending): the game's clock and its sound go on through RT64's own
                        waits (docs/findings.md, A page in a hidden tab)
 RecompFrontend 7021771 rdp_done's comment says RT64 sends it early with render to RAM off too
+rt64 81c9893           render to RAM's late copy is dropped for the CPU's writes only where the copy writes, its rows
+                       from the drawn rect's top, not from the framebuffer's start: Perfect Dark's split screen points
+                       the bottom player's depth image half a screen before the z-buffer, over the players' structs
+                       the game writes every tick, and in a two-player match that player's depth rows were dropped in
+                       about one list of five (~250 times in 40 s)
 rt64 04dc9cf           RT64_KEEP_THIN_RECTS: Fix LR with Scissor leaves a rect one pixel tall or wide as the game drew
                        it, not stretched to the scissor's edge. Perfect Dark copies the framebuffer back a row at a
                        time for its motion blur and night vision, and its second to last row, a pixel above the view's
