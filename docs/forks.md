@@ -1008,5 +1008,7 @@ RecompFrontend 7021771 rdp_done's comment says RT64 sends it early with render t
 rt64 2ae34d1           the present draws a framebuffer's rows before the VI's origin (VI::rowsBeforeOrigin(): one in
                        libultra's modes, none where the framebuffer is at the origin) as the origin's row, in the VI
                        shader: a console never shows them, and F-Zero X keeps an arena's first bytes at the start of its
-                       third framebuffer, a dark-blue block at the window's top-left on its title screen
+                       third framebuffer, a dark-blue block at the window's top-left on its title screen. 0e21bce moves
+                       its lines to the start of their structs and blocks, clear of game forks' own rt64 lines (Snap's,
+                       JFG's, 1080's, Rogue Squadron's, THPS2's, Beetle's, PaxDino's, WWF's)
 ```
