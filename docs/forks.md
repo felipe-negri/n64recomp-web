@@ -1024,4 +1024,16 @@ rt64 2ae34d1           the present draws a framebuffer's rows before the VI's or
                        third framebuffer, a dark-blue block at the window's top-left on its title screen. 0e21bce moves
                        its lines to the start of their structs and blocks, clear of game forks' own rt64 lines (Snap's,
                        JFG's, 1080's, Rogue Squadron's, THPS2's, Beetle's, PaxDino's, WWF's)
+plume 1b17a80          D3D12 and Vulkan say isLost() too: a D3D12 device once GetDeviceRemovedReason() isn't S_OK, a
+                       Vulkan device once a submit, fence wait, acquire or present returned VK_ERROR_DEVICE_LOST, each
+                       logged once with its reason; a removed D3D12 device's buffers map to nullptr, and its fence and
+                       present waits give up. PLUME_LOSE_DEVICE_AFTER=<s> makes the first device asked lost that many
+                       seconds on, to test it (plume_lost_device_test.h)
+rt64 f23e682           a lost device is replaced on a desktop build too (Application::replaceLostDevice(), the window
+                       and file dialogs kept), and every map() of RT64's that returns null is skipped, not written
+                       through: a Windows player's Rush 2049 crashed after ~130 s in two buffer uploader threads writing
+                       to address 0, as a removed D3D12 device's buffers map. Rush 2049's desktop build, its device
+                       lost by PLUME_LOSE_DEVICE_AFTER in the attract demo and in a race, went on with the right picture
+RecompFrontend aeb4157 the menus' replace device hook on a desktop build too, and their buffers written into a CPU
+                       stand-in where a lost device's map to nothing
 ```
