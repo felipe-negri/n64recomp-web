@@ -45,18 +45,18 @@ items by almost no game when the record began.
 | Game | New recomp: left | Web port: left |
 |---|---|---|
 | San Francisco Rush 2049 | 4c fails, 8a fails | W5, W6's Drive |
-| Perfect Dark | 4c, 6c, 8a fails | W5 fails, W6's Drive |
+| Perfect Dark | 4c, 8a fails | W5 fails, W6's Drive |
 | Super Mario 64 | 6c | W5 fails, W6's Drive |
-| F-Zero X | 6c | W6's Drive |
+| F-Zero X | | W6's Drive |
 | Mario Party | 4c, 5b, 6a, 6b fails, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Mario Party 2 | 4c, 5b, 6a, 6b fails, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
 | Mario Party 3 | 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
-| Super Smash Bros. | 6c | W6's Drive |
-| Paper Mario | 4a, 4c, 6b, 6c | W5 fails, W6's Drive |
+| Super Smash Bros. | | W6's Drive |
+| Paper Mario | 4a, 4c, 6b | W5 fails, W6's Drive |
 | Mario Golf | | W6's Drive |
 | Rayman 2 | 6c | W5 fails, W6's Drive |
 | Donald Duck: Goin' Quackers | 2, 5b, 6c | W5 fails, W6's Drive |
-| Dinosaur Planet | 6c | W5 fails |
+| Dinosaur Planet | | W5 fails |
 | Turok: Dinosaur Hunter | 5a, 6c | W5 fails, W6's Drive |
 | Turok 2: Seeds of Evil | 2 fails, 4c, 5a, 6c | W5 fails, W6's Drive |
 | Turok 3: Shadow of Oblivion | 4c, 5a, 6c | W5 fails, W6's Drive |
@@ -128,7 +128,17 @@ buffers cut; 3's queue held 15-32 ms and never ran dry, and 1's and 2's held 29-
 ran dry only where the game sent nothing for 65-85 ms at a scene change (1's opening to the village, 2's at 8.6, 23.1
 and 52 s), in every play, each inside the game's own fade-out or silence (RMS 0.009 or less against its music's 0.3,
 in a disk-driver recording of the same play), so all three pass 6c (beside builds they went 100-500 ms between buffers
-in places and ran it dry); F-Zero X's page in Firefox loses
+in places and ran it dry);
+Perfect Dark v0.1.14 (dataDyne Central - Defection), F-Zero X v0.1.14 (a GP race at Mute City), Super Smash Bros.
+v0.1.13 (1P Game's first match) and Dinosaur Planet v0.1.5 (SwapStone Hollow from a new game, its pause menu) each
+played 70-105 s of their menus and a level from their released archives on the sound device (`tools/sound_pace.sh`)
+on a host 8-69% busy, the game at 100% of the device's rate, and none of 2105, 5574, 4155 and 3147 buffers was cut or
+found the queue empty after the boot, which held 37-68, 6-38, 10-30 and 10-34 ms, so they pass 6c (beside builds,
+with the host 100% busy, Perfect Dark ran at 57% and dry); Paper Mario v0.1.13's queue held only 9-33 ms, and on a
+host 32% busy a 36-41 ms wait between buffers ran it dry 7 times in the middle of its sound (as the file select opened
+and a new game's first map began), so its `queue_samples` leaves two retraces out of `osAiGetLength` as
+Mario Golf's does: 25-49 ms queued and none of 6516 and 6518 buffers dry in two plays, so it passes 6c in v0.1.14;
+F-Zero X's page in Firefox loses
 none in its boot's first 10 s built on v0.201.0 but inside its own silence (0.6-2.5 s from Pages on v0.184.0, as
 section boot's shaders were built with the game waiting), and none after its tab is hidden and shown in either
 browser, so it passes W5: the 2.4 s it loses in the 2.6 s its first race's section takes to build 45 shaders is a
