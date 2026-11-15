@@ -799,7 +799,7 @@ window is the 16 MB `RECOMP_KUSEG_WINDOW` places after RDRAM. Its 16 overlays co
 each, from a table, which a hook there tells the runtime about. Its audio microcode is `n_aspMain`, recompiled by
 RSPRecomp. Up to four players each play a controller of their own. On a picture wider than 4:3 the course reaches the
 window's edges, and the HUD and the menus stay in the middle 4:3. Its `tools/build_web.sh` runs a Docker image of its
-own, so `publish_pages.sh` runs it on the build host. Its list is SHADERS shaders in two sections, the boot's (the
+own, so `publish_pages.sh` runs it on the build host. Its list is 223 shaders in two sections, the boot's (the
 intro, the title and the menus) and Toad Highlands', recorded by `tools/record_shaders.sh` and `tools/shader_plan.json`
 without anyone playing: `tools/shader_survey.js` tells which screen the game shows by the overlays it has loaded. Its
 README, CLAUDE.md and docs/web.md have the rest.
