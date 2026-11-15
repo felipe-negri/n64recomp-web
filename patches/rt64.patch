@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 0e21bced534c88e7a98033a91dbc777b793d66f6
+rt64: https://github.com/n64hub/rt64-web f23e682dc864377ae24e727434a557f85aa4343f
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -869,7 +869,7 @@ index 72faede..ed1138c 100644
 +#endif
 \ No newline at end of file
 diff --git a/src/gui/rt64_inspector.cpp b/src/gui/rt64_inspector.cpp
-index 6ceb97f..5a88aab 100644
+index 6ceb97f..0ec84c4 100644
 --- a/src/gui/rt64_inspector.cpp
 +++ b/src/gui/rt64_inspector.cpp
 @@ -5,6 +5,7 @@
@@ -890,7 +890,7 @@ index 6ceb97f..5a88aab 100644
              if (renderPass != VK_NULL_HANDLE) {
                  vkDestroyRenderPass(device, renderPass, nullptr);
              }
-@@ -56,9 +60,340 @@ namespace RT64 {
+@@ -56,9 +60,360 @@ namespace RT64 {
              if (descriptorPool != VK_NULL_HANDLE) {
                  vkDestroyDescriptorPool(device, descriptorPool, nullptr);
              }
@@ -1036,6 +1036,12 @@ index 6ceb97f..5a88aab 100644
 +            const uint32_t alignedRowPitch = (rowPitch + 255) & ~255U;
 +            std::unique_ptr<RenderBuffer> uploadBuffer = device->createBuffer(RenderBufferDesc::UploadBuffer(uint64_t(alignedRowPitch) * height));
 +            uint8_t *uploadData = reinterpret_cast<uint8_t *>(uploadBuffer->map());
++
++            // A lost device's buffers map to nothing (Application::replaceLostDevice()).
++            if (uploadData == nullptr) {
++                return;
++            }
++
 +            for (uint32_t row = 0; row < height; row++) {
 +                memcpy(uploadData + uint64_t(alignedRowPitch) * row, pixels + uint64_t(pitch) * row, rowPitch);
 +            }
@@ -1165,6 +1171,20 @@ index 6ceb97f..5a88aab 100644
 +
 +            ImDrawVert *vertexData = reinterpret_cast<ImDrawVert *>(vertexBuffer->map());
 +            ImDrawIdx *indexData = reinterpret_cast<ImDrawIdx *>(indexBuffer->map());
++
++            // A lost device's buffers map to nothing (Application::replaceLostDevice()): nothing is drawn.
++            if ((vertexData == nullptr) || (indexData == nullptr)) {
++                if (vertexData != nullptr) {
++                    vertexBuffer->unmap();
++                }
++
++                if (indexData != nullptr) {
++                    indexBuffer->unmap();
++                }
++
++                return;
++            }
++
 +            for (int i = 0; i < drawData->CmdListsCount; i++) {
 +                const ImDrawList *drawList = drawData->CmdLists[i];
 +                memcpy(vertexData, drawList->VtxBuffer.Data, drawList->VtxBuffer.Size * sizeof(ImDrawVert));
@@ -1231,7 +1251,7 @@ index 6ceb97f..5a88aab 100644
      // Inspector
  
      Inspector::Inspector(RenderDevice *device, const RenderSwapChain *swapChain, UserConfiguration::GraphicsAPI graphicsAPI, SDL_Window *sdlWindow) {
-@@ -86,6 +421,17 @@ namespace RT64 {
+@@ -86,6 +441,17 @@ namespace RT64 {
  #       endif
          }
  
@@ -1249,7 +1269,7 @@ index 6ceb97f..5a88aab 100644
          switch (graphicsAPI) {
          case UserConfiguration::GraphicsAPI::D3D12: {
  #       ifdef _WIN32
-@@ -105,6 +451,10 @@ namespace RT64 {
+@@ -105,6 +471,10 @@ namespace RT64 {
              break;
          }
          case UserConfiguration::GraphicsAPI::Vulkan: {
@@ -1260,7 +1280,7 @@ index 6ceb97f..5a88aab 100644
              VulkanDevice *interfaceDevice = static_cast<VulkanDevice *>(device);
              const VulkanSwapChain *interfaceSwapChain = static_cast<const VulkanSwapChain *>(swapChain);
              ImGui_ImplVulkan_LoadFunctions([](const char *functionName, void *vulkanInstance) {
-@@ -133,6 +483,7 @@ namespace RT64 {
+@@ -133,6 +503,7 @@ namespace RT64 {
              initInfo.CheckVkResultFn = &checkVulkanResult;
  
              ImGui_ImplVulkan_Init(&initInfo);
@@ -1268,7 +1288,7 @@ index 6ceb97f..5a88aab 100644
              break;
          }
          default:
-@@ -142,6 +493,13 @@ namespace RT64 {
+@@ -142,6 +513,13 @@ namespace RT64 {
      }
  
      Inspector::~Inspector() {
@@ -1282,7 +1302,7 @@ index 6ceb97f..5a88aab 100644
          switch (graphicsAPI) {
          case UserConfiguration::GraphicsAPI::D3D12: {
  #       ifdef _WIN32
-@@ -160,6 +518,7 @@ namespace RT64 {
+@@ -160,6 +538,7 @@ namespace RT64 {
              assert(false && "Unknown Graphics API.");
              break;
          }
@@ -1290,7 +1310,7 @@ index 6ceb97f..5a88aab 100644
  
          if (sdlWindow != nullptr) {
              ImGui_ImplSDL2_Shutdown();
-@@ -194,6 +553,12 @@ namespace RT64 {
+@@ -194,6 +573,12 @@ namespace RT64 {
  #       endif
          }
  
@@ -1303,7 +1323,7 @@ index 6ceb97f..5a88aab 100644
          switch (graphicsAPI) {
          case UserConfiguration::GraphicsAPI::D3D12: {
  #       ifdef _WIN32
-@@ -211,6 +576,7 @@ namespace RT64 {
+@@ -211,6 +596,7 @@ namespace RT64 {
              assert(false && "Unknown Graphics API.");
              break;
          }
@@ -1311,7 +1331,7 @@ index 6ceb97f..5a88aab 100644
  
          ImGui::NewFrame();
          Im3d::NewFrame();
-@@ -226,6 +592,10 @@ namespace RT64 {
+@@ -226,6 +612,10 @@ namespace RT64 {
          const std::lock_guard<std::mutex> frameLock(frameMutex);
          ImDrawData *drawData = ImGui::GetDrawData();
          if (drawData != nullptr) {
@@ -1322,7 +1342,7 @@ index 6ceb97f..5a88aab 100644
              switch (graphicsAPI) {
              case UserConfiguration::GraphicsAPI::D3D12: {
  #       ifdef _WIN32
-@@ -238,8 +608,10 @@ namespace RT64 {
+@@ -238,8 +628,10 @@ namespace RT64 {
                  break;
              }
              case UserConfiguration::GraphicsAPI::Vulkan: {
@@ -1349,7 +1369,7 @@ index 558f1ee..40a2e09 100644
      };
  };
 diff --git a/src/hle/rt64_application.cpp b/src/hle/rt64_application.cpp
-index 785de27..1c18cf8 100644
+index 785de27..8ce578e 100644
 --- a/src/hle/rt64_application.cpp
 +++ b/src/hle/rt64_application.cpp
 @@ -16,12 +16,18 @@
@@ -1396,7 +1416,33 @@ index 785de27..1c18cf8 100644
              saveConfiguration();
          }
  
-@@ -139,6 +150,18 @@ namespace RT64 {
+@@ -116,14 +127,17 @@ namespace RT64 {
+         }
+ #   endif
+ 
+-        // Create the application window.
+-        const char *windowTitle = "RT64";
+-        appWindow = std::make_unique<ApplicationWindow>();
+-        if (core.window != RenderWindow{}) {
+-            appWindow->setup(core.window, this, threadId);
+-        }
+-        else {
+-            appWindow->setup(windowTitle, this);
++        // Create the application window. A device replaced keeps the window it drew in: made again, the window's
++        // SDL event filter would chain to the filter of the one it replaced, which is freed.
++        if (!replacingDevice) {
++            const char *windowTitle = "RT64";
++            appWindow = std::make_unique<ApplicationWindow>();
++            if (core.window != RenderWindow{}) {
++                appWindow->setup(core.window, this, threadId);
++            }
++            else {
++                appWindow->setup(windowTitle, this);
++            }
+         }
+ 
+         // Detect refresh rate from the display the window is located at.
+@@ -139,6 +153,18 @@ namespace RT64 {
          const uint32_t CreationAttempts = 1;
  #   endif
  
@@ -1415,7 +1461,7 @@ index 785de27..1c18cf8 100644
          for (uint32_t creationAttempt = 0; (creationAttempt < CreationAttempts) && (device == nullptr); creationAttempt++) {
  #       ifdef _WIN64
              if (creationAttempt == 1) {
-@@ -294,10 +317,40 @@ namespace RT64 {
+@@ -294,10 +320,40 @@ namespace RT64 {
              break;
          }
  
@@ -1459,7 +1505,7 @@ index 785de27..1c18cf8 100644
          }
  
          // Create all the render workers.
-@@ -316,7 +369,7 @@ namespace RT64 {
+@@ -316,7 +372,7 @@ namespace RT64 {
          // Create the swap chain with the texture count specified from the configuration.
          RenderSwapChainDesc swapChainDesc;
          swapChainDesc.renderWindow = appWindow->windowHandle;
@@ -1468,7 +1514,7 @@ index 785de27..1c18cf8 100644
          swapChainDesc.textureCount = (userConfig.displayBuffering == UserConfiguration::DisplayBuffering::Triple) ? 3 : 2;
  
          // Enable present wait if supported by the device. We specify a max latency of 1 as we use it to wait right before the next
-@@ -350,7 +403,14 @@ namespace RT64 {
+@@ -350,7 +406,14 @@ namespace RT64 {
          // Create the shader caches.
          // Estimate the amount of shader compiler threads by trying to use about half of the system's available threads.
          // We need the ubershader pipelines done as soon as possible, so we use a different thread count that demands more of the system.
@@ -1483,7 +1529,7 @@ index 785de27..1c18cf8 100644
          const uint32_t ubershaderThreads = uint32_t(std::max(int(threadsAvailable) - 2, 1));
          rasterShaderCache = std::make_unique<RasterShaderCache>(rasterShaderThreads, ubershaderThreads);
          rasterShaderCache->setup(device.get(), renderInterface->getCapabilities().shaderFormat, shaderLibrary.get(), multisampling);
-@@ -391,7 +451,12 @@ namespace RT64 {
+@@ -391,7 +454,12 @@ namespace RT64 {
          sharedQueueResources->setEmulatorConfig(emulatorConfig);
          sharedQueueResources->setEnhancementConfig(enhancementConfig);
          sharedQueueResources->setSwapChainSize(swapChain->getWidth(), swapChain->getHeight());
@@ -1496,7 +1542,7 @@ index 785de27..1c18cf8 100644
          sharedQueueResources->renderTargetManager.setMultisampling(multisampling);
          sharedQueueResources->renderTargetManager.setUsesHDR(usesHDR);
  
-@@ -455,6 +520,20 @@ namespace RT64 {
+@@ -455,6 +523,20 @@ namespace RT64 {
          // Set up the RDP
          state->rdp->setGBI();
  
@@ -1517,7 +1563,7 @@ index 785de27..1c18cf8 100644
          return SetupResult::Success;
      }
  
-@@ -509,7 +588,37 @@ namespace RT64 {
+@@ -509,7 +591,35 @@ namespace RT64 {
          }
      }
  
@@ -1546,16 +1592,14 @@ index 785de27..1c18cf8 100644
 +#   endif
 +
      void Application::updateScreen() {
-+#   if defined(__EMSCRIPTEN__)
 +        if (device->isLost()) {
 +            replaceLostDevice();
 +        }
-+#   endif
 +
          appWindow->sdlCheckFilterInstallation();
          screenApiProfiler.logAndRestart();
          state->updateScreen(core.decodeVI(), false);
-@@ -674,9 +783,17 @@ namespace RT64 {
+@@ -674,9 +784,17 @@ namespace RT64 {
          presentQueue.reset();
  
          // Call the deinit hook if one was attached.
@@ -1576,39 +1620,48 @@ index 785de27..1c18cf8 100644
          }
  
          drawDataUploader.reset();
-@@ -705,6 +822,30 @@ namespace RT64 {
-         FileDialog::finish();
-     }
+@@ -702,7 +820,38 @@ namespace RT64 {
+         device.reset();
+         renderInterface.reset();
  
-+#   if defined(__EMSCRIPTEN__)
-+    // A page's WebGPU device is lost to a driver update or reset, the browser's GPU process crashing or a laptop
-+    // switching GPUs, and everything made on it with it. Once the page has a new one (RenderDevice::isLost()), the screen
-+    // update before the next frame's lists destroys everything as end() does and sets it all up again on a new device as
-+    // setup() does: textures, targets, pipelines and the prebuilt shaders, which the game waits for again, the swap chain.
-+    // The game goes on from the same RDRAM, so nothing it has drawn has to be drawn again but what the next frames draw.
-+    // The configuration is kept, and so is what a caller set on the state; a render hook's objects are made again with
-+    // the replace device hook (rt64_render_hooks.h), not the deinit and init hooks.
+-        FileDialog::finish();
++        // The file dialogs stay for the device that replaces this one, as the window does (setup()).
++        if (!replacingDevice) {
++            FileDialog::finish();
++        }
++    }
++
++    // A device is lost to a driver's fault, reset or update, the GPU taking too long (a TDR on Windows) or going away, a
++    // page's browser's GPU process crashing or a laptop switching GPUs, and everything made on it with it. Once the
++    // device says so (RenderDevice::isLost(): a WebGPU device once the page has a new one, a removed D3D12 device, a
++    // Vulkan device that returned VK_ERROR_DEVICE_LOST), the screen update before the next frame's lists destroys
++    // everything as end() does and sets it all up again on a new device as setup() does: the graphics API's interface
++    // (a new DXGI factory, which enumerates the adapters again after a TDR), textures, targets, pipelines and the
++    // prebuilt shaders, which the game waits for again, the swap chain. The threads that ran into the lost device in
++    // between went on: its buffers map() to nullptr, and what would have been written into one is skipped. The game goes
++    // on from the same RDRAM, so nothing it has drawn has to be drawn again but what the next frames draw. The
++    // configuration and the window are kept, and so is what a caller set on the state; a render hook's objects are made
++    // again with the replace device hook (rt64_render_hooks.h), not the deinit and init hooks. PLUME_LOSE_DEVICE_AFTER
++    // tests it on a desktop build (plume's plume_lost_device_test.h).
 +    void Application::replaceLostDevice() {
-+        fprintf(stderr, "RT64: the WebGPU device was lost; starting again on a new one.\n");
++        fprintf(stderr, "RT64: the graphics device was lost; starting again on a new one.\n");
 +        std::atomic<uint32_t> *displayListReads = state->displayListReads;
 +        replacingDevice = true;
 +        end();
 +        const SetupResult result = setup(setupThreadId);
 +        replacingDevice = false;
 +        if (result != SetupResult::Success) {
-+            fprintf(stderr, "RT64 could not start again on a new WebGPU device (%d).\n", int(result));
++            fprintf(stderr, "RT64 could not start again on a new graphics device (%d).\n", int(result));
 +            abort();
 +        }
 +
 +        state->displayListReads = displayListReads;
-+    }
-+#   endif
-+
++        fprintf(stderr, "RT64: going on with the new device.\n");
+     }
+ 
      bool Application::loadConfiguration() {
-         if (!appConfig.useConfigurationFile || userPaths.isEmpty()) {
-             return false;
 diff --git a/src/hle/rt64_application.h b/src/hle/rt64_application.h
-index 6c83fe0..4abc904 100644
+index 6c83fe0..bfcc1ed 100644
 --- a/src/hle/rt64_application.h
 +++ b/src/hle/rt64_application.h
 @@ -90,6 +90,11 @@ namespace RT64 {
@@ -1632,7 +1685,7 @@ index 6c83fe0..4abc904 100644
          ProfilingTimer dlApiProfiler = ProfilingTimer(120);
          ProfilingTimer screenApiProfiler = ProfilingTimer(120);
  
-@@ -156,9 +163,15 @@ namespace RT64 {
+@@ -156,9 +163,13 @@ namespace RT64 {
          SetupResult setup(uint32_t threadId);
          void processDisplayLists(uint8_t *memory, uint32_t dlStartAddress, uint32_t dlEndAddress, bool isHLE);
          void updateScreen();
@@ -1642,9 +1695,7 @@ index 6c83fe0..4abc904 100644
          void destroyShaderCache();
          void updateMultisampling();
          void end();
-+#   if defined(__EMSCRIPTEN__)
 +        void replaceLostDevice();
-+#   endif
          bool loadConfiguration();
          bool saveConfiguration();
          bool checkDirectoryCreated(const std::filesystem::path &path);
@@ -6629,7 +6680,7 @@ index bde2f03..c395d3e 100644
  };
 \ No newline at end of file
 diff --git a/src/render/rt64_buffer_uploader.cpp b/src/render/rt64_buffer_uploader.cpp
-index de997a0..813ea74 100644
+index de997a0..c141d2f 100644
 --- a/src/render/rt64_buffer_uploader.cpp
 +++ b/src/render/rt64_buffer_uploader.cpp
 @@ -3,6 +3,7 @@
@@ -6652,7 +6703,21 @@ index de997a0..813ea74 100644
      // BufferUploader::Upload
  
      bool BufferUploader::Upload::valid() const {
-@@ -96,6 +102,7 @@ namespace RT64 {
+@@ -75,6 +81,13 @@ namespace RT64 {
+         const size_t srcSize = (upload.srcDataIndexRange.second - upload.srcDataIndexRange.first) * upload.srcDataStride;
+         const RenderRange writtenRange(srcOffset, srcOffset + srcSize);
+         uint8_t *dstData = static_cast<uint8_t *>(upload.dstPair->uploadBuffer->map());
++
++        // A lost device's buffer maps to nothing: the upload is skipped until the device is replaced
++        // (Application::replaceLostDevice()).
++        if (dstData == nullptr) {
++            return;
++        }
++
+         memcpy(dstData + srcOffset, static_cast<const uint8_t *>(upload.srcData) + srcOffset, srcSize);
+         upload.dstPair->uploadBuffer->unmap(0, &writtenRange);
+     }
+@@ -96,6 +109,7 @@ namespace RT64 {
              bufferPair.allocatedSize = roundUp(bufferPair.allocatedSize, BlockAlignment);
              bufferPair.uploadBuffer = worker->device->createBuffer(RenderBufferDesc::UploadBuffer(bufferPair.allocatedSize));
              bufferPair.defaultBuffer = worker->device->createBuffer(RenderBufferDesc::DefaultBuffer(bufferPair.allocatedSize, u.bufferFlags));
@@ -6660,7 +6725,7 @@ index de997a0..813ea74 100644
  
              bufferPair.defaultViews.reserve(u.formatViews.size());
              for (RenderFormat format : u.formatViews) {
-@@ -145,6 +152,7 @@ namespace RT64 {
+@@ -145,6 +159,7 @@ namespace RT64 {
              const uint64_t srcOffset = u.srcDataIndexRange.first * u.srcDataStride;
              const uint64_t srcSize = (u.srcDataIndexRange.second - u.srcDataIndexRange.first) * u.srcDataStride;
              worker->commandList->copyBufferRegion(u.dstPair->defaultBuffer->at(srcOffset), u.dstPair->uploadBuffer->at(srcOffset), srcSize);
@@ -6878,7 +6943,7 @@ index 69a82ac..1dd31f7 100644
              dstNorm = builder.addReadWriteStructuredBuffer(9);
              dstVel = builder.addReadWriteStructuredBuffer(10);
 diff --git a/src/render/rt64_framebuffer_renderer.cpp b/src/render/rt64_framebuffer_renderer.cpp
-index 9fae0d4..151439f 100644
+index 9fae0d4..f654d3d 100644
 --- a/src/render/rt64_framebuffer_renderer.cpp
 +++ b/src/render/rt64_framebuffer_renderer.cpp
 @@ -63,9 +63,19 @@ namespace RT64 {
@@ -7103,9 +7168,18 @@ index 9fae0d4..151439f 100644
                  const auto &rspVertexTestZ = useMSAA ? shaderLibrary->rspVertexTestZMS : shaderLibrary->rspVertexTestZ;
                  worker->commandList->barriers(RenderBarrierStage::COMPUTE, RenderBufferBarrier(testZIndexBuffer, RenderBufferAccess::WRITE));
                  worker->commandList->setPipeline(rspVertexTestZ.pipeline.get());
-@@ -1339,8 +1424,15 @@ namespace RT64 {
-         memcpy(paramBufferBytes, &fbParams, sizeof(interop::FramebufferParams));
-         framebuffer.paramsBuffer->unmap();
+@@ -1335,12 +1420,22 @@ namespace RT64 {
+         }
+ 
+         Framebuffer &framebuffer = framebufferVector[framebufferCount - 1];
++        // A lost device's buffer maps to nothing (Application::replaceLostDevice()).
+         void *paramBufferBytes = framebuffer.paramsBuffer->map();
+-        memcpy(paramBufferBytes, &fbParams, sizeof(interop::FramebufferParams));
+-        framebuffer.paramsBuffer->unmap();
++        if (paramBufferBytes != nullptr) {
++            memcpy(paramBufferBytes, &fbParams, sizeof(interop::FramebufferParams));
++            framebuffer.paramsBuffer->unmap();
++        }
  
 +#   if RT64_WGSL
 +        // Only the raytracing shaders read the background color, and WebGPU refuses a pass that draws into a texture
@@ -7119,7 +7193,7 @@ index 9fae0d4..151439f 100644
          framebuffer.descRealFbSet->setBuffer(framebuffer.descRealFbSet->FbParams, framebuffer.paramsBuffer.get(), sizeof(interop::FramebufferParams));
          framebuffer.descRealFbSet->setTexture(framebuffer.descRealFbSet->gBackgroundColor, backgroundColorTexture, RenderTextureLayout::SHADER_READ, backgroundColorTextureView);
          framebuffer.descRealFbSet->setTexture(framebuffer.descRealFbSet->gBackgroundDepth, p.fbStorage->depthTarget->texture.get(), RenderTextureLayout::DEPTH_READ, p.fbStorage->depthTarget->textureView.get());
-@@ -1608,8 +1700,10 @@ namespace RT64 {
+@@ -1608,8 +1703,10 @@ namespace RT64 {
                          triangles.shaderDesc = call.shaderDesc;
  
                          RasterShader *gpuShader = p.ubershadersOnly ? nullptr : p.rasterShaderCache->getGPUShader(call.shaderDesc);
@@ -7130,7 +7204,7 @@ index 9fae0d4..151439f 100644
                          }
                          else {
                              const bool copyMode = (call.shaderDesc.otherMode.cycleType() == G_CYC_COPY);
-@@ -1619,7 +1713,7 @@ namespace RT64 {
+@@ -1619,7 +1716,7 @@ namespace RT64 {
                                  (call.shaderDesc.otherMode.cvgDst() == CVG_DST_WRAP) || (call.shaderDesc.otherMode.cvgDst() == CVG_DST_SAVE));
                          }
                          
@@ -7139,7 +7213,7 @@ index 9fae0d4..151439f 100644
                          triangles.vertexTestZ = (vertexTestZCallIndex >= 0);
                          triangles.postBlendDitherNoise = false;
  
-@@ -1628,6 +1722,16 @@ namespace RT64 {
+@@ -1628,6 +1725,16 @@ namespace RT64 {
                          switch (proj.type) {
                          case Projection::Type::Perspective:
                          case Projection::Type::Orthographic: {
@@ -7156,7 +7230,7 @@ index 9fae0d4..151439f 100644
                              instanceDrawCall.type = InstanceDrawCall::Type::IndexedTriangles;
                              triangles.indexStart = triangles.vertexTestZ ? vertexTestZFaceIndicesStart : call.meshDesc.faceIndicesStart;
                              invRatioScale = projInvRatioScale;
-@@ -1760,7 +1864,215 @@ namespace RT64 {
+@@ -1760,7 +1867,215 @@ namespace RT64 {
          checkRasterScene(rasterScene);
      }
  
@@ -7373,7 +7447,7 @@ index 9fae0d4..151439f 100644
          bool shaderViewRtEnabled = false;
          std::vector<BufferUploader::Upload> shaderUploads = {
              { renderIndicesVector.data(), { 0, renderIndicesVector.size() }, sizeof(interop::RenderIndices), RenderBufferFlag::STORAGE, { }, &renderIndicesBuffer},
-@@ -1816,8 +2128,16 @@ namespace RT64 {
+@@ -1816,8 +2131,16 @@ namespace RT64 {
          }
  #   endif
  
@@ -7470,7 +7544,7 @@ index f2eee70..1f87967 100644
                  interop::float2 screenOffset;
                  RenderRect scissor;
 diff --git a/src/render/rt64_native_target.cpp b/src/render/rt64_native_target.cpp
-index 6891b7b..22ef3a7 100644
+index 6891b7b..5e721f8 100644
 --- a/src/render/rt64_native_target.cpp
 +++ b/src/render/rt64_native_target.cpp
 @@ -13,6 +13,21 @@
@@ -7505,7 +7579,7 @@ index 6891b7b..22ef3a7 100644
      }
  
      RenderFormat NativeTarget::getBufferFormat(uint8_t siz) const {
-@@ -133,12 +151,51 @@ namespace RT64 {
+@@ -133,12 +151,55 @@ namespace RT64 {
  
              readBuffer.readDescSet->setBuffer(readBuffer.readDescSet->gCurInput, previousReadBuffer->nativeBuffer.get(), previousReadBuffer->nativeBufferSize, previousBufferView);
          }
@@ -7519,11 +7593,16 @@ index 6891b7b..22ef3a7 100644
 +        }
 +#   endif
  
++        // A lost device's buffers map to nothing (Application::replaceLostDevice()): nothing is uploaded, and every pixel
++        // counts as modified.
          void *dstData = readBuffer.nativeUploadBuffer->map();
-         memcpy(dstData, data, bufferSize);
-         readBuffer.nativeUploadBuffer->unmap();
- 
--        if (hasCurrentResource) {
+-        memcpy(dstData, data, bufferSize);
+-        readBuffer.nativeUploadBuffer->unmap();
++        if (dstData != nullptr) {
++            memcpy(dstData, data, bufferSize);
++            readBuffer.nativeUploadBuffer->unmap();
++        }
++
 +        // On WebGPU, reading the count back makes the list wait for the GPU and the page's thread (10-90 ms on the
 +        // first list of a new screen, 2-4 ms a framebuffer after). When the CPU knows what the previous buffer holds
 +        // (what it uploaded, and what render to RAM read back of the frames drawn into it since), count the pixels
@@ -7545,7 +7624,8 @@ index 6891b7b..22ef3a7 100644
 +                modifiedCount = countDifferent<uint8_t>(data, previousData, pixelCount);
 +                break;
 +            }
-+
+ 
+-        if (hasCurrentResource) {
 +            countOnGPU = false;
 +        }
 +
@@ -7558,7 +7638,7 @@ index 6891b7b..22ef3a7 100644
              // Clear the change count resource with a compute shader.
              worker->commandList->barriers(RenderBarrierStage::COMPUTE, RenderBufferBarrier(changeCountBuffer.get(), RenderBufferAccess::WRITE));
              worker->commandList->setPipeline(shaderLibrary->fbChangesClear.pipeline.get());
-@@ -200,7 +257,7 @@ namespace RT64 {
+@@ -200,7 +261,7 @@ namespace RT64 {
          worker->commandList->dispatch(dispatchX, dispatchY, 1);
          worker->commandList->barriers(RenderBarrierStage::ALL, afterBarriers, uint32_t(std::size(afterBarriers)));
  
@@ -7567,7 +7647,7 @@ index 6891b7b..22ef3a7 100644
              // Copy the modified count resource to the readback.
              RenderBufferBarrier beforeCopyBarriers[] = {
                  RenderBufferBarrier(changeCountBuffer.get(), RenderBufferAccess::READ),
-@@ -212,8 +269,7 @@ namespace RT64 {
+@@ -212,19 +273,23 @@ namespace RT64 {
          }
          
          // Read the modified count by executing and waiting.
@@ -7577,8 +7657,18 @@ index 6891b7b..22ef3a7 100644
              worker->commandList->end();
              worker->execute();
              worker->wait();
-@@ -224,7 +280,7 @@ namespace RT64 {
-             changeReadbackBuffer->unmap();
+             worker->commandList->begin();
+             RenderRange readRange(0, sizeof(uint32_t));
+             uint32_t *readbackData = reinterpret_cast<uint32_t *>(changeReadbackBuffer->map(0, &readRange));
+-            modifiedCount = *readbackData;
+-            changeReadbackBuffer->unmap();
++            if (readbackData != nullptr) {
++                modifiedCount = *readbackData;
++                changeReadbackBuffer->unmap();
++            }
++            else {
++                modifiedCount = width * height;
++            }
          }
          // Consider all pixels as modified.
 -        else {
@@ -7586,7 +7676,7 @@ index 6891b7b..22ef3a7 100644
              modifiedCount = width * height;
          }
  
-@@ -319,6 +375,23 @@ namespace RT64 {
+@@ -319,6 +384,23 @@ namespace RT64 {
          }
  
          writeBuffer.writeDescSet->setBuffer(writeBuffer.writeDescSet->gOutput, readBuffer->nativeBuffer.get(), bufferSize, readBuffer->nativeBufferWriteView.get());
@@ -7610,7 +7700,7 @@ index 6891b7b..22ef3a7 100644
  
          if (smallerReadBuffer != nullptr) {
              RenderBufferBarrier copyBarriers[] = {
-@@ -351,9 +424,6 @@ namespace RT64 {
+@@ -351,9 +433,6 @@ namespace RT64 {
          };
  
          worker->commandList->barriers(RenderBarrierStage::COPY, copyBarriers, uint32_t(std::size(copyBarriers)));
@@ -7620,9 +7710,16 @@ index 6891b7b..22ef3a7 100644
          worker->commandList->copyBufferRegion(writeBuffer.nativeReadbackBuffer->at(regionBufferOffset), readBuffer->nativeBuffer->at(regionBufferOffset), regionBufferSize);
      }
  
-@@ -366,7 +436,34 @@ namespace RT64 {
+@@ -365,8 +444,41 @@ namespace RT64 {
+         const uint32_t bufferSize = getNativeSize(width, rowEnd - rowStart, siz);
          RenderRange readRange = { bufferOffset, bufferOffset + bufferSize };
          uint8_t *readbackData = reinterpret_cast<uint8_t *>(writeBuffer.nativeReadbackBuffer->map(0, &readRange));
++
++        // A lost device's buffer maps to nothing (Application::replaceLostDevice()): RDRAM keeps what it held.
++        if (readbackData == nullptr) {
++            return;
++        }
++
          memcpy(data, readbackData + bufferOffset, bufferSize);
 +#   if defined(__EMSCRIPTEN__)
 +        // Rendering to RAM wrote these rows of the read buffer, so they go into what the CPU knows of it. Read back
@@ -10163,7 +10260,7 @@ index d1c5273..469fafa 100644
          }
  
 diff --git a/src/render/rt64_texture_cache.cpp b/src/render/rt64_texture_cache.cpp
-index 0848f3e..af2c185 100644
+index 0848f3e..8294116 100644
 --- a/src/render/rt64_texture_cache.cpp
 +++ b/src/render/rt64_texture_cache.cpp
 @@ -313,14 +313,17 @@ namespace RT64 {
@@ -10186,7 +10283,50 @@ index 0848f3e..af2c185 100644
          listIterators[textureIndex] = accessList.begin();
          return true;
      }
-@@ -994,7 +997,13 @@ namespace RT64 {
+@@ -554,10 +557,13 @@ namespace RT64 {
+ 
+         dstTexture->memorySize = alignedRowPitch * height;
+ 
++        // A lost device's buffers map to nothing (Application::replaceLostDevice()): the texture is left as it is.
+         uint8_t *dstData = reinterpret_cast<uint8_t *>(dstUploadResource->map());
+-        const uint8_t *srcData = reinterpret_cast<const uint8_t *>(bytes);
+-        memcpyRows(dstData, alignedRowPitch, srcData, rowPitch, height);
+-        dstUploadResource->unmap();
++        if (dstData != nullptr) {
++            const uint8_t *srcData = reinterpret_cast<const uint8_t *>(bytes);
++            memcpyRows(dstData, alignedRowPitch, srcData, rowPitch, height);
++            dstUploadResource->unmap();
++        }
+ 
+         uint32_t alignedRowWidth = alignedRowPitch / RenderFormatSize(dstTexture->format);
+         commandList->barriers(RenderBarrierStage::COPY, RenderTextureBarrier(dstTexture->texture.get(), RenderTextureLayout::COPY_DEST));
+@@ -796,6 +802,12 @@ namespace RT64 {
+ 
+         // Copy each mipmap into the buffer with the correct padding applied.
+         uint8_t *dstData = reinterpret_cast<uint8_t *>(dstUploadResource->map());
++
++        // A lost device's buffers map to nothing (Application::replaceLostDevice()).
++        if (dstData == nullptr) {
++            return false;
++        }
++
+         memset(dstData, 0, totalSize);
+         for (uint32_t mip = 0; mip < desc.mipLevels; mip++) {
+             uint32_t mipOffset = mipmapOffsets[mip];
+@@ -828,6 +840,12 @@ namespace RT64 {
+ 
+         // Upload the entire file to the GPU to copy data from it directly.
+         void *uploadData = dstUploadResource->map();
++
++        // A lost device's buffers map to nothing (Application::replaceLostDevice()).
++        if (uploadData == nullptr) {
++            return false;
++        }
++
+         memcpy(uploadData, bytes, byteCount);
+         dstUploadResource->unmap();
+ 
+@@ -994,7 +1012,13 @@ namespace RT64 {
                  uploadQueueChanged.wait(queueLock, [this]() {
                      return !uploadThreadRunning || !uploadQueue.empty() || !resolvedPathQueue.empty() || !streamResultQueue.empty();
                  });
@@ -10200,7 +10340,22 @@ index 0848f3e..af2c185 100644
                  if (!uploadQueue.empty()) {
                      queueCopy = uploadQueue;
                  }
-@@ -1407,6 +1416,9 @@ namespace RT64 {
+@@ -1078,9 +1102,12 @@ namespace RT64 {
+                     newTexture->decodeTMEM = upload.decodeTMEM;
+ 
+                     if (!upload.bytesTMEM.empty()) {
++                        // A lost device's buffers map to nothing (Application::replaceLostDevice()).
+                         void *dstData = tmemUploadResources[i]->map();
+-                        memcpy(dstData, upload.bytesTMEM.data(), upload.bytesTMEM.size());
+-                        tmemUploadResources[i]->unmap();
++                        if (dstData != nullptr) {
++                            memcpy(dstData, upload.bytesTMEM.data(), upload.bytesTMEM.size());
++                            tmemUploadResources[i]->unmap();
++                        }
+                     }
+ 
+                     beforeCopyBarriers.emplace_back(newTexture->tmem.get(), RenderTextureLayout::COPY_DEST);
+@@ -1407,6 +1434,9 @@ namespace RT64 {
      }
  
      void TextureCache::clearReplacementDirectories() {
@@ -10210,7 +10365,7 @@ index 0848f3e..af2c185 100644
          // Wait for the streaming threads to be finished.
          waitForAllStreamThreads(true);
  
-@@ -1460,6 +1472,8 @@ namespace RT64 {
+@@ -1460,6 +1490,8 @@ namespace RT64 {
      }
      
      bool TextureCache::loadReplacementDirectories(const std::vector<ReplacementDirectory> &replacementDirectories) {

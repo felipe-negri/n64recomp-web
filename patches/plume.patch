@@ -1,11 +1,11 @@
-plume: https://github.com/n64hub/plume-web 0ac34ab9d34db9de0c984dd85d3f7b8b201c6925
+plume: https://github.com/n64hub/plume-web 1b17a80a6f45fb1ece2343721592f426dd316b5c
 on upstream d890ac899e505fb30040e037a4037cdeca68f033 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 0789c20..5b5f85a 100644
+index 0789c20..6f5bbca 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -45,16 +45,28 @@ if(PLUME_D3D12_AGILITY_SDK_ENABLED)
+@@ -45,16 +45,29 @@ if(PLUME_D3D12_AGILITY_SDK_ENABLED)
  endif()
  
  # Print status messages
@@ -34,12 +34,13 @@ index 0789c20..5b5f85a 100644
 +    set(PLUME_SOURCES
 +        plume_vulkan.cpp
 +        plume_vulkan.h
++        plume_lost_device_test.h
 +    )
 +endif()
  
  # Platform-specific files
  if(APPLE)
-@@ -72,6 +84,12 @@ elseif(WIN32)
+@@ -72,6 +85,12 @@ elseif(WIN32)
      )
  endif()
  
@@ -52,7 +53,7 @@ index 0789c20..5b5f85a 100644
  # Create target
  add_library(plume STATIC ${PLUME_SOURCES})
  
-@@ -89,6 +107,11 @@ if(WIN32)
+@@ -89,6 +108,11 @@ if(WIN32)
      )
  endif()
  
@@ -922,6 +923,148 @@ index 0000000..b4650c5
 +#endif
 +    return 0;
 +}
+diff --git a/plume_d3d12.cpp b/plume_d3d12.cpp
+index 2cdcf18..0556cad 100644
+--- a/plume_d3d12.cpp
++++ b/plume_d3d12.cpp
+@@ -1394,14 +1394,21 @@ namespace plume {
+         UINT syncInterval = (vsyncEnabled && !desc.enablePresentWait) ? 1 : 0;
+         UINT flags = (!vsyncEnabled && tearingAllowed) ? DXGI_PRESENT_ALLOW_TEARING : 0;
+         HRESULT res = d3d->Present(syncInterval, flags);
++        if (FAILED(res)) {
++            // Logs a removal's reason, once.
++            commandQueue->device->isLost();
++        }
++
+         return SUCCEEDED(res);
+     }
+ 
+     void D3D12SwapChain::wait() {
+         assert(desc.enablePresentWait && "Present wait should've been explicitly enabled during swap chain creation before using the wait function.");
+ 
++        // A removed device's swap chain needn't signal its waitable object again: the wait gives up once it is removed.
+         if (waitableObject != NULL) {
+-            WaitForSingleObject(waitableObject, INFINITE);
++            while ((WaitForSingleObject(waitableObject, 100) == WAIT_TIMEOUT) && !commandQueue->device->isLost()) {
++            }
+         }
+     }
+ 
+@@ -2705,7 +2712,11 @@ namespace plume {
+         if (signalFence != nullptr) {
+             D3D12CommandFence *interfaceFence = static_cast<D3D12CommandFence *>(signalFence);
+             d3d->Signal(interfaceFence->d3d, interfaceFence->fenceValue);
+-            interfaceFence->d3d->SetEventOnCompletion(interfaceFence->fenceValue, interfaceFence->fenceEvent);
++            if (FAILED(interfaceFence->d3d->SetEventOnCompletion(interfaceFence->fenceValue, interfaceFence->fenceEvent))) {
++                // A removed device's fence: what it waited for will never be done, so nothing waits for it.
++                SetEvent(interfaceFence->fenceEvent);
++            }
++
+             interfaceFence->fenceValue++;
+         }
+     }
+@@ -2713,8 +2724,10 @@ namespace plume {
+     void D3D12CommandQueue::waitForCommandFence(RenderCommandFence *fence) {
+         assert(fence != nullptr);
+ 
++        // Gives up once the device is removed, whose fences needn't signal what they were set to.
+         D3D12CommandFence *interfaceFence = static_cast<D3D12CommandFence *>(fence);
+-        WaitForSingleObjectEx(interfaceFence->fenceEvent, INFINITE, FALSE);
++        while ((WaitForSingleObjectEx(interfaceFence->fenceEvent, 100, FALSE) == WAIT_TIMEOUT) && !device->isLost()) {
++        }
+     }
+ 
+     // D3D12Buffer
+@@ -2781,8 +2794,17 @@ namespace plume {
+             range.End = readRange->end;
+         }
+ 
++        // A buffer whose creation failed (its device removed) has no resource, and a removed device's Map() fails: both
++        // map to nullptr, as a lost device's buffers do under PLUME_LOSE_DEVICE_AFTER.
++        if ((d3d == nullptr) || device->lostTest.lost()) {
++            return nullptr;
++        }
++
+         void *outputData = nullptr;
+-        d3d->Map(subresource, (readRange != nullptr) ? &range : nullptr, &outputData);
++        if (FAILED(d3d->Map(subresource, (readRange != nullptr) ? &range : nullptr, &outputData))) {
++            return nullptr;
++        }
++
+         return outputData;
+     }
+ 
+@@ -4164,6 +4186,41 @@ namespace plume {
+         return d3d != nullptr;
+     }
+ 
++    static const char *deviceRemovedReasonName(HRESULT reason) {
++        switch (reason) {
++        case DXGI_ERROR_DEVICE_HUNG:
++            return "DXGI_ERROR_DEVICE_HUNG";
++        case DXGI_ERROR_DEVICE_REMOVED:
++            return "DXGI_ERROR_DEVICE_REMOVED";
++        case DXGI_ERROR_DEVICE_RESET:
++            return "DXGI_ERROR_DEVICE_RESET";
++        case DXGI_ERROR_DRIVER_INTERNAL_ERROR:
++            return "DXGI_ERROR_DRIVER_INTERNAL_ERROR";
++        case DXGI_ERROR_INVALID_CALL:
++            return "DXGI_ERROR_INVALID_CALL";
++        case E_OUTOFMEMORY:
++            return "E_OUTOFMEMORY";
++        default:
++            return "unknown";
++        }
++    }
++
++    // Removed by a TDR (the GPU took too long), a driver's fault or update, or the GPU going away. The reason is logged
++    // once, so a player's log says what the driver said.
++    bool D3D12Device::isLost() const {
++        const HRESULT reason = d3d->GetDeviceRemovedReason();
++        if (reason != S_OK) {
++            if (!removalLogged.exchange(true)) {
++                fprintf(stderr, "D3D12: the device was removed: %s (0x%08lX).\n", deviceRemovedReasonName(reason), (unsigned long)(reason));
++            }
++
++            return true;
++        }
++
++        lostTest.arm();
++        return lostTest.lost();
++    }
++
+     bool D3D12Device::beginCapture() {
+         assert(false && "Captures are not currently implemented in D3D12.");
+         return false;
+diff --git a/plume_d3d12.h b/plume_d3d12.h
+index 4827452..b7ba188 100644
+--- a/plume_d3d12.h
++++ b/plume_d3d12.h
+@@ -8,6 +8,7 @@
+ #pragma once
+ 
+ #include "plume_render_interface.h"
++#include "plume_lost_device_test.h"
+ 
+ #include <map>
+ #include <mutex>
+@@ -448,6 +449,8 @@ namespace plume {
+         RenderDeviceDescription description;
+         uint64_t timestampFrequency = 1;
+         bool gpuUploadHeapFallback = false;
++        mutable std::atomic<bool> removalLogged = false;
++        LostDeviceTest lostTest;
+ 
+         D3D12Device(D3D12Interface *renderInterface, const std::string &preferredDeviceName);
+         ~D3D12Device() override;
+@@ -477,6 +480,7 @@ namespace plume {
+         bool isValid() const;
+         bool beginCapture() override;
+         bool endCapture() override;
++        bool isLost() const override;
+     };
+ 
+     struct D3D12Interface : RenderInterface {
 diff --git a/plume_device_thread.cpp b/plume_device_thread.cpp
 new file mode 100644
 index 0000000..3b226b3
@@ -2729,8 +2872,72 @@ index 0000000..a188eed
 +    extern std::shared_ptr<DeviceThread> CreateEmscriptenDeviceThread(pthread_t thread);
 +#endif
 +};
+diff --git a/plume_lost_device_test.h b/plume_lost_device_test.h
+new file mode 100644
+index 0000000..0f0d804
+--- /dev/null
++++ b/plume_lost_device_test.h
+@@ -0,0 +1,58 @@
++//
++// plume
++//
++// Copyright (c) 2024 renderbag and contributors. All rights reserved.
++// Licensed under the MIT license. See LICENSE file for details.
++//
++
++#pragma once
++
++#include <atomic>
++#include <chrono>
++#include <cstdio>
++#include <cstdlib>
++
++namespace plume {
++    // PLUME_LOSE_DEVICE_AFTER=<seconds>: a developer's test of what an application does when its D3D12 or Vulkan device
++    // is lost, which can't be made to happen on a GPU at will (a forced TDR resets the GPU under every other program on
++    // it). The first device of the process that is asked isLost() says so from that many seconds after it was first
++    // asked, and its buffers map() to nullptr, as a removed D3D12 device's do. The device itself goes on working, and a
++    // device made after it, to carry on with, is never lost this way.
++    struct LostDeviceTest {
++        // Nanoseconds of the steady clock at which the device is lost; 0 while it isn't the device being tested.
++        mutable std::atomic<int64_t> lossTime { 0 };
++        mutable std::atomic<bool> lossLogged { false };
++
++        static int64_t now() {
++            return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
++        }
++
++        // Called from isLost(): the first device to be asked takes the test, if the variable is set.
++        void arm() const {
++            static std::atomic<bool> taken { false };
++            if ((lossTime.load(std::memory_order_relaxed) != 0) || taken.load(std::memory_order_relaxed)) {
++                return;
++            }
++
++            const char *seconds = std::getenv("PLUME_LOSE_DEVICE_AFTER");
++            if ((seconds == nullptr) || (seconds[0] == '\0') || taken.exchange(true)) {
++                return;
++            }
++
++            lossTime = now() + int64_t(std::atof(seconds) * 1e9);
++        }
++
++        bool lost() const {
++            const int64_t time = lossTime.load(std::memory_order_relaxed);
++            if ((time == 0) || (now() < time)) {
++                return false;
++            }
++
++            if (!lossLogged.exchange(true)) {
++                fprintf(stderr, "plume: the device is lost, as PLUME_LOSE_DEVICE_AFTER asks.\n");
++            }
++
++            return true;
++        }
++    };
++};
 diff --git a/plume_render_interface.h b/plume_render_interface.h
-index 2048557..1764dd9 100644
+index 2048557..c855cde 100644
 --- a/plume_render_interface.h
 +++ b/plume_render_interface.h
 @@ -7,6 +7,8 @@
@@ -2796,7 +3003,7 @@ index 2048557..1764dd9 100644
          virtual bool resize() = 0;
          virtual bool needsResize() const = 0;
          virtual void setVsyncEnabled(bool vsyncEnabled) = 0;
-@@ -249,6 +284,15 @@ namespace plume {
+@@ -249,6 +284,19 @@ namespace plume {
          virtual RenderSampleCounts getSampleCountsSupported(RenderFormat format) const = 0;
          virtual bool beginCapture() = 0;
          virtual bool endCapture() = 0;
@@ -2804,11 +3011,15 @@ index 2048557..1764dd9 100644
 +        // A backend that delivers a READBACK buffer's data asynchronously (WebGPU's) calls this back each time some
 +        // arrives, on the thread it delivers it on, so a thread waiting for isMapReady() can be answered then.
 +        virtual void setReadbackCallback(void (*callback)()) { }
++#endif
 +
 +        // Whether the device was lost and the interface's createDevice() now makes a new one to carry on with: a
-+        // WebGPU device once the page has another in its place (plume_webgpu_device.js). Any thread may ask.
++        // WebGPU device once the page has another in its place (plume_webgpu_device.js), a D3D12 device once it is
++        // removed (a TDR, a driver's fault or update: GetDeviceRemovedReason()), a Vulkan device once a submit, a fence
++        // wait, an acquire or a present has returned VK_ERROR_DEVICE_LOST. A lost device's buffers may map() to nullptr,
++        // and its fence and present waits return. Any thread may ask. PLUME_LOSE_DEVICE_AFTER tests it on D3D12 and
++        // Vulkan (plume_lost_device_test.h).
 +        virtual bool isLost() const { return false; }
-+#endif
      };
  
      struct RenderInterface {
@@ -2872,10 +3083,48 @@ index 9dcfedf..b352bb6 100644
          uint64_t maxTextureSize = 0;
  
 diff --git a/plume_vulkan.cpp b/plume_vulkan.cpp
-index f1dd503..48526ea 100644
+index f1dd503..20dcb89 100644
 --- a/plume_vulkan.cpp
 +++ b/plume_vulkan.cpp
-@@ -3076,13 +3076,26 @@ namespace plume {
+@@ -902,6 +902,10 @@ namespace plume {
+     }
+ 
+     void *VulkanBuffer::map(uint32_t subresource, const RenderRange *readRange) {
++        if (device->lostTest.lost()) {
++            return nullptr;
++        }
++
+         void *data = nullptr;
+         VkResult res = vmaMapMemory(device->allocator, allocation, &data);
+         if (res != VK_SUCCESS) {
+@@ -2286,6 +2290,8 @@ namespace plume {
+             res = vkQueuePresentKHR(commandQueue->queue->vk, &presentInfo);
+         }
+ 
++        commandQueue->device->checkLost(res, "vkQueuePresentKHR");
++
+ #if defined(__APPLE__)
+         // Under MoltenVK, VK_SUBOPTIMAL_KHR does not result in a valid state for rendering. We intentionally
+         // only check for this error during present to avoid having to synchronize manually against the semaphore
+@@ -2305,7 +2311,8 @@ namespace plume {
+ 
+         if (currentPresentId >= desc.maxFrameLatency) {
+             constexpr uint64_t waitTimeout = 100000000;
+-            vkWaitForPresentKHR(commandQueue->device->vk, vk, currentPresentId - (desc.maxFrameLatency - 1), waitTimeout);
++            VkResult res = vkWaitForPresentKHR(commandQueue->device->vk, vk, currentPresentId - (desc.maxFrameLatency - 1), waitTimeout);
++            commandQueue->device->checkLost(res, "vkWaitForPresentKHR");
+         }
+     }
+ 
+@@ -2487,6 +2494,7 @@ namespace plume {
+ 
+         VulkanCommandSemaphore *interfaceSemaphore = static_cast<VulkanCommandSemaphore *>(signalSemaphore);
+         VkResult res = vkAcquireNextImageKHR(commandQueue->device->vk, vk, UINT64_MAX, interfaceSemaphore->vk, VK_NULL_HANDLE, textureIndex);
++        commandQueue->device->checkLost(res, "vkAcquireNextImageKHR");
+         if ((res != VK_SUCCESS) && (res != VK_SUBOPTIMAL_KHR)) {
+             return false;
+         }
+@@ -3076,13 +3084,26 @@ namespace plume {
          }
      }
  
@@ -2903,7 +3152,7 @@ index f1dd503..48526ea 100644
              }
  
              if (!scissorVector.empty()) {
-@@ -3091,7 +3104,7 @@ namespace plume {
+@@ -3091,7 +3112,7 @@ namespace plume {
          }
          else {
              // Single element fast path.
@@ -2912,7 +3161,7 @@ index f1dd503..48526ea 100644
              vkCmdSetScissor(vk, 0, 1, &scissor);
          }
      }
-@@ -3118,10 +3131,10 @@ namespace plume {
+@@ -3118,10 +3139,10 @@ namespace plume {
          if (clearRectsCount > 0) {
              for (uint32_t i = 0; i < clearRectsCount; i++) {
                  VkClearRect clearRect;
@@ -2927,7 +3176,7 @@ index f1dd503..48526ea 100644
                  clearRect.baseArrayLayer = 0;
                  clearRect.layerCount = 1;
                  rectVector.emplace_back(clearRect);
-@@ -3157,7 +3170,9 @@ namespace plume {
+@@ -3157,7 +3178,9 @@ namespace plume {
          rgba[3] = colorValue.a;
          attachment.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
          attachment.colorAttachment = attachmentIndex;
@@ -2938,7 +3187,7 @@ index f1dd503..48526ea 100644
      }
  
      void VulkanCommandList::clearDepthStencil(bool clearDepth, bool clearStencil, float depthValue, uint32_t stencilValue, const RenderRect *clearRects, uint32_t clearRectsCount) {
-@@ -3180,7 +3195,9 @@ namespace plume {
+@@ -3180,7 +3203,9 @@ namespace plume {
              attachment.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
          }
  
@@ -2949,7 +3198,24 @@ index f1dd503..48526ea 100644
      }
  
      void VulkanCommandList::copyBufferRegion(RenderBufferReference dstBuffer, RenderBufferReference srcBuffer, uint64_t size) {
-@@ -4126,7 +4143,11 @@ namespace plume {
+@@ -3625,6 +3650,8 @@ namespace plume {
+             res = vkQueueSubmit(queue->vk, 1, &submitInfo, submitFence);
+         }
+ 
++        device->checkLost(res, "vkQueueSubmit");
++
+         if (res != VK_SUCCESS) {
+             fprintf(stderr, "vkQueueSubmit failed with error code 0x%X.\n", res);
+             return;
+@@ -3636,6 +3663,7 @@ namespace plume {
+ 
+         VulkanCommandFence *interfaceFence = static_cast<VulkanCommandFence *>(fence);
+         VkResult res = vkWaitForFences(device->vk, 1, &interfaceFence->vk, VK_TRUE, UINT64_MAX);
++        device->checkLost(res, "vkWaitForFences");
+         if (res != VK_SUCCESS) {
+             fprintf(stderr, "vkWaitForFences failed with error code 0x%X.\n", res);
+             return;
+@@ -4126,7 +4154,11 @@ namespace plume {
          capabilities.sampleLocations = (sampleLocationProperties.sampleLocationSampleCounts != 0);
          capabilities.resolveRegion = true;
          capabilities.resolveModes = false;
@@ -2962,6 +3228,60 @@ index f1dd503..48526ea 100644
          capabilities.scalarBlockLayout = scalarBlockLayoutSupported;
          capabilities.bufferDeviceAddress = bufferDeviceAddressSupported;
          capabilities.samplerMirrorClampToEdge = supportedOptionalExtensions.find(VK_KHR_SAMPLER_MIRROR_CLAMP_TO_EDGE_EXTENSION_NAME) != supportedOptionalExtensions.end();
+@@ -4447,6 +4479,23 @@ namespace plume {
+         return vk != nullptr;
+     }
+ 
++    // Lost to a driver's fault, reset or update, or the GPU going away, as the first call to see it returned. Which call
++    // that was is logged, once.
++    void VulkanDevice::checkLost(VkResult res, const char *call) {
++        if ((res == VK_ERROR_DEVICE_LOST) && !lost.exchange(true)) {
++            fprintf(stderr, "Vulkan: the device was lost (VK_ERROR_DEVICE_LOST from %s).\n", call);
++        }
++    }
++
++    bool VulkanDevice::isLost() const {
++        if (lost) {
++            return true;
++        }
++
++        lostTest.arm();
++        return lostTest.lost();
++    }
++
+     bool VulkanDevice::beginCapture() {
+         assert(false && "Captures are not currently implemented in Vulkan.");
+         return false;
+diff --git a/plume_vulkan.h b/plume_vulkan.h
+index 0a1edbe..6f39c2b 100644
+--- a/plume_vulkan.h
++++ b/plume_vulkan.h
+@@ -8,6 +8,7 @@
+ #pragma once
+ 
+ #include "plume_render_interface.h"
++#include "plume_lost_device_test.h"
+ 
+ #include <mutex>
+ #include <set>
+@@ -417,6 +418,8 @@ namespace plume {
+         std::unique_ptr<RenderBuffer> nullBuffer;
+         bool loadStoreOpNoneSupported = false;
+         bool nullDescriptorSupported = false;
++        std::atomic<bool> lost = false;
++        LostDeviceTest lostTest;
+ 
+         VulkanDevice(VulkanInterface *renderInterface, const std::string &preferredDeviceName);
+         ~VulkanDevice() override;
+@@ -446,6 +449,8 @@ namespace plume {
+         bool isValid() const;
+         bool beginCapture() override;
+         bool endCapture() override;
++        bool isLost() const override;
++        void checkLost(VkResult res, const char *call);
+     };
+ 
+     struct VulkanInterface : RenderInterface {
 diff --git a/plume_web_waits.h b/plume_web_waits.h
 new file mode 100644
 index 0000000..23df721
