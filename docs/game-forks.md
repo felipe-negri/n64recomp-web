@@ -610,13 +610,15 @@ changes to N64Recomp's live recompiler and to the runtime for it are left out, a
 prim depth; the small images the game draws and then samples, the shadows, the speed board and the smash replay's
 frame, read from RDRAM rather than through GPU tile copies; a texture address wrapped to the RDP's 24 bits; an
 inverted load tile clamped) before N64Recomp-browser's patches, keeping a copy of what went in so that an edited
-`rt64.patch` replaces the old one in a checkout, and CI's `mt-patches` job applies both on each PR.
+`rt64.patch` replaces the old one in a checkout (and is dropped once the checkout is put back to its commit, as
+`tools/publish_pages.sh` does when N64Recomp-browser moves), and CI's `mt-patches` job applies both on each PR.
 Render to RAM is the late copy, on the desktop build too, in place of upstream's merged copy: the title screen draws a
 frame over a block of the game's heap that the game fills as soon as the list is done, and the late copy keeps every
 word the CPU wrote meanwhile (`src/main/main.cpp`). Left out besides: the choice of DirectX 12 or Vulkan, the CRT
-shaders and the Stretch aspect ratio. Its list is 202 shaders: the boot (the launcher, the opening, the title and the
-menus, 47) and seven sections, a match (85) and one each for the Mushroom Cup, Ring Shot, Bowser Stage, Piranha
-Challenge, doubles and the title's attract demo (26-106, each with the match's it draws; 155 in all), recorded by
+shaders and the Stretch aspect ratio. Its list is 206 shaders: the boot (the launcher, the opening, the title and the
+menus, 47) and seven sections, a match (89, four of them the page's plays' misses past the set's end) and one each for
+the Mushroom Cup, Ring Shot, Bowser Stage, Piranha Challenge, doubles and the title's attract demo (26-106, each with
+the match's it draws; 159 in all), recorded by
 `tools/shader_plan.json` by playing: the menus with A 3.5 s apart, as they take no press while a screen slides in, and
 a match on each of the four courts (Hard, Clay, Grass and Composition, which draw the same shaders but four). A plan
 goes by the game's memory, not by time: Start through the opening until the title's code is in (the menus' first word
