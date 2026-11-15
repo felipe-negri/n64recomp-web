@@ -114,7 +114,9 @@ play four golfers, each from the pad that picked it and buzzed on its turn (3, W
 out and plugged in again at the tee get their ports back and rumble once the game has found their Rumble Paks, a few
 seconds on (4c); a tournament saved and quit continues after a restart (5a), and the scripted presses that once didn't
 move its main menu's cursor came in the half second the menu zooms in over the title, which drops them; its long plays
-at 3840x2000 ran nothing out (W9); F-Zero X's page in Firefox loses
+at 3840x2000 ran nothing out (W9); released as v0.1.2, whose archives boot on Windows and on Linux's lavapipe (8a),
+with its README linking its page (8c), its page from Pages in Firefox playing without a fault (W10) and its Games row,
+news entry, tile and score on the hub (W11); F-Zero X's page in Firefox loses
 none in its boot's first 10 s built on v0.201.0 but inside its own silence (0.6-2.5 s from Pages on v0.184.0, as
 section boot's shaders were built with the game waiting), and none after its tab is hidden and shown in either
 browser, so it passes W5: the 2.4 s it loses in the 2.6 s its first race's section takes to build 45 shaders is a
@@ -173,9 +175,14 @@ v0.201.0, above). Built on v0.203.0, Mario Party 2's page in Chrome lost 40 ms o
 shown again, where Pages on v0.184.0 lost none (filed with Rush 2049's loss there), so it fails W5 again.
 Mario Tennis' page, from Pages on v0.209.0, passes W2, W6 (its Drive half left) and W7, and fails W5: none short in
 Chrome's boot but 279 ms after its tab was hidden, and in Firefox 444 ms in the boot and 20.4 s after the show, where
-its page's thread stalled 60-100 ms every few hundred ms to the play's end (filed). It passes W9 from v0.211.0: a
-match held 16 minutes at 3840x2000 ran its heap out in Firefox at 428-636 s on v0.209.0, in plume's queued upload
-copies (docs/findings.md, Memory), and played its 34 minutes with plume 2a3ab28, as Chrome played 23 on v0.209.0.
+its page's thread stalled 60-100 ms every few hundred ms to the play's end (its interpolated frames holding each list's
+syncs to RAM up, uncapped, so its game ran at half its rate or less). Built on rt64 a365318 its game plays at its rate
+and none is short in the boot, but W5 still fails where the hide falls in a scene of the game's own that syncs to RAM
+33-39 times a list, which the game now reaches by then: 1.7-2.3 s short after the show in Firefox, and in Chrome none in
+two backchecks of four and 1.9-6.0 s in the others, a build of 2f08dd3's alike (filed; docs/findings.md, Interpolated
+frames and the game's full sync). It passes W9 from v0.211.0: a match held 16 minutes at 3840x2000 ran its heap out in Firefox at 428-636 s on
+v0.209.0, in plume's queued upload copies (docs/findings.md, Memory), and played its 34 minutes with plume 2a3ab28, as
+Chrome played 23 on v0.209.0.
 
 ## A new recomp's list
 

@@ -1067,4 +1067,29 @@ rt64 c1000a7           RT64_EXACT_PRIM_DEPTH: a G_ZS_PRIM triangle through a per
 rt64 2fb4862 c0d27e5   RT64_EXACT_PRIM_DEPTH's lines moved among the web's own (beside a draw's pipeline, just before
                        a draw), clear of the lines game forks patch (a pause screen's scissor, water, car reflections, a
                        draw trace)
+rt64 1f14ebb           on the web the workload thread starts no interpolated frame while the game's list is in its full
+                       sync (State's ListGPUWait), for 50 ms at most: the sync's waits for the device thread (a readback
+                       of a sync to RAM or of the late copy, a buffer made as the draw data grows) wait for every WebGPU
+                       call sent before them, so they waited for every interpolated frame drawn meanwhile. Mario Tennis'
+                       page, which syncs to RAM in each list, uncapped drew 12-22 of them a game frame and each list
+                       waited 30-90 ms behind them: its matches played at 11-16 game frames a second against their 30,
+                       and its sound ran short
+rt64 2f08dd3           that wait lasts 200 ms at most (InterpolatedListWaitMs): a sync's own readbacks take what the
+                       list's draws cost the GPU, which grows with the canvas, and Mario Tennis' took 20-40 ms a list at
+                       3840x2000 (100-150 in its heaviest scenes), capped too. With 50 ms the wait ran out in most of
+                       them there, and in a twentieth at 1256x645, and the frames started then held the sync's later
+                       readbacks again: its match uncapped at 3840x2000 played at 19-20 game frames a second, against 24
+                       with 200 and 25-26 capped (9 without the wait)
+rt64 e0efea6           the same wait in lines of the web's own, so the game forks' own RT64 patches apply over it: a
+                       ListGPUWait is SharedQueueResources' and lives to State::fullSync()'s end, and the wait comes
+                       after a frame is drawn, before the next interpolated one
+rt64 07bce94           GBI_RDP::fullSync() holds that ListGPUWait around State::fullSync(), whose start Rush 2049's own
+                       RT64 patch adds to
+rt64 baf5152           after that wait the frame loop's own skips go on as they are (the time check, and the rest of a
+                       workload's frames once a newer one comes), since WWF No Mercy's RT64 patch keeps its own: at most
+                       one frame of the older workload more
+rt64 a365318           the list's full sync ends as State::advanceWorkload() queues its workload (listInFullSync), not
+                       when GBI_RDP::fullSync()'s call returns: the queueing waits for the workload thread when the queue
+                       is full, and that thread waited for the sync to end, so each list waited out the 200 ms (Mario
+                       Tennis' match at 9-28 game frames a second with 07bce94)
 ```

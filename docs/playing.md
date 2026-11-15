@@ -160,6 +160,10 @@ work, naming the game, the browser, the time and the curve.
   moves its number with the cost the same. Such a change is played at `?uncapped=240` too (`--query "?uncapped=240"`
   beside `--uncapped`), with `?present-stats` for the frames RT64 drew a game frame and the rate it timed the game at
   (docs/findings.md, A game at 30, uncapped).
+- Nor for a change that trades interpolated frames for the game's own (one that holds them while the game's list
+  waits for the GPU): its A/B reads fewer presents as worse with the game playing faster and its sound whole. Read the
+  game's frames a second there too, `?frame-log`'s GF lines (`--query "?frame-log"`), and the sound short beside them
+  (docs/findings.md, Interpolated frames and the game's full sync).
 - Chrome on Windows times its animation frames by the display's vblank; with no display (a monitor off) it sleeps
   17.9 ms between frames, and every page whose game runs below 60 presents ~55.6 at the display's rate. play_page
   records animation frames a second beside the presents, and leaves presents out of the comparison for a display-rate
