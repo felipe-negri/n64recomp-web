@@ -53,8 +53,8 @@ items by almost no game when the record began.
 | Donald Duck: Goin' Quackers | 2, 5b | W5 fails, W6's Drive |
 | Dinosaur Planet | | W5 fails |
 | Turok: Dinosaur Hunter | 5a | W5 fails, W6's Drive |
-| Turok 2: Seeds of Evil | 1a fails, 2 fails, 4c, 5a | W5 fails, W6's Drive |
-| Turok 3: Shadow of Oblivion | 1a fails, 4c, 5a | W5 fails, W6's Drive |
+| Turok 2: Seeds of Evil | 1a's page, 2 fails, 4c, 5a | W5 fails, W6's Drive |
+| Turok 3: Shadow of Oblivion | 1a's page, 4c, 5a | W5 fails, W6's Drive |
 | GoldenEye 007 | | W2, W5 fails, W6, W7 |
 | The Legend of Zelda: Majora's Mask | | W2, W5, W6, W7 |
 | Banjo-Kazooie | | W2, W5, W6, W7 |
@@ -95,7 +95,7 @@ plays port 1 the ports pass, so Super Mario 64 and Turok: Dinosaur Hunter, whose
 on the Controls tab kept across a quit and a restart, walking the Turoks' player forward), pass 4c, and Paper Mario's
 keyboard half is left;
 Turok 2's desktop build drops its map from some of the frames Frame Interpolation adds at Manual 120 while the player
-moves, 5-13 of 75-80 captures, with `RT64_GAME_FRAME_WORKLOADS` on or off and none at Original (filed); Turok 2's and Turok 3's split screen, played on their desktop builds with two, three and four players at 16:9 and 21:9, widens every view to the window with its own HUD since turok-engine #38 (the lower views had none, Turok 3's kept an old frame at the window's sides, and Turok 2's top half was stretched, the pair of a view's HUD judged by a scissor that ended at the view's bottom), with no strip at the outermost columns, but in the right-hand quarters the weapon stays where it is at 4:3, a quarter of the view short of its edge at 21:9, the weapon's pass a pair of its own that RT64 narrows (1a, filed); the Turoks' 5a is unplayed: none of the three writes its Controller Pak before a save
+moves, 5-13 of 75-80 captures, with `RT64_GAME_FRAME_WORKLOADS` on or off and none at Original (filed); Turok 2's and Turok 3's split screen, played on their desktop builds with two, three and four players at 16:9 and 21:9, widens every view to the window with its own HUD since turok-engine #38 (the lower views had none, Turok 3's kept an old frame at the window's sides, and Turok 2's top half was stretched, the pair of a view's HUD judged by a scissor that ended at the view's bottom), with no strip at the outermost columns, and since turok-engine #39 each quarter's weapon with its view (in the right-hand quarters it stayed where it is at 4:3, a quarter of the view short of its edge at 21:9: the weapon shared a framebuffer pair with the view's HUD, judged by the HUD's whole-screen scissor) and the line between the top and bottom quarters out to the window's edges; their pages' split screen is unplayed (1a's page, filed); the Turoks' 5a is unplayed: none of the three writes its Controller Pak before a save
 point in a level (`saves/controllerpak_0.mpk` stays absent through their boots, intros and attract demos, and
 turok-engine writes the pak only on a change), and no save point was reached near Turok 1's or Turok 2's start; the Mario Parties' READMEs don't link their pages (8c); F-Zero X's page in Firefox loses
 none in its boot's first 10 s built on v0.201.0 but inside its own silence (0.6-2.5 s from Pages on v0.184.0, as
