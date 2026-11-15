@@ -17,10 +17,9 @@ Each game's repo builds its page with this repo; a page holds no ROM, the player
 recomps aside, the games are here to build out and test the web support on more than one
 game: what one of them or one browser turns up is fixed in this repo or the forks unless it really is that game's own,
 so every game and both browsers get it. Rush 2049, Perfect Dark, Super Mario 64, F-Zero X, Mario Party 1, 2 and 3,
-Super Smash Bros., Paper Mario, Rayman 2, Donald Duck: Goin' Quackers, Dinosaur Planet, Turok: Dinosaur Hunter, Turok 2
+Super Smash Bros., Paper Mario, Mario Golf, Rayman 2, Donald Duck: Goin' Quackers, Dinosaur Planet, Turok: Dinosaur Hunter, Turok 2
 and Turok 3 are this project's own recomps, each with releases of its desktop build for Windows and Linux on its repo's Releases page.
-A game is released, and gets its row here, once it has been played through its checklist (docs/new-recomp.md): Mario
-Golf, ours too, is still being played.
+A game is released, and gets its row here, once it has been played through its checklist (docs/new-recomp.md).
 
 | Game | Recomp | Repo | Page |
 |---|---|---|---|
@@ -57,6 +56,7 @@ Golf, ours too, is still being played.
 | Mario Party 3 | this project's own recomp | [mario-party-3-recomp](https://github.com/n64hub/mario-party-3-recomp) | [play](https://n64hub.com/mario-party-3/) |
 | Super Smash Bros. | this project's own recomp | [super-smash-bros-recomp](https://github.com/n64hub/super-smash-bros-recomp) | [play](https://n64hub.com/super-smash-bros/) |
 | Paper Mario | this project's own recomp | [paper-mario-recomp](https://github.com/n64hub/paper-mario-recomp) | [play](https://n64hub.com/paper-mario/) |
+| Mario Golf | this project's own recomp | [mario-golf-recomp](https://github.com/n64hub/mario-golf-recomp) | [play](https://n64hub.com/mario-golf/) |
 | Rayman 2 | this project's own recomp | [rayman-2-recomp](https://github.com/n64hub/rayman-2-recomp) | [play](https://n64hub.com/rayman-2/) |
 | Donald Duck: Goin' Quackers | this project's own recomp | [donald-duck-goin-quackers-recomp](https://github.com/n64hub/donald-duck-goin-quackers-recomp) | [play](https://n64hub.com/goin-quackers/) |
 | Dinosaur Planet | this project's own recomp | [dinosaur-planet-recomp](https://github.com/n64hub/dinosaur-planet-recomp) | [play](https://n64hub.com/dinosaur-planet/) |

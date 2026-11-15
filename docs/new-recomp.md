@@ -53,7 +53,7 @@ items by almost no game when the record began.
 | Mario Party 3 | 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Super Smash Bros. | | W6's Drive |
 | Paper Mario | 4a, 4c, 6b | W5 fails, W6's Drive |
-| Mario Golf | 2, 3, 4a, 4b, 4c, 5a, 5b, 6a, 6b | W6's Drive, W9 |
+| Mario Golf | 2 fails | W6's Drive |
 | Rayman 2 | | W5 fails, W6's Drive |
 | Donald Duck: Goin' Quackers | 2, 5b | W5 fails, W6's Drive |
 | Dinosaur Planet | | W5 fails |
@@ -102,7 +102,18 @@ keyboard half is left;
 Turok 2's desktop build drops its map from some of the frames Frame Interpolation adds at Manual 120 while the player
 moves, 5-13 of 75-80 captures, with `RT64_GAME_FRAME_WORKLOADS` on or off and none at Original (filed); Turok 2's and Turok 3's split screen, played on their desktop builds with two, three and four players at 16:9 and 21:9, widens every view to the window with its own HUD since turok-engine #38 (the lower views had none, Turok 3's kept an old frame at the window's sides, and Turok 2's top half was stretched, the pair of a view's HUD judged by a scissor that ended at the view's bottom), with no strip at the outermost columns, and since turok-engine #39 each quarter's weapon with its view (in the right-hand quarters it stayed where it is at 4:3, a quarter of the view short of its edge at 21:9: the weapon shared a framebuffer pair with the view's HUD, judged by the HUD's whole-screen scissor) and the line between the top and bottom quarters out to the window's edges; and their pages the same since turok-engine #40, played with two and four players at 16:9 and 21:9 (on the page, `RT64_PARTIAL_SCREEN_PAIRS` judged each view's world and weapon pairs by the whole screen and kept them in the 4:3 picture, with black bars at the window's sides, while the views' HUD went out to the widened views' edges); the Turoks' 5a is unplayed: none of the three writes its Controller Pak before a save
 point in a level (`saves/controllerpak_0.mpk` stays absent through their boots, intros and attract demos, and
-turok-engine writes the pak only on a change), and no save point was reached near Turok 1's or Turok 2's start; the Mario Parties' READMEs don't link their pages (8c); Mario Golf is held unreleased until its row is played through (its GitHub releases drafts, its page off the hub); its HUD sits at the wide picture's sides and corners on its desktop build at 16:9 and 21:9 and on its page, with the swing meter and the pause menu in the middle and nothing culled at 21:9's sides, so it passes 1 (its HUD's scissors stay inside the 3D's border, which RT64 widens with the picture: past it the HUD's slide-in left marks never cleared, its src/game/hud.cpp), and its Save and Quit writes the game's SRAM, but no play has continued the tournament after a restart yet (5a); F-Zero X's page in Firefox loses
+turok-engine writes the pak only on a change), and no save point was reached near Turok 1's or Turok 2's start; the
+Mario Parties' READMEs don't link their pages (8c); Mario Golf's courses, Mini-Golf, every play mode and a whole
+Tournament round draw on its desktop build at 16:9, 21:9 and 4:3, but at Framerate Display a flyover now and then
+draws one frame with the course torn into loose polygons, which Original never does (2 fails, filed); its HUD sits at
+the wide picture's sides and corners on its desktop build at 16:9 and 21:9 and on its page, with the swing meter and
+the pause menu in the middle and nothing culled at 21:9's sides, so it passes 1 (its HUD's scissors stay inside the
+3D's border, which RT64 widens with the picture: past it the HUD's slide-in left marks never cleared, its
+src/game/hud.cpp); four pads play four golfers, each from the pad that picked it and buzzed on its turn (3, W7), and
+two pads of one model pulled out and plugged in again at the tee get their ports back and rumble once the game has
+found their Rumble Paks, a few seconds on (4c); a tournament saved and quit continues after a restart (5a), and the
+scripted presses that once didn't move its main menu's cursor came in the half second the menu zooms in over the
+title, which drops them; its long plays at 3840x2000 ran nothing out (W9); F-Zero X's page in Firefox loses
 none in its boot's first 10 s built on v0.201.0 but inside its own silence (0.6-2.5 s from Pages on v0.184.0, as
 section boot's shaders were built with the game waiting), and none after its tab is hidden and shown in either
 browser, so it passes W5: the 2.4 s it loses in the 2.6 s its first race's section takes to build 45 shaders is a
