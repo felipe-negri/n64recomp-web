@@ -840,9 +840,12 @@ rt64 08427aa           a slow texture scroll (a quarter texel every few frames, 
                        scroll of a texel or less a frame is drawn as before. Every build
 rt64                   vertices a game's CPU moves under a matrix it keeps, in a group with no matrix ID and vertex
 a03baa2, f32b1bf,      interpolation off, move between frames from where the last frame drew them, when both frames have
-0ea4496                as many and none moved further than their box's largest side: they moved only on the game's own
-                       frames against everything else moving on every frame drawn (Rayman 2's menu cursor). A game that
-                       gives matrix IDs or asks for vertex interpolation is untouched. In a block of its own at
+0ea4496, 0372264       as many and none moved further than their box's largest side: they moved only on the game's own
+                       frames against everything else moving on every frame drawn (Rayman 2's menu cursor). Not when a
+                       sample of up to 64 finds 3 or more, and one in 20, with another of the last frame's vertices at
+                       under a quarter of the distance to its pair: a buffer refilled with as many other vertices
+                       (Mario Golf's course terrain as a hole's flyover pans) tore into loose triangles between frames.
+                       A game that gives matrix IDs or asks for vertex interpolation is untouched. In a block of its own at
                        matchTransform's end, after the extended GBI's interpolation and the texture coordinates', whose
                        lines Wave Race 64's and Conker's Bad Fur Day's own rt64 patches change or have as context. Every
                        build
