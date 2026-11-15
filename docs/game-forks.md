@@ -613,11 +613,13 @@ inverted load tile clamped) before N64Recomp-browser's patches, and CI's `mt-pat
 Render to RAM is the late copy, on the desktop build too, in place of upstream's merged copy: the title screen draws a
 frame over a block of the game's heap that the game fills as soon as the list is done, and the late copy keeps every
 word the CPU wrote meanwhile (`src/main/main.cpp`). Left out besides: the choice of DirectX 12 or Vulkan, the CRT
-shaders and the Stretch aspect ratio. Its list is <N> shaders: the boot (the launcher, the opening, the title and the
-menus, <N0>) and <SECTIONS>, recorded by `tools/shader_plan.json` by playing: the menus with A 3.5 s apart, as they
-take no press while a screen slides in, a match on each of the four courts (Hard, Clay, Grass and Composition, which
-draw the same shaders but four), <MODES>. A plan knows a match has started by the program's line for the match's code
-overlay (`code segment rom 0x00A1F530`), and times its swings on the game's frame counter (0x80061f48, 30 a second).
+shaders and the Stretch aspect ratio. Its list is 202 shaders: the boot (the launcher, the opening, the title and the
+menus, 47) and seven sections, a match (85) and one each for the Mushroom Cup, Ring Shot, Bowser Stage, Piranha
+Challenge, doubles and the title's attract demo (26-106, each with the match's it draws; 155 in all), recorded by
+`tools/shader_plan.json` by playing: the menus with A 3.5 s apart, as they take no press while a screen slides in, and
+a match on each of the four courts (Hard, Clay, Grass and Composition, which draw the same shaders but four). A plan
+knows a match has started by the program's line for the match's code overlay (`code segment rom 0x00A1F530`), and
+times its swings on the game's frame counter (0x80061f48, 30 a second).
 Its `tools/play_plan.json` plays Singles against Luigi on the Hard Court for 100 s, its `tools/play_plan_extended.json`
 3.4 minutes. Its README and BUILDING.md, and the headers of those files, have the rest.
 
