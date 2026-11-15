@@ -13,9 +13,10 @@
 // --profile the build dir is served on 8937 unless --port, since the ROM and saves a kept profile holds are kept per
 // origin, port included. A URL is where
 // the page is, a GitHub Pages one say, and plan.page is taken relative to it, unless the URL names an .html itself
-// (publish_page.sh puts a fork's <name>.html up as index.html, so give .../index.html for it). A build dir's .html is the
-// same for a build: its dir is served and that page played, whatever plan.page says (a plan whose page is index.html,
-// which Pages has and a build hasn't). The browser starts with
+// (publish_page.sh puts a fork's <name>.html up as index.html, so give .../index.html for it). A build dir is served and
+// plan.page played from it, or, when the dir has no such file (a plan whose page is index.html, which Pages has and a
+// build hasn't), the dir's one .html: a dir with several names them and stops, and <dir>/<name>.html plays that page
+// whatever plan.page says. The browser starts with
 // a profile of its own (--profile, a fresh temporary one without, deleted at the end), so a visit is cold unless the profile is kept:
 // page_driver.mjs says how each browser is driven. --size is the viewport in CSS pixels, one a pixel, which the plan's
 // clicks are in (1256x645, as record_shaders.mjs's; the stand-in for a laptop's integrated graphics is 3840x2000). At
@@ -196,7 +197,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
-import { browserExecutable, firefoxUncappedRate, missingPlanFiles, open, option, rdramHelpers, serve, sleep } from './page_driver.mjs';
+import { browserExecutable, buildPage, firefoxUncappedRate, missingPlanFiles, open, option, rdramHelpers, serve, sleep } from './page_driver.mjs';
 
 const args = process.argv.slice(2);
 const headed = args.includes('--headed');
@@ -593,9 +594,11 @@ $browser = $rows | ? { $_.kind -eq 'browser' } | Sort-Object cores -Descending |
 });
 
 const remote = /^https?:\/\//.test(where);
+let localPage = /\.html$/.test(where) ? path.basename(where) : null;
+try { if (!remote && !localPage) localPage = buildPage(where, plan); } catch (error) { console.error(error.message); process.exit(1); }
 const server = remote ? null : await serve(/\.html$/.test(where) ? path.dirname(where) : where, port);
 const base = server ? `http://127.0.0.1:${server.address().port}/` : (where.endsWith('/') ? where : where + '/');
-const pageUrl = /\.html$/.test(where) ? (remote ? where : base + path.basename(where)) + query : base + (plan.page ?? '') + query;
+const pageUrl = (remote && /\.html$/.test(where) ? where : base + (localPage ?? plan.page ?? '')) + query;
 // --pad: the keys RecompFrontend's default mappings give an N64 input, as the stand-in pad's standard-mapping button
 // (a number) or left or right stick ("x-" left, "y-" up, "rx-" ...) that gives the same input (the header says more).
 const padKeys = { Space: 0, ShiftLeft: 2, KeyE: 4, KeyR: 7, KeyQ: 6, Enter: 9, Escape: 8, KeyJ: 14, KeyL: 15, KeyI: 12,

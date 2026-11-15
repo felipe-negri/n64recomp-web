@@ -79,7 +79,7 @@ items by almost no game when the record began.
 | Beetle Adventure Racing! | | W2, W5, W6, W7, W9 |
 | Turok: Rage Wars | | W2, W5, W6, W7 |
 | WWF No Mercy | | W2, W5, W6, W7, W8, W9 |
-| Mario Tennis | | W2, W5, W6, W7 |
+| Mario Tennis | | W5 fails, W6's Drive, W9 fails |
 
 What the fails are: 4c's pads are played with two stand-in pads of one id (W7's `unplugPad` and `replugPad`). On
 Super Smash Bros.' page a binding written to the controls file is read back after a restart and kept through each pad
@@ -155,6 +155,11 @@ Planet 94), and Firefox's 1.1-6.4 s on Rush 2049, Mario Party 2 and 3, Donald Du
 Pages predate rt64 edd5da8 (the Mario Parties built on v0.201.0 lost none there; W5, which F-Zero X passes on
 v0.201.0, above). Built on v0.203.0, Mario Party 2's page in Chrome lost 40 ms of its music 2.2 s after its tab was
 shown again, where Pages on v0.184.0 lost none (filed with Rush 2049's loss there), so it fails W5 again.
+Mario Tennis' page, from Pages on v0.209.0, passes W2, W6 (its Drive half left) and W7, and fails W5: none short in
+Chrome's boot but 279 ms after its tab was hidden, and in Firefox 444 ms in the boot and 20.4 s after the show, where
+its page's thread stalled 60-100 ms every few hundred ms to the play's end (filed). It fails W9 as well: its long
+plays at 3840x2000 (405 s) didn't run out once rt64 971496a trimmed RT64's workload slots, but a match held 16
+minutes in Firefox ran its heap out at 428 s (filed).
 
 ## A new recomp's list
 
