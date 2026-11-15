@@ -44,22 +44,22 @@ items by almost no game when the record began.
 
 | Game | New recomp: left | Web port: left |
 |---|---|---|
-| San Francisco Rush 2049 | 4c fails, 8a fails | W5, W6's Drive |
-| Perfect Dark | 4c, 8a fails | W5 fails, W6's Drive |
-| Super Mario 64 | | W5 fails, W6's Drive |
-| F-Zero X | | W6's Drive |
-| Mario Party | 4c, 5b, 6a, 6b fails, 8a, 8b, 8c fails | W6's Drive, W8 |
-| Mario Party 2 | 4c, 5b, 6a, 6b fails, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
-| Mario Party 3 | 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
-| Super Smash Bros. | | W6's Drive |
-| Paper Mario | 4a, 4c, 6b | W5 fails, W6's Drive |
+| San Francisco Rush 2049 | 4c fails, 6c, 8a fails | W5, W6's Drive |
+| Perfect Dark | 4c, 6c, 8a fails | W5 fails, W6's Drive |
+| Super Mario 64 | 6c | W5 fails, W6's Drive |
+| F-Zero X | 6c | W6's Drive |
+| Mario Party | 4c, 5b, 6a, 6b fails, 6c, 8a, 8b, 8c fails | W6's Drive, W8 |
+| Mario Party 2 | 4c, 5b, 6a, 6b fails, 6c, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
+| Mario Party 3 | 4c, 5b, 6a, 6c, 8a, 8b, 8c fails | W6's Drive, W8 |
+| Super Smash Bros. | 6c | W6's Drive |
+| Paper Mario | 4a, 4c, 6b, 6c | W5 fails, W6's Drive |
 | Mario Golf | | W6's Drive |
-| Rayman 2 | | W5 fails, W6's Drive |
-| Donald Duck: Goin' Quackers | 2, 5b | W5 fails, W6's Drive |
-| Dinosaur Planet | | W5 fails |
-| Turok: Dinosaur Hunter | 5a | W5 fails, W6's Drive |
-| Turok 2: Seeds of Evil | 2 fails, 4c, 5a | W5 fails, W6's Drive |
-| Turok 3: Shadow of Oblivion | 4c, 5a | W5 fails, W6's Drive |
+| Rayman 2 | 6c | W5 fails, W6's Drive |
+| Donald Duck: Goin' Quackers | 2, 5b, 6c | W5 fails, W6's Drive |
+| Dinosaur Planet | 6c | W5 fails |
+| Turok: Dinosaur Hunter | 5a, 6c | W5 fails, W6's Drive |
+| Turok 2: Seeds of Evil | 2 fails, 4c, 5a, 6c | W5 fails, W6's Drive |
+| Turok 3: Shadow of Oblivion | 4c, 5a, 6c | W5 fails, W6's Drive |
 | GoldenEye 007 | | W2, W5 fails, W6, W7 |
 | The Legend of Zelda: Majora's Mask | | W2, W5, W6, W7 |
 | Banjo-Kazooie | | W2, W5, W6, W7 |
@@ -114,7 +114,9 @@ play four golfers, each from the pad that picked it and buzzed on its turn (3, W
 out and plugged in again at the tee get their ports back and rumble once the game has found their Rumble Paks, a few
 seconds on (4c); a tournament saved and quit continues after a restart (5a), and the scripted presses that once didn't
 move its main menu's cursor came in the half second the menu zooms in over the title, which drops them; its long plays
-at 3840x2000 ran nothing out (W9); released as v0.1.2, whose archives boot on Windows and on Linux's lavapipe (8a),
+at 3840x2000 ran nothing out (W9); its sound clicked about four times a second through all of it on the desktop, `queue_samples`' catch-up
+dropping one buffer in 15, and since its patches/audio.c none of 7375 is dropped and its queue holds 27-60 ms on the
+sound device, so it passes 6c; released as v0.1.2, whose archives boot on Windows and on Linux's lavapipe (8a),
 with its README linking its page (8c), its page from Pages in Firefox playing without a fault (W10) and its Games row,
 news entry, tile and score on the hub (W11); F-Zero X's page in Firefox loses
 none in its boot's first 10 s built on v0.201.0 but inside its own silence (0.6-2.5 s from Pages on v0.184.0, as
@@ -312,6 +314,13 @@ rumble included.
   none (a game's own cut to its attract demo is a run of zeros too, as Turok: Dinosaur Hunter's is) and a second drag
   play loses it again: Turok 3's first lost 65 ms in a drag over its title music beside a page play at 3840 wide, and
   two more lost nothing.
+- **6c.** The sound keeps pace on the desktop: through a minute of play (its menus and a level) no buffer is dropped by
+  `queue_samples`' catch-up past 100 ms queued, and the queue never runs dry. The catch-up drops every other sample of
+  a buffer, a click with no gap in it, so 6b's gap search misses it, and SDL's disk driver plays slower than real
+  time, so its recording never shows a queue that runs dry: read on the sound device, by a log of the frames queued
+  (`get_queued_audio_bytes`) beside each `queue_samples` in a test build. Mario Golf's sound library made 552 samples
+  a retrace where 533 play, leaving its pace to the audio FIFO's full status, which the runtime never sets, and
+  clicked about four times a second until its `patches/audio.c` (its CLAUDE.md, Sound).
 
 ### 7. The page
 
