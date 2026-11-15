@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 2f08dd3367e32da1c6a1bfc1e9e041a404b5ba3c
+rt64: https://github.com/n64hub/rt64-web e0efea61dcec482b410649a0474159858ae7a142
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -4396,7 +4396,7 @@ index 1da2550..720d561 100644
  
              const interop::RSPViewport &viewport = viewportStack[viewportStackSize - 1];
 diff --git a/src/hle/rt64_shared_queue_resources.h b/src/hle/rt64_shared_queue_resources.h
-index 8858dac..98f8975 100644
+index 8858dac..4bf95ae 100644
 --- a/src/hle/rt64_shared_queue_resources.h
 +++ b/src/hle/rt64_shared_queue_resources.h
 @@ -23,6 +23,16 @@ namespace RT64 {
@@ -4425,14 +4425,14 @@ index 8858dac..98f8975 100644
          UserConfiguration userConfig;
          EnhancementConfiguration enhancementConfig;
          EmulatorConfiguration emulatorConfig;
-@@ -57,6 +69,28 @@ namespace RT64 {
+@@ -57,6 +69,49 @@ namespace RT64 {
          std::mutex interpolatedMutex;
          std::condition_variable interpolatedCondition;
          std::mutex workloadMutex;
 +#   if defined(__EMSCRIPTEN__)
-+        // The game's list in its full sync (State's ListGPUWait), whose waits for the device thread (a readback of
-+        // what it drew into RDRAM, a buffer made larger) wait for every WebGPU call sent before them: the workload
-+        // thread starts no interpolated frame meanwhile (WorkloadQueue::renderThreadLoop()).
++        // The game's list in its full sync (a ListGPUWait in State::fullSync()), whose waits for the device thread (a
++        // readback of what it drew into RDRAM, a buffer made larger) wait for every WebGPU call sent before them: the
++        // workload thread starts no interpolated frame meanwhile, for a while at most (waitForListGPUWaits()).
 +        uint32_t listGPUWaits = 0;
 +        std::mutex listGPUWaitMutex;
 +        std::condition_variable listGPUWaitCondition;
@@ -4450,12 +4450,33 @@ index 8858dac..98f8975 100644
 +
 +            listGPUWaitCondition.notify_all();
 +        }
++
++        // Until no list is in its full sync, or maxMs have gone by.
++        void waitForListGPUWaits(uint32_t maxMs) {
++            std::unique_lock<std::mutex> listLock(listGPUWaitMutex);
++            listGPUWaitCondition.wait_for(listLock, std::chrono::milliseconds(maxMs), [this]() {
++                return listGPUWaits == 0;
++            });
++        }
++
++        // A list in its full sync for as long as one lives.
++        struct ListGPUWait {
++            SharedQueueResources *resources;
++
++            ListGPUWait(SharedQueueResources *resources) : resources(resources) {
++                resources->listGPUWaitBegin();
++            }
++
++            ~ListGPUWait() {
++                resources->listGPUWaitEnd();
++            }
++        };
 +#   endif
  
          void setSwapChainSize(uint32_t width, uint32_t height) {
              std::scoped_lock<std::mutex> configurationLock(configurationMutex);
 diff --git a/src/hle/rt64_state.cpp b/src/hle/rt64_state.cpp
-index 2970e71..839fba5 100644
+index 2970e71..da8e1dd 100644
 --- a/src/hle/rt64_state.cpp
 +++ b/src/hle/rt64_state.cpp
 @@ -7,6 +7,13 @@
@@ -4472,36 +4493,7 @@ index 2970e71..839fba5 100644
  #include "im3d/im3d.h"
  #include "im3d/im3d_math.h"
  #include "imgui/imgui.h"
-@@ -28,6 +35,28 @@
- #define MI_INTR_SP          0x00000001
- 
- namespace RT64 {
-+#if defined(__EMSCRIPTEN__)
-+    // The game's list is in its full sync from when one is made until end() (SharedQueueResources::listGPUWaits).
-+    struct ListGPUWait {
-+        SharedQueueResources *resources;
-+
-+        ListGPUWait(SharedQueueResources *resources) : resources(resources) {
-+            resources->listGPUWaitBegin();
-+        }
-+
-+        void end() {
-+            if (resources != nullptr) {
-+                resources->listGPUWaitEnd();
-+                resources = nullptr;
-+            }
-+        }
-+
-+        ~ListGPUWait() {
-+            end();
-+        }
-+    };
-+#endif
-+
-     const float ShiftScaleMap[] = {
-         1.0f,
-         1.0f / 2.0f,
-@@ -83,6 +112,8 @@ namespace RT64 {
+@@ -83,6 +90,8 @@ namespace RT64 {
          displayListAddress = 0;
          displayListCounter = 0;
          rdramCheckPending = true;
@@ -4510,7 +4502,7 @@ index 2970e71..839fba5 100644
          workloadCounter = 0;
          lastScreenHash = 0;
          lastScreenFactorCounter = 0;
-@@ -362,6 +393,28 @@ namespace RT64 {
+@@ -362,6 +371,28 @@ namespace RT64 {
                      checkResult = framebufferManager.checkRegionsTMEM(checkTMEMStart, checkTMEMEnd, dstCallTile.lineWidth, tile.siz, tile.fmt, tile.uls, usesTLUT, tile.palette);
                      dstCallTile.syncRequired = checkResult.syncRequired;
  
@@ -4539,7 +4531,7 @@ index 2970e71..839fba5 100644
                      if (gpuCopiesEnabled && checkResult.valid()) {
                          dstCallTile.tileCopyUsed = true;
                          dstCallTile.tmemHashOrID = checkResult.tileId;
-@@ -382,7 +435,12 @@ namespace RT64 {
+@@ -382,7 +413,12 @@ namespace RT64 {
                          dstCallTile.tileCopyUsed = false;
                          dstCallTile.tmemHashOrID = rdp->tileReplacementHashes[tileIndex];
  
@@ -4552,7 +4544,7 @@ index 2970e71..839fba5 100644
                              FramebufferPair &fbPair = workload.fbPairs[workload.currentFramebufferPairIndex()];
                              fbPair.syncRequired = true;
                          }
-@@ -472,6 +530,7 @@ namespace RT64 {
+@@ -472,6 +508,7 @@ namespace RT64 {
          drawCall.NoN = rsp->NoN;
          drawCall.drawStatusChanges = drawStatus.changed;
          drawCall.callIndex = workload.gameCallCount++;
@@ -4560,7 +4552,7 @@ index 2970e71..839fba5 100644
  
          // Add the draw call to the FB pair.
          GameCall gameCall;
-@@ -577,7 +636,41 @@ namespace RT64 {
+@@ -577,7 +614,41 @@ namespace RT64 {
              }
  
              // Synchronization will be required unless direct reinterpretation is possible (which is not implemented yet).
@@ -4602,7 +4594,7 @@ index 2970e71..839fba5 100644
                  fbPair.syncRequired = true;
              }
  
-@@ -617,6 +710,15 @@ namespace RT64 {
+@@ -617,6 +688,15 @@ namespace RT64 {
      }
      
      void State::checkRDRAM() {
@@ -4618,7 +4610,7 @@ index 2970e71..839fba5 100644
          if (!rdramCheckPending) {
              return;
          }
-@@ -636,6 +738,9 @@ namespace RT64 {
+@@ -636,6 +716,9 @@ namespace RT64 {
              }
  
              framebufferManager.performDiscards(drawFbDiscards);
@@ -4628,7 +4620,7 @@ index 2970e71..839fba5 100644
          }
  
          rdramCheckPending = false;
-@@ -781,6 +886,159 @@ namespace RT64 {
+@@ -781,6 +864,159 @@ namespace RT64 {
          }
      }
      
@@ -4788,20 +4780,20 @@ index 2970e71..839fba5 100644
      void State::listProcessBegin() {
          dlCpuProfiler.start();
      }
-@@ -790,6 +1048,12 @@ namespace RT64 {
+@@ -790,6 +1026,12 @@ namespace RT64 {
      }
  
      void State::fullSync() {
 +#   if defined(__EMSCRIPTEN__)
-+        // Until the workload is queued: the last list's late copy landing, the uploads that create a buffer as the draw
-+        // data grows, and each batch's sync to RAM and its readback all wait for the device thread.
-+        ListGPUWait listGPUWait(ext.sharedQueueResources);
++        // To its end: the last list's late copy landing, the uploads that create a buffer as the draw data grows, and
++        // each batch's sync to RAM and its readback all wait for the device thread.
++        SharedQueueResources::ListGPUWait listGPUWait(ext.sharedQueueResources);
 +#   endif
 +        landRAMCopies(false);
          flush();
          submitFramebufferPair(FramebufferPair::FlushReason::ProcessDisplayListsEnd);
  
-@@ -809,6 +1073,7 @@ namespace RT64 {
+@@ -809,6 +1051,7 @@ namespace RT64 {
          // Copy the current state's extended parameters into the workload.
          workload.extended.ditherNoiseStrength = extended.ditherNoiseStrength;
          workload.extended.texcoordWrapPoint = extended.texcoordWrapPoint;
@@ -4809,7 +4801,7 @@ index 2970e71..839fba5 100644
  
          auto emitTileWarning = [&](CommandWarning warning, size_t tileIndex) {
              warning.indexType = CommandWarning::IndexType::TileIndex;
-@@ -819,6 +1084,7 @@ namespace RT64 {
+@@ -819,6 +1062,7 @@ namespace RT64 {
          // Validate all tile copies to be used during the rendering.
          const bool extendedRenderToRAMSet = (extended.renderToRAM < UINT8_MAX);
          const bool renderToRDRAM = extendedRenderToRAMSet ? (extended.renderToRAM != 0) : ext.emulatorConfig->framebuffer.renderToRAM;
@@ -4817,7 +4809,7 @@ index 2970e71..839fba5 100644
          const bool warningsEnabled = ext.userConfig->developerMode;
          const bool linearFiltering = !ext.userConfig->threePointFiltering;
          const size_t callTileCount = workload.drawData.callTiles.size();
-@@ -845,6 +1111,36 @@ namespace RT64 {
+@@ -845,6 +1089,36 @@ namespace RT64 {
  
              }
  
@@ -4854,7 +4846,7 @@ index 2970e71..839fba5 100644
              // The rest of the validation doesn't apply to tiles that aren't GPU copies or sampling TMEM directly.
              if (!callTile.tileCopyUsed && !callTile.rawTMEM) {
                  continue;
-@@ -914,6 +1210,13 @@ namespace RT64 {
+@@ -914,6 +1188,13 @@ namespace RT64 {
                  const bool insufficientHeight = (maxTexcoord.y > callTile.tileCopyHeight);
                  if (insufficientWidth || insufficientHeight) {
                      callTile.tileCopyUsed = false;
@@ -4868,7 +4860,7 @@ index 2970e71..839fba5 100644
                  }
                  else {
                      callTile.rawTMEM = false;
-@@ -1103,7 +1406,8 @@ namespace RT64 {
+@@ -1103,7 +1384,8 @@ namespace RT64 {
  
                      // Submit the shader to the cache so compilation can start right away.
                      // Ignore any calls that use fill type, as they're emulated without using a shader.
@@ -4878,7 +4870,7 @@ index 2970e71..839fba5 100644
                          ext.rasterShaderCache->submit(shaderDesc);
                      }
  
-@@ -1114,7 +1418,23 @@ namespace RT64 {
+@@ -1114,7 +1396,23 @@ namespace RT64 {
                      renderParams.omH = shaderDesc.otherMode.H;
                      renderParams.flags = shaderDesc.flags;
  
@@ -4903,7 +4895,7 @@ index 2970e71..839fba5 100644
                      workload.drawData.renderParams.emplace_back(renderParams);
                  }
              }
-@@ -1254,6 +1574,10 @@ namespace RT64 {
+@@ -1254,6 +1552,10 @@ namespace RT64 {
                              resizedTargets.emplace(colorDepthPair.second);
                          }
                      }
@@ -4914,7 +4906,7 @@ index 2970e71..839fba5 100644
                  }
  
                  for (RenderTarget *renderTarget : resizedTargets) {
-@@ -1264,6 +1588,9 @@ namespace RT64 {
+@@ -1264,6 +1566,9 @@ namespace RT64 {
              };
  
              auto renderAndSynchronize = [&](uint32_t maxFramebufferPair) {
@@ -4924,7 +4916,7 @@ index 2970e71..839fba5 100644
                  // Preprocess all the framebuffer operations.
                  uint32_t pairCursor = framebufferPairCursor;
                  while (pairCursor < maxFramebufferPair) {
-@@ -1280,7 +1607,12 @@ namespace RT64 {
+@@ -1280,7 +1585,12 @@ namespace RT64 {
                  while (pairCursor < maxFramebufferPair) {
                      const FramebufferPair &fbPair = workload.fbPairs[pairCursor];
                      if (getTargetsFromPair(pairCursor)) {
@@ -4938,7 +4930,7 @@ index 2970e71..839fba5 100644
                          FramebufferRenderer::DrawParams drawParams;
                          drawParams.worker = ext.framebufferGraphicsWorker;
                          drawParams.fbStorage = &fbStorage;
-@@ -1346,7 +1678,7 @@ namespace RT64 {
+@@ -1346,7 +1656,7 @@ namespace RT64 {
                  }
  
                  // Record all setup previous to drawing any of the recorded framebuffers.
@@ -4947,7 +4939,7 @@ index 2970e71..839fba5 100644
                  framebufferRenderer->recordSetup(ext.framebufferGraphicsWorker, bufferUploaders, queuedProcessor, nullptr, &workload.outputBuffers, false);
  
                  // Record the command list for the framebuffer pairs.
-@@ -1385,7 +1717,7 @@ namespace RT64 {
+@@ -1385,7 +1695,7 @@ namespace RT64 {
                              uint32_t readRowCount = colorFb->height - colorFb->readHeight;
                              uint32_t readFbBytes = readRowBytes * readRowCount;
                              uint32_t storageAddress = colorImg.address + readRowBytes * colorFb->readHeight;
@@ -4956,7 +4948,7 @@ index 2970e71..839fba5 100644
                              FramebufferChange *colorFbChange = colorFb->readChangeFromStorage(ext.framebufferGraphicsWorker, workload.fbStorage, scratchFbChangePool, Framebuffer::Type::Color,
                                  colorImg.fmt, pairCursor, colorFb->readHeight, readRowCount, ext.shaderLibrary);
  
-@@ -1429,7 +1761,7 @@ namespace RT64 {
+@@ -1429,7 +1739,7 @@ namespace RT64 {
                                  uint32_t readRowCount = depthFb->height - depthFb->readHeight;
                                  uint32_t readFbBytes = readRowBytes * readRowCount;
                                  uint32_t storageAddress = depthImg.address + readRowBytes * depthFb->readHeight;
@@ -4965,7 +4957,7 @@ index 2970e71..839fba5 100644
                                  FramebufferChange *depthFbChange = depthFb->readChangeFromStorage(ext.framebufferGraphicsWorker, workload.fbStorage, scratchFbChangePool, Framebuffer::Type::Depth,
                                      G_IM_FMT_DEPTH, pairCursor, depthFb->readHeight, readRowCount, ext.shaderLibrary);
  
-@@ -1471,15 +1803,26 @@ namespace RT64 {
+@@ -1471,15 +1781,26 @@ namespace RT64 {
                  ext.framebufferGraphicsWorker->commandList->end();
                  framebufferRenderer->waitForUploaders();
                  ext.framebufferGraphicsWorker->execute();
@@ -4995,7 +4987,7 @@ index 2970e71..839fba5 100644
                          }
                      }
  
-@@ -1508,8 +1851,10 @@ namespace RT64 {
+@@ -1508,8 +1829,10 @@ namespace RT64 {
                          colorFb->readHeight = 0;
                      }
  
@@ -5007,7 +4999,7 @@ index 2970e71..839fba5 100644
                          if (dummyDepthTarget == nullptr) {
                              dummyDepthTarget = std::make_unique<RenderTarget>(0, Framebuffer::Type::Depth, renderTargetManager.multisampling, renderTargetManager.usesHDR);
                              dummyDepthTarget->setupDepth(ext.framebufferGraphicsWorker, rtWidth, rtHeight);
-@@ -1520,6 +1865,7 @@ namespace RT64 {
+@@ -1520,6 +1843,7 @@ namespace RT64 {
                          }
  
                          colorDepthPairs.emplace_back(colorTarget, dummyDepthTarget.get());
@@ -5015,7 +5007,7 @@ index 2970e71..839fba5 100644
                      }
                      // Resize the depth target if necessary.
                      else if (depthTarget != nullptr) {
-@@ -1560,8 +1906,32 @@ namespace RT64 {
+@@ -1560,8 +1884,32 @@ namespace RT64 {
                  fullSyncFramebufferPairTiles(workload, fbPair, loadOpCursor, rdpTileCursor);
              }
  
@@ -5048,7 +5040,7 @@ index 2970e71..839fba5 100644
          }
          else {
              // Process all tiles.
-@@ -1569,6 +1939,13 @@ namespace RT64 {
+@@ -1569,6 +1917,13 @@ namespace RT64 {
                  fullSyncFramebufferPairTiles(workload, workload.fbPairs[f], loadOpCursor, rdpTileCursor);
              }
  
@@ -5062,7 +5054,7 @@ index 2970e71..839fba5 100644
              // Do not render anything, just wait for the data to be uploaded.
              ext.framebufferGraphicsWorker->commandList->begin();
              ext.drawDataUploader->commandListBeforeBarriers(ext.framebufferGraphicsWorker);
-@@ -1591,11 +1968,18 @@ namespace RT64 {
+@@ -1591,11 +1946,18 @@ namespace RT64 {
              textureManager.removeHashes(evictedTextureHashes);
          }
  
@@ -5082,18 +5074,7 @@ index 2970e71..839fba5 100644
  
              advanceFramebufferRenderer();
  
-@@ -1774,6 +2158,10 @@ namespace RT64 {
-             }
-         }
-         
-+#   if defined(__EMSCRIPTEN__)
-+        listGPUWait.end();
-+#   endif
-+
-         // Advance the workload queue at the end of a full synchronization.
-         advanceWorkload(workload, false);
-         ext.workloadQueue->advanceToNextWorkload();
-@@ -1805,7 +2193,7 @@ namespace RT64 {
+@@ -1805,7 +2167,7 @@ namespace RT64 {
  
                  for (size_t h = 0; (h < viHistory.history.size()) && !viPresented; h++) {
                      const VIHistory::Present &entry = viHistory.history[h];
@@ -5102,7 +5083,7 @@ index 2970e71..839fba5 100644
                      const hlslpp::uint2 fbSize = entry.vi.fbSize();
                      const uint8_t fbSiz = entry.vi.fbSiz();
                      if ((colorImg.address == fbAddress) &&
-@@ -1824,6 +2212,12 @@ namespace RT64 {
+@@ -1824,6 +2186,12 @@ namespace RT64 {
          Workload &nextWorkload = ext.workloadQueue->workloads[workloadCursor];
          nextWorkload.begin(workloadCounter++);
  
@@ -5115,7 +5096,7 @@ index 2970e71..839fba5 100644
          // Indicate on the framebuffer manager that all tile copies are free to be used again.
          framebufferManager.clearUsedTileCopies();
  
-@@ -1836,6 +2230,10 @@ namespace RT64 {
+@@ -1836,6 +2204,10 @@ namespace RT64 {
      }
      
      void State::updateScreen(const VI &newVI, bool fromEarlyPresent) {
@@ -5126,7 +5107,7 @@ index 2970e71..839fba5 100644
          // If the debugger has paused the plugin, keep submitting the last workload and screen VI for rendering and a present event.
          if (debuggerInspector.paused && !fromEarlyPresent) {
              if (ext.userConfig->developerMode) {
-@@ -1871,18 +2269,36 @@ namespace RT64 {
+@@ -1871,18 +2243,36 @@ namespace RT64 {
          const hlslpp::uint2 screenFbSize = newVI.fbSize();
          const uint8_t screenFbSiz = newVI.fbSiz();
          const bool viVisible = newVI.visible();
@@ -5165,7 +5146,7 @@ index 2970e71..839fba5 100644
              }
              else if (viVisible) {
                  lastScreenFactorCounter++;
-@@ -1897,11 +2313,12 @@ namespace RT64 {
+@@ -1897,11 +2287,12 @@ namespace RT64 {
          screenCpuProfiler.start();
          bool fbChangesMade = false;
          bool screenChangesMade = false;
@@ -5179,7 +5160,7 @@ index 2970e71..839fba5 100644
              if (screenFb != nullptr) {
                  // Check compatibility of the high resolution framebuffer with the VI first.
                  // Ensure both the siz and width are the same.
-@@ -1909,6 +2326,7 @@ namespace RT64 {
+@@ -1909,6 +2300,7 @@ namespace RT64 {
                      const uint8_t *fbRAM = &RDRAM[screenFb->addressStart];
                      uint64_t currentHash = XXH3_64bits(fbRAM, screenFb->RAMBytes);
                      if (currentHash != screenFb->RAMHash) {
@@ -5187,7 +5168,7 @@ index 2970e71..839fba5 100644
                          {
                              RenderWorkerExecution workerExecution(worker);
                              thread_local std::vector<uint32_t> fbDiscards;
-@@ -1924,12 +2342,16 @@ namespace RT64 {
+@@ -1924,12 +2316,16 @@ namespace RT64 {
                          // Only update the hash if it's not a discard.
                          if (present.fbOperations.front().type == FramebufferOperation::Type::WriteChanges) {
                              screenFb->RAMHash = currentHash;
@@ -5204,7 +5185,7 @@ index 2970e71..839fba5 100644
                  }
                  else {
                      screenFb = nullptr;
-@@ -1943,6 +2365,15 @@ namespace RT64 {
+@@ -1943,6 +2339,15 @@ namespace RT64 {
                  memcpy(present.storage.data(), &RDRAM[screenFbAddress], screenFbBytes);
                  uint64_t newScreenHash = XXH3_64bits(present.storage.data(), screenFbBytes);
                  screenChangesMade = (newScreenHash != lastScreenHash);
@@ -5220,7 +5201,7 @@ index 2970e71..839fba5 100644
                  lastScreenHash = newScreenHash;
              }
          }
-@@ -1950,9 +2381,18 @@ namespace RT64 {
+@@ -1950,9 +2355,18 @@ namespace RT64 {
          // We only push a new present event to the timeline when it's necessary.
          if (fromEarlyPresent || viDifferent || fbChangesMade || screenChangesMade) {
              // Push a new renderer event to the timeline for presenting this VI.
@@ -5240,7 +5221,7 @@ index 2970e71..839fba5 100644
  
              // This presentation originates from screen changes being made manually by the CPU
              // or the game somehow not doing some form of buffering (instant input romhacks).
-@@ -1971,6 +2411,9 @@ namespace RT64 {
+@@ -1971,6 +2385,9 @@ namespace RT64 {
          renderTargetManager.destroyAll();
          renderTargetManager.setMultisampling(multisampling);
          dummyDepthTarget.reset();
@@ -5250,7 +5231,7 @@ index 2970e71..839fba5 100644
          framebufferRenderer->updateMultisampling();
          updateRenderFlagSampleCount();
      }
-@@ -2660,12 +3103,101 @@ namespace RT64 {
+@@ -2660,12 +3077,101 @@ namespace RT64 {
          workload.debuggerCamera = debuggerInspector.camera;
          workload.debuggerRenderer = debuggerInspector.renderer;
          workload.paused = paused;
@@ -5352,7 +5333,7 @@ index 2970e71..839fba5 100644
          present.debuggerFramebuffer.address = debuggerInspector.renderer.framebufferAddress;
          present.debuggerFramebuffer.view = (debuggerInspector.renderer.framebufferIndex >= 0);
      }
-@@ -2724,6 +3256,25 @@ namespace RT64 {
+@@ -2724,6 +3230,25 @@ namespace RT64 {
          extended.renderToRAM = renderToRAM;
      }
  
@@ -5725,7 +5706,7 @@ index 8ea27d5..6eabaa0 100644
          void resetDrawDataRanges();
          void resetRSPOutputBuffers();
 diff --git a/src/hle/rt64_workload_queue.cpp b/src/hle/rt64_workload_queue.cpp
-index 5a331aa..d8cc99c 100644
+index 5a331aa..ba7f40d 100644
 --- a/src/hle/rt64_workload_queue.cpp
 +++ b/src/hle/rt64_workload_queue.cpp
 @@ -8,6 +8,13 @@
@@ -6340,10 +6321,10 @@ index 5a331aa..d8cc99c 100644
 +                for (uint32_t w = 0; w < frameWorkloadCount; w++) {
 +                    workloadIndices.emplace_back(uint32_t((processCursor + w) % workloads.size()));
 +                }
++
++                curFrame.set(*this, workloadIndices.data(), frameWorkloadCount);
  
 -                // Detect the color image to interpolate for this workload.
-+                curFrame.set(*this, workloadIndices.data(), frameWorkloadCount);
-+
 +                // Detect the color image to interpolate for this frame: the last one its workloads draw that can be.
                  RenderTargetKey interpolationTargetKey;
 +                uint32_t interpolationTargetWorkload = 0;
@@ -6493,7 +6474,7 @@ index 5a331aa..d8cc99c 100644
                  const int64_t setupTimeMicro = workloadTimer.elapsedMicroseconds();
                  const int64_t adjustedTimeWindowMicro = originalTimeMicro - setupTimeMicro;
                  const int64_t maxTimePerFrameMicro = adjustedTimeWindowMicro / displayFrames;
-@@ -1063,15 +1488,66 @@ namespace RT64 {
+@@ -1063,6 +1488,21 @@ namespace RT64 {
                  bool skipWorkloadNow = false;
                  uint32_t targetIndex = 0;
                  uint32_t framesRendered = 0;
@@ -6514,45 +6495,8 @@ index 5a331aa..d8cc99c 100644
 +                };
                  int64_t renderTimeTotalMicro = 0;
                  for (uint32_t frame = 0; (frame < displayFrames) && !skipWorkloadNow; frame++) {
-+#               if defined(__EMSCRIPTEN__)
-+                    // An interpolated frame isn't started while the game's next list is in its full sync
-+                    // (SharedQueueResources::listGPUWaits), for at most InterpolatedListWaitMs. Its waits for the device
-+                    // thread (a readback of a sync to RAM or of the late copy, a buffer made as the draw data grows) wait
-+                    // for every WebGPU call sent before them, and an interpolated frame redraws all of a game frame's
-+                    // framebuffers, so the list waited for every one this loop drew meanwhile: Mario Tennis' page, which
-+                    // syncs to RAM in each of its lists (its rt64 patch), uncapped at 360 Hz drew 12-22 a game frame, and
-+                    // each list's full sync waited 30-90 ms behind them. That held its matches at 11-16 game frames a
-+                    // second against their 30 (and the frames' rate, which the window below is made of, fell with them),
-+                    // and its sound ran short. If a newer workload came meanwhile, the rest of this one's frames are
-+                    // skipped, as after a frame below; the time check that follows skips those that are late now.
-+                    if ((frame > 0) && generateInterpolatedFrames) {
-+                        bool listWaited = false;
-+                        {
-+                            std::unique_lock<std::mutex> listLock(ext.sharedResources->listGPUWaitMutex);
-+                            const auto waitEnd = std::chrono::steady_clock::now() + std::chrono::milliseconds(InterpolatedListWaitMs);
-+                            while ((ext.sharedResources->listGPUWaits > 0) && threadsRunning && (std::chrono::steady_clock::now() < waitEnd)) {
-+                                ext.sharedResources->listGPUWaitCondition.wait_for(listLock, std::chrono::milliseconds(2));
-+                                listWaited = true;
-+                            }
-+                        }
-+
-+                        if (listWaited && newerWorkloadQueued()) {
-+                            skipWorkloadNow = true;
-+                            {
-+                                std::scoped_lock<std::mutex> interpolatedLock(ext.sharedResources->interpolatedMutex);
-+                                curFrameCounters.skipped = true;
-+                            }
-+
-+                            displayTicks += lastWorkload.viOriginalRate * (displayFrames - frame);
-+                            ext.sharedResources->interpolatedCondition.notify_all();
-+                            break;
-+                        }
-+                    }
-+#               endif
-+
                      // Evaluate if this frame should be skipped. Measure the current time and compare it to what frame is estimated should be have been rendered by now.
-                     if ((frame > 0) && (originalTimeMicro > 0)) {
-                         const int64_t currentTimeMicro = workloadTimer.elapsedMicroseconds() - setupTimeMicro;
+@@ -1071,7 +1511,7 @@ namespace RT64 {
                          const int64_t expectedTimeMicro = frame * maxTimePerFrameMicro;
                          const int64_t measuredFrameMicro = renderTimeTotalMicro / framesRendered;
                          if ((currentTimeMicro > expectedTimeMicro) || ((currentTimeMicro + measuredFrameMicro) > adjustedTimeWindowMicro)) {
@@ -6561,7 +6505,7 @@ index 5a331aa..d8cc99c 100644
                              skippedFrames = true;
                              continue;
                          }
-@@ -1081,20 +1557,53 @@ namespace RT64 {
+@@ -1081,20 +1521,53 @@ namespace RT64 {
                      uint32_t overrideModifier = 0;
                      if (generateInterpolatedFrames) {
                          prevFrameWeight = std::clamp((workloadConfig.targetRate + displayTicks - logicalTicks) / float(workloadConfig.targetRate), 0.0f, 1.0f);
@@ -6621,7 +6565,7 @@ index 5a331aa..d8cc99c 100644
                                  });
                              }
  
-@@ -1102,7 +1611,7 @@ namespace RT64 {
+@@ -1102,7 +1575,7 @@ namespace RT64 {
                          }
                      }
                      else if (workload.paused) {
@@ -6630,7 +6574,7 @@ index 5a331aa..d8cc99c 100644
                          prevFrameWeight = 1.0f - curFrameWeight;
                      }
                      else {
-@@ -1112,28 +1621,31 @@ namespace RT64 {
+@@ -1112,28 +1585,31 @@ namespace RT64 {
  
                      const bool uploadExtras = (frame == 0) && workloadConfig.raytracingEnabled;
                      if (uploadExtras) {
@@ -6671,7 +6615,7 @@ index 5a331aa..d8cc99c 100644
  
                          {
                              std::scoped_lock<std::mutex> managerLock(ext.sharedResources->interpolatedMutex);
-@@ -1143,7 +1655,7 @@ namespace RT64 {
+@@ -1143,12 +1619,39 @@ namespace RT64 {
  
                          // Add the amount of display ticks that correspond to the remaining frames.
                          if (skipWorkloadNow) {
@@ -6680,7 +6624,39 @@ index 5a331aa..d8cc99c 100644
                          }
  
                          ext.sharedResources->interpolatedCondition.notify_all();
-@@ -1164,8 +1676,43 @@ namespace RT64 {
+                     }
+ 
++#               if defined(__EMSCRIPTEN__)
++                    // The next interpolated frame isn't started while the game's next list is in its full sync
++                    // (SharedQueueResources::listGPUWaits), for at most InterpolatedListWaitMs. Its waits for the device
++                    // thread (a readback of a sync to RAM or of the late copy, a buffer made as the draw data grows) wait
++                    // for every WebGPU call sent before them, and an interpolated frame redraws all of a game frame's
++                    // framebuffers, so the list waited for every one this loop drew meanwhile: Mario Tennis' page, which
++                    // syncs to RAM in each of its lists (its rt64 patch), uncapped at 360 Hz drew 12-22 a game frame, and
++                    // each list's full sync waited 30-90 ms behind them. That held its matches at 11-16 game frames a
++                    // second against their 30 (and the frames' rate, which the window above is made of, fell with them),
++                    // and its sound ran short. The frame drawn is presented meanwhile. If a newer workload came, the rest
++                    // of this one's frames are skipped, as above; if not, the time check at the next frame skips those
++                    // that are late by then.
++                    if (generateInterpolatedFrames && !skipWorkloadNow && ((frame + 1) < displayFrames)) {
++                        ext.sharedResources->waitForListGPUWaits(InterpolatedListWaitMs);
++                        if (newerWorkloadQueued()) {
++                            skipWorkloadNow = true;
++                            {
++                                std::scoped_lock<std::mutex> managerLock(ext.sharedResources->interpolatedMutex);
++                                curFrameCounters.skipped = true;
++                            }
++
++                            displayTicks += lastWorkload.viOriginalRate * (displayFrames - (frame + 1));
++                            ext.sharedResources->interpolatedCondition.notify_all();
++                        }
++                    }
++#               endif
++
+                     framesRendered++;
+                 }
+ 
+@@ -1164,8 +1667,43 @@ namespace RT64 {
  
                  threadConfigurationValidate();
  
