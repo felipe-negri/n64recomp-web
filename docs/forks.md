@@ -1047,5 +1047,6 @@ plume 027a043          D3D12: what a removed device's failed creations left with
                        pool's results read 0. A Windows player's Rush 2049 still crashed after DXGI_ERROR_DEVICE_HUNG, in
                        the GPU timings' query results and naming a new texture. An adapter whose device comes back
                        removed (something made on it still alive) is passed over, and PLUME_LOSE_DEVICE_AFTER makes a
-                       D3D12 device's buffers, textures and query heaps fail to be made once it is lost, as a removed one's do
+                       D3D12 device's buffers, textures and query heaps fail to be made once it is lost, as a removed one's
+                       do. dba025e moves the query pool's and the region copy's checks clear of game forks' own plume lines
 ```
