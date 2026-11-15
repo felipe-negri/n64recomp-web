@@ -324,13 +324,15 @@ rumble included.
   none (a game's own cut to its attract demo is a run of zeros too, as Turok: Dinosaur Hunter's is) and a second drag
   play loses it again: Turok 3's first lost 65 ms in a drag over its title music beside a page play at 3840 wide, and
   two more lost nothing.
-- **6c.** The sound keeps pace on the desktop: through a minute of play (its menus and a level) no buffer is dropped by
-  `queue_samples`' catch-up past 100 ms queued, and the queue never runs dry. The catch-up drops every other sample of
-  a buffer, a click with no gap in it, so 6b's gap search misses it, and SDL's disk driver plays slower than real
+- **6c.** The sound keeps pace on the desktop: through a minute of play (its menus and a level) no buffer is dropped
+  by `queue_samples`' catch-up past 100 ms queued, and the queue never runs dry. The catch-up drops every other sample
+  of a buffer, a click with no gap in it, so 6b's gap search misses it, and SDL's disk driver plays slower than real
   time, so its recording never shows a queue that runs dry: read on the sound device, by a log of the frames queued
-  (`get_queued_audio_bytes`) beside each `queue_samples` in a test build. Mario Golf's sound library made 552 samples
-  a retrace where 533 play, leaving its pace to the audio FIFO's full status, which the runtime never sets, and
-  clicked about four times a second until its `patches/audio.c` (its CLAUDE.md, Sound).
+  beside each buffer, which `tools/sound_pace.sh` takes from a released Windows archive with no test build (a stand-in
+  SDL2.dll), on a quiet host: beside builds a game runs below full speed and any queue runs dry. A queue that runs dry
+  only inside the game's own silence (a scene change's fade) passes. Mario Golf's sound library made 552 samples a
+  retrace where 533 play, leaving its pace to the audio FIFO's full status, which the runtime never sets, and clicked
+  about four times a second until its `patches/audio.c` (its CLAUDE.md, Sound).
 
 ### 7. The page
 
