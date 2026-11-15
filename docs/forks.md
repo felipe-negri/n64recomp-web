@@ -1092,4 +1092,10 @@ rt64 a365318           the list's full sync ends as State::advanceWorkload() que
                        when GBI_RDP::fullSync()'s call returns: the queueing waits for the workload thread when the queue
                        is full, and that thread waited for the sync to end, so each list waited out the 200 ms (Mario
                        Tennis' match at 9-28 game frames a second with 07bce94)
+plume 307d210          D3D12: a swap chain's resize() releases only the back buffers it has, and returns false for one
+                       whose creation failed: a removed device's Present() fails, the present thread resizes the swap
+                       chain, ResizeBuffers() fails and leaves it without buffers, and the next present's resize, before
+                       the screen update replaces the device, released them again. A Windows player's Rush 2049 crashed
+                       there on the present thread with 027a043 in. PLUME_LOSE_DEVICE_AFTER makes a lost D3D12 device's
+                       presents and resizes fail too, as a removed one's do
 ```
