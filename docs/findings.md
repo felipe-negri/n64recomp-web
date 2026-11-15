@@ -373,6 +373,25 @@ filled up for minutes. On the web each slot is now trimmed to about what its las
 docs/forks.md). The same play of a build with it held 873-890 MB in use from 180 s to its end at 315 s, against 932 MB
 at 140 s and 1,082 MB at 320 s without it, and the heap's break stopped at 1,343 MB from 180 s.
 
+That held the heap's use, not its break. Its page from Pages on v0.209.0, the extended plan's match held 16 minutes in
+Firefox at 3840x2000 (a busy host), still aborted 428, 498 and 636 s in, in 3 of 3 plays, while a walk every 20 s read
+870-945 MB in use all through, and Chrome's play of it held its break at 1,216 MB for 23 minutes. Walked as its break
+climbed (heap_probe.js's heapwalk=step), the play found 898 MB in use 16 s before its abort and, at it, 39 chunks of
+15,544,328 bytes more (578 MB, all zeros), each held by a closure plume's device thread had queued at an upload
+buffer's unmap: the caller's copy of the whole 15.5 MB buffer, for a write of 4-36 KB (ranges at 0xb20000, 0xb42000,
+0xbca000). Every unmap queued while the page's thread was behind held one, and the heap's break keeps the peak. Now
+an unmap of half the buffer or less queues only the range written (plume 2a3ab28, docs/forks.md): the same play of a
+build with it ran its 34 minutes, its break 997 MB from 21 minutes on.
+
+Its GPU process climbs in both browsers, the same way: Chrome 2.4 GB at 2 minutes, 3.9 at 6, 4.4 at 23; Firefox
+3.4, 4.9 at 4 minutes, 5.6 at 16 and 6.1 at 33 (heap 42 -> 388 MB, system heap 49 -> 477, GPU committed 1,382 ->
+5,111), 0.5-0.7 MB a second from the tenth minute and slowing. What the page holds doesn't climb with it
+(tools/webgpu_census.js, 7 minutes in Firefox): 4,400-6,400 textures and 5,050 buffers (360 MB) alive from the
+fourth minute, 5,500-9,000 bind groups. A slowing climb in both browsers with those counts flat fits targets made
+again larger, which RT64 never shrinks, until each has reached its largest. At 3840x2000 that came to 6 GB in
+Firefox; with 7.6 of an 8 GB card's video memory in use while two other pages played beside it, one texture of the
+page's failed to be made (Out of Memory), and the page drew on.
+
 ## A page that stops answering
 
 Firefox drops play_page's connection at its 4,098th message when page_driver.mjs speaks WebSocket with Node's own

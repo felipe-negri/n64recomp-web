@@ -9,7 +9,8 @@
 //   heapgrow <thread> asked <bytes>: <stack>
 //                                       the same on a page linked to grow its heap: the heap grows, or the malloc fails
 //
-// and, with heapwalk in the page's query (play_page.mjs --query ?heapwalk), what the heap holds, every 20 s:
+// and, with heapwalk in the page's query (play_page.mjs --query ?heapwalk), what the heap holds, every 20 s (heapwalk=step:
+// at once whenever the break climbs 4 MB in a second, and every 60 s):
 //
 //   heapwalk <s> brk <MB> used <MB> free <MB> chunks <n>       dlmalloc's chunks from the heap's start to its top
 //   heapwalk <s> most: <size>x<count>=<MB> ...                  the chunk sizes that hold the most, in use
@@ -223,13 +224,25 @@ if (self.crossOriginIsolated && !self.__heapProbe) {
     };
     const walk = new PageWorker(URL.createObjectURL(new Blob([`(${walker})();`], { type: 'text/javascript' })));
     walk.onmessage = ({ data }) => { for (const line of data.split('\n')) console.log(line); };
-    let given = false;
+    // heapwalk=step walks only when the break has climbed 4 MB or more since the last second, at once, and every 60 s
+    // for the walk to compare with: a heap whose use holds while its break climbs ran out on peaks that a walk every
+    // 20 s comes too late for, and the walks' own CPU, a second of it every 20 s, moved those peaks.
+    const step = /[?&]heapwalk=step/.test(location.search);
+    let given = false, walking = false, lastBrk = 0, lastWalk = -1e9;
+    walk.addEventListener('message', () => { walking = false; });
     setInterval(() => {
       if (!memory || !sbrks.length) return;
       if (!given) { walk.postMessage({ buffer: memory.buffer }); given = true; }
       const heap = new Uint32Array(memory.buffer);
       const breaks = sbrks.map((a) => heap[a >>> 2]).filter((v) => !(v & 7) && v > 1 << 20 && v <= memory.buffer.byteLength);
-      if (breaks.length) walk.postMessage({ brk: Math.max(...breaks), t: secs() });
-    }, 20000);
+      if (!breaks.length) return;
+      const brk = Math.max(...breaks), now = performance.now();
+      const due = step ? (brk - lastBrk >= 4 << 20 && lastBrk > 0) || now - lastWalk >= 60000 : now - lastWalk >= 20000;
+      lastBrk = brk;
+      if (!due || walking) return;
+      walking = true;
+      lastWalk = now;
+      walk.postMessage({ brk, t: secs() });
+    }, step ? 1000 : 20000);
   }
 }
