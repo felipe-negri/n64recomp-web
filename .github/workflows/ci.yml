@@ -1069,6 +1069,43 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: bash tools/ci_red_on_base.sh "$GITHUB_JOB"
 
+  # Mario Golf's own changes over the patches (mario-golf-recomp, its main), as Super Mario 64's above: its
+  # runtime-patches/apply.cmake applies the patches, then its runtime-patches/<project>-<n>-*.patch (a short ROM padded
+  # back, the TLB's callbacks), to its upstream submodules, and they change files the patches change too
+  # (N64ModernRuntime's ROM load, osVirtualToPhysical and RSP tasks). Red on a PR means one stopped applying: it is made
+  # again over the new patches in the game's repo, in that PR's work.
+  mg-patches:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: mario-golf-recomp's apply over them
+        id: check1
+        continue-on-error: true
+        run: |
+          mg="$RUNNER_TEMP/mg"
+          git clone -q --depth 1 https://github.com/n64hub/mario-golf-recomp "$mg"
+          git -C "$mg" log -1 --format='mario-golf-recomp %h %s'
+          for patch in $(ls "$mg"/runtime-patches/*.patch | sort); do
+            project=$(basename "$patch" | sed 's/-[0-9]*-.*//')
+            if [ ! -e "$mg/lib/$project/.git" ]; then
+              git -C "$mg" -c protocol.version=2 submodule update -q --init --depth 1 "lib/$project"
+              cmake -P patches/apply.cmake "$project" "$mg/lib/$project"
+            fi
+            git -C "$mg/lib/$project" apply --whitespace=nowarn "$patch"
+            echo "$(basename "$patch") applies"
+          done
+      # A check above failed: it runs again over the base, red only if this change made it red (tools/ci_red_on_base.sh).
+      - name: Red over the base too?
+        if: contains(steps.*.outcome, 'failure')
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: bash tools/ci_red_on_base.sh "$GITHUB_JOB"
+
   # Rush 2049's own changes over the patches (rush-2049-recomp, its main): its tools/apply_runtime_patches.sh applies
   # each project's patch here, then its runtime-patches/<project>-<n>-*.patch, and they change lines near the forks'
   # (rt64's GPU timings beside its workload queue, plume's queries, RecompFrontend's input). Each project is checked out
@@ -1352,7 +1389,7 @@ jobs:
   tag:
     needs: [changes, plume-device-thread, hlslpp-wasm, kuseg-window, wgsl, patches, dkr-patches, cbfd-patches,
       jfg-patches, racer-patches, snap-patches, rush2-patches, snowboarding-patches, sssv-patches, thps2-patches,
-      beetle-patches, paxdino-patches, bt-patches, wr-patches, sm64-patches, fzx-patches, rush2049-patches, wwf-patches,
+      beetle-patches, paxdino-patches, bt-patches, wr-patches, sm64-patches, fzx-patches, mg-patches, rush2049-patches, wwf-patches,
       emscripten]
     if: >-
       always() && github.event_name == 'push' && github.ref == 'refs/heads/main' &&

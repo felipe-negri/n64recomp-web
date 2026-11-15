@@ -29,7 +29,7 @@ An update, for the games it moves:
   worse stays on Pages as it was, its fork on its last tag, and has work filed. So a fork's `main` is what its page was
   built from, and `git log <played>..<built>` here lists what a page took since it was last played.
 - Rush 2049, Perfect Dark, Super Mario 64, F-Zero X, Mario Party 1, 2 and 3, Super Smash Bros., Paper Mario,
-  Rayman 2, Donald Duck: Goin' Quackers, Dinosaur Planet, Turok: Dinosaur Hunter, Turok 2 and Turok 3, this project's
+  Mario Golf, Rayman 2, Donald Duck: Goin' Quackers, Dinosaur Planet, Turok: Dinosaur Hunter, Turok 2 and Turok 3, this project's
   own recomps, are built, played and recorded the same way; only their pins move differently, by a PR on each one's
   repo that moves `lib/N64Recomp-browser` to the tag, and its submodules of upstream's (`lib/rt64`,
   `lib/N64ModernRuntime`, `lib/RecompFrontend`) to the commits the tag's `patches/patches.txt` names, as its CI
