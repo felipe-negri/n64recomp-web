@@ -123,7 +123,8 @@ up to 1% faster or slower to hold 40 ms), and in two plays of a test build of v0
 a Practice race, none of 10,989 and 10,981 buffers found the queue empty after the boot, which held 11-55 ms, so it
 passes 6c (on a host kept 100% busy the game went 40-100 ms between buffers and ran it dry);
 Mario Party 1, 2 and 3 (their `queue_samples` alike, with the catch-up) in test builds of main on the sound device,
-105-124 s each of the opening, the menus and a board on a host 7-42% busy, had none of 6827, 6309 and 7451 buffers cut; 3's queue held 15-32 ms and never ran dry, and 1's and 2's held 29-58 ms and
+105-124 s each of the opening, the menus and a board on a host 7-42% busy, had none of 6827, 6309 and 7451
+buffers cut; 3's queue held 15-32 ms and never ran dry, and 1's and 2's held 29-58 ms and
 ran dry only where the game sent nothing for 65-85 ms at a scene change (1's opening to the village, 2's at 8.6, 23.1
 and 52 s), in every play, each inside the game's own fade-out or silence (RMS 0.009 or less against its music's 0.3,
 in a disk-driver recording of the same play), so all three pass 6c (beside builds they went 100-500 ms between buffers
