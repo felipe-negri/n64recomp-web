@@ -36,7 +36,9 @@
 # --cpu-throttle is ab_pages.mjs's for the A/B (a desktop GPU's Chrome reads the same ceiling for every build
 # uncapped). --queue <command> takes each build and play's turn in the machine's GPU queue (CLAUDE.md, Playing a page):
 # it is run as `<command> <shared|whole> <minutes> <command line...>`, a build and a smoke play, a boot and a play from
-# Pages a shared turn, an A/B's play a whole one, the minutes the turn's limit. Without it each runs at once.
+# Pages a shared turn, an A/B's play a whole one, the minutes the turn's limit. Without it each runs at once. On
+# Windows a script is given as `bash <script>`: ab_pages.mjs starts the command's first word itself, and node can't
+# start a .sh (EFTYPE).
 # --note <text> goes into every play's note in plays.jsonl after "update <tag>": the host, and what else ran beside it.
 # At the end it prints each game's outcome: same (no new bytes, nothing to publish), published, PR (an own
 # recomp's, to merge, publish and release), held (the gate is shut, its plays done), or what failed, with the step's log.
