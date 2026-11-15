@@ -819,6 +819,23 @@ an area's among them, recorded by `tools/record_shaders.sh` and `tools/shader_pl
 `tools/shader_survey.js` takes the game to any map at any entrance as an exit does, and `tools/play_plan_maps.json`
 warps to every map in turn as a release's check. Its README, CLAUDE.md and docs/web.md have the rest.
 
+`n64hub/mario-golf-recomp` is Mario Golf (USA), not a fork but this project's own recomp (GPL-3.0), from the
+monde-lointain/mariogolf64 decompilation's symbols and headers, with RecompFrontend's launcher and menus. It is on
+upstream's rt64, N64ModernRuntime and RecompFrontend at the commits the N64Recomp-browser tag its
+`lib/N64Recomp-browser` pins names (`patches/patches.txt`), patched by that tag and by two changes of its own
+(`runtime-patches/`): a ROM short of its cartridge's size is padded back with 0xFF before its hash is checked (the
+common 24 MB dump of the 32 MB cartridge), and ultramodern gains callbacks for the TLB. The game maps one 128 KB window
+at 0x02000000 to one object's buffer after another, so the window is copied in at each mapping and what the game
+changed through it written back, at the next mapping and before each RSP task (its `src/game/tlb.cpp`); on a page the
+window is the 16 MB `RECOMP_KUSEG_WINDOW` places after RDRAM. Its 16 overlays come out of ROM through one nuPiReadRom
+each, from a table, which a hook there tells the runtime about. Its audio microcode is `n_aspMain`, recompiled by
+RSPRecomp. Up to four players each play a controller of their own. On a picture wider than 4:3 the course reaches the
+window's edges, and the HUD and the menus stay in the middle 4:3. Its `tools/build_web.sh` runs a Docker image of its
+own, so `publish_pages.sh` runs it on the build host. Its list is 223 shaders in two sections, the boot's (the
+intro, the title and the menus) and Toad Highlands', recorded by `tools/record_shaders.sh` and `tools/shader_plan.json`
+without anyone playing: `tools/shader_survey.js` tells which screen the game shows by the overlays it has loaded. Its
+README, CLAUDE.md and docs/web.md have the rest.
+
 `n64hub/rayman-2-recomp` is Rayman 2: The Great Escape (USA), not a fork but this project's own recomp (GPL-3.0), with
 RecompFrontend's launcher and menus, released for Windows and Linux and in the browser. There is no decompilation of it: its
 symbols are written from the ROM, libultra's named by their signatures and the rest by address. It is on upstream's

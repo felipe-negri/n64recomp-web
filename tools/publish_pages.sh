@@ -151,6 +151,7 @@ mp2    n64hub/mario-party-2-recomp           MarioParty2Recompiled build/web mar
 mp3    n64hub/mario-party-3-recomp           MarioParty3Recompiled build/web mario-party-3
 ssb    n64hub/super-smash-bros-recomp        SmashBrosRecompiled  build/web super-smash-bros
 pm     n64hub/paper-mario-recomp             PaperMarioRecompiled build/web paper-mario
+mg     n64hub/mario-golf-recomp              MarioGolfRecompiled  build/web mario-golf
 r2     n64hub/rayman-2-recomp                Rayman2Recompiled    build/web rayman-2
 ddgq   n64hub/donald-duck-goin-quackers-recomp GoinQuackersRecompiled build/web goin-quackers
 dino   n64hub/dinosaur-planet-recomp         DinosaurPlanet       build/web dinosaur-planet
@@ -163,7 +164,7 @@ t3     n64hub/turok-3-recomp                 Turok3Recompiled     build/web turo
 unreleased=" "
 # This project's own recomps, whose pins move by a pull request on their repos (CLAUDE.md, The pins), and which pin
 # upstream's own commits of what N64Recomp-browser patches as submodules (pin_tree). update_games.sh reads this list.
-own=" rush pd sm64 fzx mp1 mp2 mp3 ssb pm r2 ddgq dino t1 t2 t3 "
+own=" rush pd sm64 fzx mp1 mp2 mp3 ssb pm mg r2 ddgq dino t1 t2 t3 "
 selected=("${args[@]:1}")
 [[ ${#selected[@]} -gt 0 ]] || selected=($(awk -v u="$unreleased" 'NF && !index(u, " " $1 " ") { print $1 }' <<< "$games"))
 for g in "${selected[@]}"; do grep -q "^$g " <<< "$games" || { echo "no game $g (one of: $(awk 'NF { printf "%s ", $1 }' <<< "$games"))"; exit 1; }; done
@@ -518,6 +519,12 @@ build_pm() {
     cmp -s ../rom.z64 roms/papermario.us.z64 || cp ../rom.z64 roms/papermario.us.z64
     bash tools/build_web.sh "$BUILD_CPUS" > ../build.log 2>&1 || { failed_log ../build.log; exit 1; }
 }
+# Mario Golf's, the same from roms/mariogolf64.us.z64 (the 32 MiB cartridge, or the 24 MiB dump the runtime pads back).
+build_mg() {
+    mkdir -p roms
+    cmp -s ../rom.z64 roms/mariogolf64.us.z64 || cp ../rom.z64 roms/mariogolf64.us.z64
+    bash tools/build_web.sh "$BUILD_CPUS" > ../build.log 2>&1 || { failed_log ../build.log; exit 1; }
+}
 # Rayman 2's, the same from roms/rayman2.us.z64.
 build_r2() {
     mkdir -p roms
@@ -554,7 +561,7 @@ build_t3() {
     cmp -s ../rom.z64 roms/turok3.us.z64 || cp ../rom.z64 roms/turok3.us.z64
     bash tools/build_web.sh "$BUILD_CPUS" > ../build.log 2>&1 || { failed_log ../build.log; exit 1; }
 }
-on_host=" rogue pd sm64 fzx mp1 mp2 mp3 ssb pm r2 ddgq dino bar t1 t2 t3 "
+on_host=" rogue pd sm64 fzx mp1 mp2 mp3 ssb pm mg r2 ddgq dino bar t1 t2 t3 "
 
 # --- Here ---
 
