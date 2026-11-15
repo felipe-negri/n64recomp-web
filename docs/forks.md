@@ -13,7 +13,7 @@ Twenty options are off on a desktop build, on with Emscripten, and settable nati
 bce5e11), `RT64_FREE_DISCARDED_TARGETS` (rt64 51c3fdd), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
 `RT64_PARTIAL_SCREEN_PAIRS` (rt64 89abe33), `RT64_STRETCH_SCREEN_COVERS` (rt64 4550e10), `RT64_KEEP_THIN_RECTS` (rt64
-04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 aec6f16),
+04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334), `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime
 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS` (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED`
 (N64ModernRuntime 0ec6c51), `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
@@ -840,9 +840,12 @@ rt64 08427aa           a slow texture scroll (a quarter texel every few frames, 
                        scroll of a texel or less a frame is drawn as before. Every build
 rt64                   vertices a game's CPU moves under a matrix it keeps, in a group with no matrix ID and vertex
 a03baa2, f32b1bf,      interpolation off, move between frames from where the last frame drew them, when both frames have
-0ea4496                as many and none moved further than their box's largest side: they moved only on the game's own
-                       frames against everything else moving on every frame drawn (Rayman 2's menu cursor). A game that
-                       gives matrix IDs or asks for vertex interpolation is untouched. In a block of its own at
+0ea4496, 0372264       as many and none moved further than their box's largest side: they moved only on the game's own
+                       frames against everything else moving on every frame drawn (Rayman 2's menu cursor). Not when a
+                       sample of up to 64 finds 3 or more, and one in 20, with another of the last frame's vertices at
+                       under a quarter of the distance to its pair: a buffer refilled with as many other vertices
+                       (Mario Golf's course terrain as a hole's flyover pans) tore into loose triangles between frames.
+                       A game that gives matrix IDs or asks for vertex interpolation is untouched. In a block of its own at
                        matchTransform's end, after the extended GBI's interpolation and the texture coordinates', whose
                        lines Wave Race 64's and Conker's Bad Fur Day's own rt64 patches change or have as context. Every
                        build
@@ -1049,7 +1052,12 @@ plume 027a043          D3D12: what a removed device's failed creations left with
                        removed (something made on it still alive) is passed over, and PLUME_LOSE_DEVICE_AFTER makes a
                        D3D12 device's buffers, textures and query heaps fail to be made once it is lost, as a removed one's
                        do. dba025e moves the query pool's and the region copy's checks clear of game forks' own plume lines
-rt64 aec6f16           RT64_EXACT_PRIM_DEPTH: a G_ZS_PRIM triangle through a perspective or orthographic projection
+plume 2a3ab28          plume_device_thread: an upload buffer's unmap of half the buffer or less queues only the range
+                       written, and frees the caller's copy of the whole buffer at once: RT64 writes a few KB at a time
+                       into an upload buffer of 15.5 MB, and while the page's thread was behind each queued unmap held
+                       another 15.5 MB, 39 of them (578 MB) at once on Mario Tennis' page in Firefox at 3840x2000, which
+                       ran its heap out (Aborted(OOM)) 430-640 s into a match
+rt64 c1000a7           RT64_EXACT_PRIM_DEPTH: a G_ZS_PRIM triangle through a perspective or orthographic projection
                        is drawn with a viewport depth range of no height at its prim depth, so its depth is exactly
                        that, as on a console, not the vertex shader's primDepth * w an ulp off after the divide: Mario
                        Tennis' players' shadows (each model drawn again flat, under a strict depth test that lets only
