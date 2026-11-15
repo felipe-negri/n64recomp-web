@@ -924,6 +924,32 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: bash tools/ci_red_on_base.sh "$GITHUB_JOB"
 
+  # The patches over Mario Tennis' web fork's own (MarioTennisRecomp-web, its main): its lib-patches/apply.cmake applies
+  # the game's own lib-patches/rt64.patch to rt64 (the commit pins.txt's GoldenEye rows name), then these on top, so a
+  # change here to the lines that patch touches stops its page building, which pins.txt's rows, of plain upstream
+  # commits, can't see. Red on a PR means a web change meets the game's own lines: change one of the two to fit.
+  mt-patches:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: MarioTennisRecomp-web's apply over them
+        run: |
+          game="$RUNNER_TEMP/mt"
+          git clone -q --depth 1 https://github.com/n64hub/MarioTennisRecomp-web "$game"
+          git -C "$game" log -1 --format='MarioTennisRecomp-web %h %s'
+          git -C "$game" -c protocol.version=2 submodule update -q --init --depth 1 --jobs 3             lib/rt64 lib/N64ModernRuntime lib/RecompFrontend
+          git -C "$game/lib/rt64" -c protocol.version=2 submodule update -q --init --depth 1 src/contrib/plume src/contrib/hlslpp
+          git -C "$game/lib/N64ModernRuntime" -c protocol.version=2 submodule update -q --init --depth 1 N64Recomp
+          rmdir "$game/lib/N64Recomp-browser"
+          ln -s "$GITHUB_WORKSPACE" "$game/lib/N64Recomp-browser"
+          cmake -P "$game/lib-patches/apply.cmake" "$game/lib"
+          cmake -P "$game/lib-patches/apply.cmake" "$game/lib"   # a second time changes nothing
+
   # The patches over Banjo-Tooie's web fork's own (BanjoTooieRecompiled-web, its main): its tools/build_web.sh applies
   # its patches/*.patch to rt64, N64ModernRuntime and N64Recomp first (tools/setup_deps.py), then these on top but for
   # the files it leaves to its own, so a change here to the lines its own patches touch stops its page building. Its
@@ -1352,8 +1378,8 @@ jobs:
   tag:
     needs: [changes, plume-device-thread, hlslpp-wasm, kuseg-window, wgsl, patches, dkr-patches, cbfd-patches,
       jfg-patches, racer-patches, snap-patches, rush2-patches, snowboarding-patches, sssv-patches, thps2-patches,
-      beetle-patches, paxdino-patches, bt-patches, wr-patches, sm64-patches, fzx-patches, rush2049-patches, wwf-patches,
-      emscripten]
+      beetle-patches, paxdino-patches, mt-patches, bt-patches, wr-patches, sm64-patches, fzx-patches, rush2049-patches,
+      wwf-patches, emscripten]
     if: >-
       always() && github.event_name == 'push' && github.ref == 'refs/heads/main' &&
       !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')

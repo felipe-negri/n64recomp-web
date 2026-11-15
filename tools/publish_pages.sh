@@ -142,6 +142,7 @@ rogue  n64hub/RogueSquadron64Recomp-web      RogueSquadron64Recomp build-web sta
 bar    n64hub/BeetleRecomp-web               BeetleRecomp         build-web beetle-adventure-racing
 rw     n64hub/PaxDino-web                    PaxDino              build-web turok-rage-wars
 wwf    n64hub/WWFNoMercyRecomp-web           NoMercyRecompiled    build-web wwf-no-mercy
+mt     n64hub/MarioTennisRecomp-web          MarioTennisRecompiled build-web mario-tennis
 pd     n64hub/perfect-dark-recomp            PerfectDarkRecompiled build/web perfect-dark
 sm64   n64hub/super-mario-64-recomp          SuperMario64Recompiled build/web super-mario-64
 fzx    n64hub/f-zero-x-recomp                FZeroXRecompiled     build/web f-zero-x
@@ -456,6 +457,15 @@ build_wwf() {
     # (build-web-prep/web-patched), and recompiles the game, the whole post-regen pipeline, only when what it reads
     # changed (build-web-prep/recompiled-stamp).
     bash tools/build_web.sh ../rom.z64 > ../build.log 2>&1 || { failed_log ../build.log; exit 1; }
+}
+build_mt() {
+    # tools/gen_symbols.py finds the game's functions with rabbitizer, in a venv of the copy's own.
+    [[ -x .venv/bin/python3 ]] || { python3 -m venv .venv && .venv/bin/pip install -q -r tools/requirements.txt; } > /dev/null
+    # The game's own changes to lib/rt64, with N64Recomp-browser's patches on top.
+    cmake -P lib-patches/apply.cmake lib > /dev/null
+    n64recomp N64RecompCLI RSPRecomp
+    keep_times RecompiledFuncs rsp src/game syms -- bash -c 'PATH="$PWD/.venv/bin:$PATH" sh tools/recompile.sh ../rom.z64 > /dev/null'
+    web MarioTennisRecompiled
 }
 # Runs on the host (on_host): both scripts start Docker images of their own. The decomp's build checks the ROM, and
 # makes the relink and syms/ the recompilation is made from (incremental after the first run).
