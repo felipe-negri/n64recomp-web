@@ -8,12 +8,12 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Nineteen options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Twenty options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_FREE_DISCARDED_TARGETS` (rt64 51c3fdd), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
 `RT64_PARTIAL_SCREEN_PAIRS` (rt64 89abe33), `RT64_STRETCH_SCREEN_COVERS` (rt64 4550e10), `RT64_KEEP_THIN_RECTS` (rt64
-04dc9cf, which Perfect Dark's desktop build turns on),
+04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 e7cb01e),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334), `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime
 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS` (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED`
 (N64ModernRuntime 0ec6c51), `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
@@ -1041,4 +1041,11 @@ rt64 971496a           on the web a workload slot's framebuffer pairs, projectio
                        Mario Tennis' many small images a frame grew its heap ~1 MB a second, to Aborted(OOM) 328 s into
                        a Firefox play at 3840x2000; with it the heap held flat from its third minute. 93460c6 moves
                        its declaration beside reset(), clear of Conker's own rt64 lines
+rt64 e7cb01e           RT64_EXACT_PRIM_DEPTH: a G_ZS_PRIM triangle through a perspective or orthographic projection
+                       is drawn with a viewport depth range of no height at its prim depth, so its depth is exactly
+                       that, as on a console, not the vertex shader's primDepth * w an ulp off after the divide: Mario
+                       Tennis' players' shadows (each model drawn again flat, under a strict depth test that lets only
+                       its first triangle over a pixel darken it) darkened some pixels twice at a high resolution.
+                       Decals and copy mode keep the whole range (a prebuilt decal on WebGPU writes its depth bounds,
+                       which the range would clamp). It was Mario Tennis' own rt64 patch's
 ```
