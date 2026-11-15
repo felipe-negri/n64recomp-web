@@ -71,7 +71,7 @@ The forks (`rt64-web`, `plume-web`, `hlslpp-web`, `N64ModernRuntime-web`, `N64Re
 the game forks take no PRs: a change is a commit pushed to the fork's `main` as a fast-forward, pinned by its SHA
 (`forks.txt` here, a game fork's submodule). This project's own recomps, `rush-2049-recomp`, `perfect-dark-recomp`,
 `super-mario-64-recomp`, `f-zero-x-recomp`, `mario-party-recomp`, `mario-party-2-recomp`, `mario-party-3-recomp`,
-`super-smash-bros-recomp`, `paper-mario-recomp`, `rayman-2-recomp`, `donald-duck-goin-quackers-recomp`, `dinosaur-planet-recomp`, `turok-recomp`, `turok-2-recomp` and `turok-3-recomp`, work by PRs: moving one's `lib/N64Recomp-browser` is a PR there.
+`super-smash-bros-recomp`, `paper-mario-recomp`, `mario-golf-recomp`, `rayman-2-recomp`, `donald-duck-goin-quackers-recomp`, `dinosaur-planet-recomp`, `turok-recomp`, `turok-2-recomp` and `turok-3-recomp`, work by PRs: moving one's `lib/N64Recomp-browser` is a PR there.
 `mario-party-engine`, the code the Mario Party recomps share (their process scheduler, `gen_syms.py`), takes no PRs
 either: a change is a commit pushed to its `main`, which each Mario Party recomp's `lib/mario-party-engine` moves onto
 by a PR there, built and played like a pin move. Code one Mario Party recomp would copy from another goes there.
@@ -87,7 +87,7 @@ it. A fork keeps `main`, `gh-pages` and those branches only: upstream's others a
 
 This repo's work is all of this project's recomp work, so a change it needs in one of the project's own recomps
 (`rush-2049-recomp`, `perfect-dark-recomp`, `super-mario-64-recomp`, `f-zero-x-recomp`, `mario-party-recomp`,
-`mario-party-2-recomp`, `mario-party-3-recomp`, `super-smash-bros-recomp`, `paper-mario-recomp`, `rayman-2-recomp`, `donald-duck-goin-quackers-recomp`, `dinosaur-planet-recomp`, `turok-recomp`, `turok-2-recomp`, `turok-3-recomp`) is made in the same work, not handed on as work of its own: a PR there, from a checkout of its
+`mario-party-2-recomp`, `mario-party-3-recomp`, `super-smash-bros-recomp`, `paper-mario-recomp`, `mario-golf-recomp`, `rayman-2-recomp`, `donald-duck-goin-quackers-recomp`, `dinosaur-planet-recomp`, `turok-recomp`, `turok-2-recomp`, `turok-3-recomp`) is made in the same work, not handed on as work of its own: a PR there, from a checkout of its
 `main`, landed by whoever does the work like one here,
 then this repo's half, if it has one. A cause found in a recomp is fixed there, in the work that found it. A fork or a
 game fork is changed as The forks says, by a commit pushed to its `main`, never a PR. Rush 2049's own bugs, and Rush
@@ -203,7 +203,7 @@ scheduled run cost and found).
 - A game updated for any reason (a change to its own repo, its shader list, an update here) moves onto main's newest
   tag first, in the same work, and is built and played on it.
 - An update moves a game fork's N64Recomp-browser by a commit to the fork's `main`, and Rush 2049's, Perfect Dark's,
-  Super Mario 64's, F-Zero X's, Mario Party 1, 2 and 3's, Super Smash Bros.', Paper Mario's, Rayman 2's, Donald Duck:
+  Super Mario 64's, F-Zero X's, Mario Party 1, 2 and 3's, Super Smash Bros.', Paper Mario's, Mario Golf's, Rayman 2's, Donald Duck:
   Goin' Quackers', Dinosaur Planet's, Turok: Dinosaur Hunter's, Turok 2's and Turok 3's by a PR on its repo that the
   work merges. Each is built, played by what the change can break (docs/playing.md, What a change plays) and
   published, and an own recomp's desktop build is released (Releasing). A page that plays worse on the tag stays on
