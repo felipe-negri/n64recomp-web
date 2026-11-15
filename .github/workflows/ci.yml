@@ -938,17 +938,26 @@ jobs:
         with:
           persist-credentials: false
       - name: MarioTennisRecomp-web's apply over them
+        id: check1
+        continue-on-error: true
         run: |
           game="$RUNNER_TEMP/mt"
           git clone -q --depth 1 https://github.com/n64hub/MarioTennisRecomp-web "$game"
           git -C "$game" log -1 --format='MarioTennisRecomp-web %h %s'
-          git -C "$game" -c protocol.version=2 submodule update -q --init --depth 1 --jobs 3             lib/rt64 lib/N64ModernRuntime lib/RecompFrontend
+          git -C "$game" -c protocol.version=2 submodule update -q --init --depth 1 --jobs 3 \
+            lib/rt64 lib/N64ModernRuntime lib/RecompFrontend
           git -C "$game/lib/rt64" -c protocol.version=2 submodule update -q --init --depth 1 src/contrib/plume src/contrib/hlslpp
           git -C "$game/lib/N64ModernRuntime" -c protocol.version=2 submodule update -q --init --depth 1 N64Recomp
           rmdir "$game/lib/N64Recomp-browser"
           ln -s "$GITHUB_WORKSPACE" "$game/lib/N64Recomp-browser"
           cmake -P "$game/lib-patches/apply.cmake" "$game/lib"
           cmake -P "$game/lib-patches/apply.cmake" "$game/lib"   # a second time changes nothing
+      # A check above failed: it runs again over the base, red only if this change made it red (tools/ci_red_on_base.sh).
+      - name: Red over the base too?
+        if: contains(steps.*.outcome, 'failure')
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: bash tools/ci_red_on_base.sh "$GITHUB_JOB"
 
   # The patches over Banjo-Tooie's web fork's own (BanjoTooieRecompiled-web, its main): its tools/build_web.sh applies
   # its patches/*.patch to rt64, N64ModernRuntime and N64Recomp first (tools/setup_deps.py), then these on top but for
