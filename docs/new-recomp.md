@@ -46,7 +46,7 @@ items by almost no game when the record began.
 |---|---|---|
 | San Francisco Rush 2049 | 4c fails, 8a fails | W5, W6's Drive |
 | Perfect Dark | 4c, 8a fails | W5 fails, W6's Drive |
-| Super Mario 64 | 6c | W5 fails, W6's Drive |
+| Super Mario 64 |  | W5 fails, W6's Drive |
 | F-Zero X | | W6's Drive |
 | Mario Party | 4c, 5b, 6a, 6b fails, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Mario Party 2 | 4c, 5b, 6a, 6b fails, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
@@ -54,12 +54,12 @@ items by almost no game when the record began.
 | Super Smash Bros. | | W6's Drive |
 | Paper Mario | 4a, 4c, 6b | W5 fails, W6's Drive |
 | Mario Golf | | W6's Drive |
-| Rayman 2 | 6c | W5 fails, W6's Drive |
-| Donald Duck: Goin' Quackers | 2, 5b, 6c | W5 fails, W6's Drive |
+| Rayman 2 | | W5 fails, W6's Drive |
+| Donald Duck: Goin' Quackers | 2, 5b | W5 fails, W6's Drive |
 | Dinosaur Planet | | W5 fails |
-| Turok: Dinosaur Hunter | 5a, 6c | W5 fails, W6's Drive |
-| Turok 2: Seeds of Evil | 2 fails, 4c, 5a, 6c | W5 fails, W6's Drive |
-| Turok 3: Shadow of Oblivion | 4c, 5a, 6c | W5 fails, W6's Drive |
+| Turok: Dinosaur Hunter | 5a | W5 fails, W6's Drive |
+| Turok 2: Seeds of Evil | 2 fails, 4c, 5a | W5 fails, W6's Drive |
+| Turok 3: Shadow of Oblivion | 4c, 5a | W5 fails, W6's Drive |
 | GoldenEye 007 | | W2, W5 fails, W6, W7 |
 | The Legend of Zelda: Majora's Mask | | W2, W5, W6, W7 |
 | Banjo-Kazooie | | W2, W5, W6, W7 |
@@ -128,7 +128,19 @@ buffers cut; 3's queue held 15-32 ms and never ran dry, and 1's and 2's held 29-
 ran dry only where the game sent nothing for 65-85 ms at a scene change (1's opening to the village, 2's at 8.6, 23.1
 and 52 s), in every play, each inside the game's own fade-out or silence (RMS 0.009 or less against its music's 0.3,
 in a disk-driver recording of the same play), so all three pass 6c (beside builds they went 100-500 ms between buffers
-in places and ran it dry);
+in places and ran it dry); Turok 1, 2 and 3 (their `queue_samples` alike, with the catch-up, the audio thread paced by
+turok-engine's osAiGetStatus, a full FIFO once about two retraces are queued) in test builds of main on the sound
+device, each through its menus into its first level and 70-75 s of play there (170, 287 and 142 s, Turok 2's with its
+two opening cinematics), had none of 9813 and 9829, 16856 and 16874, and 8213 buffers cut, their queues holding
+17-54 ms; Turok 1's ran dry once in two plays (the game sent nothing for 110 ms at 57 s on a host 94% busy), Turok 2's
+once in two plays on a GPU of its own (252 ms while walking in the Port of Adia, not again in the other) and Turok 3's
+never, so all three pass 6c (Turok 2 beside a build and other plays on the GPU went 60-141 ms between buffers walking
+in Adia and ran it dry 46 times); Super Mario 64 sends
+its sound nothing for 66 ms at each screen change, as on a console (its docs/architecture.md, Sound at a screen
+change), and v0.1.12 then grew its queue back by under 1 ms a retrace, so 12 buffers of the next screen's music in
+a minute went out with under 8 ms queued and 3 onto an empty queue; since its `queue_samples` puts a retrace of
+silence in front of a buffer that finds the queue empty, none of 4838 does, the queue holding 26 ms at its median
+through the logo, title, file select and the castle grounds, so it passes 6c;
 Perfect Dark v0.1.14 (dataDyne Central - Defection), F-Zero X v0.1.14 (a GP race at Mute City), Super Smash Bros.
 v0.1.13 (1P Game's first match) and Dinosaur Planet v0.1.5 (SwapStone Hollow from a new game, its pause menu) each
 played 70-105 s of their menus and a level from their released archives on the sound device (`tools/sound_pace.sh`)
@@ -334,9 +346,11 @@ rumble included.
   none (a game's own cut to its attract demo is a run of zeros too, as Turok: Dinosaur Hunter's is) and a second drag
   play loses it again: Turok 3's first lost 65 ms in a drag over its title music beside a page play at 3840 wide, and
   two more lost nothing.
-- **6c.** The sound keeps pace on the desktop: through a minute of play (its menus and a level) no buffer is dropped
-  by `queue_samples`' catch-up past 100 ms queued, and the queue never runs dry. The catch-up drops every other sample
-  of a buffer, a click with no gap in it, so 6b's gap search misses it, and SDL's disk driver plays slower than real
+- **6c.** The sound keeps pace on the desktop: through a minute of play (its menus and a level) no buffer is dropped by
+  `queue_samples`' catch-up past 100 ms queued, and no sound goes onto an empty queue. A game that sends nothing for
+  a while empties it, as Super Mario 64 does for 66 ms at each screen change, where a console's AI plays nothing too:
+  that passes where the sound after it starts with a cushion queued. The catch-up drops every other sample of a
+  buffer, a click with no gap in it, so 6b's gap search misses it, and SDL's disk driver plays slower than real
   time, so its recording never shows a queue that runs dry: read on the sound device, by a log of the frames queued
   beside each buffer, which `tools/sound_pace.sh` takes from a released Windows archive with no test build (a stand-in
   SDL2.dll), on a quiet host: beside builds a game runs below full speed and any queue runs dry. A queue that runs dry
