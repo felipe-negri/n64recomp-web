@@ -8,15 +8,17 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Twenty options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Twenty-two options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_FREE_DISCARDED_TARGETS` (rt64 51c3fdd), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
 `RT64_PARTIAL_SCREEN_PAIRS` (rt64 89abe33), `RT64_STRETCH_SCREEN_COVERS` (rt64 4550e10), `RT64_KEEP_THIN_RECTS` (rt64
 04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7, c0d27e5),
-`ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334), `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime
-66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS` (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED`
-(N64ModernRuntime 0ec6c51), `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
+`RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
+eda3964, 8314128, which it turns on too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
+`ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
+(N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
+`ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
 `ULTRAMODERN_VIS_WAIT_FOR_RENDERER` (N64ModernRuntime 05d95be), `ULTRAMODERN_YIELDS_END_QUEUED_GRAPHICS`
 (N64ModernRuntime 684377c), `RECOMPINPUT_SINGLE_PLAYER_UNTIL_ASSIGNED` (RecompFrontend bf01590) and
 `RECOMPINPUT_RECONNECT_PLAYERS` (RecompFrontend 9fc3d68, on with `RECOMPINPUT_PADS_IN_ORDER` too).
@@ -1098,4 +1100,16 @@ plume 307d210          D3D12: a swap chain's resize() releases only the back buf
                        the screen update replaces the device, released them again. A Windows player's Rush 2049 crashed
                        there on the present thread with 027a043 in. PLUME_LOSE_DEVICE_AFTER makes a lost D3D12 device's
                        presents and resizes fail too, as a removed one's do
+rt64 b12ecad           RT64_SKIP_CAMERA_CUTS: a perspective camera with no matrix group of the game's own that turned
+                       more than 45 degrees in a game frame, or whose eye jumped more than 8 near plane distances and 4
+                       times its last step, cut to another shot, and neither it nor its scene's transforms pair across
+                       the cut: Mario Golf's cuts from the golfer to the ball drew its trees stretched to several times
+                       their height for a frame
+rt64 eda3964           RT64_SKIP_PLACE_SWAPS: no pair of transforms at two places that both frames drew something at
+                       (a world matrix translation's exact bits), since both stood still and the pair trades one object
+                       for another: Mario Golf draws its trees in another order or call each frame, and its flyovers drew
+                       them out on the fairway every other frame, and jumping about as a shot was aimed
+rt64 8314128           that check filters the gathered candidates after the loop, and places compare as floats, without
+                       <cstring>: Jet Force Gemini's and Pokemon Snap's own RT64 patches change the loop's lines and the
+                       includes, and didn't apply over eda3964
 ```
