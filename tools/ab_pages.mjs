@@ -28,8 +28,8 @@
 // much heap a build takes (tools/heap_probe.js), each play's `heap` lines in its log. A queue command after -- goes in
 // front of every play, so each takes its own turn on a shared GPU (CLAUDE.md, Playing a page): the A/B's a whole turn,
 // the smoke play's a shared one (docs/playing.md, What a change plays). Each play's output goes to
-// <out>/<n>-<browser>-<pages|build>.log, its summary beside it as .json, and the plan's shot steps write into <out>
-// (its cwd); --out is a new temporary dir without it, kept and named at the end. Run again with the same --out, it
+// <out>/<n>-<browser>-<pages|build>.log, its summary beside it as .json, and the plan's shot steps write into
+// <out>/<n>-<browser>-<pages|build>/ (its cwd), so Pages' shots and the build's are both kept to compare; --out is a new temporary dir without it, kept and named at the end. Run again with the same --out, it
 // reads the plays that have a summary there and plays the rest: queue waits can add up to hours, longer than what
 // started it may live, and a play stopped part way records nothing.
 //
@@ -115,8 +115,10 @@ const playOnce = async (condition, which) => {
   let code = 0;
   if (!done) {
     const logFd = fs.openSync(path.join(out, `${name}.log`), 'w');
+    const shots = path.join(out, name);
+    fs.mkdirSync(shots, { recursive: true });
     code = await new Promise((resolve) => {
-      const child = spawn(command[0], command.slice(1), { cwd: out, stdio: ['ignore', logFd, logFd] });
+      const child = spawn(command[0], command.slice(1), { cwd: shots, stdio: ['ignore', logFd, logFd] });
       child.on('error', (error) => resolve(error.message));
       child.on('exit', resolve);
     });
