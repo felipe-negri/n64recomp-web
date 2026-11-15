@@ -53,12 +53,13 @@ case "$archive" in
 *.zip)
     exe=$(ls "$dir/run/$folder" | grep '\.exe$')
     { for s in $shots; do printf '%s shot boot-%03d\n' "$s" "$s"; done; echo "$seconds end"; } > "$dir/plan.txt"
-    # capture_window.ps1 hands its -ExeArgs to the program as one command line.
+    # capture_window.ps1 hands its -ExeArgs to the program as one command line; the colon form, since pwsh -File reads
+    # a value that starts with a dash as the next parameter.
     args="--boot"
     for a in "$@"; do args+=" \"$a\""; done
     pwsh -NoProfile -File "$(cygpath -w "$here/capture_window.ps1")" -Exe "$(cygpath -w "$dir/run/$folder/$exe")" \
         -WorkDir "$(cygpath -w "$dir/run/$folder")" -Plan "$(cygpath -w "$dir/plan.txt")" -OutDir "$(cygpath -w "$dir")" \
-        -ExeArgs "$args" | tee "$dir/capture.log"
+        -ExeArgs:"$args" | tee "$dir/capture.log"
     ! grep -q '^exited with' "$dir/capture.log" || { echo "boot failed: $(grep '^exited with' "$dir/capture.log")"; ran=no; }
     # Each capture's name and the standard deviation of its grey, 0 to 255, at 32x32 points.
     pwsh -NoProfile -Command "Add-Type -AssemblyName System.Drawing

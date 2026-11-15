@@ -45,18 +45,18 @@ items by almost no game when the record began.
 | Game | New recomp: left | Web port: left |
 |---|---|---|
 | San Francisco Rush 2049 | 4c fails, 8a fails | W5, W6's Drive |
-| Perfect Dark | 4c, 6c, 8a fails | W5 fails, W6's Drive |
+| Perfect Dark | 4c, 8a fails | W5 fails, W6's Drive |
 | Super Mario 64 |  | W5 fails, W6's Drive |
-| F-Zero X | 6c | W6's Drive |
+| F-Zero X | | W6's Drive |
 | Mario Party | 4c, 5b, 6a, 6b fails, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Mario Party 2 | 4c, 5b, 6a, 6b fails, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
 | Mario Party 3 | 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
-| Super Smash Bros. | 6c | W6's Drive |
-| Paper Mario | 4a, 4c, 6b, 6c | W5 fails, W6's Drive |
+| Super Smash Bros. | | W6's Drive |
+| Paper Mario | 4a, 4c, 6b | W5 fails, W6's Drive |
 | Mario Golf | | W6's Drive |
 | Rayman 2 | | W5 fails, W6's Drive |
 | Donald Duck: Goin' Quackers | 2, 5b | W5 fails, W6's Drive |
-| Dinosaur Planet | 6c | W5 fails |
+| Dinosaur Planet | | W5 fails |
 | Turok: Dinosaur Hunter | 5a | W5 fails, W6's Drive |
 | Turok 2: Seeds of Evil | 2 fails, 4c, 5a | W5 fails, W6's Drive |
 | Turok 3: Shadow of Oblivion | 4c, 5a | W5 fails, W6's Drive |
@@ -141,6 +141,15 @@ change), and v0.1.12 then grew its queue back by under 1 ms a retrace, so 12 buf
 a minute went out with under 8 ms queued and 3 onto an empty queue; since its `queue_samples` puts a retrace of
 silence in front of a buffer that finds the queue empty, none of 4838 does, the queue holding 26 ms at its median
 through the logo, title, file select and the castle grounds, so it passes 6c;
+Perfect Dark v0.1.14 (dataDyne Central - Defection), F-Zero X v0.1.14 (a GP race at Mute City), Super Smash Bros.
+v0.1.13 (1P Game's first match) and Dinosaur Planet v0.1.5 (SwapStone Hollow from a new game, its pause menu) each
+played 70-105 s of their menus and a level from their released archives on the sound device (`tools/sound_pace.sh`)
+on a host 8-69% busy, the game at 100% of the device's rate, and none of 2105, 5574, 4155 and 3147 buffers was cut or
+found the queue empty after the boot, which held 37-68, 6-38, 10-30 and 10-34 ms, so they pass 6c (beside builds,
+with the host 100% busy, Perfect Dark ran at 57% and dry); Paper Mario v0.1.13's queue held only 9-33 ms, and on a
+host 32% busy a 36-41 ms wait between buffers ran it dry 7 times in the middle of its sound (as the file select opened
+and a new game's first map began), so its `get_frames_remaining` leaves two retraces out of `osAiGetLength` as
+Mario Golf's does: 25-49 ms queued and none of 6516 and 6518 buffers dry in two plays, so it passes 6c in v0.1.14;
 F-Zero X's page in Firefox loses
 none in its boot's first 10 s built on v0.201.0 but inside its own silence (0.6-2.5 s from Pages on v0.184.0, as
 section boot's shaders were built with the game waiting), and none after its tab is hidden and shown in either
@@ -343,9 +352,11 @@ rumble included.
   that passes where the sound after it starts with a cushion queued. The catch-up drops every other sample of a
   buffer, a click with no gap in it, so 6b's gap search misses it, and SDL's disk driver plays slower than real
   time, so its recording never shows a queue that runs dry: read on the sound device, by a log of the frames queued
-  (`get_queued_audio_bytes`) beside each `queue_samples` in a test build. Mario Golf's sound library made 552 samples
-  a retrace where 533 play, leaving its pace to the audio FIFO's full status, which the runtime never sets, and
-  clicked about four times a second until its `patches/audio.c` (its CLAUDE.md, Sound).
+  beside each buffer, which `tools/sound_pace.sh` takes from a released Windows archive with no test build (a stand-in
+  SDL2.dll), on a quiet host: beside builds a game runs below full speed and any queue runs dry. A queue that runs dry
+  only inside the game's own silence (a scene change's fade) passes. Mario Golf's sound library made 552 samples a
+  retrace where 533 play, leaving its pace to the audio FIFO's full status, which the runtime never sets, and clicked
+  about four times a second until its `patches/audio.c` (its CLAUDE.md, Sound).
 
 ### 7. The page
 
