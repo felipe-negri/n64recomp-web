@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web eda3964fca436d2122f1452610153a9cc0203cc3
+rt64: https://github.com/n64hub/rt64-web 8314128f194a2552e96784f1f4e3a61f8d3e39b7
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -2510,20 +2510,19 @@ index 5c3c4d2..cba893c 100644
  
          uint32_t rdramUsed;
 diff --git a/src/hle/rt64_game_frame.cpp b/src/hle/rt64_game_frame.cpp
-index 87392d0..f40a631 100644
+index 87392d0..5d837c9 100644
 --- a/src/hle/rt64_game_frame.cpp
 +++ b/src/hle/rt64_game_frame.cpp
-@@ -2,6 +2,9 @@
+@@ -2,6 +2,8 @@
  // RT64
  //
  
 +#include <algorithm>
-+#include <cstring>
 +
  #include "common/rt64_math.h"
  
  #include "rt64_game_frame.h"
-@@ -48,6 +51,13 @@ namespace RT64 {
+@@ -48,6 +50,13 @@ namespace RT64 {
          const FramebufferPair &fbPair = workload.fbPairs[proj.fbPairIndex];
          const Projection &fbProj = fbPair.projections[proj.projectionIndex];
          const GameIndices::Projection &firstProj = scene.projections.front();
@@ -2537,7 +2536,7 @@ index 87392d0..f40a631 100644
          if (!areFramebufferPairsCompatible(workloadQueue, { firstProj.workloadIndex, firstProj.fbPairIndex }, { proj.workloadIndex, proj.fbPairIndex })) {
              return false;
          }
-@@ -168,6 +178,55 @@ namespace RT64 {
+@@ -168,6 +177,55 @@ namespace RT64 {
          return (lhs.first < rhs.first) || ((lhs.first == rhs.first) && lhs.second < rhs.second);
      }
  
@@ -2593,7 +2592,7 @@ index 87392d0..f40a631 100644
      struct MatchCandidate {
          uint32_t curIndex = 0;
          uint32_t prevIndex = 0;
-@@ -188,6 +247,7 @@ namespace RT64 {
+@@ -188,6 +246,7 @@ namespace RT64 {
          float positionDifference = FLT_MAX;
          float orientationDifference = FLT_MAX;
          float screenSpaceDifference = FLT_MAX;
@@ -2601,7 +2600,7 @@ index 87392d0..f40a631 100644
          bool valid = false;
  
          float computeDifference() const {
-@@ -212,10 +272,109 @@ namespace RT64 {
+@@ -212,10 +271,113 @@ namespace RT64 {
                  totalDiff += screenSpaceDifference * ScreenSpaceDiffScale;
              }
  
@@ -2669,38 +2668,42 @@ index 87392d0..f40a631 100644
 +#endif
 +
 +#if RT64_SKIP_PLACE_SWAPS
-+    // A transform's place, its translation's bits (+0 and -0 the same), to find whether a frame drew anything at
-+    // exactly that place: what stands still in a game's world is drawn at the very same matrix translation each frame.
++    // A transform's place, its world matrix's translation, to find whether a frame drew anything at exactly that place:
++    // what stands still in a game's world is drawn at the very same translation each frame.
 +    struct TransformPlace {
-+        uint32_t bits[3];
++        float x;
++        float y;
++        float z;
 +
 +        bool operator<(const TransformPlace &o) const {
-+            if (bits[0] != o.bits[0]) {
-+                return bits[0] < o.bits[0];
++            if (x != o.x) {
++                return x < o.x;
 +            }
 +
-+            return (bits[1] != o.bits[1]) ? (bits[1] < o.bits[1]) : (bits[2] < o.bits[2]);
++            return (y != o.y) ? (y < o.y) : (z < o.z);
 +        }
 +
 +        bool operator==(const TransformPlace &o) const {
-+            return (bits[0] == o.bits[0]) && (bits[1] == o.bits[1]) && (bits[2] == o.bits[2]);
++            return (x == o.x) && (y == o.y) && (z == o.z);
++        }
++
++        bool isFinite() const {
++            return std::isfinite(x) && std::isfinite(y) && std::isfinite(z);
 +        }
 +    };
 +
 +    static TransformPlace transformPlace(const interop::float4x4 &transform) {
-+        TransformPlace place;
-+        for (int i = 0; i < 3; i++) {
-+            const float value = (transform.m[3][i] == 0.0f) ? 0.0f : transform.m[3][i];
-+            memcpy(&place.bits[i], &value, sizeof(float));
-+        }
-+
-+        return place;
++        return { transform.m[3][0], transform.m[3][1], transform.m[3][2] };
 +    }
 +
++    // Every finite place a workload drew a transform at, sorted, without repeats.
 +    static void collectTransformPlaces(const Workload &workload, std::vector<TransformPlace> &places) {
 +        places.clear();
 +        for (const interop::float4x4 &transform : workload.drawData.worldTransforms) {
-+            places.emplace_back(transformPlace(transform));
++            const TransformPlace place = transformPlace(transform);
++            if (place.isFinite()) {
++                places.emplace_back(place);
++            }
 +        }
 +
 +        std::sort(places.begin(), places.end());
@@ -2711,7 +2714,7 @@ index 87392d0..f40a631 100644
      TransformMatchResult computeTransformMatch(const hlslpp::float4x4 &curTransform, const hlslpp::float4x4 &curViewProj, const hlslpp::float4x4 &prevTransform, const hlslpp::float4x4 &prevViewProj, const RigidBody *prevRigidBody) {
          TransformMatchResult matchResult;
  
-@@ -226,6 +385,18 @@ namespace RT64 {
+@@ -226,6 +388,18 @@ namespace RT64 {
              return matchResult;
          }
  
@@ -2730,7 +2733,7 @@ index 87392d0..f40a631 100644
          // Compute the difference between the translation components of the 4x4 matrices.
          const hlslpp::float3 curPos = curTransform[3].xyz;
          hlslpp::float3 prevPos = prevTransform[3].xyz;
-@@ -241,6 +412,18 @@ namespace RT64 {
+@@ -241,6 +415,18 @@ namespace RT64 {
              (1.0f - hlslpp::dot(hlslpp::normalize(curTransform[1].xyz), hlslpp::normalize(prevTransform[1].xyz))) +
              (1.0f - hlslpp::dot(hlslpp::normalize(curTransform[2].xyz), hlslpp::normalize(prevTransform[2].xyz)));
  
@@ -2749,7 +2752,7 @@ index 87392d0..f40a631 100644
          // Compute the difference between the screen-space position of both transforms on their respective projections.
          hlslpp::float4 prevScreenPos = hlslpp::mul(prevTransform[3], prevViewProj);
          hlslpp::float4 curScreenPos = hlslpp::mul(curTransform[3], curViewProj);
-@@ -252,6 +435,92 @@ namespace RT64 {
+@@ -252,6 +438,92 @@ namespace RT64 {
          return matchResult;
      }
  
@@ -2842,7 +2845,7 @@ index 87392d0..f40a631 100644
      void GameFrame::match(RenderWorker *worker, WorkloadQueue &workloadQueue, const GameFrame &prevFrame, BufferUploader *velocityUploader, bool &velocityUploaderUsed, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed) {
          tileInterpolationUsed = false;
          lookAtInterpolationUsed = false;
-@@ -260,17 +529,49 @@ namespace RT64 {
+@@ -260,17 +532,49 @@ namespace RT64 {
          thread_local std::unordered_map<uint32_t, ModifiedBuffers> workloadsModified;
          workloadsModified.clear();
  
@@ -2898,7 +2901,7 @@ index 87392d0..f40a631 100644
              const Workload &prevWorkload = workloadQueue.workloads[workloadMap.prevWorkloadIndex];
              workloadMap.viewProjections.clear();
              workloadMap.viewProjections.resize(curWorkload.drawData.viewProjTransforms.size());
-@@ -290,7 +591,7 @@ namespace RT64 {
+@@ -290,7 +594,7 @@ namespace RT64 {
              buildTransformIdMap(curWorkload, curWorkload.transformIdMap, curWorkload.transformIgnoredIds);
  
              // Retrieve the matching maps for the current and previous workload.
@@ -2907,7 +2910,7 @@ index 87392d0..f40a631 100644
              const GameFrameMap::WorkloadMap *prevWorkloadMap = nullptr;
              if (prevFrame.matched && prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex].mapped) {
                  prevWorkloadMap = &prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex];
-@@ -316,7 +617,7 @@ namespace RT64 {
+@@ -316,7 +620,7 @@ namespace RT64 {
              }
  
              if (!modifiedBuffers.empty()) {
@@ -2916,7 +2919,7 @@ index 87392d0..f40a631 100644
              }
  
              // Any transforms tagged with the empty ID will be instantly marked as used and skipped.
-@@ -343,6 +644,14 @@ namespace RT64 {
+@@ -343,6 +647,14 @@ namespace RT64 {
                  const hlslpp::float4x4 &curProjTransform = curWorkload.drawData.projTransforms[curProj.transformsIndex];
                  for (uint32_t j = 0; j < prevScenes.size(); j++) {
                      const GameIndices::Projection prevFirstProj = prevScenes[j].projections[0];
@@ -2931,7 +2934,7 @@ index 87392d0..f40a631 100644
                      const Workload &prevWorkload = workloadQueue.workloads[prevFirstProj.workloadIndex];
                      const FramebufferPair &prevFbPair = prevWorkload.fbPairs[prevFirstProj.fbPairIndex];
                      const Projection &prevProj = prevFbPair.projections[prevFirstProj.projectionIndex];
-@@ -356,6 +665,40 @@ namespace RT64 {
+@@ -356,6 +668,40 @@ namespace RT64 {
              prevScenesMatched.clear();
              curScenesMatched.resize(curScenes.size());
              prevScenesMatched.resize(prevScenes.size());
@@ -2972,7 +2975,7 @@ index 87392d0..f40a631 100644
              std::stable_sort(matchCandidates.begin(), matchCandidates.end());
              for (const MatchCandidate &candidate : matchCandidates) {
                  if (curScenesMatched[candidate.curIndex]) {
-@@ -403,8 +746,10 @@ namespace RT64 {
+@@ -403,8 +749,10 @@ namespace RT64 {
              return;
          }
  
@@ -2985,7 +2988,7 @@ index 87392d0..f40a631 100644
          curCallHashMap.clear();
          prevCallHashMap.clear();
  
-@@ -478,6 +823,24 @@ namespace RT64 {
+@@ -478,6 +826,24 @@ namespace RT64 {
                  }
                  else {
                      viewProjMap.mapped = (curProjGroup.matrixId == G_EX_ID_AUTO);
@@ -3010,7 +3013,7 @@ index 87392d0..f40a631 100644
                  }
  
                  if (viewProjMap.mapped) {
-@@ -509,69 +872,163 @@ namespace RT64 {
+@@ -509,69 +875,163 @@ namespace RT64 {
              buildCallHashMap(p, prevWorkload, prevProj, prevCallHashMap);
          }
  
@@ -3220,10 +3223,10 @@ index 87392d0..f40a631 100644
          }
  
          // Compute all the differences between transforms and insert them into a vector that will be sorted according to the differences.
-@@ -581,11 +1038,34 @@ namespace RT64 {
-         const RigidBody *prevRigidBody;
-         const hlslpp::float4x4 &firstCurViewProj = firstCurWorkload.drawData.viewProjTransforms[firstCurProj.transformsIndex];
-         const hlslpp::float4x4 &firstPrevViewProj = firstPrevWorkload.drawData.viewProjTransforms[firstPrevProj.transformsIndex];
+@@ -592,6 +1052,30 @@ namespace RT64 {
+             }
+         }
+ 
 +#if RT64_SKIP_PLACE_SWAPS
 +        // Nor a transform with one of the frame before that drew at another place, when each frame drew something at
 +        // both places. Both places then held still, and the pair trades one object for another: a game that draws the
@@ -3233,29 +3236,25 @@ index 87392d0..f40a631 100644
 +        // out on the fairway every other frame, and its trees jumped about as a shot was aimed, a fifth of a frame's
 +        // trees paired so. Left unpaired, each is drawn at its own place between the frames, as it stood. What moves
 +        // into the very place another left in the same frame is left unpaired too, and steps for a frame.
-+        thread_local std::vector<TransformPlace> curPlaces;
-+        thread_local std::vector<TransformPlace> prevPlaces;
-+        if (!transformCheckSet.empty()) {
++        if (!matchCandidates.empty()) {
++            thread_local std::vector<TransformPlace> curPlaces;
++            thread_local std::vector<TransformPlace> prevPlaces;
 +            collectTransformPlaces(firstCurWorkload, curPlaces);
 +            collectTransformPlaces(firstPrevWorkload, prevPlaces);
++            auto tradesPlaces = [&](const MatchCandidate &candidate) {
++                const TransformPlace curPlace = transformPlace(firstCurWorkload.drawData.worldTransforms[candidate.curIndex]);
++                const TransformPlace prevPlace = transformPlace(firstPrevWorkload.drawData.worldTransforms[candidate.prevIndex]);
++                return !(curPlace == prevPlace) && std::binary_search(prevPlaces.begin(), prevPlaces.end(), curPlace) && std::binary_search(curPlaces.begin(), curPlaces.end(), prevPlace);
++            };
++
++            matchCandidates.erase(std::remove_if(matchCandidates.begin(), matchCandidates.end(), tradesPlaces), matchCandidates.end());
 +        }
 +#endif
-         for (const IndexPair &indices : transformCheckSet) {
-             const hlslpp::float4x4 &curTransform = firstCurWorkload.drawData.worldTransforms[indices.first];
-             const hlslpp::float4x4 &prevTransform = firstPrevWorkload.drawData.worldTransforms[indices.second];
-             prevRigidBody = (firstPrevWorkloadMap != nullptr) ? &firstPrevWorkloadMap->transforms[indices.second].rigidBody : nullptr;
- 
-+#if RT64_SKIP_PLACE_SWAPS
-+            const TransformPlace curPlace = transformPlace(firstCurWorkload.drawData.worldTransforms[indices.first]);
-+            const TransformPlace prevPlace = transformPlace(firstPrevWorkload.drawData.worldTransforms[indices.second]);
-+            if (!(curPlace == prevPlace) && std::binary_search(prevPlaces.begin(), prevPlaces.end(), curPlace) && std::binary_search(curPlaces.begin(), curPlaces.end(), prevPlace)) {
-+                continue;
-+            }
-+#endif
-             TransformMatchResult matchResult = computeTransformMatch(curTransform, firstCurViewProj, prevTransform, firstPrevViewProj, prevRigidBody);
-             if (matchResult.valid) {
-                 matchCandidates.emplace_back(indices.first, indices.second, matchResult.computeDifference());
-@@ -669,17 +1149,160 @@ namespace RT64 {
++
+         ModifiedBuffers modifiedBuffers;
+         std::stable_sort(matchCandidates.begin(), matchCandidates.end());
+         for (const MatchCandidate candidate : matchCandidates) {
+@@ -669,17 +1153,160 @@ namespace RT64 {
              const bool wrappedUlt = (curTile.cmt == G_TX_WRAP) && (modulo(integerUlt, curTile.maskt * 4) == modulo(expectedUlt, curTile.maskt * 4));
              const bool wrappedLrs = (curTile.cms == G_TX_WRAP) && (modulo(integerLrs, curTile.masks * 4) == modulo(expectedLrs, curTile.masks * 4));
              const bool wrappedLrt = (curTile.cmt == G_TX_WRAP) && (modulo(integerLrt, curTile.maskt * 4) == modulo(expectedLrt, curTile.maskt * 4));
@@ -3421,7 +3420,7 @@ index 87392d0..f40a631 100644
          }
  
          // Check for look at matches.
-@@ -782,9 +1405,78 @@ namespace RT64 {
+@@ -782,9 +1409,78 @@ namespace RT64 {
  
              modifiedBuffers.texcoordVelocity = true;
          }
@@ -3501,7 +3500,7 @@ index 87392d0..f40a631 100644
          for (uint32_t c = 0; c < proj.gameCallCount; c++) {
              const GameCall &call = proj.gameCalls[c];
              uint32_t matrixIdHash = 0;
-@@ -802,7 +1494,7 @@ namespace RT64 {
+@@ -802,7 +1498,7 @@ namespace RT64 {
                  doTileMatching = doTileMatching || (group.tileInterpolation == G_EX_COMPONENT_AUTO);
              }
  
