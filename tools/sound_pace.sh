@@ -16,7 +16,9 @@
 # sample of those, or more: a click with no gap, which 6b's disk-driver recording misses), and buffers queued onto an
 # empty queue (dry: SDL's disk driver plays slower than real time, so only the device shows these). It prints the
 # queue's milliseconds (least, median, most), the longest wait between two buffers (a stall that a dry queue follows)
-# and the first times of each. 6c passes with 0 cut and 0 dry through a minute of the game's menus and a level.
+# and the first times of each, and how much sound the game made against what the device played: well under 100% is a
+# game running below full speed, which on a busy host empties any queue, so measure in a quiet one (a whole GPU turn
+# where builds share the machine). 6c passes with 0 cut and 0 dry through a minute of the game's menus and a level.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 
@@ -30,7 +32,7 @@ read_log() {
             if (n_all++ && t - last > gap && last >= from) { gap = t - last; gap_at = last }
             last = t
             if (t < from) next
-            q[n++] = ms
+            q[n++] = ms; made += $2 / bpf
             if (int(int($3 / bpf) * 1000000 / freq) >= 100000) { if (cut++ < 8) cut_at = cut_at sprintf(" %.1f", t) }
             if ($3 == 0) { if (dry++ < 8) dry_at = dry_at sprintf(" %.1f", t) }
         }
@@ -39,6 +41,7 @@ read_log() {
             if (!n) { print "no buffer queued after " from " s"; exit 1 }
             asort(q)
             printf "%d buffers from %d s to %.0f s: %d cut by the catch-up, %d onto a dry queue\n", n, from, last, cut, dry
+            printf "the game made %.0f%% of the frames the device played (%d a second)\n", made / (last - from) * 100 / freq, freq
             printf "queued %.1f / %.1f / %.1f ms (least / median / most); longest wait between buffers %.0f ms, at %.1f s\n",
                 q[1], q[int((n + 1) / 2)], q[n], gap * 1000, gap_at
             if (cut) print "cut at" cut_at (cut > 8 ? " ..." : "") " s"
