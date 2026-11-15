@@ -30,18 +30,23 @@ while [ $# -gt 0 ]; do
     esac
 done
 [ -n "$game$repo" ] || { echo "usage: tools/checklist.sh <game> | --repo <owner/name> [--main]" >&2; exit 2; }
+# Each doc is read whole before awk looks at it: awk exits at its row, and piped from gh that left gh writing to a
+# closed pipe, so under pipefail the script died of SIGPIPE (141) wherever gh was still writing, on one host and not
+# another.
 read_doc() {
     if $main; then gh api "repos/n64hub/N64Recomp-browser/contents/$1" -H "Accept: application/vnd.github.raw"
     else cat "$here/../$1"; fi | tr -d '\r'
 }
 if [ -z "$game" ]; then
-    game=$(read_doc README.md | awk -F'|' -v r="https://github.com/$repo)" '
-        /^\| / && index($4, r) { gsub(/^ +| +$/, "", $2); print $2; exit }')
+    readme=$(read_doc README.md)
+    game=$(awk -F'|' -v r="https://github.com/$repo)" '
+        /^\| / && index($4, r) { gsub(/^ +| +$/, "", $2); print $2; exit }' <<< "$readme")
     game=${game:-${CHECKLIST_GAME:-}}
     [ -n "$game" ] || { echo "no Games row in the README links $repo: set CHECKLIST_GAME to its game's row name" >&2; exit 2; }
 fi
-row=$(read_doc docs/new-recomp.md | awk -F'|' -v g="$game" '
-    /^\| / && NF == 5 { t = $2; gsub(/^ +| +$/, "", t); if (t == g) { print $3 "|" $4; exit } }')
+doc=$(read_doc docs/new-recomp.md)
+row=$(awk -F'|' -v g="$game" '
+    /^\| / && NF == 5 { t = $2; gsub(/^ +| +$/, "", t); if (t == g) { print $3 "|" $4; exit } }' <<< "$doc")
 [ -n "$row" ] || { echo "$game has no row in docs/new-recomp.md (Where each game stands)" >&2; exit 2; }
 after=" 8a 8c W10 W11 W6's Drive "
 left=()

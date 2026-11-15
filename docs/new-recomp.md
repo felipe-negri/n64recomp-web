@@ -114,7 +114,9 @@ play four golfers, each from the pad that picked it and buzzed on its turn (3, W
 out and plugged in again at the tee get their ports back and rumble once the game has found their Rumble Paks, a few
 seconds on (4c); a tournament saved and quit continues after a restart (5a), and the scripted presses that once didn't
 move its main menu's cursor came in the half second the menu zooms in over the title, which drops them; its long plays
-at 3840x2000 ran nothing out (W9); F-Zero X's page in Firefox loses
+at 3840x2000 ran nothing out (W9); released as v0.1.2, whose archives boot on Windows and on Linux's lavapipe (8a),
+with its README linking its page (8c), its page from Pages in Firefox playing without a fault (W10) and its Games row,
+news entry, tile and score on the hub (W11); F-Zero X's page in Firefox loses
 none in its boot's first 10 s built on v0.201.0 but inside its own silence (0.6-2.5 s from Pages on v0.184.0, as
 section boot's shaders were built with the game waiting), and none after its tab is hidden and shown in either
 browser, so it passes W5: the 2.4 s it loses in the 2.6 s its first race's section takes to build 45 shaders is a
