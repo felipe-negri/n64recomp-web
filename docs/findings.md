@@ -1990,6 +1990,69 @@ which the change doesn't touch past its logos, read 56.9 against 57.2 and uncapp
 build's first uncapped play stopped 19 s in on "memory access out of bounds" as the game set up its heap, and the
 replayed series ran whole: Beetle's own fault, not this change, which no game thread reaches.
 
+## Interpolated frames and the game's full sync
+
+On a page the device thread runs every WebGPU call in order on the page's thread (plume's), so a call that waits for
+it (a readback, a buffer made for the draw data as it grows) waits for every call sent before it. A list of the game's
+makes those calls in its full sync (RT64's State::fullSync): the readback of each sync to RAM, the last list's late
+copy landing, the draw data's uploads. Meanwhile the workload thread draws the last game frame's interpolated frames,
+each of which redraws every framebuffer pair of that frame, and the list's waits wait for all of them.
+
+Mario Tennis' page syncs to RAM in each of its lists (its rt64 patch reads the small images it draws and then samples,
+its shadows among them, from RDRAM: docs/game-forks.md), about 55 framebuffer pairs a frame in a match. Uncapped at 360
+from Pages (v0.209.0, 1256x645, Chrome, an RTX 2070, `?frame-log` with timing lines of a test build's own), RT64 drew
+12-22 interpolated frames a game frame there, each list's readbacks took 30-90 ms behind them and its draw data's
+uploads 18-66 ms, and its matches played at 11-16 game frames a second against their 30: the frames' rate fell with them
+(the time window RT64 interpolates in), so each game frame got more interpolated frames still, and the sound ran short
+all match long. Capped at the display's 59 Hz, with one interpolated frame a game frame, the match played at 30 with no
+sound short. This is what W5 failed on, from Pages, in Chrome (279 ms short after the hidden tab) and Firefox (20.4 s,
+its page's thread stalled 60-100 ms every few hundred ms by the same readbacks): its backcheck plays uncapped.
+
+rt64 1f14ebb has the workload thread start no interpolated frame while the game's list is in its full sync (a
+ListGPUWait, from the sync's start to the workload's queueing), 2f08dd3 lets that wait last 200 ms at most, and e0efea6,
+07bce94, baf5152 and a365318 move it into lines of the web's own so the game forks' RT64 patches apply over it. A guard
+over only the sync's waits played 23-30 with stretches of 10, since a frame started between two of a list's waits
+held the next. Over the whole sync the match at 1256x645 played at 29-30 and none short. The wait ends as the
+workload is queued, not after: the queueing waits for the workload thread when the queue is full, so a guard held
+across it had each list wait out the 200 ms, and the match played at 9-28 (07bce94).
+
+At 3840x2000 a sync's own readbacks take what the list's draws cost the GPU: 20-40 ms a list in the match, 100-150 in
+its heaviest scenes, capped too. Game frames a second over the plan's 60-180 s (the match, its points, score screens
+and replays), each play a shared GPU turn on an idle host:
+
+| | game frames a second | sound short |
+|---|---|---|
+| Pages, uncapped | 8.9 | 30,000-150,000 frames every 5 s |
+| the wait, 50 ms at most | 18.6-19.9 | 0-118,000 every 5 s |
+| the wait, 200 ms at most | 24.0-27.2 | 24,000-86,000 every 5 s in the heaviest scenes, else none |
+| Pages, capped at 59 Hz | 25.9 | 13,000-115,000 every 5 s in the heaviest scenes, else none |
+
+With 50 ms the wait ran out in most lists at 3840x2000 (and in a twentieth at 1256x645), and the frames started then
+held the sync's later readbacks again.
+
+The backchecks (1256x645 uncapped) of 35f21fc's build and 10e2b34's (rt64 a365318), interleaved, play alike: in Chrome
+each passed W5 once and once fell short after the hidden tab, 1.9 s and 6.0 s, where the hide (176-190 s in, as fast as
+the game got there) fell in the scene below, which the page was already short in before the hide. In Firefox 35f21fc's
+lost none in the boot, against Pages' 444 ms, and 2.3 s after the show (10e2b34's 1.7 s), against Pages' 20.4 s, and
+that was the game's own: hidden, the game came to its tournament section 14 s in, where Firefox built 88 prebuilt
+shaders for 5.0 s with the game waiting (a section's wait, as Paper Mario's in A page in a hidden tab), then to a scene
+that syncs to RAM 33-39 times a list, and that played at 11 game frames a second across the show (a probe build's
+`?frame-log`). Each of those syncs is a readback the list's next pairs wait for, since the patch has the game sample
+those images from RDRAM: a round trip to the GPU of 1.8 ms in Firefox, 1.3-1.6 ms in Chrome at any canvas size, so a
+list of 40 takes 55-75 ms, as the match's heaviest scenes do in Chrome capped (35-45 a list). Firefox's smoke play at
+3840x2000 ran short through the match that way, visible (`mt-35f21fc-smoke2-mt`).
+
+The A/B reads such a change as worse: it judges presents a second, and the change is fewer presents. Pages presented
+195-214 a second there with the game at 9, the build 114-129 with it at 24-27 (set `mt-35f21fc-ab2-mt`), and their
+sound ran 2.5-3.0 million frames short over the play against the build's 0.23-0.57 million: a present there was an
+interpolated frame of a game held up. Majora's Mask, whose page keeps the exact copy, read 299 against Pages' 307
+(`mm-35f21fc-ab2-mm`), none short either way. Like a change to the game's own timing (A game at 30, uncapped), a change
+that trades interpolated frames for the game's own frames is read by the game's frames a second (`?frame-log`'s GF
+lines, `?present-stats`) and its sound beside the presents.
+
+Rush 2049's page keeps 100 ms of sound queued (its docs/web.md), and Mario Tennis' sound didn't need it: it ran short
+because the game ran at a third or half its rate, making that much of its sound, which no queue covers.
+
 ## A frame drawn in many workloads
 
 Mario Party 2's Tile Driver (minigame 0x46, its overlay 0x37) draws each game frame in 16 workloads, and
