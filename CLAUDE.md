@@ -104,7 +104,11 @@ docs line) is made in the same work like any other.
   problem one game turns up that another could have too goes in as an item, an item added is backchecked (its label
   in the row of every own recomp it can apply to, and work filed to play it there; game forks aren't backchecked), and
   a play of a game for an item updates that game's row. A port or new recomp is called done once its row holds only
-  fails whose fixes are filed.
+  fails whose fixes are filed, and the checklists gate its release: its desktop build's first release and its page's
+  first publish wait until then (`tools/checklist.sh <game>` says what holds it, and `tools/boot_release.sh` and
+  `tools/publish_pages.sh` refuse before), however well the game boots. A port's work plays its row through, or
+  leaves its game unreleased (on `publish_pages.sh`'s `unreleased`) with the rest filed. A released game's later
+  releases aren't held by an item added after it was released: its backcheck is filed work.
 - Work that is started: a critical fix, a new port, and work whose likely cause is shared code, measured on two games
   or more. One game's polish (one browser's sound in one game, 100 ms gaps at one screen change) is filed and waits
   until asked for.
