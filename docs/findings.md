@@ -2012,7 +2012,9 @@ rt64 1f14ebb has the workload thread start no interpolated frame while the game'
 ListGPUWait, from the sync's start to the workload's queueing), 2f08dd3 lets that wait last 200 ms at most, and e0efea6,
 07bce94, baf5152 and a365318 move it into lines of the web's own so the game forks' RT64 patches apply over it. A guard
 over only the sync's waits played 23-30 with stretches of 10, since a frame started between two of a list's waits
-held the next. Over the whole sync the match at 1256x645 played at 29-30 and none short.
+held the next. Over the whole sync the match at 1256x645 played at 29-30 and none short. The wait ends as the
+workload is queued, not after: the queueing waits for the workload thread when the queue is full, so a guard held
+across it had each list wait out the 200 ms, and the match played at 9-28 (07bce94).
 
 At 3840x2000 a sync's own readbacks take what the list's draws cost the GPU: 20-40 ms a list in the match, 100-150 in
 its heaviest scenes, capped too. Game frames a second over the plan's 60-180 s (the match, its points, score screens
