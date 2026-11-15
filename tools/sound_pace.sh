@@ -92,6 +92,6 @@ args="--boot"
 for a in "$@"; do args+=" \"$a\""; done
 pwsh -NoProfile -File "$(cygpath -w "$here/capture_window.ps1")" -Exe "$(cygpath -w "$run/$exe")" \
     -WorkDir "$(cygpath -w "$run")" -Plan "$(cygpath -w "$plan")" -OutDir "$(cygpath -w "$dir")" \
-    -ExeArgs "$args" -Env "SDL_QUEUE_LOG=$(cygpath -w "$dir/queue.log")" | tee "$dir/capture.log"
+    -ExeArgs:"$args" -Env "SDL_QUEUE_LOG=$(cygpath -w "$dir/queue.log")" | tee "$dir/capture.log"
 grep -E '^Crash:|^--boot: no valid stored ROM' "$dir/stderr.log" && { echo "the program failed"; exit 1; }
 read_log "$dir/queue.log" 15
