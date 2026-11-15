@@ -1078,4 +1078,8 @@ rt64 07bce94           GBI_RDP::fullSync() holds that ListGPUWait around State::
 rt64 baf5152           after that wait the frame loop's own skips go on as they are (the time check, and the rest of a
                        workload's frames once a newer one comes), since WWF No Mercy's RT64 patch keeps its own: at most
                        one frame of the older workload more
+rt64 a365318           the list's full sync ends as State::advanceWorkload() queues its workload (listInFullSync), not
+                       when GBI_RDP::fullSync()'s call returns: the queueing waits for the workload thread when the queue
+                       is full, and that thread waited for the sync to end, so each list waited out the 200 ms (Mario
+                       Tennis' match at 9-28 game frames a second with 07bce94)
 ```

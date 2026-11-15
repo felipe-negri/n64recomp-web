@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web baf5152eaff88b13aed8cd25819622082ddbfa22
+rt64: https://github.com/n64hub/rt64-web a365318ca815b1c5f247c77dba78d170831ede68
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -787,7 +787,7 @@ index 7006549..d9500cc 100644
          for (const GBIInstance *textInstance : textSegment.instances) {
              for (const GBIInstance *dataInstance : dataSegment.instances) {
 diff --git a/src/gbi/rt64_gbi_rdp.cpp b/src/gbi/rt64_gbi_rdp.cpp
-index 6255872..fec6fc9 100644
+index 6255872..4fdb999 100644
 --- a/src/gbi/rt64_gbi_rdp.cpp
 +++ b/src/gbi/rt64_gbi_rdp.cpp
 @@ -7,6 +7,10 @@
@@ -801,7 +801,7 @@ index 6255872..fec6fc9 100644
  
  namespace RT64 {
      namespace GBI_RDP {
-@@ -254,8 +258,38 @@ namespace RT64 {
+@@ -254,8 +258,39 @@ namespace RT64 {
  
          void fullSync(State *state, DisplayList **dl) {
              RT64_LOG_PRINTF("GBI_RDP::fullSync()");
@@ -819,10 +819,11 @@ index 6255872..fec6fc9 100644
 +            state->listEndsAfterFullSync = listEnds;
 +#       if defined(__EMSCRIPTEN__)
 +            {
-+                // The game's list is in its full sync until it ends: the last list's late copy landing, the uploads
-+                // that create a buffer as the draw data grows, and each batch's sync to RAM and its readback all wait
-+                // for the device thread (SharedQueueResources::listGPUWaits). Held here, not in State::fullSync(),
-+                // whose start and end the games' own patches of RT64 add to.
++                // The game's list is in its full sync until its workload is queued (State::advanceWorkload()) or the
++                // call ends: the last list's late copy landing, the uploads that create a buffer as the draw data
++                // grows, and each batch's sync to RAM and its readback all wait for the device thread
++                // (SharedQueueResources::listInFullSync). Held here, not in State::fullSync(), whose start and end the
++                // games' own patches of RT64 add to.
 +                SharedQueueResources::ListGPUWait listGPUWait(state->ext.sharedQueueResources);
 +                state->fullSync();
 +            }
@@ -4407,7 +4408,7 @@ index 1da2550..720d561 100644
  
              const interop::RSPViewport &viewport = viewportStack[viewportStackSize - 1];
 diff --git a/src/hle/rt64_shared_queue_resources.h b/src/hle/rt64_shared_queue_resources.h
-index 8858dac..52efeae 100644
+index 8858dac..ace3705 100644
 --- a/src/hle/rt64_shared_queue_resources.h
 +++ b/src/hle/rt64_shared_queue_resources.h
 @@ -23,6 +23,16 @@ namespace RT64 {
@@ -4436,41 +4437,49 @@ index 8858dac..52efeae 100644
          UserConfiguration userConfig;
          EnhancementConfiguration enhancementConfig;
          EmulatorConfiguration emulatorConfig;
-@@ -57,6 +69,49 @@ namespace RT64 {
+@@ -57,6 +69,57 @@ namespace RT64 {
          std::mutex interpolatedMutex;
          std::condition_variable interpolatedCondition;
          std::mutex workloadMutex;
 +#   if defined(__EMSCRIPTEN__)
-+        // The game's list in its full sync (a ListGPUWait around State::fullSync()), whose waits for the device thread
-+        // (a readback of what it drew into RDRAM, a buffer made larger) wait for every WebGPU call sent before them: the
-+        // workload thread starts no interpolated frame meanwhile, for a while at most (waitForListGPUWaits()).
-+        uint32_t listGPUWaits = 0;
++        // Whether the game's list is in its full sync, from GBI_RDP::fullSync()'s ListGPUWait until
++        // State::advanceWorkload() queues its workload: its waits for the device thread (a readback of what it drew
++        // into RDRAM, a buffer made larger) wait for every WebGPU call sent before them, so the workload thread starts
++        // no interpolated frame meanwhile, for a while at most (waitForListGPUWaits()). It ends before the workload is
++        // queued, since that waits for the workload thread when the queue is full, and so do the present queue's waits
++        // after it.
++        bool listInFullSync = false;
 +        std::mutex listGPUWaitMutex;
 +        std::condition_variable listGPUWaitCondition;
 +
 +        void listGPUWaitBegin() {
 +            std::scoped_lock<std::mutex> listLock(listGPUWaitMutex);
-+            listGPUWaits++;
++            listInFullSync = true;
 +        }
 +
++        // Ends it if it hasn't ended.
 +        void listGPUWaitEnd() {
 +            {
 +                std::scoped_lock<std::mutex> listLock(listGPUWaitMutex);
-+                listGPUWaits--;
++                if (!listInFullSync) {
++                    return;
++                }
++
++                listInFullSync = false;
 +            }
 +
 +            listGPUWaitCondition.notify_all();
 +        }
 +
-+        // Until no list is in its full sync, or maxMs have gone by.
++        // Until the game's list isn't in its full sync, or maxMs have gone by.
 +        void waitForListGPUWaits(uint32_t maxMs) {
 +            std::unique_lock<std::mutex> listLock(listGPUWaitMutex);
 +            listGPUWaitCondition.wait_for(listLock, std::chrono::milliseconds(maxMs), [this]() {
-+                return listGPUWaits == 0;
++                return !listInFullSync;
 +            });
 +        }
 +
-+        // A list in its full sync for as long as one lives.
++        // The game's list in its full sync for as long as one lives, unless it ends first.
 +        struct ListGPUWait {
 +            SharedQueueResources *resources;
 +
@@ -4487,7 +4496,7 @@ index 8858dac..52efeae 100644
          void setSwapChainSize(uint32_t width, uint32_t height) {
              std::scoped_lock<std::mutex> configurationLock(configurationMutex);
 diff --git a/src/hle/rt64_state.cpp b/src/hle/rt64_state.cpp
-index 2970e71..a52915c 100644
+index 2970e71..fd38884 100644
 --- a/src/hle/rt64_state.cpp
 +++ b/src/hle/rt64_state.cpp
 @@ -7,6 +7,13 @@
@@ -5237,10 +5246,15 @@ index 2970e71..a52915c 100644
          framebufferRenderer->updateMultisampling();
          updateRenderFlagSampleCount();
      }
-@@ -2660,12 +3072,101 @@ namespace RT64 {
+@@ -2660,12 +3072,106 @@ namespace RT64 {
          workload.debuggerCamera = debuggerInspector.camera;
          workload.debuggerRenderer = debuggerInspector.renderer;
          workload.paused = paused;
++
++#   if defined(__EMSCRIPTEN__)
++        // The game's list in its full sync ends as its workload is queued (SharedQueueResources::listInFullSync).
++        ext.sharedQueueResources->listGPUWaitEnd();
++#   endif
 +
 +        // Whether the workload draws to any framebuffer the VI has shown (shownFramebuffers), for a workload a full sync
 +        // ends. It's worked out here, not where fullSync() ends, which the games' own patches of RT64 add to. A workload
@@ -5339,7 +5353,7 @@ index 2970e71..a52915c 100644
          present.debuggerFramebuffer.address = debuggerInspector.renderer.framebufferAddress;
          present.debuggerFramebuffer.view = (debuggerInspector.renderer.framebufferIndex >= 0);
      }
-@@ -2724,6 +3225,25 @@ namespace RT64 {
+@@ -2724,6 +3230,25 @@ namespace RT64 {
          extended.renderToRAM = renderToRAM;
      }
  
@@ -5712,7 +5726,7 @@ index 8ea27d5..6eabaa0 100644
          void resetDrawDataRanges();
          void resetRSPOutputBuffers();
 diff --git a/src/hle/rt64_workload_queue.cpp b/src/hle/rt64_workload_queue.cpp
-index 5a331aa..7adb17d 100644
+index 5a331aa..d4e1e0c 100644
 --- a/src/hle/rt64_workload_queue.cpp
 +++ b/src/hle/rt64_workload_queue.cpp
 @@ -8,6 +8,13 @@
@@ -6621,7 +6635,7 @@ index 5a331aa..7adb17d 100644
  
                          {
                              std::scoped_lock<std::mutex> managerLock(ext.sharedResources->interpolatedMutex);
-@@ -1143,12 +1619,29 @@ namespace RT64 {
+@@ -1143,12 +1619,30 @@ namespace RT64 {
  
                          // Add the amount of display ticks that correspond to the remaining frames.
                          if (skipWorkloadNow) {
@@ -6634,16 +6648,17 @@ index 5a331aa..7adb17d 100644
  
 +#               if defined(__EMSCRIPTEN__)
 +                    // The next interpolated frame isn't started while the game's next list is in its full sync
-+                    // (SharedQueueResources::listGPUWaits), for at most InterpolatedListWaitMs. Its waits for the device
-+                    // thread (a readback of a sync to RAM or of the late copy, a buffer made as the draw data grows) wait
-+                    // for every WebGPU call sent before them, and an interpolated frame redraws all of a game frame's
-+                    // framebuffers, so the list waited for every one this loop drew meanwhile: Mario Tennis' page, which
-+                    // syncs to RAM in each of its lists (its rt64 patch), uncapped at 360 Hz drew 12-22 a game frame, and
-+                    // each list's full sync waited 30-90 ms behind them. That held its matches at 11-16 game frames a
-+                    // second against their 30 (and the frames' rate, which the window above is made of, fell with them),
-+                    // and its sound ran short. The frame drawn is presented meanwhile, and this loop's own skips go on
-+                    // as they are, since the game forks' patches of RT64 change them: the time check skips the next frame
-+                    // if it is late by then, and once one is drawn, the rest go if a newer workload came.
++                    // (SharedQueueResources::listInFullSync), for at most InterpolatedListWaitMs. Its waits for the
++                    // device thread (a readback of a sync to RAM or of the late copy, a buffer made as the draw data
++                    // grows) wait for every WebGPU call sent before them, and an interpolated frame redraws all of a
++                    // game frame's framebuffers, so the list waited for every one this loop drew meanwhile: Mario
++                    // Tennis' page, which syncs to RAM in each of its lists (its rt64 patch), uncapped at 360 Hz drew
++                    // 12-22 a game frame, and each list's full sync waited 30-90 ms behind them. That held its matches
++                    // at 11-16 game frames a second against their 30 (and the frames' rate, which the window above is
++                    // made of, fell with them), and its sound ran short. The frame drawn is presented meanwhile, and
++                    // this loop's own skips go on as they are, since the game forks' patches of RT64 change them: the
++                    // time check skips the next frame if it is late by then, and once one is drawn, the rest go if a
++                    // newer workload came.
 +                    if (generateInterpolatedFrames && !skipWorkloadNow && ((frame + 1) < displayFrames)) {
 +                        ext.sharedResources->waitForListGPUWaits(InterpolatedListWaitMs);
 +                    }
@@ -6652,7 +6667,7 @@ index 5a331aa..7adb17d 100644
                      framesRendered++;
                  }
  
-@@ -1164,8 +1657,43 @@ namespace RT64 {
+@@ -1164,8 +1658,43 @@ namespace RT64 {
  
                  threadConfigurationValidate();
  
@@ -6697,7 +6712,7 @@ index 5a331aa..7adb17d 100644
  
                  processCursor = -1;
 diff --git a/src/hle/rt64_workload_queue.h b/src/hle/rt64_workload_queue.h
-index bde2f03..33908fd 100644
+index bde2f03..04fc97c 100644
 --- a/src/hle/rt64_workload_queue.h
 +++ b/src/hle/rt64_workload_queue.h
 @@ -5,6 +5,7 @@
@@ -6757,7 +6772,7 @@ index bde2f03..33908fd 100644
 +    constexpr uint32_t InterpolatedTargetSlots = 8;
 +
 +    // How long an interpolated frame waits at most for a list of the game's in its full sync (SharedQueueResources::
-+    // listGPUWaits), after which its interpolated frames go on meanwhile. A sync's own readbacks take what the list's
++    // listInFullSync), after which its interpolated frames go on meanwhile. A sync's own readbacks take what the list's
 +    // draws cost the GPU: Mario Tennis' lists, which sync to RAM, took 20-40 ms a list at a 3840x2000 canvas and 100-150
 +    // in its heaviest scenes, capped at 60 Hz too. With 50 ms its match uncapped there played at 19-20 game frames a
 +    // second on average, since a frame started past the limit held the sync's later readbacks again, against 24 with
