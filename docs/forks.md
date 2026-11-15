@@ -1074,4 +1074,6 @@ rt64 e0efea6           the same wait in lines of the web's own, so the game fork
                        ListGPUWait is SharedQueueResources' and lives to State::fullSync()'s end, and the wait comes
                        after a frame is drawn, before the next interpolated one, which a newer workload come meanwhile
                        skips as after any frame
+rt64 07bce94           GBI_RDP::fullSync() holds that ListGPUWait around State::fullSync(), whose start Rush 2049's own
+                       RT64 patch adds to
 ```
