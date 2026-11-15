@@ -1057,4 +1057,11 @@ plume 2a3ab28          plume_device_thread: an upload buffer's unmap of half the
                        into an upload buffer of 15.5 MB, and while the page's thread was behind each queued unmap held
                        another 15.5 MB, 39 of them (578 MB) at once on Mario Tennis' page in Firefox at 3840x2000, which
                        ran its heap out (Aborted(OOM)) 430-640 s into a match
+rt64 1f14ebb           on the web the workload thread starts no interpolated frame while the game's list is in its full
+                       sync (State's ListGPUWait), for 50 ms at most: the sync's waits for the device thread (a readback
+                       of a sync to RAM or of the late copy, a buffer made as the draw data grows) wait for every WebGPU
+                       call sent before them, so they waited for every interpolated frame drawn meanwhile. Mario Tennis'
+                       page, which syncs to RAM in each list, uncapped drew 12-22 of them a game frame and each list
+                       waited 30-90 ms behind them: its matches played at 11-16 game frames a second against their 30,
+                       and its sound ran short
 ```
