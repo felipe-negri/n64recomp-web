@@ -35,7 +35,10 @@
 // a play stopped part way records nothing.
 //
 // A Chrome build run is worse when it fails where a Pages run didn't, has WebGPU errors where none of those had any, or
-// presents a second more than 10% below the lowest of theirs, play_page's own noise for an uncapped run. The build plays
+// presents a second more than 10% below the lowest of theirs, play_page's own noise for an uncapped run, unless it still
+// presents 60 a second or more and lost under half the share of its sound that every Pages run lost: uncapped, most
+// presents are interpolated frames, and a build that draws fewer of them so the game itself keeps up (its sound whole,
+// the plan's holds on its clock over sooner) plays better, not worse. The build plays
 // worse only if every one of its runs is, and two at least: one worse run gets another pair (build, then Pages) and the
 // runs are read again. A run the host slept through fails in play_page and is played again once. Then a table, presents
 // a second (each run's median, F a failed run, E<n> its WebGPU errors, X<n> its exceptions), and a verdict: "worse"
@@ -125,7 +128,8 @@ const playOnce = async (condition, which) => {
   const summary = fs.existsSync(json) ? JSON.parse(fs.readFileSync(json, 'utf8'))
     : { failed: `play_page gave no summary (exit ${code}; ${name}.log)` };
   const run = { which, median: summary.presents?.median ?? null, failed: summary.failed ?? (summary.presents ? null : 'no presents'),
-    errors: summary.webgpuErrors?.length ?? 0, exceptions: summary.exceptions ?? 0, p99Ms: summary.frames?.p99Ms ?? null };
+    errors: summary.webgpuErrors?.length ?? 0, exceptions: summary.exceptions ?? 0, p99Ms: summary.frames?.p99Ms ?? null,
+    short: summary.audio ? summary.audio.short / Math.max(1, summary.audio.played + summary.audio.short) : null };
   console.log(run.failed ? `failed: ${run.failed}` : `${run.median.toFixed(1)} presents/s, p99 gap ${run.p99Ms} ms` +
     (run.errors ? `, ${run.errors} WebGPU errors` : '') + (run.exceptions ? `, ${run.exceptions} exceptions` : ''));
   return run;
@@ -143,7 +147,14 @@ const worse = (condition, run) => {
   if (run.failed) return fine.length ? `failed (${run.failed})` : null;
   if (run.errors && pages.every((r) => !r.errors)) return `${run.errors} WebGPU errors`;
   const lowest = Math.min(...fine.map((r) => r.median));
-  return fine.length && run.median < lowest * 0.9 ? `${run.median.toFixed(1)} presents/s, below ${lowest.toFixed(1)} by over 10%` : null;
+  if (!fine.length || run.median >= lowest * 0.9) return null;
+  const caughtUp = run.median >= 60 && run.short !== null && fine.every((r) => r.short !== null && run.short < r.short / 2);
+  if (caughtUp) {
+    console.log(`${run.median.toFixed(1)} presents/s, below ${lowest.toFixed(1)}, but ${(run.short * 100).toFixed(1)}% of its sound ` +
+      `short against Pages' ${fine.map((r) => (r.short * 100).toFixed(1)).join(', ')}%: the game keeps up, so no worse`);
+    return null;
+  }
+  return `${run.median.toFixed(1)} presents/s, below ${lowest.toFixed(1)} by over 10%`;
 };
 const builds = (condition) => condition.runs.filter((r) => r.which === 'B' && !slept(r));
 
