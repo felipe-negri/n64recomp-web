@@ -621,9 +621,10 @@ Challenge, doubles and the title's attract demo (26-106, each with the match's i
 a match on each of the four courts (Hard, Clay, Grass and Composition, which draw the same shaders but four). A plan
 goes by the game's memory, not by time: Start through the opening until the title's code is in (the menus' first word
 back at 0x800E8000, over the opening's), as the opening runs 65 s untouched and a few seconds less pressed, and A at
-court select until the match's is (the opening's word at 0x800E2000 gone). In a match it presses A every 1.5 s, which
-serves (a toss, then the hit as the ball comes down) and swings, on the console's VI count (0x80049a98, 60 a second):
-the game's frame counter runs at half its menus' rate there, and two presses a second apart never serve.
+court select until the match's is (the opening's word at 0x800E2000 gone). In a match it presses A every second, which
+serves (a press while Mario is ready tosses, and one 0.6-1.2 s later hits; at 1.5 s he has caught the ball again) and
+swings, on the console's VI count (0x80049a98, 60 a second): the game's frame counter runs at half its menus' rate
+there.
 Its `tools/play_plan.json` plays Singles against Luigi on the Hard Court for 100 s, its `tools/play_plan_extended.json`
 3.3 minutes. Its README and BUILDING.md, and the headers of those files, have the rest.
 
