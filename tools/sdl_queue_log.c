@@ -6,8 +6,9 @@
 // (renamed SDL2_real.dll, to which every other function is forwarded by the .def it generates) and reads the log.
 //
 // SDL_QUEUE_LOG names the log, a line per SDL_QueueAudio: microseconds since the program opened its device, the
-// buffer's bytes, then the bytes queued before it (SDL_GetQueuedAudioSize, what queue_samples' catch-up and
-// get_frames_remaining read). SDL_OpenAudioDevice writes "# open <freq> <channels> <format>", what they are in.
+// buffer's bytes, the bytes queued before it (SDL_GetQueuedAudioSize, what queue_samples' catch-up and
+// get_frames_remaining read) and the buffer's loudest sample, out of 32768 (0: the game queued silence).
+// SDL_OpenAudioDevice writes "# open <freq> <channels> <format>", what they are in.
 // The samples are queued as silence unless SDL_QUEUE_LOG_SOUND is set: the device plays and paces the queue as it
 // would the game's sound, and a shared desktop hears nothing.
 #include <windows.h>
@@ -36,6 +37,7 @@ static GetQueuedAudioSize real_queued;
 static OpenAudioDevice real_open;
 static FILE* log_file;
 static int keep_sound;
+static uint16_t audio_format;
 static LARGE_INTEGER start, ticks_per_second;
 static void* silence;
 static uint32_t silence_bytes;
@@ -71,6 +73,7 @@ __declspec(dllexport) uint32_t SDL_OpenAudioDevice(const char* device, int iscap
     if (log_file && dev && !iscapture) {
         EnterCriticalSection(&lock);
         QueryPerformanceCounter(&start);
+        audio_format = spec->format;
         fprintf(log_file, "# open %d %u %u\n", spec->freq, spec->channels, spec->format);
         fflush(log_file);
         LeaveCriticalSection(&lock);
@@ -86,7 +89,22 @@ __declspec(dllexport) int SDL_QueueAudio(uint32_t dev, const void* data, uint32_
         LARGE_INTEGER now;
         QueryPerformanceCounter(&now);
         long long us = (now.QuadPart - start.QuadPart) * 1000000 / ticks_per_second.QuadPart;
-        fprintf(log_file, "%lld %u %u\n", us, len, queued);
+        // The buffer's loudest sample, in parts per 32768 of full scale: 0 is a buffer of silence.
+        int peak = 0;
+        if (audio_format == 0x8120) {
+            for (uint32_t i = 0; i < len / 4; i++) {
+                float f = ((const float*)data)[i];
+                int v = (int)((f < 0 ? -f : f) * 32768.0f);
+                if (v > peak) peak = v;
+            }
+        } else if (audio_format == 0x8010) {
+            for (uint32_t i = 0; i < len / 2; i++) {
+                int v = ((const int16_t*)data)[i];
+                if (v < 0) v = -v;
+                if (v > peak) peak = v;
+            }
+        }
+        fprintf(log_file, "%lld %u %u %d\n", us, len, queued, peak);
         fflush(log_file);
     }
     if (!keep_sound) {

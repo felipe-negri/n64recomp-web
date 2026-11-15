@@ -15,10 +15,12 @@
 # a boot's first loads) on: buffers queued with 100 ms or more queued before them (the catch-up drops every other
 # sample of those, or more: a click with no gap, which 6b's disk-driver recording misses), and buffers queued onto an
 # empty queue (dry: SDL's disk driver plays slower than real time, so only the device shows these). It prints the
-# queue's milliseconds (least, median, most), the longest wait between two buffers (a stall that a dry queue follows)
-# and the first times of each, and how much sound the game made against what the device played: well under 100% is a
-# game running below full speed, which on a busy host empties any queue, so measure in a quiet one (a whole GPU turn
-# where builds share the machine). 6c passes with 0 cut and 0 dry through a minute of the game's menus and a level.
+# queue's milliseconds (least, median, most), the longest wait between two buffers (a stall that a dry queue follows),
+# the first times of each, how many dry ones came right after a buffer of silence (its loudest sample 0: there a dry
+# queue is heard only if sound comes before the queue has grown back), and how much sound the game made against what
+# the device played: well under 100% is a game running below full speed, which on a busy host empties any queue, so
+# measure on a quiet one (a whole GPU turn where builds share the machine). 6c passes with 0 cut and 0 dry through a
+# minute of the game's menus and a level.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 
@@ -34,7 +36,8 @@ read_log() {
             if (t < from) next
             q[n++] = ms; made += $2 / bpf
             if (int(int($3 / bpf) * 1000000 / freq) >= 100000) { if (cut++ < 8) cut_at = cut_at sprintf(" %.1f", t) }
-            if ($3 == 0) { if (dry++ < 8) dry_at = dry_at sprintf(" %.1f", t) }
+            if ($3 == 0) { if (dry++ < 8) dry_at = dry_at sprintf(" %.1f", t); if (NF > 3 && last_peak == 0) quiet++ }
+            last_peak = NF > 3 ? $4 : 1
         }
         END {
             if (bad) exit 1
@@ -45,7 +48,7 @@ read_log() {
             printf "queued %.1f / %.1f / %.1f ms (least / median / most); longest wait between buffers %.0f ms, at %.1f s\n",
                 q[1], q[int((n + 1) / 2)], q[n], gap * 1000, gap_at
             if (cut) print "cut at" cut_at (cut > 8 ? " ..." : "") " s"
-            if (dry) print "dry at" dry_at (dry > 8 ? " ..." : "") " s"
+            if (dry) print "dry at" dry_at (dry > 8 ? " ..." : "") " s" (quiet ? sprintf(", %d of them right after a buffer of silence", quiet) : "")
             exit (cut || dry) ? 2 : 0
         }' "$1"
 }
