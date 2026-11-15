@@ -621,7 +621,7 @@ a match on each of the four courts (Hard, Clay, Grass and Composition, which dra
 knows a match has started by the program's line for the match's code overlay (`code segment rom 0x00A1F530`), and
 times its swings on the game's frame counter (0x80061f48, 30 a second).
 Its `tools/play_plan.json` plays Singles against Luigi on the Hard Court for 100 s, its `tools/play_plan_extended.json`
-3.4 minutes. Its README and BUILDING.md, and the headers of those files, have the rest.
+3.3 minutes. Its README and BUILDING.md, and the headers of those files, have the rest.
 
 `n64hub/perfect-dark-recomp` is Perfect Dark (USA rev 1), not a fork but this project's own recomp, as Rush 2049's
 is (GPL-3.0), made from the game's MIT decompilation. It is on upstream's rt64, N64ModernRuntime and RecompFrontend at
