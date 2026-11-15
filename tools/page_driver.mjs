@@ -370,27 +370,70 @@ const spawnHeld = (affinity, command, args, options) => {
   try { return spawn(command, args, options); } finally { hold(all); }
 };
 
-// close(): asks the browser to close (ask, Browser.close or browser.close) and waits up to ms for it to exit, then stops it
-// with every process it started if it is still running. Chrome can close the socket without answering Browser.close,
-// so this waits for the process, not the reply; and over a debugging connection that dropped (1006) the ask never gets
-// there. A browser left running holds the GPU and its profile until something stops it: on Windows the tool's own exit
-// does (libuv starts a child in a job object that ends with its parent), elsewhere nothing, into whatever plays next.
-// taskkill /T takes the browser's own processes with it (it walks the tree from the browser, so before it is gone). The
-// wait is 30 s in both: Chrome stopped before it has ended loses what it wrote to its caches (docs/playing.md), and on a
-// host at 100% it took 10-12 s to end after Browser.close.
-const closeBrowser = async (proc, ask, ms, line) => {
+// The ids of the chrome.exe and firefox.exe processes whose command line names this profile (Windows only, [] elsewhere
+// or if the query fails): the browser and the helpers it started, whoever their parent is. The profile is this play's own
+// (a fresh temporary one, or the --profile it was given, which a second browser can't open beside it), so this finds
+// only the play's browser, never another's: the path must end where the argument does, so play-page-ab isn't
+// play-page-abc.
+const profileProcesses = (profile) => {
+  if (process.platform !== 'win32') return [];
+  let found;
+  try {
+    found = JSON.parse(execFileSync('powershell', ['-NoProfile', '-Command',
+      `@(Get-CimInstance Win32_Process -Filter "Name='chrome.exe' or Name='firefox.exe'" | Select-Object ProcessId, CommandLine) | ConvertTo-Json -Compress`],
+    { encoding: 'utf8', windowsHide: true, timeout: 30000, stdio: ['ignore', 'pipe', 'ignore'] }) || '[]');
+  } catch { return []; }
+  const want = profile.toLowerCase();
+  const names = (command) => {
+    const text = command.toLowerCase();
+    for (let i = text.indexOf(want); i >= 0; i = text.indexOf(want, i + 1)) {
+      if (!/[^"\s]/.test(text[i + want.length] ?? '')) return true;
+    }
+    return false;
+  };
+  return [].concat(found).filter((p) => p?.CommandLine && names(p.CommandLine)).map((p) => p.ProcessId);
+};
+
+// close(): asks the browser to close (ask, Browser.close or browser.close) and waits up to ms for it to exit, then stops
+// what is left of it. Chrome can close the socket without answering Browser.close, so this waits for the process, not
+// the reply; and over a debugging connection that dropped (1006) the ask never gets there. A browser left running holds
+// the GPU and its profile until something stops it, into whatever plays next.
+//
+// On Windows the process this started isn't always the browser. Chrome applies an update it has staged
+// (new_chrome.exe) as a browser starts: it swaps the exe and relaunches itself, and the process this started exits at
+// once while its relaunch plays the page on the same debugging port. The tool's own exit doesn't take that browser:
+// libuv starts a child in a job object that ends with its parent, but lets the child's own children leave it (a
+// grandchild of a killed node lived on in a test), and taskkill /T from a process that is gone walks nothing. Only the
+// first play after each update relaunches, so it is rare, and one such headless Chrome drew its page at 3840x2000 for two
+// days after its play had ended. So the ask goes over the connection whether or not the started process is running, the
+// wait is for every process that names the profile (profileProcesses) as well as for it, and whatever still names it
+// after ms is stopped with its own processes, by id (taskkill /T walks the tree from each, so before it is gone).
+// Elsewhere the started process is the browser, and is killed. The wait is 30 s in both: Chrome stopped before it has
+// ended loses what it wrote to its caches (docs/playing.md), and on a host at 100% it took 10-12 s to end after
+// Browser.close.
+const closeBrowser = async (proc, profile, ask, ms, line) => {
   const running = () => proc.exitCode === null && proc.signalCode === null;
-  if (running()) {
-    let timer;
-    const exited = new Promise((resolve) => { proc.once('exit', resolve); timer = setTimeout(resolve, ms); });
-    ask().catch(() => {});
-    await exited;
-    clearTimeout(timer);
+  const relaunched = !running() && profileProcesses(profile).length > 0;
+  if (relaunched) {
+    line(`page_driver: the browser this started had exited (code ${proc.exitCode ?? proc.signalCode}) and another still runs on its profile, as Chrome does when it relaunches to apply an update`);
   }
-  if (!running()) return;
+  const until = Date.now() + ms;
+  let timer;
+  const exited = running() ? new Promise((resolve) => { proc.once('exit', resolve); timer = setTimeout(resolve, ms); }) : Promise.resolve();
+  ask().catch(() => {});
+  await exited;
+  clearTimeout(timer);
+  let left = profileProcesses(profile);
+  while (left.length && Date.now() < until) {
+    await sleep(500);
+    left = profileProcesses(profile);
+  }
+  if (!running() && !left.length) return;
   line(`page_driver: the browser had not exited ${ms / 1000} s after it was asked to close, so it was stopped`);
   if (process.platform === 'win32') {
-    try { execFileSync('taskkill', ['/T', '/F', '/PID', String(proc.pid)], { stdio: 'ignore', windowsHide: true, timeout: 10000 }); } catch {}
+    for (const pid of new Set([...(running() ? [proc.pid] : []), ...left])) {
+      try { execFileSync('taskkill', ['/T', '/F', '/PID', String(pid)], { stdio: 'ignore', windowsHide: true, timeout: 10000 }); } catch {}
+    }
   } else {
     try { proc.kill('SIGKILL'); } catch {}
   }
@@ -734,7 +777,7 @@ const openChrome = async ({ profile, port, width, height, executable, rom, prelo
     },
     close: async () => {
       closing = true;
-      await closeBrowser(proc, () => send('Browser.close'), 30000, line);
+      await closeBrowser(proc, profile, () => send('Browser.close'), 30000, line);
       const left = watch.dumps();
       if (left) line(`page_driver: Chrome left ${left}`);
     },
@@ -921,7 +964,7 @@ const openFirefox = async ({ profile, port, width, height, executable, rom, prel
     },
     close: async () => {
       closing = true;
-      await closeBrowser(proc, () => send('browser.close'), 30000, line);
+      await closeBrowser(proc, profile, () => send('browser.close'), 30000, line);
       const left = watch.dumps();
       if (left) line(`page_driver: Firefox left ${left}`);
     },
