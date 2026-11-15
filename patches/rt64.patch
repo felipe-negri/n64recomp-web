@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web f23e682dc864377ae24e727434a557f85aa4343f
+rt64: https://github.com/n64hub/rt64-web 4e8c20583df4a087a68803e59f39e52ae28a3fe0
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -5526,10 +5526,56 @@ index 5b70e01..9497cae 100644
          VIHistory();
          void pushVI(const VI &vi, uint32_t fbWidth);
 diff --git a/src/hle/rt64_workload.cpp b/src/hle/rt64_workload.cpp
-index b4c85f5..6d3d99d 100644
+index b4c85f5..949b2b4 100644
 --- a/src/hle/rt64_workload.cpp
 +++ b/src/hle/rt64_workload.cpp
-@@ -22,6 +22,7 @@ namespace RT64 {
+@@ -13,7 +13,45 @@ namespace RT64 {
+ 
+     // Workload
+ 
++#if defined(__EMSCRIPTEN__)
++    // Shrinks a vector a workload refills whenever it holds more than twice what the workload's last use of it needed,
++    // and some to spare.
++    template<typename T>
++    static void trimVector(std::vector<T> &vector, size_t used, size_t spare) {
++        if (vector.capacity() > (used * 2 + spare)) {
++            vector.resize(std::min(vector.size(), used));
++            vector.shrink_to_fit();
++        }
++    }
++
++    void Workload::trimFramebufferPairs() {
++        // A workload slot keeps its framebuffer pairs, their projections and those projections' game calls when it is
++        // reused, each vector as large as any use of the slot ever made it at that index. A game that draws many small
++        // images a frame, each a pair of its own, with a varying number of projections and calls in each, ratchets
++        // every index up to the most any frame put there: Mario Tennis' page grew its fixed heap about 1 MB a second
++        // that way, mostly in vectors of game calls, until it ran out 5 minutes into a play. Each is trimmed to about
++        // what the slot's last use needed instead, which held that page's heap flat from its third minute.
++        const size_t pairsUsed = std::min<size_t>(fbPairCount, fbPairs.size());
++        for (size_t i = 0; i < fbPairs.size(); i++) {
++            FramebufferPair &fbPair = fbPairs[i];
++            const size_t projectionsUsed = (i < pairsUsed) ? std::min<size_t>(fbPair.projectionCount, fbPair.projections.size()) : 0;
++            for (size_t p = 0; p < fbPair.projections.size(); p++) {
++                Projection &proj = fbPair.projections[p];
++                const size_t callsUsed = (p < projectionsUsed) ? std::min<size_t>(proj.gameCallCount, proj.gameCalls.size()) : 0;
++                trimVector(proj.gameCalls, callsUsed, 16);
++            }
++
++            trimVector(fbPair.projections, projectionsUsed, 4);
++        }
++
++        trimVector(fbPairs, std::max<size_t>(pairsUsed, 1), 4);
++    }
++#endif
++
+     void Workload::reset() {
++#   if defined(__EMSCRIPTEN__)
++        trimFramebufferPairs();
++#   endif
+         submissionFrame = 0;
+         fbPairCount = 0;
+         fbPairSubmitted = 0;
+@@ -22,6 +60,7 @@ namespace RT64 {
          workloadId = 0;
          extended.testZIndexCount = 0;
          extended.ditherNoiseStrength = 1.0f;
@@ -5538,7 +5584,7 @@ index b4c85f5..6d3d99d 100644
          commandWarnings.clear();
          spriteCommands.clear();
 diff --git a/src/hle/rt64_workload.h b/src/hle/rt64_workload.h
-index 8ea27d5..589d7eb 100644
+index 8ea27d5..6eabaa0 100644
 --- a/src/hle/rt64_workload.h
 +++ b/src/hle/rt64_workload.h
 @@ -226,6 +226,12 @@ namespace RT64 {
@@ -5554,7 +5600,7 @@ index 8ea27d5..589d7eb 100644
          DebuggerRenderer debuggerRenderer;
          DebuggerCamera debuggerCamera;
          std::multimap<uint32_t, uint32_t> transformIdMap;
-@@ -239,6 +245,7 @@ namespace RT64 {
+@@ -239,9 +245,13 @@ namespace RT64 {
              uint32_t testZIndexCount = 0;
              float ditherNoiseStrength = 1.0f;
              hlslpp::float2 texcoordWrapPoint = {};
@@ -5562,6 +5608,12 @@ index 8ea27d5..589d7eb 100644
          } extended;
  
          void reset();
++#   if defined(__EMSCRIPTEN__)
++        void trimFramebufferPairs();
++#   endif
+         void resetDrawData();
+         void resetDrawDataRanges();
+         void resetRSPOutputBuffers();
 diff --git a/src/hle/rt64_workload_queue.cpp b/src/hle/rt64_workload_queue.cpp
 index 5a331aa..d76524a 100644
 --- a/src/hle/rt64_workload_queue.cpp

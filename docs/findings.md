@@ -363,6 +363,16 @@ second and its shared memory about 10 in 4 of 4 runs, at 2560x1440 and at 960x72
 two minutes), and held at 861 and 150 MB with the reset on every build (rt64-web 7edd8f3), played in turn with it.
 Started 2 s in, before the logos, it held flat without the reset, as the page did when it made the framebuffer 640x479.
 
+Mario Tennis' page grew its heap's use about 1 MB a second through a match and aborted (Aborted(OOM)) 328 s into its
+extended plan in Firefox at 3840x2000, as its second match loaded. A heap walk in Chrome found vectors of RT64's game
+calls (chunks of 26,296 and 107,704 bytes) growing from 1,859 to 3,528 between 140 and 320 s, each held by a
+projection of a framebuffer pair of a workload slot. A slot keeps its pairs, their projections and their calls when it
+is reused, and adjustVector only grows them, so each index ends up as large as any frame ever made it there. Mario
+Tennis draws many small images a frame (the players' shadows, the speed board), each a pair of its own, so the indices
+filled up for minutes. On the web each slot is now trimmed to about what its last use needed (rt64-web 971496a,
+docs/forks.md). The same play of a build with it held 873-890 MB in use from 180 s to its end at 315 s, against 932 MB
+at 140 s and 1,082 MB at 320 s without it, and the heap's break stopped at 1,343 MB from 180 s.
+
 ## A page that stops answering
 
 Firefox drops play_page's connection at its 4,098th message when page_driver.mjs speaks WebSocket with Node's own

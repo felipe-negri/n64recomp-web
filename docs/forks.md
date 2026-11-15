@@ -1036,4 +1036,17 @@ rt64 f23e682           a lost device is replaced on a desktop build too (Applica
                        lost by PLUME_LOSE_DEVICE_AFTER in the attract demo and in a race, went on with the right picture
 RecompFrontend aeb4157 the menus' replace device hook on a desktop build too, and their buffers written into a CPU
                        stand-in where a lost device's map to nothing
+rt64 971496a           on the web a workload slot's framebuffer pairs, projections and game calls are trimmed to about
+                       what its last use needed (Workload::trimFramebufferPairs()): kept at the most any use made them,
+                       Mario Tennis' many small images a frame grew its heap ~1 MB a second, to Aborted(OOM) 328 s into
+                       a Firefox play at 3840x2000; with it the heap held flat from its third minute. 93460c6 moves
+                       its declaration beside reset(), clear of Conker's own rt64 lines
+plume 027a043          D3D12: what a removed device's failed creations left without an object (a buffer, texture, query
+                       heap or pipeline) is skipped wherever it is used until the device is replaced: setName(), unmap(),
+                       barriers, copies, resolves, buffer views, root descriptors, timestamps, pipelines set, and a query
+                       pool's results read 0. A Windows player's Rush 2049 still crashed after DXGI_ERROR_DEVICE_HUNG, in
+                       the GPU timings' query results and naming a new texture. An adapter whose device comes back
+                       removed (something made on it still alive) is passed over, and PLUME_LOSE_DEVICE_AFTER makes a
+                       D3D12 device's buffers, textures and query heaps fail to be made once it is lost, as a removed one's
+                       do. dba025e moves the query pool's and the region copy's checks clear of game forks' own plume lines
 ```
