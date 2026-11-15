@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 07bce944d10f1ab4cf887af8e4ac5d39181aefde
+rt64: https://github.com/n64hub/rt64-web baf5152eaff88b13aed8cd25819622082ddbfa22
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -5712,7 +5712,7 @@ index 8ea27d5..6eabaa0 100644
          void resetDrawDataRanges();
          void resetRSPOutputBuffers();
 diff --git a/src/hle/rt64_workload_queue.cpp b/src/hle/rt64_workload_queue.cpp
-index 5a331aa..ba7f40d 100644
+index 5a331aa..7adb17d 100644
 --- a/src/hle/rt64_workload_queue.cpp
 +++ b/src/hle/rt64_workload_queue.cpp
 @@ -8,6 +8,13 @@
@@ -6621,7 +6621,7 @@ index 5a331aa..ba7f40d 100644
  
                          {
                              std::scoped_lock<std::mutex> managerLock(ext.sharedResources->interpolatedMutex);
-@@ -1143,12 +1619,39 @@ namespace RT64 {
+@@ -1143,12 +1619,29 @@ namespace RT64 {
  
                          // Add the amount of display ticks that correspond to the remaining frames.
                          if (skipWorkloadNow) {
@@ -6641,28 +6641,18 @@ index 5a331aa..ba7f40d 100644
 +                    // syncs to RAM in each of its lists (its rt64 patch), uncapped at 360 Hz drew 12-22 a game frame, and
 +                    // each list's full sync waited 30-90 ms behind them. That held its matches at 11-16 game frames a
 +                    // second against their 30 (and the frames' rate, which the window above is made of, fell with them),
-+                    // and its sound ran short. The frame drawn is presented meanwhile. If a newer workload came, the rest
-+                    // of this one's frames are skipped, as above; if not, the time check at the next frame skips those
-+                    // that are late by then.
++                    // and its sound ran short. The frame drawn is presented meanwhile, and this loop's own skips go on
++                    // as they are, since the game forks' patches of RT64 change them: the time check skips the next frame
++                    // if it is late by then, and once one is drawn, the rest go if a newer workload came.
 +                    if (generateInterpolatedFrames && !skipWorkloadNow && ((frame + 1) < displayFrames)) {
 +                        ext.sharedResources->waitForListGPUWaits(InterpolatedListWaitMs);
-+                        if (newerWorkloadQueued()) {
-+                            skipWorkloadNow = true;
-+                            {
-+                                std::scoped_lock<std::mutex> managerLock(ext.sharedResources->interpolatedMutex);
-+                                curFrameCounters.skipped = true;
-+                            }
-+
-+                            displayTicks += lastWorkload.viOriginalRate * (displayFrames - (frame + 1));
-+                            ext.sharedResources->interpolatedCondition.notify_all();
-+                        }
 +                    }
 +#               endif
 +
                      framesRendered++;
                  }
  
-@@ -1164,8 +1667,43 @@ namespace RT64 {
+@@ -1164,8 +1657,43 @@ namespace RT64 {
  
                  threadConfigurationValidate();
  

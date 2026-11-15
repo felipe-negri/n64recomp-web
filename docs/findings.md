@@ -2009,8 +2009,8 @@ sound short. This is what W5 failed on, from Pages, in Chrome (279 ms short afte
 its page's thread stalled 60-100 ms every few hundred ms by the same readbacks): its backcheck plays uncapped.
 
 rt64 1f14ebb has the workload thread start no interpolated frame while the game's list is in its full sync (a
-ListGPUWait, from the sync's start to the workload's queueing), 2f08dd3 lets that wait last 200 ms at most, and e0efea6
-and 07bce94 move it into lines of the web's own so the game forks' RT64 patches apply over it. A guard
+ListGPUWait, from the sync's start to the workload's queueing), 2f08dd3 lets that wait last 200 ms at most, and e0efea6,
+07bce94 and baf5152 move it into lines of the web's own so the game forks' RT64 patches apply over it. A guard
 over only the sync's waits played 23-30 with stretches of 10, since a frame started between two of a list's waits
 held the next. Over the whole sync the match at 1256x645 played at 29-30 and none short.
 

@@ -1072,8 +1072,10 @@ rt64 2f08dd3           that wait lasts 200 ms at most (InterpolatedListWaitMs): 
                        with 200 and 25-26 capped (9 without the wait)
 rt64 e0efea6           the same wait in lines of the web's own, so the game forks' own RT64 patches apply over it: a
                        ListGPUWait is SharedQueueResources' and lives to State::fullSync()'s end, and the wait comes
-                       after a frame is drawn, before the next interpolated one, which a newer workload come meanwhile
-                       skips as after any frame
+                       after a frame is drawn, before the next interpolated one
 rt64 07bce94           GBI_RDP::fullSync() holds that ListGPUWait around State::fullSync(), whose start Rush 2049's own
                        RT64 patch adds to
+rt64 baf5152           after that wait the frame loop's own skips go on as they are (the time check, and the rest of a
+                       workload's frames once a newer one comes), since WWF No Mercy's RT64 patch keeps its own: at most
+                       one frame of the older workload more
 ```
