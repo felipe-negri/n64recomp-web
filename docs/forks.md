@@ -1049,4 +1049,9 @@ plume 027a043          D3D12: what a removed device's failed creations left with
                        removed (something made on it still alive) is passed over, and PLUME_LOSE_DEVICE_AFTER makes a
                        D3D12 device's buffers, textures and query heaps fail to be made once it is lost, as a removed one's
                        do. dba025e moves the query pool's and the region copy's checks clear of game forks' own plume lines
+plume 2a3ab28          plume_device_thread: an upload buffer's unmap of half the buffer or less queues only the range
+                       written, and frees the caller's copy of the whole buffer at once: RT64 writes a few KB at a time
+                       into an upload buffer of 15.5 MB, and while the page's thread was behind each queued unmap held
+                       another 15.5 MB, 39 of them (578 MB) at once on Mario Tennis' page in Firefox at 3840x2000, which
+                       ran its heap out (Aborted(OOM)) 430-640 s into a match
 ```
