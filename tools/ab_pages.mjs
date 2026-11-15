@@ -7,8 +7,8 @@
 //     [--firefox <path>] [--preload <file>] [--out <dir>] [-- <queue command>...]
 //
 // <game> is publish_pages.sh's name (play_page.mjs's --game), the Pages URL the fork's page (index.html is played
-// there, as publish_page.sh puts it up), the build one publish_pages.sh left: its dir if the plan's page is in it,
-// else its <name>.html (a plan whose page is index.html, which only Pages has). --pages-build is what Pages' page was
+// there, as publish_page.sh puts it up), the build one publish_pages.sh left: its dir (play_page.mjs plays the
+// plan's page there, else the dir's one .html) or its <name>.html. --pages-build is what Pages' page was
 // built from (its tag), --build the build's (the new tag); both go into --record's lines as play_page's --build.
 // --firefox is Firefox's executable where page_driver.mjs finds none (play_page's --browser). A browser the run needs that
 // isn't there ends it before any play, exit 1, rather than as plays with no summary and a verdict on them.
@@ -48,7 +48,7 @@ import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
-import { browserExecutable, missingPlanFiles, option } from './page_driver.mjs';
+import { browserExecutable, buildPage, missingPlanFiles, option } from './page_driver.mjs';
 
 const args = process.argv.slice(2);
 const dash = args.indexOf('--');
@@ -81,10 +81,7 @@ if (missingPlanFiles(plan, planFile).length) {
   process.exit(1);
 }
 const pagesWhere = /\.html$/.test(pagesUrl) ? pagesUrl : pagesUrl.replace(/\/?$/, '/index.html');
-if (!/\.html$/.test(buildPath) && !fs.existsSync(path.join(buildPath, plan.page || 'index.html'))) {
-  console.error(`the plan's page ${plan.page || 'index.html'} isn't in ${buildPath}: give the build's <name>.html`);
-  process.exit(1);
-}
+try { if (!/\.html$/.test(buildPath)) buildPage(buildPath, plan); } catch (error) { console.error(error.message); process.exit(1); }
 const out = path.resolve(outOption ?? fs.mkdtempSync(path.join(os.tmpdir(), 'ab-pages-')));
 fs.mkdirSync(out, { recursive: true });
 const record = recordFile && path.resolve(recordFile);

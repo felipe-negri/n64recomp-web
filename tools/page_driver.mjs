@@ -100,6 +100,16 @@ export const missingPlanFiles = (plan, planFile) =>
     .filter((step) => Array.isArray(step) && step[0] === 'evalFile')
     .map((step) => path.resolve(path.dirname(planFile), step[1])).filter((file) => !fs.existsSync(file));
 
+// The page a build dir plays: the plan's page, or, where the dir hasn't it (a plan whose page is index.html, the name
+// Pages has and a build hasn't), the dir's one .html. Throws, naming them, for a dir with several or none.
+export const buildPage = (dir, plan) => {
+  const page = plan.page || 'index.html';
+  if (fs.existsSync(path.join(dir, page))) return page;
+  const pages = fs.readdirSync(dir).filter((name) => /.html$/.test(name));
+  if (pages.length === 1) return pages[0];
+  throw new Error(`${dir} has no ${page} (the plan's page) and ${pages.length ? `${pages.length} pages, ${pages.join(', ')}` : 'no .html'}: give <dir>/<name>.html`);
+};
+
 export const option = (args, name, fallback) => {
   const i = args.indexOf(name);
   if (i < 0) return fallback;
