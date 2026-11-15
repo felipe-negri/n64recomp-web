@@ -13,7 +13,7 @@ Twenty options are off on a desktop build, on with Emscripten, and settable nati
 bce5e11), `RT64_FREE_DISCARDED_TARGETS` (rt64 51c3fdd), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
 `RT64_PARTIAL_SCREEN_PAIRS` (rt64 89abe33), `RT64_STRETCH_SCREEN_COVERS` (rt64 4550e10), `RT64_KEEP_THIN_RECTS` (rt64
-04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7, 2fb4862),
+04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7, 8c4f5f0),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334), `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime
 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS` (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED`
 (N64ModernRuntime 0ec6c51), `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
@@ -1064,6 +1064,6 @@ rt64 c1000a7           RT64_EXACT_PRIM_DEPTH: a G_ZS_PRIM triangle through a per
                        its first triangle over a pixel darken it) darkened some pixels twice at a high resolution.
                        Decals and copy mode keep the whole range (a prebuilt decal on WebGPU writes its depth bounds,
                        which the range would clamp). Mario Tennis' port drew its shadows so first
-rt64 2fb4862           RT64_EXACT_PRIM_DEPTH's viewport lines set before the decals' depth pass switch, clear of the
-                       lines game forks patch around a draw's scissor and pipeline (a pause screen's scissor, water)
+rt64 2fb4862 8c4f5f0   RT64_EXACT_PRIM_DEPTH's viewport lines moved into the web's own lines just before a draw, clear
+                       of the lines game forks patch (a pause screen's scissor, water, car reflections)
 ```
