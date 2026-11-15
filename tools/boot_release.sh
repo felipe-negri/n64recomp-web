@@ -17,7 +17,9 @@
 # It passes when the program still runs at the end, its stderr has no "Crash:" (the recomps' crash trace) and no
 # "--boot: no valid stored ROM", and a capture shows more than one flat colour (a game's screen changes go through
 # black, so any one capture may be). Then it writes <archive>.booted, the archive's SHA-256, which release.sh's publish
-# asks for. Look at the captures too: a boot that passes can still draw the wrong thing.
+# asks for, but for a repo with no release yet only once tools/checklist.sh lets its game be released (CLAUDE.md,
+# Rules): the checklists gate a game's first release. Look at the captures too: a boot that passes can still draw the
+# wrong thing.
 #
 # Windows: the program runs from tools/capture_window.ps1 (pwsh), which captures that process's own window
 # (PrintWindow, never the screen) and stops it by its PID. Linux: in a container of boot_release.Dockerfile, a plain
@@ -106,6 +108,17 @@ if [ "${ran:-yes}" = no ]; then
     echo "boot of $archive FAILED; stderr's end:"
     tail -15 "$dir/stderr.log"
     exit 1
+fi
+# A recomp's first release is its game's, so it waits for its row in docs/new-recomp.md (tools/checklist.sh, main's
+# copy: the pin's is older). Where gh can't say (a Linux host without it) the Windows boot checks, publish asks both.
+repo=$(git remote get-url origin 2> /dev/null | sed -E 's#^(https://github.com/|git@github.com:)##; s#\.git$##')
+if [ -n "$repo" ] && gh auth status > /dev/null 2>&1; then
+    if [ -z "$(gh release list -R "$repo" --exclude-drafts --limit 1)" ]; then
+        bash "$here/checklist.sh" --repo "$repo" --main ||
+            { echo "boot of $archive passed, but $repo's first release waits for its checklist: no $archive.booted"; exit 1; }
+    fi
+else
+    echo "(no gh here: the first-release checklist check is the other boot's)"
 fi
 sha256sum "$archive" | cut -d' ' -f1 > "$archive.booted"
 echo "boot of $archive passed: running at ${seconds}s; the capture that shows most of $dir's: $best"

@@ -1,11 +1,12 @@
 # The checklists: a new recomp's and a web port's
 
-Two lists of what a game is played and checked for before it is called done, and a record of where each game stands
-against them. A new recomp of this project's own is checked against both: its own list (items 1 to 8), desktop build
-and page alike, and the web port list (W1 to W11) for its page. A game fork, a web port of someone else's recomp, is
-checked against the web port list. Each item is here because it turned up in a game after that game had been called
-done, most of them in a part of the game nobody had played yet. So a game isn't done until each item has been played,
-not reasoned about: the first level alone hides most of them. The new recomp's items are in order, the first two first.
+Two lists of what a game is played and checked for before it is called done and released, and a record of where each
+game stands against them. A new recomp of this project's own is checked against both: its own list (items 1 to 8),
+desktop build and page alike, and the web port list (W1 to W11) for its page. A game fork, a web port of someone else's
+recomp, is checked against the web port list. Each item is here because it turned up in a game after that game had been
+called done, most of them in a part of the game nobody had played yet. So a game isn't done until each item has been
+played, not reasoned about: the first level alone hides most of them. The new recomp's items are in order, the first two
+first.
 
 How to play and record a page is docs/playing.md; what the web needs of a port (the shaders, Emscripten) is
 docs/porting.md, and the steps a port takes the README's Using it in a recomp.
@@ -30,6 +31,9 @@ The lists and the record are kept by the work that plays the games, in the same 
   when the play shows it passes, or stays marked "fails" while the fix is filed. An item a game can't have (item 3 in
   a game of one player) leaves its row, and the game's own docs say why.
 - A new port or recomp gets its row in its port's work, every label that applies in Left, each removed only once played.
+  The row gates its release (CLAUDE.md, Rules): its first desktop release and its page's first publish wait until Left
+  holds only fails with their fixes filed, and `tools/checklist.sh <game>` says what holds it. 8a, 8c, W10 and W11,
+  which the release and the publish play, and W6's Drive, played by hand, don't hold it.
 
 ## Where each game stands
 
@@ -49,7 +53,7 @@ items by almost no game when the record began.
 | Mario Party 3 | 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Super Smash Bros. | | W6's Drive |
 | Paper Mario | 4a, 4c, 6b | W5 fails, W6's Drive |
-| Mario Golf | 1 fails, 2, 3, 4a, 4b, 4c, 5a, 5b, 6a, 6b | W6's Drive, W9 |
+| Mario Golf | 2, 3, 4a, 4b, 4c, 5a, 5b, 6a, 6b | W6's Drive, W9 |
 | Rayman 2 | | W5 fails, W6's Drive |
 | Donald Duck: Goin' Quackers | 2, 5b | W5 fails, W6's Drive |
 | Dinosaur Planet | | W5 fails |
@@ -98,7 +102,7 @@ keyboard half is left;
 Turok 2's desktop build drops its map from some of the frames Frame Interpolation adds at Manual 120 while the player
 moves, 5-13 of 75-80 captures, with `RT64_GAME_FRAME_WORKLOADS` on or off and none at Original (filed); Turok 2's and Turok 3's split screen, played on their desktop builds with two, three and four players at 16:9 and 21:9, widens every view to the window with its own HUD since turok-engine #38 (the lower views had none, Turok 3's kept an old frame at the window's sides, and Turok 2's top half was stretched, the pair of a view's HUD judged by a scissor that ended at the view's bottom), with no strip at the outermost columns, and since turok-engine #39 each quarter's weapon with its view (in the right-hand quarters it stayed where it is at 4:3, a quarter of the view short of its edge at 21:9: the weapon shared a framebuffer pair with the view's HUD, judged by the HUD's whole-screen scissor) and the line between the top and bottom quarters out to the window's edges; and their pages the same since turok-engine #40, played with two and four players at 16:9 and 21:9 (on the page, `RT64_PARTIAL_SCREEN_PAIRS` judged each view's world and weapon pairs by the whole screen and kept them in the 4:3 picture, with black bars at the window's sides, while the views' HUD went out to the widened views' edges); the Turoks' 5a is unplayed: none of the three writes its Controller Pak before a save
 point in a level (`saves/controllerpak_0.mpk` stays absent through their boots, intros and attract demos, and
-turok-engine writes the pak only on a change), and no save point was reached near Turok 1's or Turok 2's start; the Mario Parties' READMEs don't link their pages (8c); Mario Golf's course reaches the window's sides while its HUD and menus stay in the middle 4:3 (1, filed), and its Save and Quit writes the game's SRAM, but no play has continued the tournament after a restart yet (5a); F-Zero X's page in Firefox loses
+turok-engine writes the pak only on a change), and no save point was reached near Turok 1's or Turok 2's start; the Mario Parties' READMEs don't link their pages (8c); Mario Golf is held unreleased until its row is played through (its GitHub releases drafts, its page off the hub); its HUD sits at the wide picture's sides and corners on its desktop build at 16:9 and 21:9 and on its page, with the swing meter and the pause menu in the middle and nothing culled at 21:9's sides, so it passes 1 (its HUD's scissors stay inside the 3D's border, which RT64 widens with the picture: past it the HUD's slide-in left marks never cleared, its src/game/hud.cpp), and its Save and Quit writes the game's SRAM, but no play has continued the tournament after a restart yet (5a); F-Zero X's page in Firefox loses
 none in its boot's first 10 s built on v0.201.0 but inside its own silence (0.6-2.5 s from Pages on v0.184.0, as
 section boot's shaders were built with the game waiting), and none after its tab is hidden and shown in either
 browser, so it passes W5: the 2.4 s it loses in the 2.6 s its first race's section takes to build 45 shaders is a
