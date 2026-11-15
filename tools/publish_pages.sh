@@ -5,7 +5,8 @@
 #   bash tools/publish_pages.sh <rush-2049-recomp checkout> [<game>...] [--dry-run | --browser <commit> [--keep <dir>]]
 #       [--ref <commit>] [--played <dir>] [-- <queue command>...]
 #
-# For each game in the list below (all of them unless named, but those not released yet: unreleased, below):
+# For each game in the list below (all of them unless named, but those not released yet: unreleased, below; a game
+# not on the hub yet is published only once tools/checklist.sh lets it be):
 # 1. Syncs its repo's origin/main to a copy kept on $BUILD_HOST, with rush-2049-recomp's tools/remote_build.sh (its
 #    Docker image, a copy per name, one shared ccache): Rush 2049's is the copy named publish, as its own
 #    tools/publish_page.sh has it, and a fork's is pages-<game>, synced from a clone of it kept here in $PAGES_CACHE
@@ -160,8 +161,10 @@ t2     n64hub/turok-2-recomp                 Turok2Recompiled     build/web turo
 t3     n64hub/turok-3-recomp                 Turok3Recompiled     build/web turok-3
 "
 # Games whose pages are not published until the games are released: left out of a run that names no game, and built
-# only as a dry run (--dry-run, --browser, --ref), so their pins can still be built and played.
-unreleased=" "
+# only as a dry run (--dry-run, --browser, --ref), so their pins can still be built and played. A game is released once
+# its row in docs/new-recomp.md lets it be (tools/checklist.sh, CLAUDE.md's Rules): a new port goes on this list in its
+# port's work, and the work that plays its row through takes it off.
+unreleased=" mg "
 # This project's own recomps, whose pins move by a pull request on their repos (CLAUDE.md, The pins), and which pin
 # upstream's own commits of what N64Recomp-browser patches as submodules (pin_tree). update_games.sh reads this list.
 own=" rush pd sm64 fzx mp1 mp2 mp3 ssb pm mg r2 ddgq dino t1 t2 t3 "
@@ -171,6 +174,15 @@ for g in "${selected[@]}"; do grep -q "^$g " <<< "$games" || { echo "no game $g 
 for g in "${selected[@]}"; do
     [[ $dry_run == true || $unreleased != *" $g "* ]] || { echo "$g is not released: its page is built only as a dry run"; exit 1; }
 done
+# A page's first publish is its game's release (a game fork has no other), so a game the hub has no folder for yet is
+# published only once its row lets it be (tools/checklist.sh, from main's README and docs/new-recomp.md).
+if [[ $dry_run == false ]]; then
+    for g in "${selected[@]}"; do
+        read -r _ g_repo _ _ g_folder <<< "$(grep "^$g " <<< "$games")"
+        gh api "repos/$hub/contents/$g_folder?ref=gh-pages" --silent 2> /dev/null && continue
+        bash "$here/checklist.sh" --repo "$g_repo" --main || { echo "$g's page isn't on the hub yet, and its first publish is its release"; exit 1; }
+    done
+fi
 if [[ -n "$ref" ]]; then
     [[ ${#args[@]} -eq 2 ]] || { echo "--ref builds one game's commit: name the game"; exit 1; }
     [[ -n "${PAGES_COPY:-}" ]] || { echo "--ref builds in copies of its own: set PAGES_COPY"; exit 1; }

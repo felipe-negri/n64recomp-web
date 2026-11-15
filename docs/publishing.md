@@ -42,12 +42,17 @@ An update, for the games it moves:
   the tag (other work moved it) gets no PR: that main is what was built, and it is published as it is
   (`tools/update_games.sh`). Work in an own recomp's repo that moves its pin first (CLAUDE.md, The pins) makes the
   same move in its own PR, beside its change, built and played with it.
-- A recomp of the project's own is not published until its game is released (none is held now): its line in
+- A recomp of the project's own is not published until its game is released (Mario Golf is held now): its line in
   `tools/publish_pages.sh`'s `unreleased` holds it, builds it only as a dry run and leaves it out of a run that names
-  no game. An update still moves its pin as it does the other recomps' (a PR on its repo that moves
+  no game. A game is released once its row in docs/new-recomp.md lets it be (CLAUDE.md, Rules): `tools/checklist.sh
+  <game>` says what holds it, a page the hub has no folder for yet is published only once it lets it be (a game
+  fork's first publish too), and a recomp's first desktop release boots without its `.booted` until then
+  (`tools/boot_release.sh`). Its GitHub releases are drafts while it is held. An update still moves its pin as it does the other recomps' (a PR on its repo that moves
   `lib/N64Recomp-browser` to the tag, its page built with `--dry-run` and played by the smoke play), merges it, and
   publishes nothing: else nothing moves it, and the fixes made here for it never reach its builds. The work that
-  releases the game takes it off the list, publishes its page and adds its row to the README's Games table.
+  releases the game, once `tools/checklist.sh` lets it, takes it off the list, adds its row to the README's Games
+  table and its What's new entry, publishes its page and its desktop release (a held draft made public, `gh release
+  edit <tag> --draft=false`, or a new one), and plays 8a, 8c, W10 and W11 right after.
 - `tools/publish_pages.sh <rush-2049-recomp checkout> --browser <tag> --keep <dir>`, run where the ROMs are, builds
   every game's main, or the ones it is given, Rush 2049's too, with its pin moved to the tag as that PR or commit moves it (in the build host's
   copy only), names
