@@ -54,8 +54,8 @@ items by almost no game when the record began.
 | Super Smash Bros. | 6c | W6's Drive |
 | Paper Mario | 4a, 4c, 6b, 6c | W5 fails, W6's Drive |
 | Mario Golf | | W6's Drive |
-| Rayman 2 | 6c | W5 fails, W6's Drive |
-| Donald Duck: Goin' Quackers | 2, 5b, 6c | W5 fails, W6's Drive |
+| Rayman 2 | | W5 fails, W6's Drive |
+| Donald Duck: Goin' Quackers | 2, 5b | W5 fails, W6's Drive |
 | Dinosaur Planet | 6c | W5 fails |
 | Turok: Dinosaur Hunter | 5a | W5 fails, W6's Drive |
 | Turok 2: Seeds of Evil | 2 fails, 4c, 5a | W5 fails, W6's Drive |
