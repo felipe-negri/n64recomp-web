@@ -2059,7 +2059,8 @@ interleaved whole GPU turns of one probe build with both changes and with neithe
 syncs a list against 6.37-6.99, 43-50 lists of 30 or more against 85-128, the slowest tenth of the 5 s
 windows at 18.4-20.6 game frames a second against 12.2-14.6 and the slowest at 12.6-13.8 against 8.6-9.6, and the
 sound 0.26-0.33 million frames short over the play against 0.46-0.60. What syncs still are the game's own small
-images, which the patch has it sample from RDRAM.
+images, which the patch has it sample from RDRAM. Perfect Dark's page, where neither change ever applied, played
+alike with them and without (350-356 presents a second, none short, set `mt-syncs-ab-pd`).
 
 Rush 2049's page keeps 100 ms of sound queued (its docs/web.md), and Mario Tennis' sound didn't need it: it ran short
 because the game ran at a third or half its rate, making that much of its sound, which no queue covers.
