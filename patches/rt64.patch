@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 8c4f5f0fdaa1cf5d81c1464188d3e805365dc78b
+rt64: https://github.com/n64hub/rt64-web 609cb5a906e47d1309a323be4c429f90796c189c
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -7147,7 +7147,7 @@ index 69a82ac..1dd31f7 100644
              dstNorm = builder.addReadWriteStructuredBuffer(9);
              dstVel = builder.addReadWriteStructuredBuffer(10);
 diff --git a/src/render/rt64_framebuffer_renderer.cpp b/src/render/rt64_framebuffer_renderer.cpp
-index 9fae0d4..d2c69d8 100644
+index 9fae0d4..18b177e 100644
 --- a/src/render/rt64_framebuffer_renderer.cpp
 +++ b/src/render/rt64_framebuffer_renderer.cpp
 @@ -63,9 +63,19 @@ namespace RT64 {
@@ -7421,18 +7421,36 @@ index 9fae0d4..d2c69d8 100644
          framebuffer.descRealFbSet->setBuffer(framebuffer.descRealFbSet->FbParams, framebuffer.paramsBuffer.get(), sizeof(interop::FramebufferParams));
          framebuffer.descRealFbSet->setTexture(framebuffer.descRealFbSet->gBackgroundColor, backgroundColorTexture, RenderTextureLayout::SHADER_READ, backgroundColorTextureView);
          framebuffer.descRealFbSet->setTexture(framebuffer.descRealFbSet->gBackgroundDepth, p.fbStorage->depthTarget->texture.get(), RenderTextureLayout::DEPTH_READ, p.fbStorage->depthTarget->textureView.get());
-@@ -1608,8 +1723,10 @@ namespace RT64 {
+@@ -1608,8 +1723,28 @@ namespace RT64 {
                          triangles.shaderDesc = call.shaderDesc;
  
                          RasterShader *gpuShader = p.ubershadersOnly ? nullptr : p.rasterShaderCache->getGPUShader(call.shaderDesc);
 +                        triangles.decalMarkPipeline = nullptr;
++#                   if RT64_EXACT_PRIM_DEPTH
++                        // RT64_EXACT_PRIM_DEPTH: on the console every pixel of a G_ZS_PRIM draw has exactly the prim
++                        // depth. The vertex shader's z = primDepth * w (RasterVS.hlsl) comes out an ulp off after the
++                        // perspective divide on some vertices, so a model drawn again flat at one depth as its shadow,
++                        // under a strict depth test that lets only the first of its overlapping triangles darken a
++                        // pixel, darkened some twice at a high resolution. A viewport depth range of no height makes
++                        // the window depth exactly primDepth and changes nothing else. A decal keeps the whole range:
++                        // it compares its depth within a tolerance, and a prebuilt one on WebGPU writes its depth
++                        // bounds (RasterPS.hlsl, DECAL_DEPTH_BOUNDS), which the viewport's range would clamp to primDepth.
++                        triangles.primDepth = -1.0f;
++                        const interop::OtherMode primOtherMode = call.shaderDesc.otherMode;
++                        const bool primUsesViewport = (proj.type == Projection::Type::Perspective) || (proj.type == Projection::Type::Orthographic);
++                        if (primUsesViewport && (primOtherMode.zSource() == G_ZS_PRIM) && (primOtherMode.cycleType() != G_CYC_COPY) &&
++                            (primOtherMode.zMode() != ZMODE_DEC))
++                        {
++                            triangles.primDepth = std::clamp(call.callDesc.rdpParams.primDepth.x, 0.0f, 1.0f);
++                        }
++#                   endif
                          if (gpuShader != nullptr) {
                              triangles.pipeline = gpuShader->pipeline.get();
 +                            triangles.decalMarkPipeline = gpuShader->decalMarkPipeline.get();
                          }
                          else {
                              const bool copyMode = (call.shaderDesc.otherMode.cycleType() == G_CYC_COPY);
-@@ -1619,7 +1736,7 @@ namespace RT64 {
+@@ -1619,7 +1754,7 @@ namespace RT64 {
                                  (call.shaderDesc.otherMode.cvgDst() == CVG_DST_WRAP) || (call.shaderDesc.otherMode.cvgDst() == CVG_DST_SAVE));
                          }
                          
@@ -7441,7 +7459,7 @@ index 9fae0d4..d2c69d8 100644
                          triangles.vertexTestZ = (vertexTestZCallIndex >= 0);
                          triangles.postBlendDitherNoise = false;
  
-@@ -1628,6 +1745,16 @@ namespace RT64 {
+@@ -1628,6 +1763,16 @@ namespace RT64 {
                          switch (proj.type) {
                          case Projection::Type::Perspective:
                          case Projection::Type::Orthographic: {
@@ -7458,31 +7476,6 @@ index 9fae0d4..d2c69d8 100644
                              instanceDrawCall.type = InstanceDrawCall::Type::IndexedTriangles;
                              triangles.indexStart = triangles.vertexTestZ ? vertexTestZFaceIndicesStart : call.meshDesc.faceIndicesStart;
                              invRatioScale = projInvRatioScale;
-@@ -1682,6 +1809,24 @@ namespace RT64 {
-                         if (usesViewport) {
-                             triangles.scissor = viewportScissorIntersection(viewportClip, triangles.scissor);
-                         }
-+
-+#                   if RT64_EXACT_PRIM_DEPTH
-+                        // RT64_EXACT_PRIM_DEPTH: on the console every pixel of a G_ZS_PRIM draw has exactly the prim
-+                        // depth. The vertex shader's z = primDepth * w (RasterVS.hlsl) comes out an ulp off after the
-+                        // perspective divide on some vertices, so a model drawn again flat at one depth as its shadow,
-+                        // under a strict depth test that lets only the first of its overlapping triangles darken a
-+                        // pixel, darkened some twice at a high resolution. A viewport depth range of no height makes
-+                        // the window depth exactly primDepth and changes nothing else. A decal keeps the whole range:
-+                        // it compares its depth within a tolerance, and a prebuilt one on WebGPU writes its depth
-+                        // bounds (RasterPS.hlsl, DECAL_DEPTH_BOUNDS), which the viewport's range would clamp to primDepth.
-+                        triangles.primDepth = -1.0f;
-+                        const interop::OtherMode primOtherMode = call.shaderDesc.otherMode;
-+                        if (usesViewport && (primOtherMode.zSource() == G_ZS_PRIM) && (primOtherMode.cycleType() != G_CYC_COPY) &&
-+                            (primOtherMode.zMode() != ZMODE_DEC))
-+                        {
-+                            triangles.primDepth = std::clamp(call.callDesc.rdpParams.primDepth.x, 0.0f, 1.0f);
-+                        }
-+#                   endif
-                         
-                         if (triangles.vertexTestZ && usesViewport) {
-                             instanceDrawCallVector[vertexTestZCallIndex].vertexTestZ.indexCount += call.callDesc.triangleCount * 3;
 @@ -1760,7 +1905,215 @@ namespace RT64 {
          checkRasterScene(rasterScene);
      }
