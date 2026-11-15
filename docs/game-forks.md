@@ -609,7 +609,8 @@ changes to N64Recomp's live recompiler and to the runtime for it are left out, a
 `lib-patches/apply.cmake` applies the game's own `rt64.patch` (the players' shadows, a G_ZS_PRIM draw given exactly its
 prim depth; the small images the game draws and then samples, the shadows, the speed board and the smash replay's
 frame, read from RDRAM rather than through GPU tile copies; a texture address wrapped to the RDP's 24 bits; an
-inverted load tile clamped) before N64Recomp-browser's patches, and CI's `mt-patches` job applies both on each PR.
+inverted load tile clamped) before N64Recomp-browser's patches, keeping a copy of what went in so that an edited
+`rt64.patch` replaces the old one in a checkout, and CI's `mt-patches` job applies both on each PR.
 Render to RAM is the late copy, on the desktop build too, in place of upstream's merged copy: the title screen draws a
 frame over a block of the game's heap that the game fills as soon as the list is done, and the late copy keeps every
 word the CPU wrote meanwhile (`src/main/main.cpp`). Left out besides: the choice of DirectX 12 or Vulkan, the CRT
@@ -618,8 +619,11 @@ menus, 47) and seven sections, a match (85) and one each for the Mushroom Cup, R
 Challenge, doubles and the title's attract demo (26-106, each with the match's it draws; 155 in all), recorded by
 `tools/shader_plan.json` by playing: the menus with A 3.5 s apart, as they take no press while a screen slides in, and
 a match on each of the four courts (Hard, Clay, Grass and Composition, which draw the same shaders but four). A plan
-knows a match has started by the program's line for the match's code overlay (`code segment rom 0x00A1F530`), and
-times its swings on the game's frame counter (0x80061f48, 30 a second).
+goes by the game's memory, not by time: Start through the opening until the title's code is in (the menus' first word
+back at 0x800E8000, over the opening's), as the opening runs 65 s untouched and a few seconds less pressed, and A at
+court select until the match's is (the opening's word at 0x800E2000 gone). In a match it presses A every 1.5 s, which
+serves (a toss, then the hit as the ball comes down) and swings, on the console's VI count (0x80049a98, 60 a second):
+the game's frame counter runs at half its menus' rate there, and two presses a second apart never serve.
 Its `tools/play_plan.json` plays Singles against Luigi on the Hard Court for 100 s, its `tools/play_plan_extended.json`
 3.3 minutes. Its README and BUILDING.md, and the headers of those files, have the rest.
 
