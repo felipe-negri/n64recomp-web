@@ -164,7 +164,7 @@ t3     n64hub/turok-3-recomp                 Turok3Recompiled     build/web turo
 # only as a dry run (--dry-run, --browser, --ref), so their pins can still be built and played. A game is released once
 # its row in docs/new-recomp.md lets it be (tools/checklist.sh, CLAUDE.md's Rules): a new port goes on this list in its
 # port's work, and the work that plays its row through takes it off.
-unreleased=" mg "
+unreleased=" "
 # This project's own recomps, whose pins move by a pull request on their repos (CLAUDE.md, The pins), and which pin
 # upstream's own commits of what N64Recomp-browser patches as submodules (pin_tree). update_games.sh reads this list.
 own=" rush pd sm64 fzx mp1 mp2 mp3 ssb pm mg r2 ddgq dino t1 t2 t3 "

@@ -42,7 +42,7 @@ An update, for the games it moves:
   the tag (other work moved it) gets no PR: that main is what was built, and it is published as it is
   (`tools/update_games.sh`). Work in an own recomp's repo that moves its pin first (CLAUDE.md, The pins) makes the
   same move in its own PR, beside its change, built and played with it.
-- A recomp of the project's own is not published until its game is released (Mario Golf is held now): its line in
+- A recomp of the project's own is not published until its game is released (none is held now): its line in
   `tools/publish_pages.sh`'s `unreleased` holds it, builds it only as a dry run and leaves it out of a run that names
   no game. A game is released once its row in docs/new-recomp.md lets it be (CLAUDE.md, Rules): `tools/checklist.sh
   <game>` says what holds it, a page the hub has no folder for yet is published only once it lets it be (a game
