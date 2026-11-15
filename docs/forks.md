@@ -1112,4 +1112,11 @@ rt64 eda3964           RT64_SKIP_PLACE_SWAPS: no pair of transforms at two place
 rt64 8314128           that check filters the gathered candidates after the loop, and places compare as floats, without
                        <cstring>: Jet Force Gemini's and Pokemon Snap's own RT64 patches change the loop's lines and the
                        includes, and didn't apply over eda3964
+rt64 99876c6           with Emscripten, a tile larger than the framebuffer block loaded at its TMEM address samples the
+                       block's tile copy (checkLeadingTileCopy()), fullSync() checking by the call's texcoords that it
+                       fits, as for a row's (rt64 9b87e67; rowTileCopy is texcoordTileCopy): Mario Tennis draws 31
+                       rectangles a list through a 32x32 tile over a 16x16 block, and each waited for a sync to RAM
+rt64 e102359           with Emscripten, a load asks no sync from a framebuffer no pair of the list has drawn (its
+                       maxHeight 0): the overlap test took its empty range as reaching a load that begins below it, as
+                       Mario Tennis' palette loads do 15-30 times a list in its heaviest scenes
 ```
