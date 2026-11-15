@@ -8,12 +8,12 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Nineteen options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Twenty options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_FREE_DISCARDED_TARGETS` (rt64 51c3fdd), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
 `RT64_PARTIAL_SCREEN_PAIRS` (rt64 89abe33), `RT64_STRETCH_SCREEN_COVERS` (rt64 4550e10), `RT64_KEEP_THIN_RECTS` (rt64
-04dc9cf, which Perfect Dark's desktop build turns on),
+04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7, c0d27e5),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334), `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime
 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS` (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED`
 (N64ModernRuntime 0ec6c51), `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
@@ -1057,6 +1057,16 @@ plume 2a3ab28          plume_device_thread: an upload buffer's unmap of half the
                        into an upload buffer of 15.5 MB, and while the page's thread was behind each queued unmap held
                        another 15.5 MB, 39 of them (578 MB) at once on Mario Tennis' page in Firefox at 3840x2000, which
                        ran its heap out (Aborted(OOM)) 430-640 s into a match
+rt64 c1000a7           RT64_EXACT_PRIM_DEPTH: a G_ZS_PRIM triangle through a perspective or orthographic projection
+                       is drawn with a viewport depth range of no height at its prim depth, so its depth is exactly
+                       that, as on a console, not the vertex shader's primDepth * w an ulp off after the divide: Mario
+                       Tennis' players' shadows (each model drawn again flat, under a strict depth test that lets only
+                       its first triangle over a pixel darken it) darkened some pixels twice at a high resolution.
+                       Decals and copy mode keep the whole range (a prebuilt decal on WebGPU writes its depth bounds,
+                       which the range would clamp). Mario Tennis' own RT64 patch did this first
+rt64 2fb4862 c0d27e5   RT64_EXACT_PRIM_DEPTH's lines moved among the web's own (beside a draw's pipeline, just before
+                       a draw), clear of the lines game forks patch (a pause screen's scissor, water, car reflections, a
+                       draw trace)
 rt64 1f14ebb           on the web the workload thread starts no interpolated frame while the game's list is in its full
                        sync (State's ListGPUWait), for 50 ms at most: the sync's waits for the device thread (a readback
                        of a sync to RAM or of the late copy, a buffer made as the draw data grows) wait for every WebGPU

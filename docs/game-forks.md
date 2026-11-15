@@ -606,10 +606,11 @@ game's loader copies it in. The game maps part of its memory through the TLB, wh
 (`tools/make_recomp_h.py`) puts in every memory access. Upstream recompiles from the player's ROM when the program
 starts, which a page can't: the fork recompiles when it is built, as upstream's development build does, so upstream's
 changes to N64Recomp's live recompiler and to the runtime for it are left out, and the page takes no mods. Its
-`lib-patches/apply.cmake` applies the game's own `rt64.patch` (the players' shadows, a G_ZS_PRIM draw given exactly its
-prim depth; the small images the game draws and then samples, the shadows, the speed board and the smash replay's
-frame, read from RDRAM rather than through GPU tile copies; a texture address wrapped to the RDP's 24 bits; an
-inverted load tile clamped) before N64Recomp-browser's patches, keeping a copy of what went in so that an edited
+`lib-patches/apply.cmake` applies the game's own `rt64.patch` (the small images the game draws and then samples, the
+players' shadows, the speed board and the smash replay's frame, read from RDRAM rather than through GPU tile copies; a
+texture address wrapped to the RDP's 24 bits; an inverted load tile clamped) before N64Recomp-browser's patches
+(the shadows' depth, each G_ZS_PRIM triangle given exactly its prim depth, is rt64-web's `RT64_EXACT_PRIM_DEPTH`,
+which its CMakeLists.txt turns on for the native build too). It keeps a copy of what went in so that an edited
 `rt64.patch` replaces the old one in a checkout (and is dropped once the checkout is put back to its commit, as
 `tools/publish_pages.sh` does when N64Recomp-browser moves), and CI's `mt-patches` job applies both on each PR.
 Render to RAM is the late copy, on the desktop build too, in place of upstream's merged copy: the title screen draws a
