@@ -2026,6 +2026,15 @@ So no game but Rush 2049 showed it in what these plans play, and none was given 
 draws ids of its own (its rt64 patch), and Turok 2 played on main stopped drawing in its level whatever the log did
 (filed).
 
+Mario Golf, which came later, showed it in a hole's flyover on its desktop build at the display's rate: its course's
+terrain is one transform of about 1,400 vertices, refilled in another order as the camera pans, and on 4 to 9 frames
+of a 15 s flyover the count came out the same, with 7 to 65 of a sample of 66 vertices nearer another of the frame
+before than their pair (the log above's test), sent up to the course's whole 8,192 units. The frames between drew the
+terrain as loose triangles over the water (2 of about 300 captures in one run of three). Its meshes of 10, 30 and 60
+vertices that the interpolation moves had none, over about 850 frames a run. Since rt64 0372264 the interpolation
+runs that test itself and leaves such vertices to the game's own frames: four runs of the flyover held back the
+terrain's refilled frames and nothing else, with no torn frame captured.
+
 ## Pokémon Snap's camera check against its desktop build
 
 After a course Pokémon Snap's camera check counts the photos taken ("N pictures have been taken"), a frame of
