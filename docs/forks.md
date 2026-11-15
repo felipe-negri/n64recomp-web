@@ -1041,4 +1041,12 @@ rt64 971496a           on the web a workload slot's framebuffer pairs, projectio
                        Mario Tennis' many small images a frame grew its heap ~1 MB a second, to Aborted(OOM) 328 s into
                        a Firefox play at 3840x2000; with it the heap held flat from its third minute. 93460c6 moves
                        its declaration beside reset(), clear of Conker's own rt64 lines
+plume 027a043          D3D12: what a removed device's failed creations left without an object (a buffer, texture, query
+                       heap or pipeline) is skipped wherever it is used until the device is replaced: setName(), unmap(),
+                       barriers, copies, resolves, buffer views, root descriptors, timestamps, pipelines set, and a query
+                       pool's results read 0. A Windows player's Rush 2049 still crashed after DXGI_ERROR_DEVICE_HUNG, in
+                       the GPU timings' query results and naming a new texture. An adapter whose device comes back
+                       removed (something made on it still alive) is passed over, and PLUME_LOSE_DEVICE_AFTER makes a
+                       D3D12 device's buffers, textures and query heaps fail to be made once it is lost, as a removed one's
+                       do. dba025e moves the query pool's and the region copy's checks clear of game forks' own plume lines
 ```
