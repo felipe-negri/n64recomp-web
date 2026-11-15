@@ -78,6 +78,7 @@ items by almost no game when the record began.
 | Beetle Adventure Racing! | | W2, W5, W6, W7, W9 |
 | Turok: Rage Wars | | W2, W5, W6, W7 |
 | WWF No Mercy | | W2, W5, W6, W7, W8, W9 |
+| Mario Tennis | | W2, W5, W6, W7 |
 
 What the fails are: 4c's pads are played with two stand-in pads of one id (W7's `unplugPad` and `replugPad`). On
 Super Smash Bros.' page a binding written to the controls file is read back after a restart and kept through each pad

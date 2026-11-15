@@ -596,6 +596,31 @@ launcher isn't laid out by the viewport's height about its centre as recompui's 
 Load ROM and Start Game, the focused buttons, rather than click. Its `docs/web.md` and the header of
 `tools/build_web.sh` have the rest.
 
+`n64hub/MarioTennisRecomp-web` is Ieatzcrayonz's MarioTennisRecomp, Mario Tennis (USA), GPL-3.0, moved onto
+RecompFrontend as Star Fox 64's is: its `lib/rt64`, `lib/N64ModernRuntime` and `lib/RecompFrontend` are upstream's at
+the commits GoldenEye's are on (`patches/pins.txt`), in place of the copy of Zelda 64: Recompiled's launcher and menus
+upstream carries. The game's code is compressed on the cartridge and loaded in overlays: `tools/gen_symbols.py` finds
+its functions with rabbitizer and writes a recomp image (every code segment decompressed and appended to the ROM),
+which N64Recomp reads, and at run time the program unpacks the boot's main segment and registers each overlay as the
+game's loader copies it in. The game maps part of its memory through the TLB, which the generated `include/recomp.h`
+(`tools/make_recomp_h.py`) puts in every memory access. Upstream recompiles from the player's ROM when the program
+starts, which a page can't: the fork recompiles when it is built, as upstream's development build does, so upstream's
+changes to N64Recomp's live recompiler and to the runtime for it are left out, and the page takes no mods. Its
+`lib-patches/apply.cmake` applies the game's own `rt64.patch` (the players' shadows, a G_ZS_PRIM draw given exactly its
+prim depth; the small images the game draws and then samples, the shadows, the speed board and the smash replay's
+frame, read from RDRAM rather than through GPU tile copies; a texture address wrapped to the RDP's 24 bits; an
+inverted load tile clamped) before N64Recomp-browser's patches, and CI's `mt-patches` job applies both on each PR.
+Render to RAM is the late copy, on the desktop build too, in place of upstream's merged copy: the title screen draws a
+frame over a block of the game's heap that the game fills as soon as the list is done, and the late copy keeps every
+word the CPU wrote meanwhile (`src/main/main.cpp`). Left out besides: the choice of DirectX 12 or Vulkan, the CRT
+shaders and the Stretch aspect ratio. Its list is <N> shaders: the boot (the launcher, the opening, the title and the
+menus, <N0>) and <SECTIONS>, recorded by `tools/shader_plan.json` by playing: the menus with A 3.5 s apart, as they
+take no press while a screen slides in, a match on each of the four courts (Hard, Clay, Grass and Composition, which
+draw the same shaders but four), <MODES>. A plan knows a match has started by the program's line for the match's code
+overlay (`code segment rom 0x00A1F530`), and times its swings on the game's frame counter (0x80061f48, 30 a second).
+Its `tools/play_plan.json` plays Singles against Luigi on the Hard Court for 100 s, its `tools/play_plan_extended.json`
+3.4 minutes. Its README and BUILDING.md, and the headers of those files, have the rest.
+
 `n64hub/perfect-dark-recomp` is Perfect Dark (USA rev 1), not a fork but this project's own recomp, as Rush 2049's
 is (GPL-3.0), made from the game's MIT decompilation. It is on upstream's rt64, N64ModernRuntime and RecompFrontend at
 the commits GoldenEye's are on (`patches/pins.txt`), patched by the N64Recomp-browser tag its `lib/N64Recomp-browser`
@@ -884,10 +909,10 @@ once a VI; its controller reads held it to 30 on a fast CPU, which its `patches/
 Racing 30 (DKR-R's Accurate profile, the desktop's default, holds RT64 at Original; the page plays Modern), Jet Force
 Gemini 30 dropping to 20 when a frame runs long, or 60 (its Game Frame Rate, 60 on a page: 54-59 at the display's 60
 and 18-30 uncapped at 3840x2000, against 29 and 17-19 at the game's own pacing), and the
-cartridge's for the other sixteen: F-Zero X 60 in a one-player race, Super Mario 64 30, Mario Party 30, Mario Party 2 30, Mario Party 3 30, Rush 2 30, Majora's Mask 20, Banjo-Kazooie 20-30, Donkey Kong 64 30, Banjo-Tooie 30
+cartridge's for the other seventeen: F-Zero X 60 in a one-player race, Mario Tennis 30, Super Mario 64 30, Mario Party 30, Mario Party 2 30, Mario Party 3 30, Rush 2 30, Majora's Mask 20, Banjo-Kazooie 20-30, Donkey Kong 64 30, Banjo-Tooie 30
 (Terrydactyland 12, Hailfire Peaks 10), Wave Race 64 20 in races, Star Fox 64 30 (20 where a scene sets 3 VIs a
 frame), GoldenEye's, Conker's, Star Wars Episode I: Racer's and Beetle Adventure Racing's variable (Racer 30-43 in
-a race, uncapped at 3840x2000; Beetle 50-60 in a race at `?uncapped=240` there). None of the sixteen has an option to run faster.
+a race, uncapped at 3840x2000; Beetle 50-60 in a race at `?uncapped=240` there). None of the seventeen has an option to run faster.
 
 A game fork may take a change that runs its game faster when that makes the page play better. Weigh it: logic at 60
 gives lower input lag, motion the game computes rather than RT64 interpolates, and what interpolation misses (some
