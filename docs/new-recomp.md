@@ -57,9 +57,9 @@ items by almost no game when the record began.
 | Rayman 2 | 6c | W5 fails, W6's Drive |
 | Donald Duck: Goin' Quackers | 2, 5b, 6c | W5 fails, W6's Drive |
 | Dinosaur Planet | 6c | W5 fails |
-| Turok: Dinosaur Hunter | 5a, 6c | W5 fails, W6's Drive |
-| Turok 2: Seeds of Evil | 2 fails, 4c, 5a, 6c | W5 fails, W6's Drive |
-| Turok 3: Shadow of Oblivion | 4c, 5a, 6c | W5 fails, W6's Drive |
+| Turok: Dinosaur Hunter | 5a | W5 fails, W6's Drive |
+| Turok 2: Seeds of Evil | 2 fails, 4c, 5a | W5 fails, W6's Drive |
+| Turok 3: Shadow of Oblivion | 4c, 5a | W5 fails, W6's Drive |
 | GoldenEye 007 | | W2, W5 fails, W6, W7 |
 | The Legend of Zelda: Majora's Mask | | W2, W5, W6, W7 |
 | Banjo-Kazooie | | W2, W5, W6, W7 |
@@ -128,7 +128,14 @@ buffers cut; 3's queue held 15-32 ms and never ran dry, and 1's and 2's held 29-
 ran dry only where the game sent nothing for 65-85 ms at a scene change (1's opening to the village, 2's at 8.6, 23.1
 and 52 s), in every play, each inside the game's own fade-out or silence (RMS 0.009 or less against its music's 0.3,
 in a disk-driver recording of the same play), so all three pass 6c (beside builds they went 100-500 ms between buffers
-in places and ran it dry); Super Mario 64 sends
+in places and ran it dry); Turok 1, 2 and 3 (their `queue_samples` alike, with the catch-up, the audio thread paced by
+turok-engine's osAiGetStatus, a full FIFO once about two retraces are queued) in test builds of main on the sound
+device, each through its menus into its first level and 70-75 s of play there (170, 287 and 142 s, Turok 2's with its
+two opening cinematics), had none of 9813 and 9829, 16856 and 16874, and 8213 buffers cut, their queues holding
+17-54 ms; Turok 1's ran dry once in two plays (the game sent nothing for 110 ms at 57 s on a host 94% busy), Turok 2's
+once in two plays on a GPU of its own (252 ms while walking in the Port of Adia, not again in the other) and Turok 3's
+never, so all three pass 6c (Turok 2 beside a build and other plays on the GPU went 60-141 ms between buffers walking
+in Adia and ran it dry 46 times); Super Mario 64 sends
 its sound nothing for 66 ms at each screen change, as on a console (its docs/architecture.md, Sound at a screen
 change), and v0.1.12 then grew its queue back by under 1 ms a retrace, so 12 buffers of the next screen's music in
 a minute went out with under 8 ms queued and 3 onto an empty queue; since its `queue_samples` puts a retrace of
