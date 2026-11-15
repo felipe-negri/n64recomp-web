@@ -1063,7 +1063,7 @@ rt64 c1000a7           RT64_EXACT_PRIM_DEPTH: a G_ZS_PRIM triangle through a per
                        Tennis' players' shadows (each model drawn again flat, under a strict depth test that lets only
                        its first triangle over a pixel darken it) darkened some pixels twice at a high resolution.
                        Decals and copy mode keep the whole range (a prebuilt decal on WebGPU writes its depth bounds,
-                       which the range would clamp). Mario Tennis' port drew its shadows so first
+                       which the range would clamp). Mario Tennis' own RT64 patch did this first
 rt64 2fb4862 c0d27e5   RT64_EXACT_PRIM_DEPTH's lines moved among the web's own (beside a draw's pipeline, just before
                        a draw), clear of the lines game forks patch (a pause screen's scissor, water, car reflections, a
                        draw trace)
