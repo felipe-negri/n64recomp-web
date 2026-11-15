@@ -48,9 +48,9 @@ items by almost no game when the record began.
 | Perfect Dark | 4c, 6c, 8a fails | W5 fails, W6's Drive |
 | Super Mario 64 | 6c | W5 fails, W6's Drive |
 | F-Zero X | 6c | W6's Drive |
-| Mario Party | 4c, 5b, 6a, 6b fails, 6c, 8a, 8b, 8c fails | W6's Drive, W8 |
-| Mario Party 2 | 4c, 5b, 6a, 6b fails, 6c, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
-| Mario Party 3 | 4c, 5b, 6a, 6c, 8a, 8b, 8c fails | W6's Drive, W8 |
+| Mario Party | 4c, 5b, 6a, 6b fails, 8a, 8b, 8c fails | W6's Drive, W8 |
+| Mario Party 2 | 4c, 5b, 6a, 6b fails, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
+| Mario Party 3 | 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Super Smash Bros. | 6c | W6's Drive |
 | Paper Mario | 4a, 4c, 6b, 6c | W5 fails, W6's Drive |
 | Mario Golf | | W6's Drive |
@@ -121,7 +121,13 @@ with its README linking its page (8c), its page from Pages in Firefox playing wi
 news entry, tile and score on the hub (W11); Rush 2049's `queue_samples` has no catch-up (it plays
 up to 1% faster or slower to hold 40 ms), and in two plays of a test build of v0.1.73 on the sound device, 95 s each of its menus and
 a Practice race, none of 10,989 and 10,981 buffers found the queue empty after the boot, which held 11-55 ms, so it
-passes 6c (on a host kept 100% busy the game went 40-100 ms between buffers and ran it dry); F-Zero X's page in Firefox loses
+passes 6c (on a host kept 100% busy the game went 40-100 ms between buffers and ran it dry);
+Mario Party 1, 2 and 3 (their `queue_samples` alike, with the catch-up) in test builds of main on the sound device,
+105-124 s each of the opening, the menus and a board on a host 7-42% busy, had none of 6827, 6309 and 7451 buffers cut; 3's queue held 15-32 ms and never ran dry, and 1's and 2's held 29-58 ms and
+ran dry only where the game sent nothing for 65-85 ms at a scene change (1's opening to the village, 2's at 8.6, 23.1
+and 52 s), in every play, each inside the game's own fade-out or silence (RMS 0.009 or less against its music's 0.3,
+in a disk-driver recording of the same play), so all three pass 6c (beside builds they went 100-500 ms between buffers
+in places and ran it dry); F-Zero X's page in Firefox loses
 none in its boot's first 10 s built on v0.201.0 but inside its own silence (0.6-2.5 s from Pages on v0.184.0, as
 section boot's shaders were built with the game waiting), and none after its tab is hidden and shown in either
 browser, so it passes W5: the 2.4 s it loses in the 2.6 s its first race's section takes to build 45 shaders is a
