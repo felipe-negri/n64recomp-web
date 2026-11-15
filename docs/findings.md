@@ -2027,6 +2027,16 @@ and replays), each play a shared GPU turn on an idle host:
 With 50 ms the wait ran out in most lists at 3840x2000 (and in a twentieth at 1256x645), and the frames started then
 held the sync's later readbacks again.
 
+The build's backcheck (1256x645 uncapped, its 35f21fc) passes W5 in Chrome, none short after the hidden tab. In Firefox
+it lost none in the boot, against Pages' 444 ms, and 2.3 s after the show, against Pages' 20.4 s, and that was the
+game's own: hidden, the game came to its tournament section 14 s in, where Firefox built 88 prebuilt shaders for 5.0 s
+with the game waiting (a section's wait, as Paper Mario's in A page in a hidden tab), then to a scene that syncs to
+RAM 33-39 times a list, and that played at 11 game frames a second across the show (a probe build's `?frame-log`).
+Each of those syncs is a readback the list's next pairs wait for, since the patch has the game sample those images
+from RDRAM: a round trip to the GPU of 1.8 ms in Firefox, 1.3-1.6 ms in Chrome at any canvas size, so a list of 40
+takes 55-75 ms, as the match's heaviest scenes do in Chrome capped (35-45 a list). Firefox's smoke play at 3840x2000
+ran short through the match that way, visible (`mt-35f21fc-smoke2-mt`).
+
 The A/B reads such a change as worse: it judges presents a second, and the change is fewer presents. Pages presented
 195-214 a second there with the game at 9, the build 114-129 with it at 24-27 (set `mt-35f21fc-ab2-mt`), and their
 sound ran 2.5-3.0 million frames short over the play against the build's 0.23-0.57 million: a present there was an
