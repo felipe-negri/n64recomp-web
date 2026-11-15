@@ -46,6 +46,7 @@ and Turok 3 are this project's own recomps, each with releases of its desktop bu
 | Beetle Adventure Racing! | [BeetleRecomp](https://github.com/bryankruman/BeetleRecomp) by bryankruman | [BeetleRecomp-web](https://github.com/n64hub/BeetleRecomp-web) | [play](https://n64hub.com/beetle-adventure-racing/) |
 | Turok: Rage Wars | [PaxDino: Rage Wars Modernized](https://github.com/wootbeer/PaxDino) by wootbeer | [PaxDino-web](https://github.com/n64hub/PaxDino-web) | [play](https://n64hub.com/turok-rage-wars/) |
 | WWF No Mercy | [WWF No Mercy: Recompiled](https://github.com/jessetbh/WWFNoMercyRecomp) by jessetbh | [WWFNoMercyRecomp-web](https://github.com/n64hub/WWFNoMercyRecomp-web) | [play](https://n64hub.com/wwf-no-mercy/) |
+| Mario Tennis | [Mario Tennis: Recompiled](https://github.com/Ieatzcrayonz/MarioTennisRecomp) by Ieatzcrayonz | [MarioTennisRecomp-web](https://github.com/n64hub/MarioTennisRecomp-web) | [play](https://n64hub.com/mario-tennis/) |
 | Perfect Dark | this project's own recomp | [perfect-dark-recomp](https://github.com/n64hub/perfect-dark-recomp) | [play](https://n64hub.com/perfect-dark/) |
 | Super Mario 64 | this project's own recomp | [super-mario-64-recomp](https://github.com/n64hub/super-mario-64-recomp) | [play](https://n64hub.com/super-mario-64/) |
 | F-Zero X | this project's own recomp | [f-zero-x-recomp](https://github.com/n64hub/f-zero-x-recomp) | [play](https://n64hub.com/f-zero-x/) |
