@@ -1039,5 +1039,6 @@ RecompFrontend aeb4157 the menus' replace device hook on a desktop build too, an
 rt64 971496a           on the web a workload slot's framebuffer pairs, projections and game calls are trimmed to about
                        what its last use needed (Workload::trimFramebufferPairs()): kept at the most any use made them,
                        Mario Tennis' many small images a frame grew its heap ~1 MB a second, to Aborted(OOM) 328 s into
-                       a Firefox play at 3840x2000; with it the heap held flat from its third minute
+                       a Firefox play at 3840x2000; with it the heap held flat from its third minute. 93460c6 moves
+                       its declaration beside reset(), clear of Conker's own rt64 lines
 ```

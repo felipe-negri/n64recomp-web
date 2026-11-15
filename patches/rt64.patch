@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 971496a77dcf18ebfdc2b4c221d0061b7b81408d
+rt64: https://github.com/n64hub/rt64-web 93460c64198f911f0a672237600915889600f1a8
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -5584,7 +5584,7 @@ index b4c85f5..949b2b4 100644
          commandWarnings.clear();
          spriteCommands.clear();
 diff --git a/src/hle/rt64_workload.h b/src/hle/rt64_workload.h
-index 8ea27d5..b40aef5 100644
+index 8ea27d5..6eabaa0 100644
 --- a/src/hle/rt64_workload.h
 +++ b/src/hle/rt64_workload.h
 @@ -226,6 +226,12 @@ namespace RT64 {
@@ -5600,7 +5600,7 @@ index 8ea27d5..b40aef5 100644
          DebuggerRenderer debuggerRenderer;
          DebuggerCamera debuggerCamera;
          std::multimap<uint32_t, uint32_t> transformIdMap;
-@@ -239,6 +245,7 @@ namespace RT64 {
+@@ -239,9 +245,13 @@ namespace RT64 {
              uint32_t testZIndexCount = 0;
              float ditherNoiseStrength = 1.0f;
              hlslpp::float2 texcoordWrapPoint = {};
@@ -5608,16 +5608,12 @@ index 8ea27d5..b40aef5 100644
          } extended;
  
          void reset();
-@@ -253,5 +260,8 @@ namespace RT64 {
-         void begin(uint64_t submissionFrame);
-         bool addFramebufferPair(uint32_t colorAddress, uint8_t colorFmt, uint8_t colorSiz, uint16_t colorWidth, uint32_t depthAddress);
-         int currentFramebufferPairIndex() const;
 +#   if defined(__EMSCRIPTEN__)
 +        void trimFramebufferPairs();
 +#   endif
-     };
- };
-\ No newline at end of file
+         void resetDrawData();
+         void resetDrawDataRanges();
+         void resetRSPOutputBuffers();
 diff --git a/src/hle/rt64_workload_queue.cpp b/src/hle/rt64_workload_queue.cpp
 index 5a331aa..d76524a 100644
 --- a/src/hle/rt64_workload_queue.cpp
