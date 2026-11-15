@@ -1064,4 +1064,10 @@ rt64 1f14ebb           on the web the workload thread starts no interpolated fra
                        page, which syncs to RAM in each list, uncapped drew 12-22 of them a game frame and each list
                        waited 30-90 ms behind them: its matches played at 11-16 game frames a second against their 30,
                        and its sound ran short
+rt64 2f08dd3           that wait lasts 200 ms at most (InterpolatedListWaitMs): a sync's own readbacks take what the
+                       list's draws cost the GPU, which grows with the canvas, and Mario Tennis' took 20-40 ms a list at
+                       3840x2000 (100-150 in its heaviest scenes), capped too. With 50 ms the wait ran out in most of
+                       them there, and in a twentieth at 1256x645, and the frames started then held the sync's later
+                       readbacks again: its match uncapped at 3840x2000 played at 19-20 game frames a second, against 24
+                       with 200 and 25-26 capped (9 without the wait)
 ```
