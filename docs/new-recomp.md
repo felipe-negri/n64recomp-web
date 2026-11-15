@@ -49,7 +49,7 @@ items by almost no game when the record began.
 | Mario Party 3 | 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Super Smash Bros. | | W6's Drive |
 | Paper Mario | 4a, 4c, 6b | W5 fails, W6's Drive |
-| Mario Golf | 1 fails, 2, 3, 4a, 4b, 4c, 5a, 5b, 6a, 6b | W5, W6's Drive, W9 |
+| Mario Golf | 1 fails, 2, 3, 4a, 4b, 4c, 5a, 5b, 6a, 6b | W6's Drive, W9 |
 | Rayman 2 | | W5 fails, W6's Drive |
 | Donald Duck: Goin' Quackers | 2, 5b | W5 fails, W6's Drive |
 | Dinosaur Planet | | W5 fails |
