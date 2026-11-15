@@ -53,7 +53,7 @@ items by almost no game when the record began.
 | Mario Party 3 | 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Super Smash Bros. | | W6's Drive |
 | Paper Mario | 4a, 4c, 6b | W5 fails, W6's Drive |
-| Mario Golf | 2 fails | W6's Drive |
+| Mario Golf | | W6's Drive |
 | Rayman 2 | | W5 fails, W6's Drive |
 | Donald Duck: Goin' Quackers | 2, 5b | W5 fails, W6's Drive |
 | Dinosaur Planet | | W5 fails |
@@ -104,16 +104,17 @@ moves, 5-13 of 75-80 captures, with `RT64_GAME_FRAME_WORKLOADS` on or off and no
 point in a level (`saves/controllerpak_0.mpk` stays absent through their boots, intros and attract demos, and
 turok-engine writes the pak only on a change), and no save point was reached near Turok 1's or Turok 2's start; the
 Mario Parties' READMEs don't link their pages (8c); Mario Golf's courses, Mini-Golf, every play mode and a whole
-Tournament round draw on its desktop build at 16:9, 21:9 and 4:3, but at Framerate Display a flyover now and then
-draws one frame with the course torn into loose polygons, which Original never does (2 fails, filed); its HUD sits at
-the wide picture's sides and corners on its desktop build at 16:9 and 21:9 and on its page, with the swing meter and
-the pause menu in the middle and nothing culled at 21:9's sides, so it passes 1 (its HUD's scissors stay inside the
-3D's border, which RT64 widens with the picture: past it the HUD's slide-in left marks never cleared, its
-src/game/hud.cpp); four pads play four golfers, each from the pad that picked it and buzzed on its turn (3, W7), and
-two pads of one model pulled out and plugged in again at the tee get their ports back and rumble once the game has
-found their Rumble Paks, a few seconds on (4c); a tournament saved and quit continues after a restart (5a), and the
-scripted presses that once didn't move its main menu's cursor came in the half second the menu zooms in over the
-title, which drops them; its long plays at 3840x2000 ran nothing out (W9); F-Zero X's page in Firefox loses
+Tournament round draw on its desktop build at 16:9, 21:9 and 4:3, so it passes 2: at Framerate Display a flyover drew
+a frame with the course torn into loose polygons in 3 of 10 before v0.212.0, where rt64 0372264 pairs a vertex in
+RT64's automatic interpolation only with its own last place, and none of 3 on it; its HUD sits at the wide picture's
+sides and corners on its desktop build at 16:9 and 21:9 and on its page, with the swing meter and the pause menu in
+the middle and nothing culled at 21:9's sides, so it passes 1 (its HUD's scissors stay inside the 3D's border, which
+RT64 widens with the picture: past it the HUD's slide-in left marks never cleared, its src/game/hud.cpp); four pads
+play four golfers, each from the pad that picked it and buzzed on its turn (3, W7), and two pads of one model pulled
+out and plugged in again at the tee get their ports back and rumble once the game has found their Rumble Paks, a few
+seconds on (4c); a tournament saved and quit continues after a restart (5a), and the scripted presses that once didn't
+move its main menu's cursor came in the half second the menu zooms in over the title, which drops them; its long plays
+at 3840x2000 ran nothing out (W9); F-Zero X's page in Firefox loses
 none in its boot's first 10 s built on v0.201.0 but inside its own silence (0.6-2.5 s from Pages on v0.184.0, as
 section boot's shaders were built with the game waiting), and none after its tab is hidden and shown in either
 browser, so it passes W5: the 2.4 s it loses in the 2.6 s its first race's section takes to build 45 shaders is a
