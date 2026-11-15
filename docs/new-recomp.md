@@ -44,7 +44,7 @@ items by almost no game when the record began.
 
 | Game | New recomp: left | Web port: left |
 |---|---|---|
-| San Francisco Rush 2049 | 4c fails, 6c, 8a fails | W5, W6's Drive |
+| San Francisco Rush 2049 | 4c fails, 8a fails | W5, W6's Drive |
 | Perfect Dark | 4c, 6c, 8a fails | W5 fails, W6's Drive |
 | Super Mario 64 | 6c | W5 fails, W6's Drive |
 | F-Zero X | 6c | W6's Drive |
@@ -118,7 +118,10 @@ at 3840x2000 ran nothing out (W9); its sound clicked about four times a second t
 dropping one buffer in 15, and since its patches/audio.c none of 7375 is dropped and its queue holds 27-60 ms on the
 sound device, so it passes 6c; released as v0.1.2, whose archives boot on Windows and on Linux's lavapipe (8a),
 with its README linking its page (8c), its page from Pages in Firefox playing without a fault (W10) and its Games row,
-news entry, tile and score on the hub (W11); F-Zero X's page in Firefox loses
+news entry, tile and score on the hub (W11); Rush 2049's `queue_samples` has no catch-up (it plays
+up to 1% faster or slower to hold 40 ms), and in two plays of a test build of v0.1.73 on the sound device, 95 s each of its menus and
+a Practice race, none of 10,989 and 10,981 buffers found the queue empty after the boot, which held 11-55 ms, so it
+passes 6c (on a host kept 100% busy the game went 40-100 ms between buffers and ran it dry); F-Zero X's page in Firefox loses
 none in its boot's first 10 s built on v0.201.0 but inside its own silence (0.6-2.5 s from Pages on v0.184.0, as
 section boot's shaders were built with the game waiting), and none after its tab is hidden and shown in either
 browser, so it passes W5: the 2.4 s it loses in the 2.6 s its first race's section takes to build 45 shaders is a
