@@ -136,7 +136,7 @@ on a host 8-69% busy, the game at 100% of the device's rate, and none of 2105, 5
 found the queue empty after the boot, which held 37-68, 6-38, 10-30 and 10-34 ms, so they pass 6c (beside builds,
 with the host 100% busy, Perfect Dark ran at 57% and dry); Paper Mario v0.1.13's queue held only 9-33 ms, and on a
 host 32% busy a 36-41 ms wait between buffers ran it dry 7 times in the middle of its sound (as the file select opened
-and a new game's first map began), so its `queue_samples` leaves two retraces out of `osAiGetLength` as
+and a new game's first map began), so its `get_frames_remaining` leaves two retraces out of `osAiGetLength` as
 Mario Golf's does: 25-49 ms queued and none of 6516 and 6518 buffers dry in two plays, so it passes 6c in v0.1.14;
 F-Zero X's page in Firefox loses
 none in its boot's first 10 s built on v0.201.0 but inside its own silence (0.6-2.5 s from Pages on v0.184.0, as
