@@ -29,9 +29,10 @@
 // front of every play, so each takes its own turn on a shared GPU (CLAUDE.md, Playing a page): the A/B's a whole turn,
 // the smoke play's a shared one (docs/playing.md, What a change plays). Each play's output goes to
 // <out>/<n>-<browser>-<pages|build>.log, its summary beside it as .json, and the plan's shot steps write into
-// <out>/<n>-<browser>-<pages|build>/ (its cwd), so Pages' shots and the build's are both kept to compare; --out is a new temporary dir without it, kept and named at the end. Run again with the same --out, it
-// reads the plays that have a summary there and plays the rest: queue waits can add up to hours, longer than what
-// started it may live, and a play stopped part way records nothing.
+// <out>/<n>-<browser>-<pages|build>/ (its cwd), so Pages' shots and the build's are both kept to compare; --out is a
+// new temporary dir without it, kept and named at the end. Run again with the same --out, it reads the plays that
+// have a summary there and plays the rest: queue waits can add up to hours, longer than what started it may live, and
+// a play stopped part way records nothing.
 //
 // A Chrome build run is worse when it fails where a Pages run didn't, has WebGPU errors where none of those had any, or
 // presents a second more than 10% below the lowest of theirs, play_page's own noise for an uncapped run. The build plays
