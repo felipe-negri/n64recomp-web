@@ -46,7 +46,7 @@ items by almost no game when the record began.
 |---|---|---|
 | San Francisco Rush 2049 | 4c fails, 8a fails | W5, W6's Drive |
 | Perfect Dark | 4c, 6c, 8a fails | W5 fails, W6's Drive |
-| Super Mario 64 | 6c | W5 fails, W6's Drive |
+| Super Mario 64 |  | W5 fails, W6's Drive |
 | F-Zero X | 6c | W6's Drive |
 | Mario Party | 4c, 5b, 6a, 6b fails, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Mario Party 2 | 4c, 5b, 6a, 6b fails, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
@@ -135,7 +135,13 @@ two opening cinematics), had none of 9813 and 9829, 16856 and 16874, and 8213 bu
 17-54 ms; Turok 1's ran dry once in two plays (the game sent nothing for 110 ms at 57 s on a host 94% busy), Turok 2's
 once in two plays on a GPU of its own (252 ms while walking in the Port of Adia, not again in the other) and Turok 3's
 never, so all three pass 6c (Turok 2 beside a build and other plays on the GPU went 60-141 ms between buffers walking
-in Adia and ran it dry 46 times); F-Zero X's page in Firefox loses
+in Adia and ran it dry 46 times); Super Mario 64 sends
+its sound nothing for 66 ms at each screen change, as on a console (its docs/architecture.md, Sound at a screen
+change), and v0.1.12 then grew its queue back by under 1 ms a retrace, so 12 buffers of the next screen's music in
+a minute went out with under 8 ms queued and 3 onto an empty queue; since its `queue_samples` puts a retrace of
+silence in front of a buffer that finds the queue empty, none of 4838 does, the queue holding 26 ms at its median
+through the logo, title, file select and the castle grounds, so it passes 6c;
+F-Zero X's page in Firefox loses
 none in its boot's first 10 s built on v0.201.0 but inside its own silence (0.6-2.5 s from Pages on v0.184.0, as
 section boot's shaders were built with the game waiting), and none after its tab is hidden and shown in either
 browser, so it passes W5: the 2.4 s it loses in the 2.6 s its first race's section takes to build 45 shaders is a
@@ -332,8 +338,10 @@ rumble included.
   play loses it again: Turok 3's first lost 65 ms in a drag over its title music beside a page play at 3840 wide, and
   two more lost nothing.
 - **6c.** The sound keeps pace on the desktop: through a minute of play (its menus and a level) no buffer is dropped by
-  `queue_samples`' catch-up past 100 ms queued, and the queue never runs dry. The catch-up drops every other sample of
-  a buffer, a click with no gap in it, so 6b's gap search misses it, and SDL's disk driver plays slower than real
+  `queue_samples`' catch-up past 100 ms queued, and no sound goes onto an empty queue. A game that sends nothing for
+  a while empties it, as Super Mario 64 does for 66 ms at each screen change, where a console's AI plays nothing too:
+  that passes where the sound after it starts with a cushion queued. The catch-up drops every other sample of a
+  buffer, a click with no gap in it, so 6b's gap search misses it, and SDL's disk driver plays slower than real
   time, so its recording never shows a queue that runs dry: read on the sound device, by a log of the frames queued
   (`get_queued_audio_bytes`) beside each `queue_samples` in a test build. Mario Golf's sound library made 552 samples
   a retrace where 533 play, leaving its pace to the audio FIFO's full status, which the runtime never sets, and
