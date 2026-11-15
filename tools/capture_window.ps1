@@ -17,6 +17,8 @@
 # Plan lines, each at seconds since the exe started:
 #   <s> key <name> [ms]       press and release a key in the window (a letter, a digit, Enter, Space, Shift, Escape,
 #                             Tab, Up, Down, Left, Right), held ms (120)
+#   <s> down <name>           press a key and keep it held, and
+#   <s> up <name>             release it: a key held while a record goes on (key's hold stops the captures meanwhile)
 #   <s> shot <name>           one capture, <name>.png
 #   <s> burst <name> <count>  count captures back to back, <name>-0000.png on, the plan waiting meanwhile
 #   <s> record <name>         captures back to back from here, <name>-0000.png on, while the plan's keys go on, until
@@ -340,15 +342,20 @@ $named = @{ Enter = 0x0D; Space = 0x20; Shift = 0x10; Escape = 0x1B; Tab = 0x09;
     Down = 0x28 }
 $extended = @(0x25, 0x26, 0x27, 0x28)
 
-function Send-Key($hwnd, $name, $ms) {
+function Post-Key($hwnd, $name, [bool]$up) {
     if ($named.ContainsKey($name)) { $vk = $named[$name] }
     elseif ($name -match '^[A-Za-z0-9]$') { $vk = [int][char]$name.ToUpper() }
     else { throw "unknown key $name" }
     $l = 1 -bor ([int][CaptureWindow]::MapVirtualKey($vk, 0) -shl 16)
     if ($extended -contains $vk) { $l = $l -bor (1 -shl 24) }
-    [void][CaptureWindow]::PostMessage($hwnd, 0x100, [IntPtr]$vk, [IntPtr]$l)
+    if ($up) { [void][CaptureWindow]::PostMessage($hwnd, 0x101, [IntPtr]$vk, [IntPtr]([long]$l -bor 0xC0000000L)) }
+    else { [void][CaptureWindow]::PostMessage($hwnd, 0x100, [IntPtr]$vk, [IntPtr]$l) }
+}
+
+function Send-Key($hwnd, $name, $ms) {
+    Post-Key $hwnd $name $false
     Start-Sleep -Milliseconds $ms
-    [void][CaptureWindow]::PostMessage($hwnd, 0x101, [IntPtr]$vk, [IntPtr]([long]$l -bor 0xC0000000L))
+    Post-Key $hwnd $name $true
 }
 
 # Captures the window's client area (the game's picture, without the title bar and frame PrintWindow draws too) and
@@ -439,6 +446,8 @@ try {
         switch ($p[1]) {
             'key' { $ms = 120; if ($p.Count -gt 3) { $ms = [int]$p[3] }; Send-Key $hwnd $p[2] $ms
                 Write-Output ("{0,6:N1}s key {1}" -f $clock.Elapsed.TotalSeconds, $p[2]) }
+            'down' { Post-Key $hwnd $p[2] $false; Write-Output ("{0,6:N1}s down {1}" -f $clock.Elapsed.TotalSeconds, $p[2]) }
+            'up' { Post-Key $hwnd $p[2] $true; Write-Output ("{0,6:N1}s up {1}" -f $clock.Elapsed.TotalSeconds, $p[2]) }
             'shot' { Capture $hwnd $p[2]; Write-Output ("{0,6:N1}s shot {1}" -f $clock.Elapsed.TotalSeconds, $p[2]) }
             'burst' { for ($i = 0; $i -lt [int]$p[3]; $i++) { Capture $hwnd ($p[2] + '-' + $i.ToString('0000')) }
                 Write-Output ("{0,6:N1}s burst {1}" -f $clock.Elapsed.TotalSeconds, $p[2]) }
