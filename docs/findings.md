@@ -2050,6 +2050,17 @@ interpolated frame of a game held up. Majora's Mask, whose page keeps the exact 
 that trades interpolated frames for the game's own frames is read by the game's frames a second (`?frame-log`'s GF
 lines, `?present-stats`) and its sound beside the presents.
 
+Most of those syncs weren't the game's small images. In a heavy list (a probe build's count of each pair's reason), 31
+came from rectangles drawn through a 32x32 tile over a 16x16 block of a framebuffer the game loads at its TMEM
+address, whose tile copy checkRegionsTMEM() turned down for being smaller than the tile (rt64 99876c6 samples it,
+fullSync() checking the texcoords), and 15-30 from palette loads that begin just below a small image no pair of the
+list has drawn yet, whose empty range the overlap test took as overlapping (rt64 e102359). Chrome at 1256x645 uncapped,
+interleaved whole GPU turns of one probe build with both changes and with neither (set `mt-syncs-ab-mt`): 6.27-6.28
+syncs a list against 6.37-6.99, 43-50 lists of 30 or more against 85-128, the slowest tenth of the 5 s
+windows at 18.4-20.6 game frames a second against 12.2-14.6 and the slowest at 12.6-13.8 against 8.6-9.6, and the
+sound 0.26-0.33 million frames short over the play against 0.46-0.60. What syncs still are the game's own small
+images, which the patch has it sample from RDRAM.
+
 Rush 2049's page keeps 100 ms of sound queued (its docs/web.md), and Mario Tennis' sound didn't need it: it ran short
 because the game ran at a third or half its rate, making that much of its sound, which no queue covers.
 
