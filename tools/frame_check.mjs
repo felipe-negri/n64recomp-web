@@ -71,34 +71,49 @@ const SIDES_DENSE = 0.5; // ... unless the strip is this dense against the view:
 
 let dumpStartMs = null; // the first frame's time, ms since 1970: the dump's second 0, sides.tsv's too
 
-// The frames, each { t (s since the first), n (its place in the dump), presentId, index, count, dropped, w, h, rgb }.
-function readFrames() {
+// The frames between --from and --to, one at a time, each { t (s since the first), n (its place in the dump),
+// presentId, index, count, dropped, w, h, rgb }. Read as they come, never the file at once: a display of 144 Hz
+// presents 144 frames a second, and 20 seconds of them is past the 2 GB a file can be read into at once.
+function* readFrames() {
     const file = path.join(dir, 'frames.bin');
     if (!fs.existsSync(file)) {
-        return [];
+        return;
     }
-    const buf = fs.readFileSync(file);
-    const frames = [];
-    for (let o = 0; o + HEADER <= buf.length;) {
-        if (buf.readUInt32LE(o) !== MAGIC) {
-            console.error(`frames.bin: no frame header at byte ${o}`);
-            process.exit(2);
+    const fd = fs.openSync(file, 'r');
+    const length = fs.fstatSync(fd).size;
+    const head = Buffer.alloc(HEADER);
+    try {
+        for (let o = 0, n = 0; o + HEADER <= length; n++) {
+            fs.readSync(fd, head, 0, HEADER, o);
+            if (head.readUInt32LE(0) !== MAGIC) {
+                console.error(`frames.bin: no frame header at byte ${o}`);
+                process.exit(2);
+            }
+            const w = head.readUInt32LE(4), h = head.readUInt32LE(8);
+            const size = w * h * 3;
+            if (o + HEADER + size > length) {
+                break; // the last frame, cut off as the game was stopped
+            }
+            const timeMs = Number(head.readBigUInt64LE(32));
+            dumpStartMs ??= timeMs;
+            const t = (timeMs - dumpStartMs) / 1000;
+            if (t > to) {
+                break;
+            }
+            if (t >= from) {
+                const rgb = Buffer.allocUnsafe(size);
+                fs.readSync(fd, rgb, 0, size, o + HEADER);
+                yield {
+                    n, t, index: head.readUInt32LE(12), count: head.readUInt32LE(16), dropped: head.readUInt32LE(20),
+                    presentId: Number(head.readBigUInt64LE(24)), w, h, rgb,
+                };
+            }
+            o += HEADER + size;
         }
-        const w = buf.readUInt32LE(o + 4), h = buf.readUInt32LE(o + 8);
-        const size = w * h * 3;
-        if (o + HEADER + size > buf.length) {
-            break; // the last frame, cut off as the game was stopped
-        }
-        const timeMs = Number(buf.readBigUInt64LE(o + 32));
-        dumpStartMs ??= timeMs;
-        frames.push({
-            n: frames.length, t: (timeMs - dumpStartMs) / 1000, index: buf.readUInt32LE(o + 12), count: buf.readUInt32LE(o + 16),
-            dropped: buf.readUInt32LE(o + 20), presentId: Number(buf.readBigUInt64LE(o + 24)), w, h,
-            rgb: buf.subarray(o + HEADER, o + HEADER + size),
-        });
-        o += HEADER + size;
     }
-    return frames;
+    finally {
+        fs.closeSync(fd);
+    }
 }
 
 // A grey copy of a frame, gw x gh, box-filtered.
@@ -333,68 +348,77 @@ function saveTriplet(name, fs3, blocks, gw) {
 }
 
 let failed = false;
-const all = readFrames();
-const frames = all.filter((f) => (f.t >= from) && (f.t <= to));
-if (frames.length >= 3) {
-    if (saveDir) {
-        fs.mkdirSync(saveDir, { recursive: true });
+// Each frame is matched as the one after it comes in, among the last three kept of its run, so a dump of any length
+// takes the memory of three frames. Runs are of one shape, their grey copy's size (a resized window, a screen the game
+// draws at another shape starts a run): a target a row taller than the one before is the same picture, and Mario Party
+// 3's boot logos alternate 640x360 and 640x361 every few frames, which as runs of their own left nothing to match.
+// A repeat, a frame equal to the one before, is left out.
+const flagged = [];
+let presented = 0, first = null, last = null, checked = 0, repeats = 0, dropped = 0, run = null;
+const sizes = new Set();
+if (saveDir) {
+    fs.mkdirSync(saveDir, { recursive: true });
+}
+for (const f of readFrames()) {
+    presented++;
+    first ??= f;
+    last = f;
+    dropped += f.dropped;
+    sizes.add(`${f.w}x${f.h}`);
+    const gw = Math.floor(W / B) * B, gh = Math.floor(W * f.h / f.w / B) * B;
+    if (!run || (run.gw !== gw) || (run.gh !== gh)) {
+        run = { gw, gh, kept: [] };
     }
-    // The frames in runs of one size (a resized window, a screen the game draws at another size starts a run), each
-    // matched within its own run, repeats left out.
-    const runs = [];
-    let repeats = 0, dropped = 0;
-    for (const f of frames) {
-        dropped += f.dropped;
-        let run = runs[runs.length - 1];
-        if (!run || (run.w !== f.w) || (run.h !== f.h)) {
-            const gw = Math.floor(W / B) * B, gh = Math.floor(W * f.h / f.w / B) * B;
-            run = { w: f.w, h: f.h, gw, gh, kept: [] };
-            runs.push(run);
-        }
-        const g = grey(f, run.gw, run.gh);
-        if (run.kept.length && meanDiff(g, run.kept[run.kept.length - 1].g) < 0.05) {
-            repeats++;
-            continue;
-        }
-        run.kept.push({ f, g, q: quarter(g, run.gw, run.gh) });
+    const g = grey(f, run.gw, run.gh);
+    const kept = run.kept;
+    if (kept.length && meanDiff(g, kept[kept.length - 1].g) < 0.05) {
+        repeats++;
+        continue;
     }
-    const flagged = [];
-    let checked = 0;
-    for (const { gw, gh, kept } of runs) {
-        const qw = gw >> 2, qh = gh >> 2;
-        const bw = gw / B | 0, bh = gh / B | 0;
-        checked += Math.max(kept.length - 2, 0);
-        for (let k = 1; k + 1 < kept.length; k++) {
-            const a = kept[k - 1], c = kept[k], b = kept[k + 1];
-            const ea = explain(c.g, a.g, gw, gh, placesOf(c.q, a.q, qw, qh, bw, bh));
-            const eb = explain(c.g, b.g, gw, gh, placesOf(c.q, b.q, qw, qh, bw, bh));
-            // Where the neighbours match each other: a's blocks against b.
-            const eab = explain(a.g, b.g, gw, gh, placesOf(a.q, b.q, qw, qh, bw, bh));
-            const bad = [];
-            for (let by = 1; by < bh - 1; by++) {
-                for (let bx = 1; bx < bw - 1; bx++) {
-                    const i = by * bw + bx;
-                    let e = Math.min(ea[i], eb[i]);
-                    if (e > BAD) {
-                        e = eitherDiff(c.g, a.g, b.g, ea, eb, i, gw, gh);
-                    }
-                    // a's block that c's block i matched, roughly: i shifted by its match in a, in blocks
-                    const ay = Math.min(Math.max(by + Math.round(ea.dy[i] / B), 0), bh - 1);
-                    const ax = Math.min(Math.max(bx + Math.round(ea.dx[i] / B), 0), bw - 1);
-                    const base = eab[ay * bw + ax];
-                    if ((e > BAD) && (e > RATIO * base + 4)) {
-                        bad.push(i);
-                    }
-                }
+    if (!saveDir) {
+        f.rgb = null;
+    }
+    kept.push({ f, g, q: quarter(g, run.gw, run.gh) });
+    if (kept.length > 3) {
+        kept.shift();
+    }
+    if (kept.length < 3) {
+        continue;
+    }
+    const qw = gw >> 2, qh = gh >> 2;
+    const bw = gw / B | 0, bh = gh / B | 0;
+    const [a, c, b] = kept;
+    checked++;
+    const ea = explain(c.g, a.g, gw, gh, placesOf(c.q, a.q, qw, qh, bw, bh));
+    const eb = explain(c.g, b.g, gw, gh, placesOf(c.q, b.q, qw, qh, bw, bh));
+    // Where the neighbours match each other: a's blocks against b.
+    const eab = explain(a.g, b.g, gw, gh, placesOf(a.q, b.q, qw, qh, bw, bh));
+    const bad = [];
+    for (let by = 1; by < bh - 1; by++) {
+        for (let bx = 1; bx < bw - 1; bx++) {
+            const i = by * bw + bx;
+            let e = Math.min(ea[i], eb[i]);
+            if (e > BAD) {
+                e = eitherDiff(c.g, a.g, b.g, ea, eb, i, gw, gh);
             }
-            if (bad.length >= MIN_BLOCKS) {
-                flagged.push({ c, bad, bw, bh });
-                if (saveDir) {
-                    saveTriplet(`unlike-${String(c.f.n).padStart(5, '0')}.png`, [a.f, c.f, b.f], bad, gw);
-                }
+            // a's block that c's block i matched, roughly: i shifted by its match in a, in blocks
+            const ay = Math.min(Math.max(by + Math.round(ea.dy[i] / B), 0), bh - 1);
+            const ax = Math.min(Math.max(bx + Math.round(ea.dx[i] / B), 0), bw - 1);
+            const base = eab[ay * bw + ax];
+            if ((e > BAD) && (e > RATIO * base + 4)) {
+                bad.push(i);
             }
         }
     }
+    if (bad.length >= MIN_BLOCKS) {
+        const { n, t, presentId, index, count } = c.f;
+        flagged.push({ c: { f: { n, t, presentId, index, count } }, bad, bw, bh });
+        if (saveDir) {
+            saveTriplet(`unlike-${String(n).padStart(5, '0')}.png`, [a.f, c.f, b.f], bad, gw);
+        }
+    }
+}
+if (presented >= 3) {
     // 3 or more flagged frames within a second, anywhere.
     let burst = 0;
     for (let i = 0, j = 0; i < flagged.length; i++) {
@@ -406,9 +430,8 @@ if (frames.length >= 3) {
     checked = Math.max(checked, 1);
     const fail = (flagged.length * 100 > checked) || (burst >= 3);
     failed ||= fail;
-    console.log(`frames: ${frames.length} presented over ${(frames[frames.length - 1].t - frames[0].t).toFixed(1)} s` +
-        ` (${repeats} repeats, ${dropped} dropped by the dump), ` + runs.map((r) => `${r.w}x${r.h}`)
-        .filter((s, i, a) => a.indexOf(s) === i).join(', '));
+    console.log(`frames: ${presented} presented over ${(last.t - first.t).toFixed(1)} s` +
+        ` (${repeats} repeats, ${dropped} dropped by the dump), ${[...sizes].join(', ')}`);
     console.log(`unlike both neighbours: ${flagged.length} of ${checked} frames, at most ${burst} within a second: ` +
         (fail ? 'FAILS' : 'passes'));
     if (!quiet) {
