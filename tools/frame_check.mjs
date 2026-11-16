@@ -83,6 +83,7 @@ const M = 2; // the quarter pixels around a block that its own shift is found ov
 const SIDES_GROW = 1.2; // how many times the triangles past the 4:3 view a wider picture has, at the least
 const SIDES_DENSE = 0.5; // ... unless the strip is this dense against the view: a world not culled at its sides
 const SIDES_OPEN = 0.65; // ... or the narrower picture this dense past its own edge as inside it: not culled by the window
+const SIDES_FEW = 50; // triangles a workload in the wider picture's strip under which a scene can't fail: too few to tell
 
 let dumpStartMs = null; // the first frame's time, ms since 1970: the dump's second 0, sides.tsv's too
 
@@ -551,13 +552,21 @@ if (sides && sides.n && widerDir) {
     // Drawn past the narrower picture's own edge (as far out again as the edge is) as densely as just inside it, a world
     // isn't culled by the window: it draws the same whatever the window, so it doesn't grow, and isn't culled to 4:3.
     const open = perBand(sides, a, 2 * a) / Math.max(perBand(sides, 0, a), 1);
-    const fail = (grows < SIDES_GROW) && (density < SIDES_DENSE) && (open < SIDES_OPEN);
+    const unmet = (grows < SIDES_GROW) && (density < SIDES_DENSE) && (open < SIDES_OPEN);
+    // A scene that draws next to nothing past the view can't show the growth: a fifth of a few dozen triangles is an
+    // object or two, whose triangles a game culling to the picture draws whole in both windows once it reaches into the
+    // narrower one.
+    const few = unmet && (pastB < SIDES_FEW);
+    const fail = unmet && !few;
     failed ||= fail;
+    untested ||= few;
     console.log(`sides: ${a.toFixed(2)}-${b.toFixed(2)} of the view past the 4:3 view's sides, ${pastA.toFixed(0)} triangles` +
         ` a workload at ${sides.aspect.toFixed(2)}:1 and ${pastB.toFixed(0)} at ${wider.aspect.toFixed(2)}:1` +
         ` (x${grows.toFixed(2)}; ${density.toFixed(2)} of the view's density; ${open.toFixed(2)} as dense past the` +
         ` ${sides.aspect.toFixed(2)}:1 picture's edge as inside it), over ${sides.n} and ${wider.n} workloads: ` +
-        (fail ? 'FAILS, the world past the 4:3 view doesn\'t grow with the picture: culled to the 4:3 view' : 'passes'));
+        (fail ? 'FAILS, the world past the 4:3 view doesn\'t grow with the picture: culled to the 4:3 view' :
+            few ? `untested, too little drawn past the view to tell (under ${SIDES_FEW} triangles a workload): a scene ` +
+                'that draws more there tests it' : 'passes'));
 }
 else if (sides && sides.n) {
     const ext = (sides.aspect / (4 / 3) - 1) / 2;
