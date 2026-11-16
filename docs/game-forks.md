@@ -578,8 +578,12 @@ recomps), far from the commits `patches/` is made on. Its `tools/build_web.sh` a
 project, but for the files both change on the same lines (`web/patches/files.txt`, whose header says what each merge
 kept), whose web change is its `web/patches/<project>.patch`, merged by hand, with what N64Recomp-browser has changed
 in them since merged in by `apply.cmake --since`; CI's `wwf-patches` job runs its `tools/build_web.sh --patches` on
-each PR and compiles the merged files. The game is recompiled with N64Recomp-browser's N64Recomp at the commit its
-BUILDING.md names, then put through the recomp's post-regen pipeline (`fix_stumps.py`, `fix_switches.py`,
+each PR and compiles the merged files. It merges jessetbh's main up to v0.3.2 (rt64 70537f3, N64ModernRuntime
+287c07a, RecompFrontend 7eb8a70), its version string left at upstream's. A merge that moves the `wcw` submodules
+merges again by hand only the hunks of `files.txt`'s files the move touches: in `rt64_gbi.cpp` the port's lookup of a
+ucode by its name reads the data segment's instances, so it sees the web's `moreDataSegments` too. A move of the
+runtime's N64Recomp doesn't reach the page, and recompui's one-definition check doesn't run when cross-compiling.
+The game is recompiled with N64Recomp-browser's N64Recomp at the commit its BUILDING.md names, then put through the recomp's post-regen pipeline (`fix_stumps.py`, `fix_switches.py`,
 `fix_backbranches.py`, `readd_hand_edits.py`), again only when the ROM, its configs or the recompiler changed. Left
 out of the page: its bundled mods (a page has no live recompiler), the CRT filter, ray tracing and HDR,
 RetroAchievements, and the launcher's Mods and Exit, which the game builds itself (`src/main/main.cpp`). The rest is
