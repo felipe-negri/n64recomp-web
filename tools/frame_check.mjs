@@ -23,7 +23,9 @@
 //   a cut, a wipe, something appearing for good don't. A presented frame equal to the one before (a repeat) is left
 //   out. It fails where such frames are more than 1 in 100, or come 3 or more within a second: a one-frame flash a
 //   game draws is rare and alone, and a pairing fault shows in every frame drawn between the game's for as long as
-//   the scene lasts.
+//   the scene lasts. Only frames presented between the game's own (Framerate Display, on a display faster than the
+//   game) are paired, so a dump without one (Framerate Original, a 60 Hz display under a game of 60) leaves pairing
+//   untested and exits 2, whatever else passes.
 // - Culled at the 4:3 view's sides, from two dumps of the same plan: one at 16:9 and one --wider at 32:9. A game
 //   that culls its world to the picture draws more of it past the 4:3 view's sides as the picture widens; one that
 //   culls to its 4:3 view draws the same whatever the window, so the strip only the wider picture shows holds what
@@ -34,7 +36,9 @@
 //   dump's own strip against the view tells nothing: Mario Golf's flyover, culled or not, draws a fraction past the
 //   edges of what it draws inside, the course being long and narrow.
 //
-// It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments.
+// It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
+// the pairing. frames.bin is read a frame at a time, three kept: a dump at a 240 Hz display's rate is about 160 MB a
+// second.
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -72,8 +76,9 @@ const SIDES_DENSE = 0.5; // ... unless the strip is this dense against the view:
 
 let dumpStartMs = null; // the first frame's time, ms since 1970: the dump's second 0, sides.tsv's too
 
-// The frames, one at a time as they are read, each { t (s since the first), n (its place in the dump), presentId, index,
-// count, dropped, w, h, rgb }: a dump of a minute or more is gigabytes, past what one read of a file can take.
+// The frames between --from and --to, one at a time, each { t (s since the first), n (its place in the dump),
+// presentId, index, count, dropped, w, h, rgb }. frames.bin is read a frame at a time, never whole: a dump at a 240 Hz
+// display's rate is about 160 MB a second, Node reads no file over 2 GiB at once, and the check keeps three frames.
 function* readFrames() {
     const file = path.join(dir, 'frames.bin');
     if (!fs.existsSync(file)) {
@@ -82,8 +87,7 @@ function* readFrames() {
     const fd = fs.openSync(file, 'r');
     const size = fs.fstatSync(fd).size;
     const head = Buffer.alloc(HEADER);
-    let n = 0;
-    for (let o = 0; o + HEADER <= size;) {
+    for (let o = 0, n = 0; o + HEADER <= size; n++) {
         fs.readSync(fd, head, 0, HEADER, o);
         if (head.readUInt32LE(0) !== MAGIC) {
             console.error(`frames.bin: no frame header at byte ${o}`);
@@ -100,14 +104,13 @@ function* readFrames() {
         if (t > to) {
             break;
         }
-        const f = {
-            n: n++, t, index: head.readUInt32LE(12), count: head.readUInt32LE(16), dropped: head.readUInt32LE(20),
-            presentId: Number(head.readBigUInt64LE(24)), w, h, rgb: null,
-        };
         if (t >= from) {
-            f.rgb = Buffer.alloc(bytes);
-            fs.readSync(fd, f.rgb, 0, bytes, o + HEADER);
-            yield f;
+            const rgb = Buffer.allocUnsafe(bytes);
+            fs.readSync(fd, rgb, 0, bytes, o + HEADER);
+            yield {
+                n, t, index: head.readUInt32LE(12), count: head.readUInt32LE(16), dropped: head.readUInt32LE(20),
+                presentId: Number(head.readBigUInt64LE(24)), w, h, rgb,
+            };
         }
         o += HEADER + bytes;
     }
@@ -411,49 +414,15 @@ let failed = false;
 if (saveDir) {
     fs.mkdirSync(saveDir, { recursive: true });
 }
-// The frames in runs of one size (a resized window, a screen the game draws at another size starts a run), each matched
-// within its own run, repeats left out, each against the kept frames either side of it as they are read: the last three
-// kept are all that is held.
+// Each frame matched against the kept frames either side of it as the frames are read, in runs of one size (a resized
+// window, a screen the game draws at another size starts a run), repeats left out.
 const flagged = [];
-const sizes = [];
+let checked = 0, repeats = 0, dropped = 0, presented = 0, between = 0, first = null, last = null, run = null;
+let untested = false;
+const sizes = new Set();
 const betweenFlagged = [];
 let betweenChecked = 0;
 const debugFile = process.env.FRAME_CHECK_DEBUG || null;
-let presented = 0, first = null, last = null, repeats = 0, dropped = 0, checked = 0;
-let run = null;
-for (const f of readFrames()) {
-    presented++;
-    first ??= f;
-    last = f;
-    dropped += f.dropped;
-    if (!run || (run.w !== f.w) || (run.h !== f.h)) {
-        const gw = Math.floor(W / B) * B, gh = Math.floor(W * f.h / f.w / B) * B;
-        run = { w: f.w, h: f.h, gw, gh, kept: [], game: null, between: [] };
-        if (!sizes.includes(`${f.w}x${f.h}`)) {
-            sizes.push(`${f.w}x${f.h}`);
-        }
-    }
-    const g = grey(f, run.gw, run.gh);
-    const entry = { f, g, q: quarter(g, run.gw, run.gh) };
-    checkPresent(entry, run);
-    const kept = run.kept;
-    if (kept.length && meanDiff(g, kept[kept.length - 1].g) < 0.05) {
-        repeats++;
-        continue;
-    }
-    if (!saveDir) {
-        f.rgb = null;
-    }
-    kept.push(entry);
-    if (kept.length > 3) {
-        kept.shift();
-    }
-    if (kept.length === 3) {
-        checked++;
-        checkMiddle(kept, run);
-    }
-}
-
 // The frames RT64 draws between two of the game's own (a present's frames before its last, which is the game's), each
 // against those two. Gathered until the present's own frame comes, and checked only where the dump has the present
 // whole and the game's frame before it.
@@ -532,10 +501,11 @@ function checkBetween(a, c, b, { gw, gh }) {
     }
 }
 
-// The middle of three kept frames, against the frames either side of it.
-function checkMiddle([a, c, b], { gw, gh }) {
+function checkMiddle({ gw, gh, kept }) {
     const qw = gw >> 2, qh = gh >> 2;
     const bw = gw / B | 0, bh = gh / B | 0;
+    const [a, c, b] = kept;
+    checked++;
     const ea = explain(c.g, a.g, gw, gh, placesOf(c.q, a.q, qw, qh, bw, bh));
     const eb = explain(c.g, b.g, gw, gh, placesOf(c.q, b.q, qw, qh, bw, bh));
     // Where the neighbours match each other: a's blocks against b.
@@ -561,13 +531,36 @@ function checkMiddle([a, c, b], { gw, gh }) {
         }
     }
     if (bad.length >= MIN_BLOCKS) {
-        flagged.push({ c, bad, bw, bh });
+        flagged.push({ c: { f: { ...c.f, rgb: null } }, bad, bw, bh });
         if (saveDir) {
             saveTriplet(`unlike-${String(c.f.n).padStart(5, '0')}.png`, [a.f, c.f, b.f], bad, gw);
         }
     }
 }
-
+for (const f of readFrames()) {
+    presented++;
+    first ??= f;
+    last = f;
+    dropped += f.dropped;
+    between += (f.index > 0) ? 1 : 0;
+    sizes.add(`${f.w}x${f.h}`);
+    if (!run || (run.w !== f.w) || (run.h !== f.h)) {
+        run = { w: f.w, h: f.h, gw: Math.floor(W / B) * B, gh: Math.floor(W * f.h / f.w / B) * B, kept: [], game: null,
+            between: [] };
+    }
+    const g = grey(f, run.gw, run.gh);
+    const entry = { f, g, q: quarter(g, run.gw, run.gh) };
+    checkPresent(entry, run);
+    if (run.kept.length && (meanDiff(g, run.kept[run.kept.length - 1].g) < 0.05)) {
+        repeats++;
+        continue;
+    }
+    run.kept.push(entry);
+    if (run.kept.length === 3) {
+        checkMiddle(run);
+        run.kept.shift();
+    }
+}
 if (presented >= 3) {
     // 3 or more flagged frames within a second, anywhere.
     let burst = 0;
@@ -580,8 +573,13 @@ if (presented >= 3) {
     checked = Math.max(checked, 1);
     const fail = (flagged.length * 100 > checked) || (burst >= 3);
     failed ||= fail;
-    console.log(`frames: ${presented} presented over ${(last.t - first.t).toFixed(1)} s` +
-        ` (${repeats} repeats, ${dropped} dropped by the dump), ${sizes.join(', ')}`);
+    console.log(`frames: ${presented} presented over ${(last.t - first.t).toFixed(1)} s, ${between} of them between the` +
+        ` game's own (${repeats} repeats, ${dropped} dropped by the dump), ${[...sizes].join(', ')}`);
+    if (!between) {
+        untested = true;
+        console.log('frames: none presented between the game\'s own, so nothing tests how they are paired: dump at' +
+            ' Framerate Display on a display faster than the game');
+    }
     console.log(`unlike both neighbours: ${flagged.length} of ${checked} frames, at most ${burst} within a second: ` +
         (fail ? 'FAILS' : 'passes'));
     if (!quiet) {
@@ -684,4 +682,4 @@ else if (sides && sides.n) {
 else {
     console.log('sides: no workload drew 200 triangles between those seconds');
 }
-process.exit(failed ? 1 : 0);
+process.exit(failed ? 1 : (untested ? 2 : 0));
