@@ -1181,4 +1181,7 @@ rt64 49684c3           A desktop build's device lost within 60 s of replacing a 
                        be set up, ends the game with a message box saying why and what may help, not a loop of new
                        devices behind a frozen picture (Rush 2049 on a GPU that hung). The web is unchanged;
                        plume-web 395aeb2
+plume e653ee2          D3D12: ae6b16e's allocator release in ~D3D12Device(), before release(): Pokemon Snap's own plume
+                       releases its pipeline library at the top of release(), and didn't apply over ae6b16e's there
+rt64 ba8d2cc           plume-web e653ee2
 ```
