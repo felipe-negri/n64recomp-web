@@ -1,4 +1,4 @@
-plume: https://github.com/n64hub/plume-web 395aeb252bab26dfb38f57a968c2e5cc390e4413
+plume: https://github.com/n64hub/plume-web e653ee297669c90b8ab946bc95ce0b848dc5dae2
 on upstream d890ac899e505fb30040e037a4037cdeca68f033 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -924,7 +924,7 @@ index 0000000..b4650c5
 +    return 0;
 +}
 diff --git a/plume_d3d12.cpp b/plume_d3d12.cpp
-index 2cdcf18..788f6fe 100644
+index 2cdcf18..4589c09 100644
 --- a/plume_d3d12.cpp
 +++ b/plume_d3d12.cpp
 @@ -768,11 +768,23 @@ namespace plume {
@@ -1392,7 +1392,7 @@ index 2cdcf18..788f6fe 100644
          if (FAILED(res)) {
              fprintf(stderr, "GetTimestampFrequency failed with error code 0x%lX. Timestamps will be inaccurate.\n", res);
          }
-@@ -3888,6 +4038,8 @@ namespace plume {
+@@ -3888,8 +4038,21 @@ namespace plume {
      D3D12Device::~D3D12Device() {
          viewHeapAllocator.reset();
          samplerHeapAllocator.reset();
@@ -1400,8 +1400,21 @@ index 2cdcf18..788f6fe 100644
 +        depthTargetHeapAllocator.reset();
          rtDummyGlobalPipelineLayout.reset();
          rtDummyLocalPipelineLayout.reset();
++        // The allocator holds references to the device and the adapter: kept, it kept the device alive past its end, and
++        // D3D12CreateDevice gives back an adapter's device while anything holds it, so a device removed by a TDR came
++        // back removed to the replacement asked of the adapter, which was passed over (a Windows player's Rush 2049 fell
++        // back to Vulkan after each one). Its pool goes first, as D3D12MA asks. It is made after release()'s only other
++        // call, so it goes here, clear of the lines Pokemon Snap's own plume adds to release().
++        customUploadPool.reset();
++        if (allocator != nullptr) {
++            allocator->Release();
++            allocator = nullptr;
++        }
++
          release();
-@@ -3985,8 +4137,8 @@ namespace plume {
+     }
+ 
+@@ -3985,8 +4148,8 @@ namespace plume {
              geometryDesc.Triangles.VertexFormat = toDXGI(mesh.vertexFormat);
              geometryDesc.Triangles.IndexCount = mesh.indexCount;
              geometryDesc.Triangles.VertexCount = mesh.vertexCount;
@@ -1412,7 +1425,7 @@ index 2cdcf18..788f6fe 100644
              geometryDesc.Triangles.VertexBuffer.StrideInBytes = mesh.vertexStride;
          }
  
-@@ -4025,7 +4177,7 @@ namespace plume {
+@@ -4025,7 +4188,7 @@ namespace plume {
              instanceDesc.InstanceMask = instance.instanceMask;
              instanceDesc.InstanceContributionToHitGroupIndex = instance.instanceContributionToHitGroupIndex;
              instanceDesc.Flags = instance.cullDisable ? D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE : D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
@@ -1421,20 +1434,9 @@ index 2cdcf18..788f6fe 100644
              memcpy(instanceDesc.Transform, instance.transform.m, sizeof(instanceDesc.Transform));
          }
  
-@@ -4149,8 +4301,22 @@ namespace plume {
-     }
+@@ -4150,7 +4313,11 @@ namespace plume {
  
      void D3D12Device::release() {
-+        // The allocator holds references to the device and the adapter: kept, it kept the device alive past its end, and
-+        // D3D12CreateDevice gives back an adapter's device while anything holds it, so a device removed by a TDR came
-+        // back removed to the replacement asked of the adapter, which was passed over (a Windows player's Rush 2049 fell
-+        // back to Vulkan after each one). Its pool goes first, as D3D12MA asks.
-+        customUploadPool.reset();
-+        if (allocator != nullptr) {
-+            allocator->Release();
-+            allocator = nullptr;
-+        }
-+
          if (d3d != nullptr) {
 -            d3d->Release();
 +            const ULONG referencesLeft = d3d->Release();
@@ -1445,7 +1447,7 @@ index 2cdcf18..788f6fe 100644
              d3d = nullptr;
          }
  
-@@ -4164,6 +4330,41 @@ namespace plume {
+@@ -4164,6 +4331,41 @@ namespace plume {
          return d3d != nullptr;
      }
  
