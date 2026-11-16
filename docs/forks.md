@@ -8,14 +8,15 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Twenty-two options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Twenty-three options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_FREE_DISCARDED_TARGETS` (rt64 51c3fdd), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
 `RT64_PARTIAL_SCREEN_PAIRS` (rt64 89abe33), `RT64_STRETCH_SCREEN_COVERS` (rt64 4550e10), `RT64_KEEP_THIN_RECTS` (rt64
 04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7, c0d27e5),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
-eda3964, 8314128, which it turns on too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
+eda3964, 8314128, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, which it turns on too),
+`ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
 `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
@@ -1119,4 +1120,9 @@ rt64 99876c6           with Emscripten, a tile larger than the framebuffer block
 rt64 e102359           with Emscripten, a load asks no sync from a framebuffer no pair of the list has drawn (its
                        maxHeight 0): the overlap test took its empty range as reaching a load that begins below it, as
                        Mario Tennis' palette loads do 15-30 times a list in its heaviest scenes
+rt64 566092b           RT64_INTERPOLATE_RECT_SCROLLS: a texrect pairs with the frame before's that drew the same rect,
+                       scale and tiles with the same TMEM hashes, and a texture that only scrolled inside it, by under
+                       a quarter of what it spans, slides there in the frames between, as a 3D draw's scroll does:
+                       Mario Golf turns the far hills behind its courses, texrect strips, by their texcoords, and they
+                       stepped a game frame at a time against the interpolated trees
 ```
