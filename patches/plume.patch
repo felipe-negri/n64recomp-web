@@ -1,4 +1,4 @@
-plume: https://github.com/n64hub/plume-web b7285f9aa40358f1f070f51d057521f3817028c9
+plume: https://github.com/n64hub/plume-web f75d1506db3dac65010121fc5875f51cc052e219
 on upstream d890ac899e505fb30040e037a4037cdeca68f033 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -3480,7 +3480,7 @@ index 9dcfedf..b352bb6 100644
          uint64_t maxTextureSize = 0;
  
 diff --git a/plume_vulkan.cpp b/plume_vulkan.cpp
-index f1dd503..f625327 100644
+index f1dd503..e1c81e8 100644
 --- a/plume_vulkan.cpp
 +++ b/plume_vulkan.cpp
 @@ -902,6 +902,10 @@ namespace plume {
@@ -3595,12 +3595,13 @@ index f1dd503..f625327 100644
      }
  
      void VulkanCommandList::copyBufferRegion(RenderBufferReference dstBuffer, RenderBufferReference srcBuffer, uint64_t size) {
-@@ -3229,6 +3254,28 @@ namespace plume {
-             imageCopy.imageExtent.depth = srcLocation.placedFootprint.depth;
-             vkCmdCopyBufferToImage(vk, srcBuffer->vk, dstTexture->vk, toImageLayout(dstTexture->textureLayout), 1, &imageCopy);
-         }
-+        else if ((dstLocation.type == RenderTextureCopyType::PLACED_FOOTPRINT) && (srcLocation.type == RenderTextureCopyType::SUBRESOURCE)) {
-+            // A texture read back into a buffer, as D3D12's CopyTextureRegion does it.
+@@ -3208,6 +3233,31 @@ namespace plume {
+         const VulkanTexture *srcTexture = static_cast<const VulkanTexture *>(srcLocation.texture);
+         const VulkanBuffer *dstBuffer = static_cast<const VulkanBuffer *>(dstLocation.buffer);
+         const VulkanBuffer *srcBuffer = static_cast<const VulkanBuffer *>(srcLocation.buffer);
++        if ((dstLocation.type == RenderTextureCopyType::PLACED_FOOTPRINT) && (srcLocation.type == RenderTextureCopyType::SUBRESOURCE)) {
++            // A texture read back into a buffer, as D3D12's CopyTextureRegion does it. First and on its own, so a port
++            // whose own plume has this branch further down keeps its lines as they are.
 +            assert(srcTexture != nullptr);
 +            assert(dstBuffer != nullptr);
 +
@@ -3620,11 +3621,13 @@ index f1dd503..f625327 100644
 +            imageCopy.imageExtent.height = dstLocation.placedFootprint.height;
 +            imageCopy.imageExtent.depth = dstLocation.placedFootprint.depth;
 +            vkCmdCopyImageToBuffer(vk, srcTexture->vk, toImageLayout(srcTexture->textureLayout), dstBuffer->vk, 1, &imageCopy);
++            return;
 +        }
-         else {
-             VkImageCopy imageCopy = {};
-             imageCopy.srcSubresource.aspectMask = toAspectFlags(srcTexture->desc.format, srcTexture->desc.flags);
-@@ -3625,6 +3672,8 @@ namespace plume {
++
+         if ((dstLocation.type == RenderTextureCopyType::SUBRESOURCE) && (srcLocation.type == RenderTextureCopyType::PLACED_FOOTPRINT)) {
+             assert(dstTexture != nullptr);
+             assert(srcBuffer != nullptr);
+@@ -3625,6 +3675,8 @@ namespace plume {
              res = vkQueueSubmit(queue->vk, 1, &submitInfo, submitFence);
          }
  
@@ -3633,7 +3636,7 @@ index f1dd503..f625327 100644
          if (res != VK_SUCCESS) {
              fprintf(stderr, "vkQueueSubmit failed with error code 0x%X.\n", res);
              return;
-@@ -3636,6 +3685,7 @@ namespace plume {
+@@ -3636,6 +3688,7 @@ namespace plume {
  
          VulkanCommandFence *interfaceFence = static_cast<VulkanCommandFence *>(fence);
          VkResult res = vkWaitForFences(device->vk, 1, &interfaceFence->vk, VK_TRUE, UINT64_MAX);
@@ -3641,7 +3644,7 @@ index f1dd503..f625327 100644
          if (res != VK_SUCCESS) {
              fprintf(stderr, "vkWaitForFences failed with error code 0x%X.\n", res);
              return;
-@@ -4126,7 +4176,11 @@ namespace plume {
+@@ -4126,7 +4179,11 @@ namespace plume {
          capabilities.sampleLocations = (sampleLocationProperties.sampleLocationSampleCounts != 0);
          capabilities.resolveRegion = true;
          capabilities.resolveModes = false;
@@ -3654,7 +3657,7 @@ index f1dd503..f625327 100644
          capabilities.scalarBlockLayout = scalarBlockLayoutSupported;
          capabilities.bufferDeviceAddress = bufferDeviceAddressSupported;
          capabilities.samplerMirrorClampToEdge = supportedOptionalExtensions.find(VK_KHR_SAMPLER_MIRROR_CLAMP_TO_EDGE_EXTENSION_NAME) != supportedOptionalExtensions.end();
-@@ -4447,6 +4501,23 @@ namespace plume {
+@@ -4447,6 +4504,23 @@ namespace plume {
          return vk != nullptr;
      }
  
