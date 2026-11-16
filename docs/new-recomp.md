@@ -108,7 +108,9 @@ Tournament round draw on its desktop build at 16:9, 21:9 and 4:3, so it passes 2
 a frame with the course torn into loose polygons in 3 of 10 before v0.212.0, where rt64 0372264 pairs a vertex in
 RT64's automatic interpolation only with its own last place, and none of 3 on it; its HUD sits at the wide picture's
 sides and corners on its desktop build at 16:9 and 21:9 and on its page, with the swing meter and the pause menu in
-the middle and nothing culled at 21:9's sides, so it passes 1 (its HUD's scissors stay inside the 3D's border, which
+the middle, and since mario-golf-recomp #18 the course's ground is culled at the wide picture's width rather than the
+4:3 frame's (before, a flyover and Training's hole select showed water past straight-cut ground at 16:9's and 21:9's
+sides, its trees left standing on the water: its patches/cull.c), so it passes 1 (its HUD's scissors stay inside the 3D's border, which
 RT64 widens with the picture: past it the HUD's slide-in left marks never cleared, its src/game/hud.cpp); four pads
 play four golfers, each from the pad that picked it and buzzed on its turn (3, W7), and two pads of one model pulled
 out and plugged in again at the tee get their ports back and rumble once the game has found their Rumble Paks, a few
