@@ -23,7 +23,9 @@
 //   a cut, a wipe, something appearing for good don't. A presented frame equal to the one before (a repeat) is left
 //   out. It fails where such frames are more than 1 in 100, or come 3 or more within a second: a one-frame flash a
 //   game draws is rare and alone, and a pairing fault shows in every frame drawn between the game's for as long as
-//   the scene lasts.
+//   the scene lasts. Only frames presented between the game's own (Framerate Display, on a display faster than the
+//   game) are paired, so a dump without one (Framerate Original, a 60 Hz display under a game of 60) leaves pairing
+//   untested and exits 2, whatever else passes.
 // - Culled at the 4:3 view's sides, from two dumps of the same plan: one at 16:9 and one --wider at 32:9. A game
 //   that culls its world to the picture draws more of it past the 4:3 view's sides as the picture widens; one that
 //   culls to its 4:3 view draws the same whatever the window, so the strip only the wider picture shows holds what
@@ -34,7 +36,9 @@
 //   dump's own strip against the view tells nothing: Mario Golf's flyover, culled or not, draws a fraction past the
 //   edges of what it draws inside, the course being long and narrow.
 //
-// It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments.
+// It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
+// the pairing. frames.bin is read a frame at a time, three kept: a dump at a 240 Hz display's rate is about 160 MB a
+// second.
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -350,7 +354,8 @@ if (saveDir) {
 // Each frame matched against the kept frames either side of it as the frames are read, in runs of one size (a resized
 // window, a screen the game draws at another size starts a run), repeats left out.
 const flagged = [];
-let checked = 0, repeats = 0, dropped = 0, presented = 0, first = null, last = null, run = null;
+let checked = 0, repeats = 0, dropped = 0, presented = 0, between = 0, first = null, last = null, run = null;
+let untested = false;
 const sizes = new Set();
 function checkMiddle({ gw, gh, kept }) {
     const qw = gw >> 2, qh = gh >> 2;
@@ -390,6 +395,7 @@ for (const f of readFrames()) {
     first ??= f;
     last = f;
     dropped += f.dropped;
+    between += (f.index > 0) ? 1 : 0;
     sizes.add(`${f.w}x${f.h}`);
     if (!run || (run.w !== f.w) || (run.h !== f.h)) {
         run = { w: f.w, h: f.h, gw: Math.floor(W / B) * B, gh: Math.floor(W * f.h / f.w / B) * B, kept: [] };
@@ -417,8 +423,13 @@ if (presented >= 3) {
     checked = Math.max(checked, 1);
     const fail = (flagged.length * 100 > checked) || (burst >= 3);
     failed ||= fail;
-    console.log(`frames: ${presented} presented over ${(last.t - first.t).toFixed(1)} s` +
-        ` (${repeats} repeats, ${dropped} dropped by the dump), ${[...sizes].join(', ')}`);
+    console.log(`frames: ${presented} presented over ${(last.t - first.t).toFixed(1)} s, ${between} of them between the` +
+        ` game's own (${repeats} repeats, ${dropped} dropped by the dump), ${[...sizes].join(', ')}`);
+    if (!between) {
+        untested = true;
+        console.log('frames: none presented between the game\'s own, so nothing tests how they are paired: dump at' +
+            ' Framerate Display on a display faster than the game');
+    }
     console.log(`unlike both neighbours: ${flagged.length} of ${checked} frames, at most ${burst} within a second: ` +
         (fail ? 'FAILS' : 'passes'));
     if (!quiet) {
@@ -521,4 +532,4 @@ else if (sides && sides.n) {
 else {
     console.log('sides: no workload drew 200 triangles between those seconds');
 }
-process.exit(failed ? 1 : 0);
+process.exit(failed ? 1 : (untested ? 2 : 0));
