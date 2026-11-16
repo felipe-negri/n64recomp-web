@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web e81b6e47f52977b3470d53b88e0d2bcad100d350
+rt64: https://github.com/n64hub/rt64-web 1682468772776f64e38ad0a406ebbfed6492f234
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -8506,7 +8506,7 @@ index 0000000..9984c41
 +}
 +#endif
 diff --git a/src/render/rt64_projection_processor.cpp b/src/render/rt64_projection_processor.cpp
-index e842dcc..b719d0b 100644
+index e842dcc..ca0caf4 100644
 --- a/src/render/rt64_projection_processor.cpp
 +++ b/src/render/rt64_projection_processor.cpp
 @@ -8,6 +8,22 @@
@@ -8551,24 +8551,7 @@ index e842dcc..b719d0b 100644
                  if (interpolateProjection) {
                      projMatrix = lerpMatrix(adjustedPrevProj, curProjTransform, p.curFrameWeight);
                      prevProjTransform = lerpMatrix(adjustedPrevProj, curProjTransform, p.prevFrameWeight);
-@@ -144,11 +172,79 @@ namespace RT64 {
- 
-             interop::float4x4 &prevViewProjTransform = drawData.prevViewProjTransforms[proj.transformsIndex];
-             prevViewProjTransform = hlslpp::mul(prevViewTransform, prevProjTransform);
-+#       if RT64_EXPAND_SCREEN_VERTICES
-+            if (expandRatioScales.size() <= sceneProj.workloadIndex) {
-+                expandRatioScales.resize(sceneProj.workloadIndex + 1);
-+            }
-+
-+            std::vector<float> &ratioScales = expandRatioScales[sceneProj.workloadIndex];
-+            if (ratioScales.size() <= proj.transformsIndex) {
-+                ratioScales.resize(proj.transformsIndex + 1, 1.0f);
-+            }
-+
-+            ratioScales[proj.transformsIndex] = projRatioScale;
-+#       endif
-         }
-     }
+@@ -149,6 +177,83 @@ namespace RT64 {
  
      void ProjectionProcessor::upload(const ProcessParams &p) {
          uploads.clear();
@@ -8579,16 +8562,24 @@ index e842dcc..b719d0b 100644
 +        // lands (Mario Golf's pin flagstick) stood away from what the projection placed (the hole) and from the 2D the
 +        // game put at the same spot (the pin's marker). Each written x is scaled toward its viewport's centre by its
 +        // vertex's projection's scale, as its projected vertices are, and the scaled copy is uploaded over what the
-+        // workload uploaded only where one was scaled. What process() noted is then forgotten, for the next frame.
-+        expandModifyPosUints.resize(expandRatioScales.size());
++        // workload uploaded only where one was scaled.
++        //
++        // The scale is read from the projection process() made, not noted as it was made, since games' own changes to
++        // RT64 rewrite those lines: process() scales only the projection's x column, and interpolates it whole between
++        // two frames' projections, which a zoom changes in x and y alike, so the length of its x column over its y
++        // column's is the game's times the scale (their first three rows, which a view the game folds into its
++        // projection only turns).
 +        for (uint32_t w : p.curFrame->workloads) {
-+            if (w >= expandRatioScales.size()) {
++            Workload &workload = p.workloadQueue->workloads[w];
++            const DrawData &drawData = workload.drawData;
++            if (drawData.modifyPosUints.empty()) {
 +                continue;
 +            }
 +
-+            Workload &workload = p.workloadQueue->workloads[w];
-+            const DrawData &drawData = workload.drawData;
-+            std::vector<float> &ratioScales = expandRatioScales[w];
++            if (expandModifyPosUints.size() <= w) {
++                expandModifyPosUints.resize(w + 1);
++            }
++
 +            std::vector<uint32_t> &modifyPosUints = expandModifyPosUints[w];
 +            modifyPosUints = drawData.modifyPosUints;
 +            bool scaledAny = false;
@@ -8604,16 +8595,31 @@ index e842dcc..b719d0b 100644
 +                    continue;
 +                }
 +
-+                const uint32_t transformsIndex = drawData.viewProjIndices[vertexIndex];
-+                if ((transformsIndex >= ratioScales.size()) || (transformsIndex >= drawData.rspViewports.size()) || (ratioScales[transformsIndex] == 1.0f)) {
++                const uint32_t t = drawData.viewProjIndices[vertexIndex];
++                if ((t >= drawData.projTransforms.size()) || (t >= drawData.modProjTransforms.size()) || (t >= drawData.rspViewports.size())) {
++                    continue;
++                }
++
++                const interop::float4x4 &gameProj = drawData.projTransforms[t];
++                const interop::float4x4 &madeProj = drawData.modProjTransforms[t];
++                const float gameX = float(hlslpp::length(hlslpp::float3(gameProj[0][0], gameProj[1][0], gameProj[2][0])));
++                const float gameY = float(hlslpp::length(hlslpp::float3(gameProj[0][1], gameProj[1][1], gameProj[2][1])));
++                const float madeX = float(hlslpp::length(hlslpp::float3(madeProj[0][0], madeProj[1][0], madeProj[2][0])));
++                const float madeY = float(hlslpp::length(hlslpp::float3(madeProj[0][1], madeProj[1][1], madeProj[2][1])));
++                if ((gameX <= 0.0f) || (gameY <= 0.0f) || (madeY <= 0.0f)) {
++                    continue;
++                }
++
++                const float ratioScale = (madeX / madeY) / (gameX / gameY);
++                if (!(ratioScale > 0.0f) || ((ratioScale > 0.9999f) && (ratioScale < 1.0001f))) {
 +                    continue;
 +                }
 +
 +                // Quarter pixels, as the RSP takes them, x in the high half.
 +                const uint32_t value = modifyPosUints[m + 1];
-+                const float centerX = float(drawData.rspViewports[transformsIndex].translate.x) * 4.0f;
++                const float centerX = float(drawData.rspViewports[t].translate.x) * 4.0f;
 +                const float screenX = float(int16_t((value >> 16) & 0xFFFF));
-+                const float scaledX = centerX + (screenX - centerX) * ratioScales[transformsIndex];
++                const float scaledX = centerX + (screenX - centerX) * ratioScale;
 +                int32_t roundedX = int32_t(scaledX + ((scaledX >= 0.0f) ? 0.5f : -0.5f));
 +                roundedX = (roundedX < -32768) ? -32768 : ((roundedX > 32767) ? 32767 : roundedX);
 +                modifyPosUints[m + 1] = (uint32_t(uint16_t(int16_t(roundedX))) << 16) | (value & 0xFFFF);
@@ -8624,26 +8630,22 @@ index e842dcc..b719d0b 100644
 +                std::pair<size_t, size_t> modifyRange = { 0, modifyPosUints.size() };
 +                uploads.emplace_back(BufferUploader::Upload{ modifyPosUints.data(), modifyRange, sizeof(uint32_t), RenderBufferFlag::FORMATTED, { RenderFormat::R32_UINT }, &workload.drawBuffers.modifyPosUintsBuffer });
 +            }
-+
-+            ratioScales.clear();
 +        }
 +#   endif
  
          for (uint32_t w : p.curFrame->workloads) {
              Workload &workload = p.workloadQueue->workloads[w];
 diff --git a/src/render/rt64_projection_processor.h b/src/render/rt64_projection_processor.h
-index 5bc3a2a..5ee3b9a 100644
+index 5bc3a2a..9d2ba78 100644
 --- a/src/render/rt64_projection_processor.h
 +++ b/src/render/rt64_projection_processor.h
-@@ -29,5 +29,11 @@ namespace RT64 {
+@@ -29,5 +29,9 @@ namespace RT64 {
          void process(const ProcessParams &p);
          void processScene(const ProcessParams &p, const GameScene &scene, size_t sceneIndex);
          void upload(const ProcessParams &p);
 +
-+        // RT64_EXPAND_SCREEN_VERTICES: by workload index, the x scale processScene() gave each of its projections for a
-+        // picture wider than 4:3 (1 where it gave none), and the workload's modifyPosUints with each screen x a game
-+        // wrote (G_MODIFYVTX's XYSCREEN) scaled by its vertex's.
-+        std::vector<std::vector<float>> expandRatioScales;
++        // RT64_EXPAND_SCREEN_VERTICES: by workload index, its modifyPosUints with each screen x a game wrote (G_MODIFYVTX's
++        // XYSCREEN) scaled as its vertex's projection was for a picture wider than 4:3.
 +        std::vector<std::vector<uint32_t>> expandModifyPosUints;
      };
  };
