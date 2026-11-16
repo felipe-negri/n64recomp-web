@@ -23,7 +23,10 @@
 //   a cut, a wipe, something appearing for good don't. A presented frame equal to the one before (a repeat) is left
 //   out. It fails where such frames are more than 1 in 100, or come 3 or more within a second: a one-frame flash a
 //   game draws is rare and alone, and a pairing fault shows in every frame drawn between the game's for as long as
-//   the scene lasts. Only frames presented between the game's own (Framerate Display, on a display faster than the
+//   the scene lasts. A frame drawn between the game's own with fewer blocks than that counts where 3 others drawn
+//   between, within a second either side, have theirs within 4 blocks of its: one small thing paired wrongly, again
+//   and again in one place (Mario Party 3's opening before its models were tagged, a head drawn on the next
+//   character for a frame, one block each time), where the odd small block of a clean game lands anywhere. Only frames presented between the game's own (Framerate Display, on a display faster than the
 //   game) are paired, so a dump without one (Framerate Original, a 60 Hz display under a game of 60) leaves pairing
 //   untested and exits 2, whatever else passes.
 // - Culled at the 4:3 view's sides, from two dumps of the same plan: one at 16:9 and one --wider at 32:9. A game
@@ -68,6 +71,9 @@ const G = 8; // the picture's shift searched, in quarter-size pixels (32 grey pi
 const BAD = 14; // a block's mean difference to its best match that counts as unmatched, of 255
 const RATIO = 3; // ... and how much worse than the neighbours match each other there
 const MIN_BLOCKS = 4; // blocks a flagged frame has
+const NEAR_BLOCKS = 4; // ... or, drawn between the game's own, fewer within this many blocks of where
+const NEAR_FRAMES = 3; // ... this many other frames drawn between had theirs
+const NEAR_SECONDS = 1; // ... within this many seconds either side
 const P = 2; // a pixel's search about its block's best place, in grey pixels (eitherDiff())
 const M = 2; // the quarter pixels around a block that its own shift is found over (placesOf())
 const SIDES_GROW = 1.2; // how many times the triangles past the 4:3 view a wider picture has, at the least
@@ -354,6 +360,7 @@ if (saveDir) {
 // Each frame matched against the kept frames either side of it as the frames are read, in runs of one size (a resized
 // window, a screen the game draws at another size starts a run), repeats left out.
 const flagged = [];
+const small = []; // frames drawn between with fewer than MIN_BLOCKS flagged, for NEAR_BLOCKS
 let checked = 0, repeats = 0, dropped = 0, presented = 0, between = 0, first = null, last = null, run = null;
 let untested = false;
 const sizes = new Set();
@@ -383,10 +390,11 @@ function checkMiddle({ gw, gh, kept }) {
             }
         }
     }
-    if (bad.length >= MIN_BLOCKS) {
-        flagged.push({ c: { f: { ...c.f, rgb: null } }, bad, bw, bh });
+    const big = bad.length >= MIN_BLOCKS;
+    if (big || (bad.length && (c.f.index + 1 < c.f.count))) {
+        (big ? flagged : small).push({ c: { f: { ...c.f, rgb: null } }, bad, bw, bh });
         if (saveDir) {
-            saveTriplet(`unlike-${String(c.f.n).padStart(5, '0')}.png`, [a.f, c.f, b.f], bad, gw);
+            saveTriplet(`${big ? 'unlike' : 'small'}-${String(c.f.n).padStart(5, '0')}.png`, [a.f, c.f, b.f], bad, gw);
         }
     }
 }
@@ -397,8 +405,11 @@ for (const f of readFrames()) {
     dropped += f.dropped;
     between += (f.index > 0) ? 1 : 0;
     sizes.add(`${f.w}x${f.h}`);
-    if (!run || (run.w !== f.w) || (run.h !== f.h)) {
-        run = { w: f.w, h: f.h, gw: Math.floor(W / B) * B, gh: Math.floor(W * f.h / f.w / B) * B, kept: [] };
+    // A run is of one grey size, not one frame size: Mario Party 3's boot logos alternate 640x360 and 640x361
+    // frames, which as runs of their own left 2 of 1090 frames matched.
+    const gw = Math.floor(W / B) * B, gh = Math.floor(W * f.h / f.w / B) * B;
+    if (!run || (run.gw !== gw) || (run.gh !== gh)) {
+        run = { gw, gh, kept: [] };
     }
     const g = grey(f, run.gw, run.gh);
     if (run.kept.length && (meanDiff(g, run.kept[run.kept.length - 1].g) < 0.05)) {
@@ -412,6 +423,23 @@ for (const f of readFrames()) {
     }
 }
 if (presented >= 3) {
+    // Small ones drawn between that recur in one place.
+    const near = (u, v) => u.bad.some((i) => v.bad.some((k) => (u.bw === v.bw) &&
+        (Math.abs(i % u.bw - k % v.bw) <= NEAR_BLOCKS) && (Math.abs(Math.floor(i / u.bw) - Math.floor(k / v.bw)) <= NEAR_BLOCKS)));
+    for (const u of small) {
+        const recur = small.filter((v) => (v !== u) && (Math.abs(v.c.f.t - u.c.f.t) <= NEAR_SECONDS) && near(u, v)).length;
+        const name = `-${String(u.c.f.n).padStart(5, '0')}.png`;
+        if (recur >= NEAR_FRAMES) {
+            flagged.push(u);
+            if (saveDir) {
+                fs.renameSync(path.join(saveDir, 'small' + name), path.join(saveDir, 'unlike' + name));
+            }
+        }
+        else if (saveDir) {
+            fs.rmSync(path.join(saveDir, 'small' + name));
+        }
+    }
+    flagged.sort((u, v) => u.c.f.t - v.c.f.t);
     // 3 or more flagged frames within a second, anywhere.
     let burst = 0;
     for (let i = 0, j = 0; i < flagged.length; i++) {
