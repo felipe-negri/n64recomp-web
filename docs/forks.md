@@ -8,9 +8,9 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Twenty-four options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Twenty-three options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
-bce5e11), `RT64_FREE_DISCARDED_TARGETS` (rt64 51c3fdd), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
+bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
 `RT64_PARTIAL_SCREEN_PAIRS` (rt64 89abe33), `RT64_STRETCH_SCREEN_COVERS` (rt64 4550e10), `RT64_KEEP_THIN_RECTS` (rt64
 04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7, c0d27e5),
@@ -1184,4 +1184,8 @@ rt64 49684c3           A desktop build's device lost within 60 s of replacing a 
 plume e653ee2          D3D12: ae6b16e's allocator release in ~D3D12Device(), before release(): Pokemon Snap's own plume
                        releases its pipeline library at the top of release(), and didn't apply over ae6b16e's there
 rt64 ba8d2cc           plume-web e653ee2
+rt64 54e7fe3, 408b560  RT64_FREE_DISCARDED_TARGETS (rt64 51c3fdd) on by default on the desktop too, still settable:
+                       a desktop build kept a target for every framebuffer address its game drew to, Perfect Dark's
+                       about 65-120 MB of memory and as much video memory a mission, never given back. 54e7fe3 also
+                       changed 308 files' line endings, which 408b560 puts back byte for byte
 ```
