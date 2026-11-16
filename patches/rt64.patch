@@ -1,11 +1,11 @@
-rt64: https://github.com/n64hub/rt64-web 54e47fb9a601636d1c2e647fc33dfdbfaf395e51
+rt64: https://github.com/n64hub/rt64-web 1682468772776f64e38ad0a406ebbfed6492f234
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 79dfc38..a4612ac 100644
+index 79dfc38..3003e21 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -11,7 +11,25 @@ endif()
+@@ -11,7 +11,26 @@ endif()
  option(RT64_STATIC "Build RT64 as a static library" OFF)
  
  
@@ -28,10 +28,11 @@ index 79dfc38..a4612ac 100644
 +option(RT64_SKIP_CAMERA_CUTS "Pair nothing across a camera the game gives no matrix group of its own that cut to another shot between two game frames (it turned more than 45 degrees, or its eye jumped more than 8 near plane distances and 4 times its last step), nor anything its scene draws, so the frames between draw the new shot as it is, not the world halfway between two places (always on with Emscripten)" OFF)
 +option(RT64_SKIP_PLACE_SWAPS "Never pair a transform with one of the game frame before at another place when both frames drew something at both places, so that a model the game draws at many places, in another order or with another call each frame, is not interpolated from one of its places to another (always on with Emscripten)" OFF)
 +option(RT64_INTERPOLATE_RECT_SCROLLS "Pair a texrect with one of the game frame before that drew the same place with the same textures, and when its texture only scrolled inside it, by less than a quarter of what it spans, slide the texture there in the frames between, as a scroll on a 3D draw is, so that a background the game draws as 2D strips and scrolls as the camera turns (a horizon panorama) moves on every frame with the world in front of it, not a step a game frame (always on with Emscripten)" OFF)
++option(RT64_EXPAND_SCREEN_VERTICES "Scale the screen x a game writes into a vertex itself (G_MODIFYVTX's XYSCREEN) toward its viewport's centre as its projection's x is scaled for a picture RT64 draws wider than 4:3 (Aspect Ratio Expand), so that a game that projects its own geometry draws it where its projected models and its 2D are, not stretched across the picture (always on with Emscripten)" OFF)
  
  if (NOT ${RT64_STATIC})
      set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-@@ -65,13 +83,37 @@ else()
+@@ -65,13 +84,37 @@ else()
      endif()
  endif()
  
@@ -70,7 +71,7 @@ index 79dfc38..a4612ac 100644
  add_subdirectory(src/contrib/zstd/build/cmake)
  
  if (CMAKE_SYSTEM_NAME MATCHES "Linux" AND RT64_SDL_WINDOW_VULKAN)
-@@ -104,6 +146,21 @@ set(ANDROID_ABI arm64-v8a)
+@@ -104,6 +147,21 @@ set(ANDROID_ABI arm64-v8a)
  
  # For DXC
  set (DXC_COMMON_OPTS "-I${PROJECT_SOURCE_DIR}/src")
@@ -92,7 +93,7 @@ index 79dfc38..a4612ac 100644
  set (DXC_DXIL_OPTS "-Wno-ignored-attributes")
  set (DXC_SPV_OPTS "-spirv" "-fspv-target-env=vulkan1.0" "-fvk-use-dx-layout")
  set (DXC_LB_OPTS "${DXC_COMMON_OPTS}" "-D" "LIBRARY" "-T" "lib_6_3")
-@@ -113,10 +170,25 @@ set (DXC_CS_OPTS "${DXC_COMMON_OPTS}" "-E" "CSMain" "-T cs_6_3")
+@@ -113,10 +171,25 @@ set (DXC_CS_OPTS "${DXC_COMMON_OPTS}" "-E" "CSMain" "-T cs_6_3")
  set (DXC_GS_OPTS "${DXC_COMMON_OPTS}" "-E" "GSMain" "-T gs_6_3")
  set (DXC_RT_OPTS "${DXC_COMMON_OPTS}" "-D" "RT_SHADER" "-T" "lib_6_3" "-fspv-target-env=vulkan1.1spirv1.4" "-fspv-extension=SPV_KHR_ray_tracing" "-fspv-extension=SPV_EXT_descriptor_indexing")
  
@@ -121,7 +122,7 @@ index 79dfc38..a4612ac 100644
      add_custom_command(OUTPUT ${OUTNAME}.spirv.c
          COMMAND file_to_c ${OUTNAME}.spv ${TARGET_NAME}BlobSPIRV ${OUTNAME}.spirv.c ${OUTNAME}.spirv.h
          DEPENDS ${OUTNAME}.spv file_to_c
-@@ -124,10 +196,20 @@ function(build_shader_spirv_impl TARGETOBJ FILENAME TARGET_NAME OUTNAME)
+@@ -124,10 +197,20 @@ function(build_shader_spirv_impl TARGETOBJ FILENAME TARGET_NAME OUTNAME)
      target_sources(${TARGETOBJ} PRIVATE ${OUTNAME}.spirv.c)
  endfunction()
  
@@ -145,7 +146,7 @@ index 79dfc38..a4612ac 100644
      add_custom_command(OUTPUT ${OUTNAME}.dxil.c
          COMMAND file_to_c ${OUTNAME}.dxil ${TARGET_NAME}BlobDXIL ${OUTNAME}.dxil.c ${OUTNAME}.dxil.h
          DEPENDS ${OUTNAME}.dxil file_to_c
-@@ -136,9 +218,7 @@ function(build_shader_dxil_impl TARGETOBJ FILENAME TARGET_NAME OUTNAME)
+@@ -136,9 +219,7 @@ function(build_shader_dxil_impl TARGETOBJ FILENAME TARGET_NAME OUTNAME)
  endfunction()
  
  function(build_shader_msl_impl TARGETOBJ FILENAME TARGET_NAME OUTNAME)
@@ -156,7 +157,7 @@ index 79dfc38..a4612ac 100644
      add_custom_command(OUTPUT ${OUTNAME}.metal
              COMMAND spirv_cross_msl ${OUTNAME}.spv ${OUTNAME}.metal
              DEPENDS ${OUTNAME}.spv spirv_cross_msl)
-@@ -170,6 +250,10 @@ function(build_shader TARGETOBJ SHADERNAME OPTIONS)
+@@ -170,6 +251,10 @@ function(build_shader TARGETOBJ SHADERNAME OPTIONS)
      cmake_path(GET OUTNAME STEM TARGET_NAME)
      cmake_path(GET OUTNAME PARENT_PATH OUTPUT_DIR)
      file(MAKE_DIRECTORY ${OUTPUT_DIR})
@@ -167,7 +168,7 @@ index 79dfc38..a4612ac 100644
      # Compile DXIL shader binaries if building on Windows
      if (WIN32)
          build_shader_dxil_impl(${TARGETOBJ} ${FILENAME} ${TARGET_NAME} ${OUTNAME} ${OPTIONS} ${EXTRA_ARGS})
-@@ -215,6 +299,10 @@ function(build_shader_spirv TARGETOBJ SHADERNAME OPTIONS)
+@@ -215,6 +300,10 @@ function(build_shader_spirv TARGETOBJ SHADERNAME OPTIONS)
      cmake_path(GET OUTNAME STEM TARGET_NAME)
      cmake_path(GET OUTNAME PARENT_PATH OUTPUT_DIR)
      file(MAKE_DIRECTORY ${OUTPUT_DIR})
@@ -178,7 +179,7 @@ index 79dfc38..a4612ac 100644
      build_shader_spirv_impl(${TARGETOBJ} ${FILENAME} ${TARGET_NAME} ${OUTNAME} ${OPTIONS} ${EXTRA_ARGS})
  endfunction()
  
-@@ -289,6 +377,11 @@ if (WIN32)
+@@ -289,6 +378,11 @@ if (WIN32)
      set(SDL2_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/src/contrib/mupen64plus-win32-deps/SDL2-2.26.3/include")
      set(SDL2_LIBRARIES "SDL2" "SDL2main")
      link_directories("${PROJECT_SOURCE_DIR}/src/contrib/mupen64plus-win32-deps/SDL2-2.26.3/lib/x64")
@@ -190,7 +191,7 @@ index 79dfc38..a4612ac 100644
  else()
      find_package(SDL2 REQUIRED)
  endif()
-@@ -439,9 +532,64 @@ endif()
+@@ -439,9 +533,67 @@ endif()
  set_target_properties(rt64 PROPERTIES OUTPUT_NAME "rt64")
  set_target_properties(rt64 PROPERTIES PREFIX "")
  
@@ -246,6 +247,9 @@ index 79dfc38..a4612ac 100644
 +if (RT64_INTERPOLATE_RECT_SCROLLS OR RT64_WGSL)
 +    target_compile_definitions(rt64 PRIVATE RT64_INTERPOLATE_RECT_SCROLLS=1)
 +endif()
++if (RT64_EXPAND_SCREEN_VERTICES OR RT64_WGSL)
++    target_compile_definitions(rt64 PRIVATE RT64_EXPAND_SCREEN_VERTICES=1)
++endif()
 +
  # Add common libraries.
  target_link_libraries(rt64 re-spirv)
@@ -256,7 +260,7 @@ index 79dfc38..a4612ac 100644
  target_link_libraries(rt64 libzstd_static)
  target_link_libraries(rt64 plume)
  
-@@ -504,9 +652,141 @@ build_pixel_shader_spec_constants(rt64 "src/shaders/RasterPS.hlsl" "src/shaders/
+@@ -504,9 +656,141 @@ build_pixel_shader_spec_constants(rt64 "src/shaders/RasterPS.hlsl" "src/shaders/
  build_pixel_shader_spec_constants(rt64 "src/shaders/RasterPS.hlsl" "src/shaders/RasterPSSpecConstantMS.hlsl" "-D SPEC_CONSTANT_RENDER_PARAMS" "-D MULTISAMPLING")
  build_pixel_shader_spec_constants(rt64 "src/shaders/RasterPS.hlsl" "src/shaders/RasterPSSpecConstantFlat.hlsl" "-D SPEC_CONSTANT_RENDER_PARAMS" "-D VERTEX_FLAT_COLOR")
  build_pixel_shader_spec_constants(rt64 "src/shaders/RasterPS.hlsl" "src/shaders/RasterPSSpecConstantFlatMS.hlsl" "-D SPEC_CONSTANT_RENDER_PARAMS" "-D VERTEX_FLAT_COLOR" "-D MULTISAMPLING")
@@ -8502,7 +8506,7 @@ index 0000000..9984c41
 +}
 +#endif
 diff --git a/src/render/rt64_projection_processor.cpp b/src/render/rt64_projection_processor.cpp
-index e842dcc..0b25d40 100644
+index e842dcc..ca0caf4 100644
 --- a/src/render/rt64_projection_processor.cpp
 +++ b/src/render/rt64_projection_processor.cpp
 @@ -8,6 +8,22 @@
@@ -8547,6 +8551,105 @@ index e842dcc..0b25d40 100644
                  if (interpolateProjection) {
                      projMatrix = lerpMatrix(adjustedPrevProj, curProjTransform, p.curFrameWeight);
                      prevProjTransform = lerpMatrix(adjustedPrevProj, curProjTransform, p.prevFrameWeight);
+@@ -149,6 +177,83 @@ namespace RT64 {
+ 
+     void ProjectionProcessor::upload(const ProcessParams &p) {
+         uploads.clear();
++#   if RT64_EXPAND_SCREEN_VERTICES
++        // A screen position a game writes into a vertex itself (G_MODIFYVTX's XYSCREEN) never passes through the
++        // projection, so the x scale process() gave the projections for a picture wider than 4:3 missed it, and the wide
++        // viewport then stretched it away from the picture's middle: what a game projects itself and writes where it
++        // lands (Mario Golf's pin flagstick) stood away from what the projection placed (the hole) and from the 2D the
++        // game put at the same spot (the pin's marker). Each written x is scaled toward its viewport's centre by its
++        // vertex's projection's scale, as its projected vertices are, and the scaled copy is uploaded over what the
++        // workload uploaded only where one was scaled.
++        //
++        // The scale is read from the projection process() made, not noted as it was made, since games' own changes to
++        // RT64 rewrite those lines: process() scales only the projection's x column, and interpolates it whole between
++        // two frames' projections, which a zoom changes in x and y alike, so the length of its x column over its y
++        // column's is the game's times the scale (their first three rows, which a view the game folds into its
++        // projection only turns).
++        for (uint32_t w : p.curFrame->workloads) {
++            Workload &workload = p.workloadQueue->workloads[w];
++            const DrawData &drawData = workload.drawData;
++            if (drawData.modifyPosUints.empty()) {
++                continue;
++            }
++
++            if (expandModifyPosUints.size() <= w) {
++                expandModifyPosUints.resize(w + 1);
++            }
++
++            std::vector<uint32_t> &modifyPosUints = expandModifyPosUints[w];
++            modifyPosUints = drawData.modifyPosUints;
++            bool scaledAny = false;
++            for (size_t m = 0; (m + 1) < modifyPosUints.size(); m += 2) {
++                const uint32_t target = modifyPosUints[m];
++                if ((target & 0x1) != 0) {
++                    // A ZSCREEN write.
++                    continue;
++                }
++
++                const uint32_t vertexIndex = target >> 1;
++                if (vertexIndex >= drawData.viewProjIndices.size()) {
++                    continue;
++                }
++
++                const uint32_t t = drawData.viewProjIndices[vertexIndex];
++                if ((t >= drawData.projTransforms.size()) || (t >= drawData.modProjTransforms.size()) || (t >= drawData.rspViewports.size())) {
++                    continue;
++                }
++
++                const interop::float4x4 &gameProj = drawData.projTransforms[t];
++                const interop::float4x4 &madeProj = drawData.modProjTransforms[t];
++                const float gameX = float(hlslpp::length(hlslpp::float3(gameProj[0][0], gameProj[1][0], gameProj[2][0])));
++                const float gameY = float(hlslpp::length(hlslpp::float3(gameProj[0][1], gameProj[1][1], gameProj[2][1])));
++                const float madeX = float(hlslpp::length(hlslpp::float3(madeProj[0][0], madeProj[1][0], madeProj[2][0])));
++                const float madeY = float(hlslpp::length(hlslpp::float3(madeProj[0][1], madeProj[1][1], madeProj[2][1])));
++                if ((gameX <= 0.0f) || (gameY <= 0.0f) || (madeY <= 0.0f)) {
++                    continue;
++                }
++
++                const float ratioScale = (madeX / madeY) / (gameX / gameY);
++                if (!(ratioScale > 0.0f) || ((ratioScale > 0.9999f) && (ratioScale < 1.0001f))) {
++                    continue;
++                }
++
++                // Quarter pixels, as the RSP takes them, x in the high half.
++                const uint32_t value = modifyPosUints[m + 1];
++                const float centerX = float(drawData.rspViewports[t].translate.x) * 4.0f;
++                const float screenX = float(int16_t((value >> 16) & 0xFFFF));
++                const float scaledX = centerX + (screenX - centerX) * ratioScale;
++                int32_t roundedX = int32_t(scaledX + ((scaledX >= 0.0f) ? 0.5f : -0.5f));
++                roundedX = (roundedX < -32768) ? -32768 : ((roundedX > 32767) ? 32767 : roundedX);
++                modifyPosUints[m + 1] = (uint32_t(uint16_t(int16_t(roundedX))) << 16) | (value & 0xFFFF);
++                scaledAny = true;
++            }
++
++            if (scaledAny) {
++                std::pair<size_t, size_t> modifyRange = { 0, modifyPosUints.size() };
++                uploads.emplace_back(BufferUploader::Upload{ modifyPosUints.data(), modifyRange, sizeof(uint32_t), RenderBufferFlag::FORMATTED, { RenderFormat::R32_UINT }, &workload.drawBuffers.modifyPosUintsBuffer });
++            }
++        }
++#   endif
+ 
+         for (uint32_t w : p.curFrame->workloads) {
+             Workload &workload = p.workloadQueue->workloads[w];
+diff --git a/src/render/rt64_projection_processor.h b/src/render/rt64_projection_processor.h
+index 5bc3a2a..9d2ba78 100644
+--- a/src/render/rt64_projection_processor.h
++++ b/src/render/rt64_projection_processor.h
+@@ -29,5 +29,9 @@ namespace RT64 {
+         void process(const ProcessParams &p);
+         void processScene(const ProcessParams &p, const GameScene &scene, size_t sceneIndex);
+         void upload(const ProcessParams &p);
++
++        // RT64_EXPAND_SCREEN_VERTICES: by workload index, its modifyPosUints with each screen x a game wrote (G_MODIFYVTX's
++        // XYSCREEN) scaled as its vertex's projection was for a picture wider than 4:3.
++        std::vector<std::vector<uint32_t>> expandModifyPosUints;
+     };
+ };
+\ No newline at end of file
 diff --git a/src/render/rt64_raster_shader.cpp b/src/render/rt64_raster_shader.cpp
 index 721a01e..e7a0578 100644
 --- a/src/render/rt64_raster_shader.cpp
