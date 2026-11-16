@@ -302,7 +302,7 @@ intro, Tournament's menus, 94) and the first race (7), recorded by `tools/shader
 Training Course, with what plays of its plans missed added. Its BUILDING.md and the headers of `tools/build_web.sh` and
 `src/rt64_shaders.txt` have the rest.
 
-`n64hub/DKR-R-web` is DKR-R (MIT, 1.0.8 and its main to d94b05f), on a runtime and a launcher of its own (ImGui, no
+`n64hub/DKR-R-web` is DKR-R (MIT, 1.0.15 and its main to 49b1cda), on a runtime and a launcher of its own (ImGui, no
 RecompFrontend). `dependencies.lock.json` pins rt64 at Banjo's commit and N64ModernRuntime ae1ffbb. Its checkouts carry
 DKR-R's patches before the web's, so `pins.txt` has no row for it: CI's `dkr-patches` job runs its
 `scripts/build_web.sh --patches` (DKR-R's patches, `apply.cmake` with its skip list, `patches/web/`, and DKR-R's
@@ -326,7 +326,13 @@ runtime's starting 4:3), and a profile the player saves from DKR-R's overlay is 
 (Escape, F1, a controller's Back) through rt64-web's inspector on plume (8b9dce2), without online play, its restart
 and exit, or its CRT filters, which need images the inspector on a page doesn't draw. Modern goes with its
 Match display passed on as RT64's Display, since SDL's Emscripten port reports no refresh rate. DKR-R's updater is left
-out: a page is updated by its site. `record_shaders.mjs --from` goes on with a recording of its list stopped partway.
+out: a page is updated by its site, and so are its Mod Library and Mod Store, which need the network. With no display
+settings saved, the page draws at the canvas's shape and height. It builds the inputs DKR-R prepares from its recompiled
+code (`scripts/prepare_payloads.py`: the save layout, the in-world portraits, the Camera++ kernel) for US v1.0 alone,
+so without the local model detail, which DKR-R builds only with both revisions, or the owned rollback engine. DKR-R's
+generators take N64Recomp's `recomp.h` by the hash of DKR-R's own, so the build keeps that aside before the web's
+patch to it. Where a configure-time stage of DKR-R's meets the web's lines (its texture capture over the web's TMEM
+upload), `patches/web/stage/` has it written on top of them. `record_shaders.mjs --from` goes on with a recording of its list stopped partway.
 The list was recorded in Accurate; in Modern, recorded with `?record-shaders` over the title, the menus, Timber's
 Island and Dino Domain, the game asked for 119 descriptions, all in it but one, which differs from one in it only by
 the culling bit. Its docs/WEB.md and the headers of `scripts/build_web.sh`, `web/shader_survey.js` and
