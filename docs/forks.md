@@ -16,7 +16,7 @@ bce5e11), `RT64_FREE_DISCARDED_TARGETS` (rt64 51c3fdd), `RT64_INTERPOLATE_CAMERA
 04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7, c0d27e5),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4,
-54e47fb, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, which it turns on too),
+54e47fb, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, which it turns on too),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
@@ -1135,4 +1135,8 @@ rt64 91a3cca           RT64_EXPAND_SCREEN_VERTICES: a screen x a game writes int
                        scaled toward its viewport's centre as its projection's x is for Aspect Ratio Expand: Mario
                        Golf writes its pin's flagstick this way, which stood away from the hole and its marker in a
                        picture wider than 4:3
+rt64 e81b6e4           RT64_EXPAND_SCREEN_VERTICES keeps its scales and scaled copy in the projection processor, recorded
+                       after a projection's view-projection and used at the start of upload(): beside the transforms and
+                       projRatioScale, Rush 2049's, Jet Force Gemini's, Conker's, Pokemon Snap's and WWF No Mercy's own
+                       RT64 changes didn't apply over 91a3cca
 ```

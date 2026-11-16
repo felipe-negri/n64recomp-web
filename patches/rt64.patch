@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 91a3ccabf1d11bbd1fd8c36a0d6fce723fc86de1
+rt64: https://github.com/n64hub/rt64-web e81b6e47f52977b3470d53b88e0d2bcad100d350
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -6053,7 +6053,7 @@ index 5b70e01..9497cae 100644
          VIHistory();
          void pushVI(const VI &vi, uint32_t fbWidth);
 diff --git a/src/hle/rt64_workload.cpp b/src/hle/rt64_workload.cpp
-index b4c85f5..7f55deb 100644
+index b4c85f5..949b2b4 100644
 --- a/src/hle/rt64_workload.cpp
 +++ b/src/hle/rt64_workload.cpp
 @@ -13,7 +13,45 @@ namespace RT64 {
@@ -6110,32 +6110,11 @@ index b4c85f5..7f55deb 100644
  
          commandWarnings.clear();
          spriteCommands.clear();
-@@ -80,6 +119,8 @@ namespace RT64 {
-         drawData.modViewTransforms.clear();
-         drawData.modProjTransforms.clear();
-         drawData.modViewProjTransforms.clear();
-+        drawData.projRatioScales.clear();
-+        drawData.modModifyPosUints.clear();
-         drawData.prevViewTransforms.clear();
-         drawData.prevProjTransforms.clear();
-         drawData.prevViewProjTransforms.clear();
 diff --git a/src/hle/rt64_workload.h b/src/hle/rt64_workload.h
-index 8ea27d5..bc3c9ce 100644
+index 8ea27d5..6eabaa0 100644
 --- a/src/hle/rt64_workload.h
 +++ b/src/hle/rt64_workload.h
-@@ -48,6 +48,11 @@ namespace RT64 {
-         std::vector<interop::float4x4> modViewTransforms;
-         std::vector<interop::float4x4> modProjTransforms;
-         std::vector<interop::float4x4> modViewProjTransforms;
-+
-+        // RT64_EXPAND_SCREEN_VERTICES: the scale each projection's x was given for the aspect ratio (1 where it was given
-+        // none), and modifyPosUints with each screen x a game wrote (G_MODIFYVTX's XYSCREEN) scaled by its vertex's.
-+        std::vector<float> projRatioScales;
-+        std::vector<uint32_t> modModifyPosUints;
-         std::vector<interop::float4x4> prevViewTransforms;
-         std::vector<interop::float4x4> prevProjTransforms;
-         std::vector<interop::float4x4> prevViewProjTransforms;
-@@ -226,6 +231,12 @@ namespace RT64 {
+@@ -226,6 +226,12 @@ namespace RT64 {
          FramebufferStorage fbStorage;
          uint32_t viOriginalRate;
          hlslpp::uint2 viFbSize = {};
@@ -6148,7 +6127,7 @@ index 8ea27d5..bc3c9ce 100644
          DebuggerRenderer debuggerRenderer;
          DebuggerCamera debuggerCamera;
          std::multimap<uint32_t, uint32_t> transformIdMap;
-@@ -239,9 +250,13 @@ namespace RT64 {
+@@ -239,9 +245,13 @@ namespace RT64 {
              uint32_t testZIndexCount = 0;
              float ditherNoiseStrength = 1.0f;
              hlslpp::float2 texcoordWrapPoint = {};
@@ -8527,17 +8506,10 @@ index 0000000..9984c41
 +}
 +#endif
 diff --git a/src/render/rt64_projection_processor.cpp b/src/render/rt64_projection_processor.cpp
-index e842dcc..a3fbbcb 100644
+index e842dcc..b719d0b 100644
 --- a/src/render/rt64_projection_processor.cpp
 +++ b/src/render/rt64_projection_processor.cpp
-@@ -4,10 +4,29 @@
- 
- #include "rt64_projection_processor.h"
- 
-+#include <algorithm>
-+#include <cmath>
-+
- #include "common/rt64_math.h"
+@@ -8,6 +8,22 @@
  #include "hle/rt64_workload_queue.h"
  
  namespace RT64 {
@@ -8560,83 +8532,7 @@ index e842dcc..a3fbbcb 100644
      inline void adjustProjectionMatrix(interop::float4x4 &matrix, const float aspectRatioScale) {
          matrix[0][0] *= aspectRatioScale;
          matrix[1][0] *= aspectRatioScale;
-@@ -39,6 +58,9 @@ namespace RT64 {
-             drawData.prevViewTransforms = drawData.viewTransforms;
-             drawData.prevProjTransforms = drawData.projTransforms;
-             drawData.prevViewProjTransforms = drawData.viewProjTransforms;
-+#       if RT64_EXPAND_SCREEN_VERTICES
-+            drawData.projRatioScales.assign(drawData.viewProjTransforms.size(), 1.0f);
-+#       endif
-         }
- 
-         for (size_t s = 0; s < p.curFrame->perspectiveScenes.size(); s++) {
-@@ -48,6 +70,55 @@ namespace RT64 {
-         for (size_t s = 0; s < p.curFrame->orthographicScenes.size(); s++) {
-             processScene(p, p.curFrame->orthographicScenes[s], s);
-         }
-+
-+#   if RT64_EXPAND_SCREEN_VERTICES
-+        // A screen position a game writes into a vertex itself (G_MODIFYVTX's XYSCREEN) never passes through the
-+        // projection, so the scale its x was given above for a picture wider than 4:3 missed it, and the wide viewport
-+        // then stretched it across the picture: what a game projects itself and writes where it lands (Mario Golf's
-+        // pin flagstick) stood away from what the projection placed (the hole) and from the 2D the game put at the same
-+        // spot (the pin's marker), further out the further it was from the picture's middle. Each written x is scaled
-+        // toward its viewport's centre by its vertex's projection's scale, as its projected vertices are, and the
-+        // scaled copy replaces what the workload uploaded only where one was scaled.
-+        for (uint32_t w : p.curFrame->workloads) {
-+            DrawData &drawData = p.workloadQueue->workloads[w].drawData;
-+            drawData.modModifyPosUints = drawData.modifyPosUints;
-+            bool scaledAny = false;
-+            for (size_t m = 0; (m + 1) < drawData.modModifyPosUints.size(); m += 2) {
-+                const uint32_t target = drawData.modModifyPosUints[m];
-+                if ((target & 0x1) != 0) {
-+                    // A ZSCREEN write.
-+                    continue;
-+                }
-+
-+                const uint32_t vertexIndex = target >> 1;
-+                if (vertexIndex >= drawData.viewProjIndices.size()) {
-+                    continue;
-+                }
-+
-+                const uint32_t transformsIndex = drawData.viewProjIndices[vertexIndex];
-+                if ((transformsIndex >= drawData.projRatioScales.size()) || (transformsIndex >= drawData.rspViewports.size())) {
-+                    continue;
-+                }
-+
-+                const float ratioScale = drawData.projRatioScales[transformsIndex];
-+                if (ratioScale == 1.0f) {
-+                    continue;
-+                }
-+
-+                // Quarter pixels, as the RSP takes them.
-+                const uint32_t value = drawData.modModifyPosUints[m + 1];
-+                const float centerX = float(drawData.rspViewports[transformsIndex].translate.x) * 4.0f;
-+                const float screenX = float(int16_t((value >> 16) & 0xFFFF));
-+                const float scaledX = std::clamp(std::round(centerX + (screenX - centerX) * ratioScale), -32768.0f, 32767.0f);
-+                drawData.modModifyPosUints[m + 1] = (uint32_t(uint16_t(int16_t(scaledX))) << 16) | (value & 0xFFFF);
-+                scaledAny = true;
-+            }
-+
-+            if (!scaledAny) {
-+                drawData.modModifyPosUints.clear();
-+            }
-+        }
-+#   endif
-     }
- 
-     void ProjectionProcessor::processScene(const ProcessParams &p, const GameScene &scene, size_t sceneIndex) {
-@@ -99,6 +170,9 @@ namespace RT64 {
-             }
-  
-             float projRatioScale = adjustAspectRatio ? (1.0f / p.aspectRatioScale) : 1.0f;
-+#       if RT64_EXPAND_SCREEN_VERTICES
-+            drawData.projRatioScales[proj.transformsIndex] = projRatioScale;
-+#       endif
-             interop::float4x4 &viewMatrix = drawData.modViewTransforms[proj.transformsIndex];
-             interop::float4x4 &projMatrix = drawData.modProjTransforms[proj.transformsIndex];
-             interop::float4x4 &viewProjMatrix = drawData.modViewProjTransforms[proj.transformsIndex];
-@@ -126,6 +200,18 @@ namespace RT64 {
+@@ -126,6 +142,18 @@ namespace RT64 {
  
                  // We only interpolate the projection if the view matrix has been interpolated.
                  const bool interpolateProjection = rigidBody->lerpTranslation || rigidBody->lerpRotation;
@@ -8655,19 +8551,103 @@ index e842dcc..a3fbbcb 100644
                  if (interpolateProjection) {
                      projMatrix = lerpMatrix(adjustedPrevProj, curProjTransform, p.curFrameWeight);
                      prevProjTransform = lerpMatrix(adjustedPrevProj, curProjTransform, p.prevFrameWeight);
-@@ -156,6 +242,12 @@ namespace RT64 {
-             DrawBuffers &drawBuffers = workload.drawBuffers;
-             std::pair<size_t, size_t> uploadRange = { 0, drawData.viewProjTransforms.size() };
-             uploads.emplace_back(BufferUploader::Upload{ drawData.modViewProjTransforms.data(), uploadRange, sizeof(interop::float4x4), RenderBufferFlag::STORAGE, { }, &drawBuffers.viewProjTransformsBuffer });
+@@ -144,11 +172,79 @@ namespace RT64 {
+ 
+             interop::float4x4 &prevViewProjTransform = drawData.prevViewProjTransforms[proj.transformsIndex];
+             prevViewProjTransform = hlslpp::mul(prevViewTransform, prevProjTransform);
 +#       if RT64_EXPAND_SCREEN_VERTICES
-+            if (!drawData.modModifyPosUints.empty()) {
-+                std::pair<size_t, size_t> modifyRange = { 0, drawData.modModifyPosUints.size() };
-+                uploads.emplace_back(BufferUploader::Upload{ drawData.modModifyPosUints.data(), modifyRange, sizeof(uint32_t), RenderBufferFlag::FORMATTED, { RenderFormat::R32_UINT }, &drawBuffers.modifyPosUintsBuffer });
++            if (expandRatioScales.size() <= sceneProj.workloadIndex) {
++                expandRatioScales.resize(sceneProj.workloadIndex + 1);
 +            }
++
++            std::vector<float> &ratioScales = expandRatioScales[sceneProj.workloadIndex];
++            if (ratioScales.size() <= proj.transformsIndex) {
++                ratioScales.resize(proj.transformsIndex + 1, 1.0f);
++            }
++
++            ratioScales[proj.transformsIndex] = projRatioScale;
 +#       endif
          }
+     }
  
-         bufferUploader->submit(p.worker, uploads);
+     void ProjectionProcessor::upload(const ProcessParams &p) {
+         uploads.clear();
++#   if RT64_EXPAND_SCREEN_VERTICES
++        // A screen position a game writes into a vertex itself (G_MODIFYVTX's XYSCREEN) never passes through the
++        // projection, so the x scale process() gave the projections for a picture wider than 4:3 missed it, and the wide
++        // viewport then stretched it away from the picture's middle: what a game projects itself and writes where it
++        // lands (Mario Golf's pin flagstick) stood away from what the projection placed (the hole) and from the 2D the
++        // game put at the same spot (the pin's marker). Each written x is scaled toward its viewport's centre by its
++        // vertex's projection's scale, as its projected vertices are, and the scaled copy is uploaded over what the
++        // workload uploaded only where one was scaled. What process() noted is then forgotten, for the next frame.
++        expandModifyPosUints.resize(expandRatioScales.size());
++        for (uint32_t w : p.curFrame->workloads) {
++            if (w >= expandRatioScales.size()) {
++                continue;
++            }
++
++            Workload &workload = p.workloadQueue->workloads[w];
++            const DrawData &drawData = workload.drawData;
++            std::vector<float> &ratioScales = expandRatioScales[w];
++            std::vector<uint32_t> &modifyPosUints = expandModifyPosUints[w];
++            modifyPosUints = drawData.modifyPosUints;
++            bool scaledAny = false;
++            for (size_t m = 0; (m + 1) < modifyPosUints.size(); m += 2) {
++                const uint32_t target = modifyPosUints[m];
++                if ((target & 0x1) != 0) {
++                    // A ZSCREEN write.
++                    continue;
++                }
++
++                const uint32_t vertexIndex = target >> 1;
++                if (vertexIndex >= drawData.viewProjIndices.size()) {
++                    continue;
++                }
++
++                const uint32_t transformsIndex = drawData.viewProjIndices[vertexIndex];
++                if ((transformsIndex >= ratioScales.size()) || (transformsIndex >= drawData.rspViewports.size()) || (ratioScales[transformsIndex] == 1.0f)) {
++                    continue;
++                }
++
++                // Quarter pixels, as the RSP takes them, x in the high half.
++                const uint32_t value = modifyPosUints[m + 1];
++                const float centerX = float(drawData.rspViewports[transformsIndex].translate.x) * 4.0f;
++                const float screenX = float(int16_t((value >> 16) & 0xFFFF));
++                const float scaledX = centerX + (screenX - centerX) * ratioScales[transformsIndex];
++                int32_t roundedX = int32_t(scaledX + ((scaledX >= 0.0f) ? 0.5f : -0.5f));
++                roundedX = (roundedX < -32768) ? -32768 : ((roundedX > 32767) ? 32767 : roundedX);
++                modifyPosUints[m + 1] = (uint32_t(uint16_t(int16_t(roundedX))) << 16) | (value & 0xFFFF);
++                scaledAny = true;
++            }
++
++            if (scaledAny) {
++                std::pair<size_t, size_t> modifyRange = { 0, modifyPosUints.size() };
++                uploads.emplace_back(BufferUploader::Upload{ modifyPosUints.data(), modifyRange, sizeof(uint32_t), RenderBufferFlag::FORMATTED, { RenderFormat::R32_UINT }, &workload.drawBuffers.modifyPosUintsBuffer });
++            }
++
++            ratioScales.clear();
++        }
++#   endif
+ 
+         for (uint32_t w : p.curFrame->workloads) {
+             Workload &workload = p.workloadQueue->workloads[w];
+diff --git a/src/render/rt64_projection_processor.h b/src/render/rt64_projection_processor.h
+index 5bc3a2a..5ee3b9a 100644
+--- a/src/render/rt64_projection_processor.h
++++ b/src/render/rt64_projection_processor.h
+@@ -29,5 +29,11 @@ namespace RT64 {
+         void process(const ProcessParams &p);
+         void processScene(const ProcessParams &p, const GameScene &scene, size_t sceneIndex);
+         void upload(const ProcessParams &p);
++
++        // RT64_EXPAND_SCREEN_VERTICES: by workload index, the x scale processScene() gave each of its projections for a
++        // picture wider than 4:3 (1 where it gave none), and the workload's modifyPosUints with each screen x a game
++        // wrote (G_MODIFYVTX's XYSCREEN) scaled by its vertex's.
++        std::vector<std::vector<float>> expandRatioScales;
++        std::vector<std::vector<uint32_t>> expandModifyPosUints;
+     };
+ };
+\ No newline at end of file
 diff --git a/src/render/rt64_raster_shader.cpp b/src/render/rt64_raster_shader.cpp
 index 721a01e..e7a0578 100644
 --- a/src/render/rt64_raster_shader.cpp
