@@ -1143,4 +1143,11 @@ rt64 1682468           RT64_EXPAND_SCREEN_VERTICES reads each projection's scale
                        DrawData holds, its x column's length over its y column's against the game's, and leaves
                        processScene() as upstream has it: Conker's, Dinosaur Planet's, Banjo-Tooie's and 1080
                        Snowboarding's own RT64 changes didn't apply over e81b6e4
+plume b7285f9          Vulkan: copyTextureRegion() reads a texture back into a buffer's placed footprint
+                       (vkCmdCopyImageToBuffer), as D3D12's does: only the buffer to texture copy was there, and a
+                       texture to buffer copy read a null texture. RT64_FRAME_DUMP reads its frames back so
+rt64 cf8b2e0           RT64_FRAME_DUMP=<dir> (and RT64_FRAME_DUMP_SECONDS=<from>-<to>): every presented frame, read back
+                       from its color target, and each workload's perspective triangles counted by where across the view
+                       they lie, for tools/frame_check.mjs to check flicker, interpolation and culling at the 4:3 sides
+                       by machine. Nothing runs without the variable
 ```
