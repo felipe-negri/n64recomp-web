@@ -1150,4 +1150,11 @@ rt64 cf8b2e0           RT64_FRAME_DUMP=<dir> (and RT64_FRAME_DUMP_SECONDS=<from>
                        from its color target, and each workload's perspective triangles counted by where across the view
                        they lie, for tools/frame_check.mjs to check flicker, interpolation and culling at the 4:3 sides
                        by machine. Nothing runs without the variable
+rt64 95004d7           RT64_FRAME_DUMP's work all in rt64_frame_dump.h, called from one line after the present's render
+                       hook (a frame read back, handed on at the next present) and one in drawIndexedTri() (the
+                       workload it draws into), its header through rt64_present_queue.h: Rush 2049's, Conker's, Diddy
+                       Kong Racing's and Jet Force Gemini's own RT64 changes didn't apply over cf8b2e0
+plume f75d150          Vulkan's texture to buffer copy first in copyTextureRegion(), returning: Pokemon Snap's own plume
+                       has one where b7285f9's was, and didn't apply over it
+rt64 0601ec1           plume-web f75d150
 ```
