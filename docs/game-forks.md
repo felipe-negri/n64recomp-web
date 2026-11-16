@@ -333,7 +333,7 @@ the culling bit. Its docs/WEB.md and the headers of `scripts/build_web.sh`, `web
 `web/rt64_shaders.txt` have the rest: how its patches and the web's are layered, the launcher, sound, input focus,
 render to RAM off, the fixed heap, the shader list and how it is recorded by the game's teleport, the play plan.
 
-`n64hub/Snap64Recomp-web` is Snap64 Recomp (1.1.6), Pokémon Snap (US), on its port's own forks of rt64, plume and
+`n64hub/Snap64Recomp-web` is Snap64 Recomp (1.1.8), Pokémon Snap (US), on its port's own forks of rt64, plume and
 N64ModernRuntime (their `snap64` branches), the one game fork whose rt64 isn't upstream's: ~8,000 lines of the port's
 in RT64 (each object's identity for interpolation, its frame pacing and presentation, Photo Detail's framebuffer
 readback, the Snap Station's overlay, primitive-depth sprites). `apply.cmake` patches them, but for the files where
@@ -386,7 +386,9 @@ texture slots (`sampleTileTextureGrad()`, `loadTileTexture()`), and `RasterPS.hl
 is left out of a page's shaders, since naga takes no sample mask output and the page draws one sample a pixel. Its
 texture cache binds a generated-mipmap texture with no view as the decoder's storage target for the first level, which
 plume 827a073 binds as that level, as D3D12 does (before it every race drew black, 10,208 WebGPU errors in one play).
-It merges upstream's master, up to 31033bb. Upstream's Sky Fog and Fill Scenery Gaps are off as options, but the setup
+It merges upstream's master, up to 8045f20. Upstream's car lights' composite constants end in a `float[2]` of
+padding, which Firefox refuses in a WGSL uniform buffer (an array's stride is 16 bytes there), so the fork's
+`rt64.patch` makes them two floats. Upstream's Sky Fog and Fill Scenery Gaps are off as options, but the setup
 screen's Enhanced preset, a new player's, turns both on: about a tenth more draws in a race, which the page keeps as
 upstream made it, since it still reads several times 60 on the stand-in.
 The page leaves out online play, for
@@ -578,8 +580,12 @@ recomps), far from the commits `patches/` is made on. Its `tools/build_web.sh` a
 project, but for the files both change on the same lines (`web/patches/files.txt`, whose header says what each merge
 kept), whose web change is its `web/patches/<project>.patch`, merged by hand, with what N64Recomp-browser has changed
 in them since merged in by `apply.cmake --since`; CI's `wwf-patches` job runs its `tools/build_web.sh --patches` on
-each PR and compiles the merged files. The game is recompiled with N64Recomp-browser's N64Recomp at the commit its
-BUILDING.md names, then put through the recomp's post-regen pipeline (`fix_stumps.py`, `fix_switches.py`,
+each PR and compiles the merged files. It merges jessetbh's main up to v0.3.2 (rt64 70537f3, N64ModernRuntime
+287c07a, RecompFrontend 7eb8a70), its version string left at upstream's. A merge that moves the `wcw` submodules
+merges again by hand only the hunks of `files.txt`'s files the move touches: in `rt64_gbi.cpp` the port's lookup of a
+ucode by its name reads the data segment's instances, so it sees the web's `moreDataSegments` too. A move of the
+runtime's N64Recomp doesn't reach the page, and recompui's one-definition check doesn't run when cross-compiling.
+The game is recompiled with N64Recomp-browser's N64Recomp at the commit its BUILDING.md names, then put through the recomp's post-regen pipeline (`fix_stumps.py`, `fix_switches.py`,
 `fix_backbranches.py`, `readd_hand_edits.py`), again only when the ROM, its configs or the recompiler changed. Left
 out of the page: its bundled mods (a page has no live recompiler), the CRT filter, ray tracing and HDR,
 RetroAchievements, and the launcher's Mods and Exit, which the game builds itself (`src/main/main.cpp`). The rest is
