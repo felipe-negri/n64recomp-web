@@ -40,14 +40,20 @@
 //   draws there as it does inside, so the check passes where the strip past that edge (out as far again as the edge
 //   lies past the view, 0.17-0.33 of it at 16:9) is 0.65 or more as dense a band as the strip inside the edge: Mario
 //   Golf's hole 1 flyover read 0.28 without its patches/cull.c and 0.59 with it, Rayman 2's Woods of Light 0.25-0.54
-//   without its v0.1.1, Rush 2049's attract race 0.74 and Practice on its first track 0.81. Without --wider it only
-//   counts them. One dump's own strip against the view tells nothing: Mario Golf's flyover, culled or not, draws a
-//   fraction past the edges of what it draws inside, the course being long and narrow. The picture's shape is the
+//   without its v0.1.1, Rush 2049's attract race 0.74 and Practice on its first track 0.81. A scene that draws under
+//   50 triangles a workload in the strip at 32:9 can't fail, and exits 2: the fifth more the check asks for is then an
+//   object or two, and a game culling to the picture draws an object reaching into the narrower one whole, past its
+//   edge too. Rayman 2's Woods of Light opens on a fade-in down a ravine whose walls are a few large triangles, their
+//   middles inside the view: its fixed build reads 22 and 25 there (x1.14) and the build without its v0.1.1 11 and 11,
+//   where its first 8 s in the Fairy Glade read 102 and 117 (passing on 0.74) and 62 and 61 (failing), and Mario
+//   Golf's flyover without its patches/cull.c 197 and 186. Without --wider it only counts them. One dump's own strip
+//   against the view tells nothing: Mario Golf's flyover, culled or not, draws a fraction past the edges of what it
+//   draws inside, the course being long and narrow. The picture's shape is the
 //   size most of a dump's frames between --from and --to have, not its first frame's: a dump that starts before its
 //   plan sizes the window begins at 4:3.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
-// the pairing. frames.bin is read a frame at a time, three kept: a dump at a 240 Hz display's rate is about 160 MB a
+// the pairing or the sides. frames.bin is read a frame at a time, three kept: a dump at a 240 Hz display's rate is about 160 MB a
 // second.
 import fs from 'node:fs';
 import path from 'node:path';
