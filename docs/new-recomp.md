@@ -48,8 +48,8 @@ items by almost no game when the record began.
 | Perfect Dark | 4c, 8a fails | W5 fails, W6's Drive |
 | Super Mario 64 |  | W5 fails, W6's Drive |
 | F-Zero X | | W6's Drive |
-| Mario Party | 4c, 5b, 6a, 6b fails, 8a, 8b, 8c fails | W6's Drive, W8 |
-| Mario Party 2 | 4c, 5b, 6a, 6b fails, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
+| Mario Party | 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
+| Mario Party 2 | 4c, 5b, 6a, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
 | Mario Party 3 | 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Super Smash Bros. | | W6's Drive |
 | Paper Mario | 4a, 4c, 6b | W5 fails, W6's Drive |
@@ -176,8 +176,12 @@ grown to 9-11 GB while hidden by the frames interpolated for presents a hidden p
 longer draws; with the GPU to themselves, from Pages, they came through, but Mario Party 2's 59k short there the
 1.4 s its section Minigames13's 34 shaders took, a later section's wait, which W5 doesn't count, so Mario Party 2
 passes it;
-Mario Party 1's and 2's desktop builds drop about 22 ms of sound every few seconds whatever the window does, none
-more for a drag (6b, filed). In Firefox, where every page's boot section was built
+Mario Party 1's and 2's desktop builds dropped about 22 ms of sound every few seconds whatever the window did, none
+more for a drag, until get_frames_remaining kept two retraces more queued; their releases since (1's v0.2.14, 2's
+v0.2.16), in SDL's disk-driver recordings of 69 s of the boot and opening on a new portable profile, lost none: no run
+of zeros of 20 ms or more in 3 plays each with two 10 s drags and 2 without, on a host 8-95% busy, so both pass 6b (a
+fourth drag play each, on a host 74% and 100% busy with a build, lost 34 and 125 runs of 21-92 ms, as the fix's own
+plays under that load did). In Firefox, where every page's boot section was built
 with its sound started (0.1-11.7 s short in the first 10 s on 37 pages of 38), it is built before the game starts
 since rt64 c5ced59: GoldenEye's page loses 0.8 s there, against 7.9-9.1 s from Pages, which may be play_page.mjs's
 own memory report (filed), and Rush 2049's 3.2-4.2 s, its race section's 8-9 s wait coming in those 10 s, a later
