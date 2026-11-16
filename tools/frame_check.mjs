@@ -447,7 +447,7 @@ function checkPresent(e, run) {
         const { gw, gh } = run, qw = gw >> 2, qh = gh >> 2, a = run.game;
         const s = shiftOf(a.q, e.q, qw, qh);
         const D = shiftedDiff(a.g, e.g, gw, gh, s[0], s[1]);
-        let partway = 0, worst = null;
+        let partway = 0, worst = null, whole = 0;
         if (D >= CUT) {
             // Part by part (explain()'s blocks, each where it fits best): how unlike the two are, and each frame drawn
             // between them unlike both. A frame of the new shot whose parts move on (a model, an animated texture)
@@ -462,7 +462,9 @@ function checkPresent(e, run) {
                 }
                 return m / ((bw - 2) * (bh - 2));
             };
-            const apart = Math.max(inner(explain(e.g, a.g, gw, gh, placesOf(e.q, a.q, qw, qh, bw, bh))), 1);
+            const ae = explain(e.g, a.g, gw, gh, placesOf(e.q, a.q, qw, qh, bw, bh));
+            const apart = Math.max(inner(ae), 1);
+            whole = inner(ae.map((x) => +(x > BAD)));
             for (const c of run.between) {
                 const ea = explain(c.g, a.g, gw, gh, placesOf(c.q, a.q, qw, qh, bw, bh));
                 const eb = explain(c.g, e.g, gw, gh, placesOf(c.q, e.q, qw, qh, bw, bh));
@@ -476,7 +478,7 @@ function checkPresent(e, run) {
                 }
             }
         }
-        run.presents.push({ f, D, partway, frames: worst && [a.f, worst.f, f] });
+        run.presents.push({ f, D, partway, whole, frames: worst && [a.f, worst.f, f] });
         if (run.presents.length === 3) {
             checkCut(run.presents);
             run.presents.shift();
@@ -607,7 +609,7 @@ if (presented >= 3) {
     if (!quiet) {
         for (const p of cuts) {
             console.log(`  present ${p.f.presentId} at ${p.f.t.toFixed(2)} s (frame ${p.f.n}): ${p.D.toFixed(1)} apart, ` +
-                `between them ${p.partway.toFixed(2)} of that unlike both` + ((p.partway >= CUT_PARTWAY) ? ', PARTWAY' : ''));
+                `${p.whole.toFixed(2)} of its blocks, between them ${p.partway.toFixed(2)} of that unlike both` + ((p.partway >= CUT_PARTWAY) ? ', PARTWAY' : ''));
         }
     }
 }
