@@ -57,6 +57,12 @@ is challenged and fixed or changed in the work it blocks, never routed around an
 written for what was known then, and they change as more is learned (CI blaming every PR for a red that another repo's
 main made is why `tools/ci_red_on_base.sh` exists).
 
+That goes for a rule that only costs, too: work that follows a rule and sees what it costs for nothing there (a second
+PR, CI run or merge where one would do, a wait or a step that checks nothing) says so and changes it in the same work,
+unasked, before following it again. Nobody waits for someone to ask why: a rule obeyed while its cost shows is a rule
+that never improves (a fix PR and then a release PR behind it, opened twice before anyone asked, is why Releasing
+makes the change's PR the release).
+
 Priority is by what it breaks: high for a crash, med for an issue that affects every game, low for one game's. Work
 that comes from a player (a GitHub issue, a comment on one, a pull request from outside, a Quiver Launcher review that
 reports a problem) is med, or high when it is a crash or stops someone playing, and never low, whichever game it is.
