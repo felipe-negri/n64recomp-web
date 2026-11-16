@@ -1,4 +1,4 @@
-plume: https://github.com/n64hub/plume-web 391d08e0aaf92d3487891efc08c5872413ea518b
+plume: https://github.com/n64hub/plume-web e653ee297669c90b8ab946bc95ce0b848dc5dae2
 on upstream d890ac899e505fb30040e037a4037cdeca68f033 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -924,7 +924,7 @@ index 0000000..b4650c5
 +    return 0;
 +}
 diff --git a/plume_d3d12.cpp b/plume_d3d12.cpp
-index 2cdcf18..0a11229 100644
+index 2cdcf18..4589c09 100644
 --- a/plume_d3d12.cpp
 +++ b/plume_d3d12.cpp
 @@ -768,11 +768,23 @@ namespace plume {
@@ -1054,7 +1054,30 @@ index 2cdcf18..0a11229 100644
          void *readbackData = readbackBuffer->map();
          memcpy(results.data(), readbackData, sizeof(uint64_t) * results.size());
          readbackBuffer->unmap();
-@@ -1908,7 +1948,7 @@ namespace plume {
+@@ -1866,6 +1906,22 @@ namespace plume {
+     }
+ 
+     D3D12CommandList::~D3D12CommandList() {
++        // Each interface the list was queried for holds a reference to it, and the list holds its device: kept, every
++        // command list kept its device alive past its end (see D3D12Device::release()).
++        if (d3dV1 != nullptr) {
++            d3dV1->Release();
++        }
++
++        if (d3dV4 != nullptr) {
++            d3dV4->Release();
++        }
++
++#   ifdef PLUME_D3D12_AGILITY_SDK_ENABLED
++        if (d3dV9 != nullptr) {
++            d3dV9->Release();
++        }
++#   endif
++
+         if (d3d != nullptr) {
+             d3d->Release();
+         }
+@@ -1908,7 +1964,7 @@ namespace plume {
          auto makeBarrier = [&](ID3D12Resource *resource, D3D12_RESOURCE_STATES stateBefore, D3D12_RESOURCE_STATES stateAfter, bool supportsUAV, D3D12_RESOURCE_BARRIER &resourceBarrier) {
              resourceBarrier = {};
  
@@ -1063,7 +1086,7 @@ index 2cdcf18..0a11229 100644
                  return false;
              }
  
-@@ -1991,6 +2031,9 @@ namespace plume {
+@@ -1991,6 +2047,9 @@ namespace plume {
          const D3D12Buffer *interfaceBuffer = static_cast<const D3D12Buffer *>(shaderBindingTable.ref);
          assert(interfaceBuffer != nullptr);
          assert((interfaceBuffer->desc.flags & RenderBufferFlag::SHADER_BINDING_TABLE) && "Buffer must allow being used as a shader binding table.");
@@ -1073,7 +1096,7 @@ index 2cdcf18..0a11229 100644
  
          D3D12_GPU_VIRTUAL_ADDRESS tableAddress = interfaceBuffer->d3d->GetGPUVirtualAddress() + shaderBindingTable.offset;
          const RenderShaderBindingGroupInfo &rayGen = shaderBindingGroupsInfo.rayGen;
-@@ -2040,19 +2083,28 @@ namespace plume {
+@@ -2040,19 +2099,28 @@ namespace plume {
          switch (interfacePipeline->type) {
          case D3D12Pipeline::Type::Compute: {
              const D3D12ComputePipeline *computePipeline = static_cast<const D3D12ComputePipeline *>(interfacePipeline);
@@ -1105,7 +1128,7 @@ index 2cdcf18..0a11229 100644
              break;
          }
          default:
-@@ -2133,7 +2185,7 @@ namespace plume {
+@@ -2133,7 +2201,7 @@ namespace plume {
          if (view != nullptr) {
              const D3D12Buffer *interfaceBuffer = static_cast<const D3D12Buffer *>(view->buffer.ref);
              D3D12_INDEX_BUFFER_VIEW bufferView;
@@ -1114,7 +1137,7 @@ index 2cdcf18..0a11229 100644
              bufferView.Format = toDXGI(view->format);
              bufferView.SizeInBytes = view->size;
              d3d->IASetIndexBuffer(&bufferView);
-@@ -2152,7 +2204,7 @@ namespace plume {
+@@ -2152,7 +2220,7 @@ namespace plume {
              for (uint32_t i = 0; i < viewCount; i++) {
                  const RenderVertexBufferView &renderView = views[i];
                  const D3D12Buffer *interfaceBuffer = static_cast<const D3D12Buffer *>(renderView.buffer.ref);
@@ -1123,7 +1146,7 @@ index 2cdcf18..0a11229 100644
                  bufferViewVector[i].SizeInBytes = renderView.size;
  
                  bool slotFound = false;
-@@ -2296,10 +2348,18 @@ namespace plume {
+@@ -2296,10 +2364,18 @@ namespace plume {
  
          const D3D12Buffer *interfaceDstBuffer = static_cast<const D3D12Buffer *>(dstBuffer.ref);
          const D3D12Buffer *interfaceSrcBuffer = static_cast<const D3D12Buffer *>(srcBuffer.ref);
@@ -1142,7 +1165,7 @@ index 2cdcf18..0a11229 100644
          D3D12_BOX copyBox;
          if (srcBox != nullptr) {
              copyBox.left = srcBox->left;
-@@ -2323,6 +2383,10 @@ namespace plume {
+@@ -2323,6 +2399,10 @@ namespace plume {
  
          const D3D12Buffer *interfaceDstBuffer = static_cast<const D3D12Buffer *>(dstBuffer);
          const D3D12Buffer *interfaceSrcBuffer = static_cast<const D3D12Buffer *>(srcBuffer);
@@ -1153,7 +1176,7 @@ index 2cdcf18..0a11229 100644
          d3d->CopyResource(interfaceDstBuffer->d3d, interfaceSrcBuffer->d3d);
      }
  
-@@ -2332,6 +2396,10 @@ namespace plume {
+@@ -2332,6 +2412,10 @@ namespace plume {
  
          const D3D12Texture *interfaceDstTexture = static_cast<const D3D12Texture *>(dstTexture);
          const D3D12Texture *interfaceSrcTexture = static_cast<const D3D12Texture *>(srcTexture);
@@ -1164,7 +1187,7 @@ index 2cdcf18..0a11229 100644
          setSamplePositions(interfaceDstTexture);
          d3d->CopyResource(interfaceDstTexture->d3d, interfaceSrcTexture->d3d);
          resetSamplePositions();
-@@ -2343,6 +2411,10 @@ namespace plume {
+@@ -2343,6 +2427,10 @@ namespace plume {
  
          const D3D12Texture *interfaceDstTexture = static_cast<const D3D12Texture *>(dstTexture);
          const D3D12Texture *interfaceSrcTexture = static_cast<const D3D12Texture *>(srcTexture);
@@ -1175,7 +1198,7 @@ index 2cdcf18..0a11229 100644
          setSamplePositions(interfaceDstTexture);
          d3d->ResolveSubresource(interfaceDstTexture->d3d, 0, interfaceSrcTexture->d3d, 0, toDXGI(interfaceDstTexture->desc.format));
          resetSamplePositions();
-@@ -2355,6 +2427,10 @@ namespace plume {
+@@ -2355,6 +2443,10 @@ namespace plume {
  
          const D3D12Texture *interfaceDstTexture = static_cast<const D3D12Texture *>(dstTexture);
          const D3D12Texture *interfaceSrcTexture = static_cast<const D3D12Texture *>(srcTexture);
@@ -1186,7 +1209,7 @@ index 2cdcf18..0a11229 100644
          D3D12_RECT rect;
          if (srcRect != nullptr) {
              rect.left = srcRect->left;
-@@ -2378,6 +2454,9 @@ namespace plume {
+@@ -2378,6 +2470,9 @@ namespace plume {
          
          const D3D12Buffer *interfaceScratchBuffer = static_cast<const D3D12Buffer *>(scratchBuffer.ref);
          assert((interfaceScratchBuffer->desc.flags & RenderBufferFlag::ACCELERATION_STRUCTURE_SCRATCH) && "Scratch buffer must be allowed.");
@@ -1196,7 +1219,7 @@ index 2cdcf18..0a11229 100644
  
          D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc = {};
          buildDesc.Inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
-@@ -2405,6 +2484,9 @@ namespace plume {
+@@ -2405,6 +2500,9 @@ namespace plume {
  
          const D3D12Buffer *interfaceInstancesBuffer = static_cast<const D3D12Buffer *>(instancesBuffer.ref);
          assert((interfaceInstancesBuffer->desc.flags & RenderBufferFlag::ACCELERATION_STRUCTURE_INPUT) && "Acceleration structure input must be allowed.");
@@ -1206,7 +1229,7 @@ index 2cdcf18..0a11229 100644
  
          D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc = {};
          buildDesc.Inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
-@@ -2420,6 +2502,10 @@ namespace plume {
+@@ -2420,6 +2518,10 @@ namespace plume {
  
      void D3D12CommandList::discardTexture(const RenderTexture* texture) {
          const D3D12Texture* interfaceTexture = static_cast<const D3D12Texture*>(texture);
@@ -1217,7 +1240,7 @@ index 2cdcf18..0a11229 100644
          d3d->DiscardResource(interfaceTexture->d3d, nullptr);
      }
  
-@@ -2432,6 +2518,10 @@ namespace plume {
+@@ -2432,6 +2534,10 @@ namespace plume {
  
          const D3D12QueryPool *interfaceQueryPool = static_cast<const D3D12QueryPool *>(queryPool);
          const D3D12Buffer *readbackBuffer = static_cast<const D3D12Buffer *>(interfaceQueryPool->readbackBuffer.get());
@@ -1228,7 +1251,7 @@ index 2cdcf18..0a11229 100644
          d3d->EndQuery(interfaceQueryPool->d3d, D3D12_QUERY_TYPE_TIMESTAMP, queryIndex);
          d3d->ResolveQueryData(interfaceQueryPool->d3d, D3D12_QUERY_TYPE_TIMESTAMP, queryIndex, 1, readbackBuffer->d3d, queryIndex * sizeof(uint64_t));
      }
-@@ -2481,7 +2571,17 @@ namespace plume {
+@@ -2481,7 +2587,17 @@ namespace plume {
      }
      
      void D3D12CommandList::setSamplePositions(const RenderTexture *texture) {
@@ -1247,7 +1270,7 @@ index 2cdcf18..0a11229 100644
  
          const D3D12Texture *interfaceTexture = static_cast<const D3D12Texture *>(texture);
          if (interfaceTexture->desc.multisampling.sampleLocationsEnabled) {
-@@ -2541,7 +2641,11 @@ namespace plume {
+@@ -2541,7 +2657,11 @@ namespace plume {
      void D3D12CommandList::setRootDescriptor(const D3D12PipelineLayout* activePipelineLayout, RenderBufferReference bufferReference, uint32_t rootDescriptorIndex, bool setCompute) {
          assert(rootDescriptorIndex < activePipelineLayout->rootDescriptorRootIndicesAndTypes.size());
  
@@ -1260,7 +1283,7 @@ index 2cdcf18..0a11229 100644
          const auto& [rootParamIndex, type] = activePipelineLayout->rootDescriptorRootIndicesAndTypes[rootDescriptorIndex];
  
          if (setCompute) {
-@@ -2705,7 +2809,11 @@ namespace plume {
+@@ -2705,7 +2825,11 @@ namespace plume {
          if (signalFence != nullptr) {
              D3D12CommandFence *interfaceFence = static_cast<D3D12CommandFence *>(signalFence);
              d3d->Signal(interfaceFence->d3d, interfaceFence->fenceValue);
@@ -1273,7 +1296,7 @@ index 2cdcf18..0a11229 100644
              interfaceFence->fenceValue++;
          }
      }
-@@ -2713,8 +2821,10 @@ namespace plume {
+@@ -2713,8 +2837,10 @@ namespace plume {
      void D3D12CommandQueue::waitForCommandFence(RenderCommandFence *fence) {
          assert(fence != nullptr);
  
@@ -1285,7 +1308,7 @@ index 2cdcf18..0a11229 100644
      }
  
      // D3D12Buffer
-@@ -2760,7 +2870,8 @@ namespace plume {
+@@ -2760,7 +2886,8 @@ namespace plume {
          allocationDesc.HeapType = toD3D12(desc.heapType);
          allocationDesc.CustomPool = (pool != nullptr) ? pool->d3d : nullptr;
  
@@ -1295,7 +1318,7 @@ index 2cdcf18..0a11229 100644
          if (FAILED(res)) {
              fprintf(stderr, "CreateResource failed with error code 0x%lX.\n", res);
              return;
-@@ -2781,8 +2892,17 @@ namespace plume {
+@@ -2781,8 +2908,17 @@ namespace plume {
              range.End = readRange->end;
          }
  
@@ -1314,7 +1337,7 @@ index 2cdcf18..0a11229 100644
          return outputData;
      }
  
-@@ -2793,6 +2913,10 @@ namespace plume {
+@@ -2793,6 +2929,10 @@ namespace plume {
              range.End = writtenRange->end;
          }
  
@@ -1325,7 +1348,7 @@ index 2cdcf18..0a11229 100644
          d3d->Unmap(subresource, (writtenRange != nullptr) ? &range : nullptr);
      }
  
-@@ -2806,7 +2930,7 @@ namespace plume {
+@@ -2806,7 +2946,7 @@ namespace plume {
  
      uint64_t D3D12Buffer::getDeviceAddress() const {
          assert((desc.flags & RenderBufferFlag::DEVICE_ADDRESSABLE) != 0 && "Buffer must have been created with GPU_ADDRESSABLE flag.");
@@ -1334,7 +1357,7 @@ index 2cdcf18..0a11229 100644
      }
  
      // D3D12BufferFormattedView
-@@ -2876,7 +3000,7 @@ namespace plume {
+@@ -2876,7 +3016,7 @@ namespace plume {
              memcpy(optimizedClearValue.Color, desc.optimizedClearValue->color.rgba, sizeof(optimizedClearValue.Color));
          }
  
@@ -1343,7 +1366,7 @@ index 2cdcf18..0a11229 100644
          if (FAILED(res)) {
              fprintf(stderr, "CreateResource failed with error code 0x%lX.\n", res);
              return;
-@@ -3666,6 +3790,16 @@ namespace plume {
+@@ -3666,6 +3806,16 @@ namespace plume {
                  continue;
              }
  
@@ -1360,7 +1383,7 @@ index 2cdcf18..0a11229 100644
              // Determine the shader model supported by the device.
  #       if SM_5_1_SUPPORTED
              const D3D_SHADER_MODEL supportedShaderModels[] = { D3D_SHADER_MODEL_6_0, D3D_SHADER_MODEL_5_1 };
-@@ -3879,7 +4013,7 @@ namespace plume {
+@@ -3879,7 +4029,7 @@ namespace plume {
  
          // Create a command queue only for retrieving the timestamp frequency. Delete it immediately afterwards.
          std::unique_ptr<D3D12CommandQueue> timestampCommandQueue = std::make_unique<D3D12CommandQueue>(this, RenderCommandListType::DIRECT);
@@ -1369,7 +1392,29 @@ index 2cdcf18..0a11229 100644
          if (FAILED(res)) {
              fprintf(stderr, "GetTimestampFrequency failed with error code 0x%lX. Timestamps will be inaccurate.\n", res);
          }
-@@ -3985,8 +4119,8 @@ namespace plume {
+@@ -3888,8 +4038,21 @@ namespace plume {
+     D3D12Device::~D3D12Device() {
+         viewHeapAllocator.reset();
+         samplerHeapAllocator.reset();
++        colorTargetHeapAllocator.reset();
++        depthTargetHeapAllocator.reset();
+         rtDummyGlobalPipelineLayout.reset();
+         rtDummyLocalPipelineLayout.reset();
++        // The allocator holds references to the device and the adapter: kept, it kept the device alive past its end, and
++        // D3D12CreateDevice gives back an adapter's device while anything holds it, so a device removed by a TDR came
++        // back removed to the replacement asked of the adapter, which was passed over (a Windows player's Rush 2049 fell
++        // back to Vulkan after each one). Its pool goes first, as D3D12MA asks. It is made after release()'s only other
++        // call, so it goes here, clear of the lines Pokemon Snap's own plume adds to release().
++        customUploadPool.reset();
++        if (allocator != nullptr) {
++            allocator->Release();
++            allocator = nullptr;
++        }
++
+         release();
+     }
+ 
+@@ -3985,8 +4148,8 @@ namespace plume {
              geometryDesc.Triangles.VertexFormat = toDXGI(mesh.vertexFormat);
              geometryDesc.Triangles.IndexCount = mesh.indexCount;
              geometryDesc.Triangles.VertexCount = mesh.vertexCount;
@@ -1380,7 +1425,7 @@ index 2cdcf18..0a11229 100644
              geometryDesc.Triangles.VertexBuffer.StrideInBytes = mesh.vertexStride;
          }
  
-@@ -4025,7 +4159,7 @@ namespace plume {
+@@ -4025,7 +4188,7 @@ namespace plume {
              instanceDesc.InstanceMask = instance.instanceMask;
              instanceDesc.InstanceContributionToHitGroupIndex = instance.instanceContributionToHitGroupIndex;
              instanceDesc.Flags = instance.cullDisable ? D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE : D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
@@ -1389,7 +1434,20 @@ index 2cdcf18..0a11229 100644
              memcpy(instanceDesc.Transform, instance.transform.m, sizeof(instanceDesc.Transform));
          }
  
-@@ -4164,6 +4298,41 @@ namespace plume {
+@@ -4150,7 +4313,11 @@ namespace plume {
+ 
+     void D3D12Device::release() {
+         if (d3d != nullptr) {
+-            d3d->Release();
++            const ULONG referencesLeft = d3d->Release();
++            if (referencesLeft != 0) {
++                fprintf(stderr, "D3D12: the device ended with %lu references left: something made on it is still alive.\n", (unsigned long)(referencesLeft));
++            }
++
+             d3d = nullptr;
+         }
+ 
+@@ -4164,6 +4331,41 @@ namespace plume {
          return d3d != nullptr;
      }
  
@@ -3287,10 +3345,10 @@ index 0000000..a188eed
 +};
 diff --git a/plume_lost_device_test.h b/plume_lost_device_test.h
 new file mode 100644
-index 0000000..5668879
+index 0000000..352a93c
 --- /dev/null
 +++ b/plume_lost_device_test.h
-@@ -0,0 +1,61 @@
+@@ -0,0 +1,65 @@
 +//
 +// plume
 +//
@@ -3300,6 +3358,7 @@ index 0000000..5668879
 +
 +#pragma once
 +
++#include <algorithm>
 +#include <atomic>
 +#include <chrono>
 +#include <cstdio>
@@ -3313,7 +3372,9 @@ index 0000000..5668879
 +    // heaps made from then on fail to be made, and its swap chain's presents and resizes fail, with
 +    // DXGI_ERROR_DEVICE_REMOVED, as a removed device's do, so what uses one is tested too (a Vulkan device lost for real
 +    // still makes them). The device itself goes on working otherwise,
-+    // and a device made after it, to carry on with, is never lost this way.
++    // and a device made after it, to carry on with, is never lost this way. With PLUME_LOSE_DEVICES=<n> the first n
++    // devices are, each that many seconds after it was first asked, so what an application does when the device
++    // that replaced a lost one is lost too is tested.
 +    struct LostDeviceTest {
 +        // Nanoseconds of the steady clock at which the device is lost; 0 while it isn't the device being tested.
 +        mutable std::atomic<int64_t> lossTime { 0 };
@@ -3323,15 +3384,16 @@ index 0000000..5668879
 +            return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 +        }
 +
-+        // Called from isLost(): the first device to be asked takes the test, if the variable is set.
++        // Called from isLost(): the first devices to be asked take the test, if the variable is set.
 +        void arm() const {
-+            static std::atomic<bool> taken { false };
-+            if ((lossTime.load(std::memory_order_relaxed) != 0) || taken.load(std::memory_order_relaxed)) {
++            static std::atomic<int> taken { 0 };
++            static const int devices = (std::getenv("PLUME_LOSE_DEVICES") != nullptr) ? std::max(std::atoi(std::getenv("PLUME_LOSE_DEVICES")), 1) : 1;
++            if ((lossTime.load(std::memory_order_relaxed) != 0) || (taken.load(std::memory_order_relaxed) >= devices)) {
 +                return;
 +            }
 +
 +            const char *seconds = std::getenv("PLUME_LOSE_DEVICE_AFTER");
-+            if ((seconds == nullptr) || (seconds[0] == '\0') || taken.exchange(true)) {
++            if ((seconds == nullptr) || (seconds[0] == '\0') || (taken.fetch_add(1) >= devices)) {
 +                return;
 +            }
 +
