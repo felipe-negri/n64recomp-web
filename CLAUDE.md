@@ -52,16 +52,16 @@ A request that a rule here turns away is asked about, never answered no and clos
 mean to do it anyway, and let whoever asked decide. The rule may be what is wrong, and if so it changes in the same
 work.
 
-A rule, check or tool that blocks work for a reason the work didn't cause, or that reads as wrong where it is applied,
-is challenged and fixed or changed in the work it blocks, never routed around and not handed on by default: rules are
-written for what was known then, and they change as more is learned (CI blaming every PR for a red that another repo's
-main made is why `tools/ci_red_on_base.sh` exists).
+A check or tool that blocks work for a reason the work didn't cause is fixed in the work it blocks, never routed
+around and not handed on by default (CI blaming every PR for a red that another repo's main made is why
+`tools/ci_red_on_base.sh` exists).
 
-That goes for a rule that only costs, too: work that follows a rule and sees what it costs for nothing there (a second
-PR, CI run or merge where one would do, a wait or a step that checks nothing) says so and changes it in the same work,
-unasked, before following it again. Nobody waits for someone to ask why: a rule obeyed while its cost shows is a rule
-that never improves (a fix PR and then a release PR behind it, opened twice before anyone asked, is why Releasing
-makes the change's PR the release).
+A rule is written for what was known then, so work that follows one and sees it block wrongly, read as wrong where
+it is applied, or cost for nothing there (a second PR, CI run or merge where one would do, a wait or a step that checks
+nothing) suggests a change to the project's owner, unasked and at once: the rule, its cost there, and the wording it
+would take. The rule changes only once the owner approves, in the same work: nobody changes a rule on their own
+judgment, and nobody waits to be asked why it costs (a fix PR and then a release PR behind it, opened twice with
+nobody suggesting otherwise, is why Releasing makes the change's PR the release).
 
 Priority is by what it breaks: high for a crash, med for an issue that affects every game, low for one game's. Work
 that comes from a player (a GitHub issue, a comment on one, a pull request from outside, a Quiver Launcher review that
