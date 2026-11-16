@@ -8,7 +8,7 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Twenty-three options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Twenty-four options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_FREE_DISCARDED_TARGETS` (rt64 51c3fdd), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
@@ -16,7 +16,8 @@ bce5e11), `RT64_FREE_DISCARDED_TARGETS` (rt64 51c3fdd), `RT64_INTERPOLATE_CAMERA
 04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7, c0d27e5),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4,
-54e47fb, which it turns on too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
+54e47fb, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too),
+`ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
 `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
@@ -1130,4 +1131,16 @@ rt64 c7a0ac4           the rects pair before matchScenes(), leaving the lines af
 rt64 54e47fb           the rects pair at the end of match(), away from the lines around matchScenes(): Rush 2049's
                        split-screen matching rewrites those before it, and its and Rogue Squadron's own RT64 changes
                        didn't apply over c7a0ac4
+rt64 91a3cca           RT64_EXPAND_SCREEN_VERTICES: a screen x a game writes into a vertex (G_MODIFYVTX's XYSCREEN) is
+                       scaled toward its viewport's centre as its projection's x is for Aspect Ratio Expand: Mario
+                       Golf writes its pin's flagstick this way, which stood away from the hole and its marker in a
+                       picture wider than 4:3
+rt64 e81b6e4           RT64_EXPAND_SCREEN_VERTICES keeps its scales and scaled copy in the projection processor, recorded
+                       after a projection's view-projection and used at the start of upload(): beside the transforms and
+                       projRatioScale, Rush 2049's, Jet Force Gemini's, Conker's, Pokemon Snap's and WWF No Mercy's own
+                       RT64 changes didn't apply over 91a3cca
+rt64 1682468           RT64_EXPAND_SCREEN_VERTICES reads each projection's scale in upload() from the projections
+                       DrawData holds, its x column's length over its y column's against the game's, and leaves
+                       processScene() as upstream has it: Conker's, Dinosaur Planet's, Banjo-Tooie's and 1080
+                       Snowboarding's own RT64 changes didn't apply over e81b6e4
 ```
