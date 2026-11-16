@@ -35,12 +35,28 @@
 //   reaches over the edge from inside and nothing more (water or sky where the ground goes on). It compares the
 //   triangles a workload of 3D (200 triangles or more) has in that strip in both, by where each one's middle lies,
 //   and fails where the wider has under 1.2 times as many and the strip is under half as dense as the view: a world
-//   drawn that densely past the view isn't culled at its sides at all. Without --wider it only counts them. One
-//   dump's own strip against the view tells nothing: Mario Golf's flyover, culled or not, draws a fraction past the
-//   edges of what it draws inside, the course being long and narrow.
+//   drawn that densely past the view isn't culled at its sides at all. A game that culls nothing by the window draws
+//   the same whatever the window too, so the two dumps alone read it like one culled to its 4:3 view: San Francisco
+//   Rush 2049 culls whole stretches of scenery and draws its world out to the 32:9 picture's edges, and its attract
+//   race read x1.16 on a 60 Hz display and x1.00 on a 240 Hz one. The narrower dump tells them apart. A game culled to
+//   4:3 thins out past the narrower picture's own edge, where nothing of it shows, and one not culled by the window
+//   draws there as it does inside, so the check passes where the strip past that edge (out as far again as the edge
+//   lies past the view, 0.17-0.33 of it at 16:9) is 0.65 or more as dense a band as the strip inside the edge: Mario
+//   Golf's hole 1 flyover read 0.28 without its patches/cull.c and 0.59 with it, Rayman 2's Woods of Light 0.25-0.54
+//   without its v0.1.1, Rush 2049's attract race 0.74 and Practice on its first track 0.81. A scene that draws under
+//   50 triangles a workload in the strip at 32:9 can't fail, and exits 2: the fifth more the check asks for is then an
+//   object or two, and a game culling to the picture draws an object reaching into the narrower one whole, past its
+//   edge too. Rayman 2's Woods of Light opens on a fade-in down a ravine whose walls are a few large triangles, their
+//   middles inside the view: its fixed build reads 22 and 25 there (x1.14) and the build without its v0.1.1 11 and 11,
+//   where its first 8 s in the Fairy Glade read 102 and 117 (passing on 0.74) and 62 and 61 (failing), and Mario
+//   Golf's flyover without its patches/cull.c 197 and 186. Without --wider it only counts them. One dump's own strip
+//   against the view tells nothing: Mario Golf's flyover, culled or not, draws a fraction past the edges of what it
+//   draws inside, the course being long and narrow. The picture's shape is the
+//   size most of a dump's frames between --from and --to have, not its first frame's: a dump that starts before its
+//   plan sizes the window begins at 4:3.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
-// the pairing. frames.bin is read a frame at a time, three kept: a dump at a 240 Hz display's rate is about 160 MB a
+// the pairing or the sides. frames.bin is read a frame at a time, three kept: a dump at a 240 Hz display's rate is about 160 MB a
 // second.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -78,6 +94,8 @@ const P = 2; // a pixel's search about its block's best place, in grey pixels (e
 const M = 2; // the quarter pixels around a block that its own shift is found over (placesOf())
 const SIDES_GROW = 1.2; // how many times the triangles past the 4:3 view a wider picture has, at the least
 const SIDES_DENSE = 0.5; // ... unless the strip is this dense against the view: a world not culled at its sides
+const SIDES_OPEN = 0.65; // ... or the narrower picture this dense past its own edge as inside it: not culled by the window
+const SIDES_FEW = 50; // triangles a workload in the wider picture's strip under which a scene can't fail: too few to tell
 
 let dumpStartMs = null; // the first frame's time, ms since 1970: the dump's second 0, sides.tsv's too
 
@@ -480,7 +498,8 @@ else {
 // workload's triangles counted by where their middles lie.
 const PER = 20;
 // A dump's 3D workloads (200 triangles or more) between --from and --to: their mean count a band, and the picture's
-// shape from its frames.
+// shape: the size most of its frames between those seconds have, so a dump that starts before its plan sizes the window
+// (Rayman 2's first 2 s of frames at 4:3 in a 16:9 window) reads the size the plan set.
 function sidesOf(d) {
     const file = path.join(d, 'sides.tsv');
     const framesFile = path.join(d, 'frames.bin');
@@ -489,12 +508,30 @@ function sidesOf(d) {
     }
     const head = Buffer.alloc(HEADER);
     const fd = fs.openSync(framesFile, 'r');
-    const read = fs.readSync(fd, head, 0, HEADER, 0);
+    const size = fs.fstatSync(fd).size;
+    let startMs = null;
+    const shapes = new Map();
+    for (let o = 0; o + HEADER <= size;) {
+        fs.readSync(fd, head, 0, HEADER, o);
+        if (head.readUInt32LE(0) !== MAGIC) {
+            break;
+        }
+        const w = head.readUInt32LE(4), h = head.readUInt32LE(8), timeMs = Number(head.readBigUInt64LE(32));
+        startMs ??= timeMs;
+        const t = (timeMs - startMs) / 1000;
+        if (t > to) {
+            break;
+        }
+        if (t >= from) {
+            shapes.set(`${w}x${h}`, (shapes.get(`${w}x${h}`) ?? 0) + 1);
+        }
+        o += HEADER + w * h * 3;
+    }
     fs.closeSync(fd);
-    if ((read < HEADER) || (head.readUInt32LE(0) !== MAGIC)) {
+    if (!shapes.size) {
         return null;
     }
-    const startMs = Number(head.readBigUInt64LE(32));
+    const [w, h] = [...shapes].sort((x, y) => y[1] - x[1])[0][0].split('x').map(Number);
     const mean = new Array(PER * 3).fill(0);
     let n = 0;
     for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
@@ -508,7 +545,7 @@ function sidesOf(d) {
         v.forEach((c, i) => { mean[i] += c; });
         n++;
     }
-    return { n, mean: mean.map((c) => c / Math.max(n, 1)), aspect: head.readUInt32LE(4) / head.readUInt32LE(8) };
+    return { n, mean: mean.map((c) => c / Math.max(n, 1)), aspect: w / h };
 }
 // The mean triangles a workload with their middles past the 4:3 view's sides, from a to b view widths out on each.
 const pastSides = (s, a, b) => {
@@ -518,6 +555,8 @@ const pastSides = (s, a, b) => {
     }
     return sum;
 };
+// ... and a band's mean of them there, both sides together.
+const perBand = (s, a, b) => pastSides(s, a, b) / Math.max(Math.round(b * PER) - Math.round(a * PER), 1);
 const insideView = (s) => s.mean.slice(PER, 2 * PER).reduce((a, b) => a + b, 0);
 const sides = sidesOf(dir);
 if (sides && sides.n && widerDir) {
@@ -544,12 +583,24 @@ if (sides && sides.n && widerDir) {
     const grows = pastB / Math.max(pastA, 1);
     // Drawn as densely there as inside the view, a world isn't culled at the sides at all: nothing to grow.
     const density = (pastB / (2 * (b - a))) / Math.max(inB, 1);
-    const fail = (grows < SIDES_GROW) && (density < SIDES_DENSE);
+    // Drawn past the narrower picture's own edge (as far out again as the edge is) as densely as just inside it, a world
+    // isn't culled by the window: it draws the same whatever the window, so it doesn't grow, and isn't culled to 4:3.
+    const open = perBand(sides, a, 2 * a) / Math.max(perBand(sides, 0, a), 1);
+    const unmet = (grows < SIDES_GROW) && (density < SIDES_DENSE) && (open < SIDES_OPEN);
+    // A scene that draws next to nothing past the view can't show the growth: a fifth of a few dozen triangles is an
+    // object or two, whose triangles a game culling to the picture draws whole in both windows once it reaches into the
+    // narrower one.
+    const few = unmet && (pastB < SIDES_FEW);
+    const fail = unmet && !few;
     failed ||= fail;
+    untested ||= few;
     console.log(`sides: ${a.toFixed(2)}-${b.toFixed(2)} of the view past the 4:3 view's sides, ${pastA.toFixed(0)} triangles` +
         ` a workload at ${sides.aspect.toFixed(2)}:1 and ${pastB.toFixed(0)} at ${wider.aspect.toFixed(2)}:1` +
-        ` (x${grows.toFixed(2)}; ${density.toFixed(2)} of the view's density), over ${sides.n} and ${wider.n} workloads: ` +
-        (fail ? 'FAILS, the world past the 4:3 view doesn\'t grow with the picture: culled to the 4:3 view' : 'passes'));
+        ` (x${grows.toFixed(2)}; ${density.toFixed(2)} of the view's density; ${open.toFixed(2)} as dense past the` +
+        ` ${sides.aspect.toFixed(2)}:1 picture's edge as inside it), over ${sides.n} and ${wider.n} workloads: ` +
+        (fail ? 'FAILS, the world past the 4:3 view doesn\'t grow with the picture: culled to the 4:3 view' :
+            few ? `untested, too little drawn past the view to tell (under ${SIDES_FEW} triangles a workload): a scene ` +
+                'that draws more there tests it' : 'passes'));
 }
 else if (sides && sides.n) {
     const ext = (sides.aspect / (4 / 3) - 1) / 2;
