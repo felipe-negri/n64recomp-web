@@ -44,22 +44,22 @@ items by almost no game when the record began.
 
 | Game | New recomp: left | Web port: left |
 |---|---|---|
-| San Francisco Rush 2049 | 4c fails, 8a fails | W5, W6's Drive |
-| Perfect Dark | 4c, 8a fails | W5 fails, W6's Drive |
-| Super Mario 64 |  | W5 fails, W6's Drive |
-| F-Zero X | | W6's Drive |
-| Mario Party | 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
-| Mario Party 2 | 4c, 5b, 6a, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
-| Mario Party 3 | 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
-| Super Smash Bros. | | W6's Drive |
-| Paper Mario | 4a, 4c, 6b | W5 fails, W6's Drive |
+| San Francisco Rush 2049 | 2a, 4c fails, 8a fails | W5, W6's Drive |
+| Perfect Dark | 2a, 4c, 8a fails | W5 fails, W6's Drive |
+| Super Mario 64 | 2a | W5 fails, W6's Drive |
+| F-Zero X | 2a | W6's Drive |
+| Mario Party | 2a, 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
+| Mario Party 2 | 2a, 4c, 5b, 6a, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
+| Mario Party 3 | 2a, 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
+| Super Smash Bros. | 2a | W6's Drive |
+| Paper Mario | 2a, 4a, 4c, 6b | W5 fails, W6's Drive |
 | Mario Golf | | W6's Drive |
-| Rayman 2 | | W5 fails, W6's Drive |
-| Donald Duck: Goin' Quackers | 2, 5b | W5 fails, W6's Drive |
-| Dinosaur Planet | | W5 fails |
-| Turok: Dinosaur Hunter | 5a | W5 fails, W6's Drive |
-| Turok 2: Seeds of Evil | 2 fails, 4c, 5a | W5 fails, W6's Drive |
-| Turok 3: Shadow of Oblivion | 4c, 5a | W5 fails, W6's Drive |
+| Rayman 2 | 2a | W5 fails, W6's Drive |
+| Donald Duck: Goin' Quackers | 2, 2a, 5b | W5 fails, W6's Drive |
+| Dinosaur Planet | 2a | W5 fails |
+| Turok: Dinosaur Hunter | 2a, 5a | W5 fails, W6's Drive |
+| Turok 2: Seeds of Evil | 2 fails, 2a, 4c, 5a | W5 fails, W6's Drive |
+| Turok 3: Shadow of Oblivion | 2a, 4c, 5a | W5 fails, W6's Drive |
 | GoldenEye 007 | | W2, W5 fails, W6, W7 |
 | The Legend of Zelda: Majora's Mask | | W2, W5, W6, W7 |
 | Banjo-Kazooie | | W2, W5, W6, W7 |
@@ -104,7 +104,10 @@ moves, 5-13 of 75-80 captures, with `RT64_GAME_FRAME_WORKLOADS` on or off and no
 point in a level (`saves/controllerpak_0.mpk` stays absent through their boots, intros and attract demos, and
 turok-engine writes the pak only on a change), and no save point was reached near Turok 1's or Turok 2's start; the
 Mario Parties' READMEs don't link their pages (8c); Mario Golf's courses, Mini-Golf, every play mode and a whole
-Tournament round draw on its desktop build at 16:9, 21:9 and 4:3, so it passes 2: at Framerate Display a flyover drew
+Tournament round draw on its desktop build at 16:9, 21:9 and 4:3, so it was passed 2, on captures that missed its
+trees drawn where other trees stood in the frames between the game's, which its first players reported, and passes 2a
+since rt64 eda3964 and b12ecad and its patches/cull.c (hole 1's flyover and its menus, at 16:9 and 32:9): at Framerate
+Display a flyover drew
 a frame with the course torn into loose polygons in 3 of 10 before v0.212.0, where rt64 0372264 pairs a vertex in
 RT64's automatic interpolation only with its own last place, and none of 3 on it; its HUD sits at the wide picture's
 sides and corners on its desktop build at 16:9 and 21:9 and on its page, with the swing meter and the pause menu in
@@ -237,7 +240,7 @@ scissors written into the HUD's display list as the game draws each piece (Jet F
 game engine's own hooks (turok-engine's `docs/widescreen.md`). Text that crosses the middle stays whole, not split
 between the two sides. A scissor set around the HUD covers every scissor the frame's 3D drew with, or RT64 stops
 widening the 3D (Super Smash Bros.' `patches/hud.c`). The game culls to its 4:3 view, so its culling is widened to the
-picture's.
+picture's, which 2a checks by machine.
 
 - **1a.** Split screen at 16:9 and at 21:9, with two players and with three or four. A view as wide as the frame (two
   players, one above the other) is widened by RT64 as one player's is, so its culling and its HUD are widened with it,
@@ -300,6 +303,20 @@ What it looks for:
   RT64 drops an extended fill whose right side, before it is moved from its origin, is left of its left side, its
   patches/widescreen.c).
 - Missing draws: text, glyphs, the map's lines or a menu screen that comes up empty.
+
+- **2a.** The frames between the game's and the culling at the sides are checked by machine, not by eye. Each scene the
+  sweep plays (a level's intro or flyover, its first minute, a transition, a menu) is played on the desktop build at
+  Framerate Display with `RT64_FRAME_DUMP` set, by one plan in a 16:9 window and again in a 32:9 one, and
+  `tools/frame_check.mjs <16:9 dump> --wider <32:9 dump>` passes (its header says how, and what it fails). It fails a
+  frame drawn for itself alone between two that agree (a model put halfway to a look-alike's place, a stretched camera
+  cut, a frame drawn in parts or of garbage) and a world that draws no more past the 4:3 view's sides in the wider
+  window. Mario Golf was passed 2 on window captures, contact sheets and a brightness test of the picture's edges with
+  both faults in every hole's flyover, and was released twice with both: its trees drawn where other trees stood in
+  the frames between the game's (rt64 eda3964 and b12ecad, on for its desktop build), and its ground missing past the
+  4:3 view at 16:9 (its patches/cull.c). A capture lands tens of milliseconds from the last, anywhere between two of the
+  game's frames, a tree where another tree stood reads as a tree, and water past cut ground reads as the course's own.
+  frame_check fails its build without either fix on hole 1's flyover and passes it with both, and passes its menus'
+  split and stretching wipes.
 
 ### 3. Every controller its own port
 

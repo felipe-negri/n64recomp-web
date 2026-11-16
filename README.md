@@ -468,7 +468,8 @@ take the web support without moving its submodules to the forks (Using it in a r
   and bytes a second by kind, and `gpu_growth.mjs` plays those kinds one at a time in a test page, `gpu_growth.html`,
   reading Firefox's GPU process memory around each; `memory_scan.ps1` says whose code made what that process grows.
   `capture_window.ps1` plays a desktop build by a plan and captures its own window, and `frame_log.mjs` reads RT64's
-  frame log beside those captures (docs/playing.md). `boot_release.sh` boots a recomp's desktop release archive from a
+  frame log beside those captures (docs/playing.md); `frame_check.mjs` checks every frame RT64 dumps with
+  `RT64_FRAME_DUMP` for frames unlike both neighbours and a world culled at the 4:3 view's sides. `boot_release.sh` boots a recomp's desktop release archive from a
   new folder, as a player first runs it, before its `tools/release.sh` publishes it: on Windows through
   `capture_window.ps1`, on Linux in a container of `boot_release.Dockerfile` on software Vulkan.
   `frame_lengths.js`, a preload too, logs how long the game's frames are against the page's presents, and
