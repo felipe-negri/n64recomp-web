@@ -32,12 +32,28 @@
 //   reaches over the edge from inside and nothing more (water or sky where the ground goes on). It compares the
 //   triangles a workload of 3D (200 triangles or more) has in that strip in both, by where each one's middle lies,
 //   and fails where the wider has under 1.2 times as many and the strip is under half as dense as the view: a world
-//   drawn that densely past the view isn't culled at its sides at all. Without --wider it only counts them. One
-//   dump's own strip against the view tells nothing: Mario Golf's flyover, culled or not, draws a fraction past the
-//   edges of what it draws inside, the course being long and narrow.
+//   drawn that densely past the view isn't culled at its sides at all. A game that culls nothing by the window draws
+//   the same whatever the window too, so the two dumps alone read it like one culled to its 4:3 view: San Francisco
+//   Rush 2049 culls whole stretches of scenery and draws its world out to the 32:9 picture's edges, and its attract
+//   race read x1.16 on a 60 Hz display and x1.00 on a 240 Hz one. The narrower dump tells them apart. A game culled to
+//   4:3 thins out past the narrower picture's own edge, where nothing of it shows, and one not culled by the window
+//   draws there as it does inside, so the check passes where the strip past that edge (out as far again as the edge
+//   lies past the view, 0.17-0.33 of it at 16:9) is 0.65 or more as dense a band as the strip inside the edge: Mario
+//   Golf's hole 1 flyover read 0.28 without its patches/cull.c and 0.59 with it, Rayman 2's Woods of Light 0.25-0.54
+//   without its v0.1.1, Rush 2049's attract race 0.74 and Practice on its first track 0.81. A scene that draws under
+//   50 triangles a workload in the strip at 32:9 can't fail, and exits 2: the fifth more the check asks for is then an
+//   object or two, and a game culling to the picture draws an object reaching into the narrower one whole, past its
+//   edge too. Rayman 2's Woods of Light opens on a fade-in down a ravine whose walls are a few large triangles, their
+//   middles inside the view: its fixed build reads 22 and 25 there (x1.14) and the build without its v0.1.1 11 and 11,
+//   where its first 8 s in the Fairy Glade read 102 and 117 (passing on 0.74) and 62 and 61 (failing), and Mario
+//   Golf's flyover without its patches/cull.c 197 and 186. Without --wider it only counts them. One dump's own strip
+//   against the view tells nothing: Mario Golf's flyover, culled or not, draws a fraction past the edges of what it
+//   draws inside, the course being long and narrow. The picture's shape is the
+//   picture's box between --from and --to (pictureBox()), not its first frame's: a dump that starts before its plan
+//   sizes the window begins at 4:3, and one whose frames come in several sizes has black past the picture in some.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
-// the pairing. frames.bin is read a frame at a time, three kept: a dump at a 240 Hz display's rate is about 160 MB a
+// the pairing or the sides. frames.bin is read a frame at a time, three kept: a dump at a 240 Hz display's rate is about 160 MB a
 // second.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -72,46 +88,65 @@ const P = 2; // a pixel's search about its block's best place, in grey pixels (e
 const M = 2; // the quarter pixels around a block that its own shift is found over (placesOf())
 const SIDES_GROW = 1.2; // how many times the triangles past the 4:3 view a wider picture has, at the least
 const SIDES_DENSE = 0.5; // ... unless the strip is this dense against the view: a world not culled at its sides
+const SIDES_OPEN = 0.65; // ... or the narrower picture this dense past its own edge as inside it: not culled by the window
+const SIDES_FEW = 50; // triangles a workload in the wider picture's strip under which a scene can't fail: too few to tell
 
 let dumpStartMs = null; // the first frame's time, ms since 1970: the dump's second 0, sides.tsv's too
 
-// The frames between --from and --to, one at a time, each { t (s since the first), n (its place in the dump),
-// presentId, index, count, dropped, w, h, rgb }. frames.bin is read a frame at a time, never whole: a dump at a 240 Hz
-// display's rate is about 160 MB a second, Node reads no file over 2 GiB at once, and the check keeps three frames.
-// The picture's box in a dump's frames, from their top left corner. RT64 draws a frame into a color target that can
-// be larger than the picture (one kept from a larger frame before, the targets of the frames drawn between the
-// game's), and the dump reads back the whole target, so one dump's frames can come in several sizes with the picture
-// the same size in each and black past it: Rush 2049's at 16:9, 533x301 and 533x275 every two frames, a 489x275
-// picture in both. Matched whole, a frame of another size than the one before starts the matching again, and with
-// sizes taking turns every two frames no three in a row are compared: its start line's flags broken into shards in the
-// frames between the game's passed unseen. So every frame is cut to the box before it is matched: the smallest frame's
-// size, less the columns and rows at its right and bottom that are black in each of 64 frames taken across the dump.
-// Its shape is the picture's, which the sides check takes too.
+// The picture's box in a dump's frames between --from and --to, from their top left corner. RT64 draws a frame into a
+// color target that can be larger than the picture (one kept from a larger frame before, the targets of the frames
+// drawn between the game's), and the dump reads back the whole target, so one dump's frames can come in several sizes
+// with the picture the same size in each and black past it: Rush 2049's at 16:9, 533x301 and 533x275 every two
+// frames, a 489x275 picture in both. Matched whole, a frame of another size than the one before starts the matching
+// again, and with sizes taking turns every two frames no three in a row are compared: 422 of Rush 2049's 2150 were.
+// So every frame is cut to the box before it is matched. The box is the smallest of the sizes at least half as many of
+// those frames have as the commonest size does, so a dump that starts before its plan sizes the window (Rayman 2's
+// first 129 frames at 300x224, then 533x300) takes the size the plan set, and a frame smaller than it is matched whole,
+// starting the matching again.
+// Where those sizes differ, the box is less the columns and rows at its right and bottom that are black in each of 64
+// frames taken across those seconds; a dump in one size is its own box, so a picture the game itself pillarboxes isn't
+// cut on one side only. Its shape is the picture's, which the sides check takes too (sidesOf()).
 function pictureBox(d) {
     const fd = fs.openSync(path.join(d, 'frames.bin'), 'r');
     const size = fs.fstatSync(fd).size;
     const head = Buffer.alloc(HEADER);
     const at = [];
-    let w = Infinity, h = Infinity;
+    const sizes = new Map();
+    let startMs = null;
     for (let o = 0; o + HEADER <= size;) {
         fs.readSync(fd, head, 0, HEADER, o);
         const fw = head.readUInt32LE(4), fh = head.readUInt32LE(8);
         if ((head.readUInt32LE(0) !== MAGIC) || (o + HEADER + fw * fh * 3 > size)) {
             break;
         }
-        w = Math.min(w, fw);
-        h = Math.min(h, fh);
-        at.push([o + HEADER, fw]);
+        const timeMs = Number(head.readBigUInt64LE(32));
+        startMs ??= timeMs;
+        const t = (timeMs - startMs) / 1000;
+        if (t > to) {
+            break;
+        }
+        if (t >= from) {
+            at.push([o + HEADER, fw, fh]);
+            sizes.set(`${fw}x${fh}`, (sizes.get(`${fw}x${fh}`) ?? 0) + 1);
+        }
         o += HEADER + fw * fh * 3;
     }
     if (!at.length) {
         fs.closeSync(fd);
         return null;
     }
+    const most = Math.max(...sizes.values());
+    const common = [...sizes].filter(([, c]) => c * 2 >= most).map(([s]) => s.split('x').map(Number));
+    const w = Math.min(...common.map(([fw]) => fw)), h = Math.min(...common.map(([, fh]) => fh));
+    if (common.length === 1) {
+        fs.closeSync(fd);
+        return { w, h };
+    }
+    const fit = at.filter(([, fw, fh]) => (fw >= w) && (fh >= h));
     const cols = new Uint8Array(w), rows = new Uint8Array(h);
     const SAMPLES = 64;
     for (let k = 0; k < SAMPLES; k++) {
-        const [o, fw] = at[Math.floor(k * at.length / SAMPLES)];
+        const [o, fw] = fit[Math.floor(k * fit.length / SAMPLES)];
         const rgb = Buffer.alloc(fw * h * 3);
         fs.readSync(fd, rgb, 0, rgb.length, o);
         for (let y = 0; y < h; y++) {
@@ -130,11 +165,15 @@ function pictureBox(d) {
     while ((bh > 1) && (rows[bh - 1] <= 8)) {
         bh--;
     }
-    // A dump dark throughout keeps the smallest frame's size.
+    // A dump dark throughout keeps the smallest common size.
     return ((bw < w / 2) || (bh < h / 2)) ? { w, h } : { w: bw, h: bh };
 }
 let box = null; // the picture's box in dir's frames: pictureBox(), once readFrames() starts
 
+// The frames between --from and --to, one at a time, each { t (s since the first), n (its place in the dump),
+// presentId, index, count, dropped, w, h, rgb }, cut to the picture's box. frames.bin is read a frame at a time, never
+// whole: a dump at a 240 Hz display's rate is about 160 MB a second, Node reads no file over 2 GiB at once, and the
+// check keeps three frames.
 function* readFrames() {
     const file = path.join(dir, 'frames.bin');
     if (!fs.existsSync(file)) {
@@ -162,19 +201,20 @@ function* readFrames() {
             break;
         }
         if (t >= from) {
-            // Cut to the picture's box: its rows, then its columns of each.
-            const whole = Buffer.allocUnsafe(w * box.h * 3);
+            // Cut to the picture's box: its rows, then its columns of each. A frame smaller than the box is kept whole.
+            const [cw, ch] = ((w >= box.w) && (h >= box.h)) ? [box.w, box.h] : [w, h];
+            const whole = Buffer.allocUnsafe(w * ch * 3);
             fs.readSync(fd, whole, 0, whole.length, o + HEADER);
             let rgb = whole;
-            if (w !== box.w) {
-                rgb = Buffer.allocUnsafe(box.w * box.h * 3);
-                for (let y = 0; y < box.h; y++) {
-                    whole.copy(rgb, y * box.w * 3, y * w * 3, (y * w + box.w) * 3);
+            if (w !== cw) {
+                rgb = Buffer.allocUnsafe(cw * ch * 3);
+                for (let y = 0; y < ch; y++) {
+                    whole.copy(rgb, y * cw * 3, y * w * 3, (y * w + cw) * 3);
                 }
             }
             yield {
                 n, t, index: head.readUInt32LE(12), count: head.readUInt32LE(16), dropped: head.readUInt32LE(20),
-                presentId: Number(head.readBigUInt64LE(24)), w: box.w, h: box.h, rgb,
+                presentId: Number(head.readBigUInt64LE(24)), w: cw, h: ch, rgb,
             };
         }
         o += HEADER + bytes;
@@ -518,21 +558,24 @@ else {
 // workload's triangles counted by where their middles lie.
 const PER = 20;
 // A dump's 3D workloads (200 triangles or more) between --from and --to: their mean count a band, and the picture's
-// shape from its frames.
+// shape: its picture's box between those seconds (pictureBox()), so a dump that starts before its plan sizes the window
+// (Rayman 2's first 2 s of frames at 4:3 in a 16:9 window) reads the size the plan set, and one whose frames come in
+// several sizes (Rush 2049's) reads its picture's, not its color target's.
 function sidesOf(d) {
     const file = path.join(d, 'sides.tsv');
     const framesFile = path.join(d, 'frames.bin');
     if (!fs.existsSync(file) || !fs.existsSync(framesFile)) {
         return null;
     }
-    const head = Buffer.alloc(HEADER);
-    const fd = fs.openSync(framesFile, 'r');
-    const read = fs.readSync(fd, head, 0, HEADER, 0);
-    fs.closeSync(fd);
-    if ((read < HEADER) || (head.readUInt32LE(0) !== MAGIC)) {
+    const shape = pictureBox(d);
+    if (!shape) {
         return null;
     }
-    const startMs = Number(head.readBigUInt64LE(32));
+    const head = Buffer.alloc(HEADER);
+    const fd = fs.openSync(framesFile, 'r');
+    fs.readSync(fd, head, 0, HEADER, 0);
+    fs.closeSync(fd);
+    const startMs = Number(head.readBigUInt64LE(32)); // the dump's second 0
     const mean = new Array(PER * 3).fill(0);
     let n = 0;
     for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
@@ -546,7 +589,6 @@ function sidesOf(d) {
         v.forEach((c, i) => { mean[i] += c; });
         n++;
     }
-    const shape = pictureBox(d); // the picture's own shape, not its first frame's (pictureBox())
     return { n, mean: mean.map((c) => c / Math.max(n, 1)), aspect: shape.w / shape.h };
 }
 // The mean triangles a workload with their middles past the 4:3 view's sides, from a to b view widths out on each.
@@ -557,6 +599,8 @@ const pastSides = (s, a, b) => {
     }
     return sum;
 };
+// ... and a band's mean of them there, both sides together.
+const perBand = (s, a, b) => pastSides(s, a, b) / Math.max(Math.round(b * PER) - Math.round(a * PER), 1);
 const insideView = (s) => s.mean.slice(PER, 2 * PER).reduce((a, b) => a + b, 0);
 const sides = sidesOf(dir);
 if (sides && sides.n && widerDir) {
@@ -583,12 +627,24 @@ if (sides && sides.n && widerDir) {
     const grows = pastB / Math.max(pastA, 1);
     // Drawn as densely there as inside the view, a world isn't culled at the sides at all: nothing to grow.
     const density = (pastB / (2 * (b - a))) / Math.max(inB, 1);
-    const fail = (grows < SIDES_GROW) && (density < SIDES_DENSE);
+    // Drawn past the narrower picture's own edge (as far out again as the edge is) as densely as just inside it, a world
+    // isn't culled by the window: it draws the same whatever the window, so it doesn't grow, and isn't culled to 4:3.
+    const open = perBand(sides, a, 2 * a) / Math.max(perBand(sides, 0, a), 1);
+    const unmet = (grows < SIDES_GROW) && (density < SIDES_DENSE) && (open < SIDES_OPEN);
+    // A scene that draws next to nothing past the view can't show the growth: a fifth of a few dozen triangles is an
+    // object or two, whose triangles a game culling to the picture draws whole in both windows once it reaches into the
+    // narrower one.
+    const few = unmet && (pastB < SIDES_FEW);
+    const fail = unmet && !few;
     failed ||= fail;
+    untested ||= few;
     console.log(`sides: ${a.toFixed(2)}-${b.toFixed(2)} of the view past the 4:3 view's sides, ${pastA.toFixed(0)} triangles` +
         ` a workload at ${sides.aspect.toFixed(2)}:1 and ${pastB.toFixed(0)} at ${wider.aspect.toFixed(2)}:1` +
-        ` (x${grows.toFixed(2)}; ${density.toFixed(2)} of the view's density), over ${sides.n} and ${wider.n} workloads: ` +
-        (fail ? 'FAILS, the world past the 4:3 view doesn\'t grow with the picture: culled to the 4:3 view' : 'passes'));
+        ` (x${grows.toFixed(2)}; ${density.toFixed(2)} of the view's density; ${open.toFixed(2)} as dense past the` +
+        ` ${sides.aspect.toFixed(2)}:1 picture's edge as inside it), over ${sides.n} and ${wider.n} workloads: ` +
+        (fail ? 'FAILS, the world past the 4:3 view doesn\'t grow with the picture: culled to the 4:3 view' :
+            few ? `untested, too little drawn past the view to tell (under ${SIDES_FEW} triangles a workload): a scene ` +
+                'that draws more there tests it' : 'passes'));
 }
 else if (sides && sides.n) {
     const ext = (sides.aspect / (4 / 3) - 1) / 2;
