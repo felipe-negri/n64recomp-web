@@ -1,0 +1,456 @@
+// Checks a game's picture by machine, from what RT64 writes with RT64_FRAME_DUMP=<dir> set (rt64-web's
+// src/hle/rt64_frame_dump.h): docs/new-recomp.md item 2's flicker and interpolation and its widescreen culling, which
+// a person or a model looking at captures missed (Mario Golf's trees put where other trees stood in every frame drawn
+// between the game's, and its ground culled at the 4:3 view's sides), and which these find without anyone looking.
+//
+//   node tools/frame_check.mjs <dir> [--from <s>] [--to <s>] [--save <dir>] [--quiet]
+//
+// <dir> is the dump's: frames.bin, every frame presented, and sides.tsv, where across the view the 3D's triangles lay.
+// --from and --to keep what came between those seconds of the dump, counted from its first frame; --save writes each flagged frame with the frames
+// either side of it as one PNG, its flagged blocks outlined, for whoever wants to see one.
+//
+// - Frames unlike both neighbours. Each frame is matched against the frames presented before and after it, block by
+//   block (8 pixels of a grey copy about 400 wide), each block to the best place within a few pixels of where the
+//   picture as a whole moved: a block neither neighbour has anywhere near, where the neighbours match each other
+//   there, is something drawn for that frame alone. A frame paired wrongly between the game's own (a model drawn
+//   halfway to a look-alike's place, a camera cut stretched, polygons torn), a frame drawn in parts, a frame of
+//   garbage or an old picture between two right ones all read so; the game's own motion, a fade, a cut, something
+//   appearing for good don't. A presented frame equal to the one before (a repeat) is left out. It fails where such
+//   frames are more than 1 in 100, or come 3 or more within a second: a one-frame flash a game draws is rare and
+//   alone, and a pairing fault shows in every frame drawn between the game's for as long as the scene lasts.
+// - Culled at the 4:3 view's sides. For each workload of 3D (one with 200 triangles or more near the view's sides),
+//   the triangles covering the widened picture's strips past the view's left and right edges against those covering
+//   the same width just inside them. A game whose world is widened with the picture draws about as many past its
+//   view's edges as inside them; one that culls to its 4:3 view draws only what reaches over the edge from inside, a
+//   fraction. It fails where the median over the workloads is under 0.5.
+//
+// It exits 0 when both pass, 1 when one fails, 2 on a bad dump or arguments.
+import fs from 'node:fs';
+import path from 'node:path';
+import zlib from 'node:zlib';
+
+const args = process.argv.slice(2);
+const opt = (name, fallback) => {
+    const i = args.indexOf(name);
+    return (i >= 0) ? args[i + 1] : fallback;
+};
+const dir = args[0];
+if (!dir || dir.startsWith('--')) {
+    console.error('usage: node tools/frame_check.mjs <dir> [--from <s>] [--to <s>] [--save <dir>] [--quiet]');
+    process.exit(2);
+}
+const from = Number(opt('--from', 0));
+const to = Number(opt('--to', Infinity));
+const saveDir = opt('--save', null);
+const quiet = args.includes('--quiet');
+
+const MAGIC = 0x44465452; // rt64_frame_dump.h's FrameDump::Magic
+const HEADER = 40;
+const W = 400; // the grey copy's width
+const B = 8; // block size
+const R = 3; // a block's search around the picture's own shift, in grey pixels
+const G = 8; // the picture's shift searched, in quarter-size pixels (32 grey pixels)
+const BAD = 14; // a block's mean difference to its best match that counts as unmatched, of 255
+const RATIO = 3; // ... and how much worse than the neighbours match each other there
+const MIN_BLOCKS = 4; // blocks a flagged frame has
+const P = 2; // a pixel's search about its block's best place, in grey pixels (eitherDiff())
+const TILES_X = 4, TILES_Y = 3; // the parts of the picture whose shifts are found apart (placesOf())
+
+let dumpStartMs = null; // the first frame's time, ms since 1970: the dump's second 0, sides.tsv's too
+
+// The frames, each { t (s since the first), n (its place in the dump), presentId, index, count, dropped, w, h, rgb }.
+function readFrames() {
+    const file = path.join(dir, 'frames.bin');
+    if (!fs.existsSync(file)) {
+        return [];
+    }
+    const buf = fs.readFileSync(file);
+    const frames = [];
+    for (let o = 0; o + HEADER <= buf.length;) {
+        if (buf.readUInt32LE(o) !== MAGIC) {
+            console.error(`frames.bin: no frame header at byte ${o}`);
+            process.exit(2);
+        }
+        const w = buf.readUInt32LE(o + 4), h = buf.readUInt32LE(o + 8);
+        const size = w * h * 3;
+        if (o + HEADER + size > buf.length) {
+            break; // the last frame, cut off as the game was stopped
+        }
+        const timeMs = Number(buf.readBigUInt64LE(o + 32));
+        dumpStartMs ??= timeMs;
+        frames.push({
+            n: frames.length, t: (timeMs - dumpStartMs) / 1000, index: buf.readUInt32LE(o + 12), count: buf.readUInt32LE(o + 16),
+            dropped: buf.readUInt32LE(o + 20), presentId: Number(buf.readBigUInt64LE(o + 24)), w, h,
+            rgb: buf.subarray(o + HEADER, o + HEADER + size),
+        });
+        o += HEADER + size;
+    }
+    return frames;
+}
+
+// A grey copy of a frame, gw x gh, box-filtered.
+function grey(f, gw, gh) {
+    const out = new Float32Array(gw * gh);
+    const sx = f.w / gw, sy = f.h / gh;
+    for (let y = 0; y < gh; y++) {
+        const y0 = Math.floor(y * sy), y1 = Math.max(y0 + 1, Math.floor((y + 1) * sy));
+        for (let x = 0; x < gw; x++) {
+            const x0 = Math.floor(x * sx), x1 = Math.max(x0 + 1, Math.floor((x + 1) * sx));
+            let sum = 0;
+            for (let yy = y0; yy < y1; yy++) {
+                let p = (yy * f.w + x0) * 3;
+                for (let xx = x0; xx < x1; xx++, p += 3) {
+                    sum += 0.299 * f.rgb[p] + 0.587 * f.rgb[p + 1] + 0.114 * f.rgb[p + 2];
+                }
+            }
+            out[y * gw + x] = sum / ((y1 - y0) * (x1 - x0));
+        }
+    }
+    return out;
+}
+
+function quarter(g, gw, gh) {
+    const qw = gw >> 2, qh = gh >> 2, out = new Float32Array(qw * qh);
+    for (let y = 0; y < qh; y++) {
+        for (let x = 0; x < qw; x++) {
+            let s = 0;
+            for (let yy = 0; yy < 4; yy++) {
+                for (let xx = 0; xx < 4; xx++) {
+                    s += g[(y * 4 + yy) * gw + x * 4 + xx];
+                }
+            }
+            out[y * qw + x] = s / 16;
+        }
+    }
+    return out;
+}
+
+// How the picture a moved to become b, in grey pixels: the shift of the quarter-size copies that matches best, over
+// the whole picture or over the region x0-x1, y0-y1 of the quarter-size copy.
+function shiftOf(qa, qb, qw, qh, x0 = 0, x1 = qw, y0 = 0, y1 = qh) {
+    let best = Infinity, by = 0, bx = 0;
+    const m = G + 1;
+    const ya = Math.max(y0, m), yz = Math.min(y1, qh - m), xa = Math.max(x0, m), xz = Math.min(x1, qw - m);
+    for (let dy = -G; dy <= G; dy++) {
+        for (let dx = -G; dx <= G; dx++) {
+            let s = 0;
+            for (let y = ya; y < yz; y++) {
+                const ra = y * qw, rb = (y + dy) * qw + dx;
+                for (let x = xa; x < xz; x++) {
+                    s += Math.abs(qa[ra + x] - qb[rb + x]);
+                }
+            }
+            if (s < best) {
+                best = s; by = dy; bx = dx;
+            }
+        }
+    }
+    return [by * 4, bx * 4];
+}
+
+// Where each block of a is looked for in b: where the picture as a whole moved, and where the part of it the block
+// lies in moved (a grid of TILES_X by TILES_Y), as [cy0, cx0, cy1, cx1], each an array of a value a block. A picture
+// whose parts move apart (a screen split open from its middle, a scene's near and far parts) has a part the whole's
+// shift misses by far more than a block's search reaches.
+function placesOf(qa, qb, qw, qh, bw, bh) {
+    const [gy, gx] = shiftOf(qa, qb, qw, qh);
+    const tiles = [];
+    for (let ty = 0; ty < TILES_Y; ty++) {
+        for (let tx = 0; tx < TILES_X; tx++) {
+            tiles.push(shiftOf(qa, qb, qw, qh, Math.floor(tx * qw / TILES_X), Math.floor((tx + 1) * qw / TILES_X),
+                Math.floor(ty * qh / TILES_Y), Math.floor((ty + 1) * qh / TILES_Y)));
+        }
+    }
+    const n = bw * bh;
+    const cy0 = new Int16Array(n).fill(gy), cx0 = new Int16Array(n).fill(gx);
+    const cy1 = new Int16Array(n), cx1 = new Int16Array(n);
+    for (let by = 0; by < bh; by++) {
+        for (let bx = 0; bx < bw; bx++) {
+            const [ty, tx] = tiles[Math.min(Math.floor(by * TILES_Y / bh), TILES_Y - 1) * TILES_X +
+                Math.min(Math.floor(bx * TILES_X / bw), TILES_X - 1)];
+            cy1[by * bw + bx] = ty;
+            cx1[by * bw + bx] = tx;
+        }
+    }
+    return [cy0, cx0, cy1, cx1];
+}
+
+// For each block of a, its mean absolute difference to the best place in b within R of either of its places
+// (placesOf()), and that place, as a shift, in best.dy and best.dx.
+function explain(a, b, gw, gh, places) {
+    const bw = gw / B | 0, bh = gh / B | 0;
+    const best = new Float32Array(bw * bh).fill(Infinity);
+    best.dy = new Int16Array(bw * bh);
+    best.dx = new Int16Array(bw * bh);
+    for (let by = 0; by < bh; by++) {
+        for (let bx = 0; bx < bw; bx++) {
+            const k = by * bw + bx;
+            for (let p = 0; p < 2; p++) {
+                const sy = places[p * 2][k], sx = places[p * 2 + 1][k];
+                if ((p === 1) && (sy === places[0][k]) && (sx === places[1][k])) {
+                    continue;
+                }
+                for (let dy = sy - R; dy <= sy + R; dy++) {
+                    for (let dx = sx - R; dx <= sx + R; dx++) {
+                        let s = 0;
+                        for (let y = 0; y < B; y++) {
+                            const ay = by * B + y;
+                            const yy = Math.min(Math.max(ay + dy, 0), gh - 1);
+                            const ra = ay * gw, rb = yy * gw;
+                            for (let x = 0; x < B; x++) {
+                                const ax = bx * B + x;
+                                const xx = Math.min(Math.max(ax + dx, 0), gw - 1);
+                                s += Math.abs(a[ra + ax] - b[rb + xx]);
+                            }
+                        }
+                        s /= B * B;
+                        if (s < best[k]) {
+                            best[k] = s;
+                            best.dy[k] = dy;
+                            best.dx[k] = dx;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return best;
+}
+
+// Block k of c against a and b each about its best place (explain()'s), each pixel against the closest pixel of either
+// within P of there: a block half one picture and half the other (the edge of a wipe that moved between them), or
+// stretched a little (a wipe that scales), is explained, a model where neither has anything like it nearby isn't.
+function eitherDiff(c, a, b, ea, eb, k, gw, gh) {
+    const bw = gw / B | 0;
+    const by = Math.floor(k / bw), bx = k % bw;
+    const ady = ea.dy[k], adx = ea.dx[k], bdy = eb.dy[k], bdx = eb.dx[k];
+    const clampY = (y) => Math.min(Math.max(y, 0), gh - 1), clampX = (x) => Math.min(Math.max(x, 0), gw - 1);
+    let s = 0;
+    for (let y = by * B; y < (by + 1) * B; y++) {
+        for (let x = bx * B; x < (bx + 1) * B; x++) {
+            const v = c[y * gw + x];
+            let m = Infinity;
+            for (let py = -P; py <= P; py++) {
+                const ya = clampY(y + ady + py) * gw, yb = clampY(y + bdy + py) * gw;
+                for (let px = -P; px <= P; px++) {
+                    m = Math.min(m, Math.abs(v - a[ya + clampX(x + adx + px)]), Math.abs(v - b[yb + clampX(x + bdx + px)]));
+                }
+            }
+            s += m;
+        }
+    }
+    return s / (B * B);
+}
+
+function meanDiff(a, b) {
+    let s = 0;
+    for (let i = 0; i < a.length; i++) {
+        s += Math.abs(a[i] - b[i]);
+    }
+    return s / a.length;
+}
+
+// A PNG of rows of RGB, for --save.
+function png(width, height, rgb) {
+    const crcTable = new Int32Array(256).map((_, n) => {
+        let c = n;
+        for (let k = 0; k < 8; k++) {
+            c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        }
+        return c;
+    });
+    const crc = (bytes) => {
+        let c = -1;
+        for (const v of bytes) {
+            c = crcTable[(c ^ v) & 0xFF] ^ (c >>> 8);
+        }
+        return (c ^ -1) >>> 0;
+    };
+    const chunk = (type, data) => {
+        const out = Buffer.alloc(12 + data.length);
+        out.writeUInt32BE(data.length, 0);
+        out.write(type, 4, 'latin1');
+        data.copy(out, 8);
+        out.writeUInt32BE(crc(out.subarray(4, 8 + data.length)), 8 + data.length);
+        return out;
+    };
+    const raw = Buffer.alloc((width * 3 + 1) * height);
+    for (let y = 0; y < height; y++) {
+        rgb.copy(raw, y * (width * 3 + 1) + 1, y * width * 3, (y + 1) * width * 3);
+    }
+    const ihdr = Buffer.alloc(13);
+    ihdr.writeUInt32BE(width, 0);
+    ihdr.writeUInt32BE(height, 4);
+    ihdr[8] = 8; ihdr[9] = 2;
+    return Buffer.concat([Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]), chunk('IHDR', ihdr),
+        chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+
+function saveTriplet(name, fs3, blocks, gw) {
+    const f = fs3[1];
+    const out = Buffer.alloc(f.w * 3 * f.h * 3);
+    fs3.forEach((g, i) => {
+        for (let y = 0; y < f.h; y++) {
+            g.rgb.copy(out, (y * f.w * 3 + i * f.w) * 3, y * f.w * 3, (y + 1) * f.w * 3);
+        }
+    });
+    const scale = f.w / gw;
+    const bw = gw / B | 0;
+    for (const k of blocks) {
+        const x0 = Math.floor((k % bw) * B * scale) + f.w, y0 = Math.floor(Math.floor(k / bw) * B * scale);
+        const s = Math.ceil(B * scale);
+        for (let i = 0; i < s; i++) {
+            for (const [x, y] of [[x0 + i, y0], [x0 + i, y0 + s - 1], [x0, y0 + i], [x0 + s - 1, y0 + i]]) {
+                if (x < f.w * 3 && y < f.h) {
+                    const p = (y * f.w * 3 + x) * 3;
+                    out[p] = 255; out[p + 1] = 0; out[p + 2] = 255;
+                }
+            }
+        }
+    }
+    fs.writeFileSync(path.join(saveDir, name), png(f.w * 3, f.h, out));
+}
+
+let failed = false;
+const all = readFrames();
+const frames = all.filter((f) => (f.t >= from) && (f.t <= to));
+let aspect = null;
+if (frames.length >= 3) {
+    if (saveDir) {
+        fs.mkdirSync(saveDir, { recursive: true });
+    }
+    // The frames in runs of one size (a resized window, a screen the game draws at another size starts a run), each
+    // matched within its own run, repeats left out.
+    const runs = [];
+    let repeats = 0, dropped = 0;
+    for (const f of frames) {
+        dropped += f.dropped;
+        let run = runs[runs.length - 1];
+        if (!run || (run.w !== f.w) || (run.h !== f.h)) {
+            const gw = Math.floor(W / B) * B, gh = Math.floor(W * f.h / f.w / B) * B;
+            run = { w: f.w, h: f.h, gw, gh, kept: [] };
+            runs.push(run);
+        }
+        const g = grey(f, run.gw, run.gh);
+        if (run.kept.length && meanDiff(g, run.kept[run.kept.length - 1].g) < 0.05) {
+            repeats++;
+            continue;
+        }
+        run.kept.push({ f, g, q: quarter(g, run.gw, run.gh) });
+    }
+    // The picture's shape is the one most frames have.
+    const widest = runs.reduce((a, r) => (r.kept.length > a.kept.length) ? r : a);
+    aspect = widest.w / widest.h;
+    const flagged = [];
+    let checked = 0;
+    for (const { gw, gh, kept } of runs) {
+        const qw = gw >> 2, qh = gh >> 2;
+        const bw = gw / B | 0, bh = gh / B | 0;
+        checked += Math.max(kept.length - 2, 0);
+        for (let k = 1; k + 1 < kept.length; k++) {
+            const a = kept[k - 1], c = kept[k], b = kept[k + 1];
+            const ea = explain(c.g, a.g, gw, gh, placesOf(c.q, a.q, qw, qh, bw, bh));
+            const eb = explain(c.g, b.g, gw, gh, placesOf(c.q, b.q, qw, qh, bw, bh));
+            // Where the neighbours match each other: a's blocks against b.
+            const eab = explain(a.g, b.g, gw, gh, placesOf(a.q, b.q, qw, qh, bw, bh));
+            const bad = [];
+            for (let by = 1; by < bh - 1; by++) {
+                for (let bx = 1; bx < bw - 1; bx++) {
+                    const i = by * bw + bx;
+                    let e = Math.min(ea[i], eb[i]);
+                    if (e > BAD) {
+                        e = eitherDiff(c.g, a.g, b.g, ea, eb, i, gw, gh);
+                    }
+                    // a's block that c's block i matched, roughly: i shifted by its match in a, in blocks
+                    const ay = Math.min(Math.max(by + Math.round(ea.dy[i] / B), 0), bh - 1);
+                    const ax = Math.min(Math.max(bx + Math.round(ea.dx[i] / B), 0), bw - 1);
+                    const base = eab[ay * bw + ax];
+                    if ((e > BAD) && (e > RATIO * base + 4)) {
+                        bad.push(i);
+                    }
+                }
+            }
+            if (bad.length >= MIN_BLOCKS) {
+                flagged.push({ c, bad, bw, bh });
+                if (saveDir) {
+                    saveTriplet(`unlike-${String(c.f.n).padStart(5, '0')}.png`, [a.f, c.f, b.f], bad, gw);
+                }
+            }
+        }
+    }
+    // 3 or more flagged frames within a second, anywhere.
+    let burst = 0;
+    for (let i = 0, j = 0; i < flagged.length; i++) {
+        while (flagged[i].c.f.t - flagged[j].c.f.t > 1) {
+            j++;
+        }
+        burst = Math.max(burst, i - j + 1);
+    }
+    checked = Math.max(checked, 1);
+    const fail = (flagged.length * 100 > checked) || (burst >= 3);
+    failed ||= fail;
+    console.log(`frames: ${frames.length} presented over ${(frames[frames.length - 1].t - frames[0].t).toFixed(1)} s` +
+        ` (${repeats} repeats, ${dropped} dropped by the dump), ` + runs.map((r) => `${r.w}x${r.h}`)
+        .filter((s, i, a) => a.indexOf(s) === i).join(', '));
+    console.log(`unlike both neighbours: ${flagged.length} of ${checked} frames, at most ${burst} within a second: ` +
+        (fail ? 'FAILS' : 'passes'));
+    if (!quiet) {
+        for (const { c, bad, bw, bh } of flagged.slice(0, 40)) {
+            const xs = bad.map((i) => i % bw), ys = bad.map((i) => Math.floor(i / bw));
+            console.log(`  frame ${c.f.n} at ${c.f.t.toFixed(2)} s (present ${c.f.presentId}, ${c.f.index + 1} of ${c.f.count}):` +
+                ` ${bad.length} blocks, x ${(Math.min(...xs) / bw).toFixed(2)}-${((Math.max(...xs) + 1) / bw).toFixed(2)}` +
+                ` y ${(Math.min(...ys) / bh).toFixed(2)}-${((Math.max(...ys) + 1) / bh).toFixed(2)} of the picture`);
+        }
+        if (flagged.length > 40) {
+            console.log(`  ... and ${flagged.length - 40} more`);
+        }
+    }
+}
+else {
+    console.log('frames: fewer than 3 in frames.bin, nothing to match');
+}
+
+// Sides: sides.tsv's bands are a twentieth of the view's width each, from one view left of it to one right.
+const sidesFile = path.join(dir, 'sides.tsv');
+if (fs.existsSync(sidesFile) && aspect) {
+    const PER = 20;
+    const ext = (aspect / (4 / 3) - 1) / 2; // the widened picture's strip past each side, in view widths
+    const n = Math.floor(ext * PER);
+    if (n < 1) {
+        console.log(`sides: the picture is ${aspect.toFixed(2)}:1, no wider than the view: nothing past its sides to check`);
+    }
+    else {
+        const ratios = [];
+        for (const line of fs.readFileSync(sidesFile, 'utf8').split(/\r?\n/)) {
+            // <workload id>\t<ms since 1970>\t<a count a band>...
+            const cols = line.split('\t').map(Number);
+            const v = cols.slice(2);
+            const t = (cols[1] - dumpStartMs) / 1000;
+            if ((v.length !== PER * 3) || !(t >= from) || !(t <= to)) {
+                continue;
+            }
+            let outer = 0, inner = 0;
+            for (let i = 0; i < n; i++) {
+                outer += v[PER - 1 - i] + v[2 * PER + i];
+                inner += v[PER + i] + v[2 * PER - 1 - i];
+            }
+            if (inner + outer >= 200) {
+                ratios.push(outer / Math.max(inner, 1));
+            }
+        }
+        if (!ratios.length) {
+            console.log('sides: no workload drew 200 triangles near the view\'s sides');
+        }
+        else {
+            ratios.sort((a, b) => a - b);
+            const median = ratios[ratios.length >> 1];
+            const fail = median < 0.5;
+            failed ||= fail;
+            console.log(`sides: past the 4:3 view's edges against just inside them, ${(n / PER).toFixed(2)} of the view` +
+                ` a side: median ${median.toFixed(2)} over ${ratios.length} workloads` +
+                ` (a tenth ${ratios[ratios.length / 10 | 0].toFixed(2)}, nine tenths ${ratios[ratios.length * 9 / 10 | 0].toFixed(2)}): ` +
+                (fail ? 'FAILS, culled at the 4:3 view' : 'passes'));
+        }
+    }
+}
+process.exit(failed ? 1 : 0);
