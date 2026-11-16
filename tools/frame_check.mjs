@@ -78,11 +78,69 @@ let dumpStartMs = null; // the first frame's time, ms since 1970: the dump's sec
 // The frames between --from and --to, one at a time, each { t (s since the first), n (its place in the dump),
 // presentId, index, count, dropped, w, h, rgb }. frames.bin is read a frame at a time, never whole: a dump at a 240 Hz
 // display's rate is about 160 MB a second, Node reads no file over 2 GiB at once, and the check keeps three frames.
+// The picture's box in a dump's frames, from their top left corner. RT64 draws a frame into a color target that can
+// be larger than the picture (one kept from a larger frame before, the targets of the frames drawn between the
+// game's), and the dump reads back the whole target, so one dump's frames can come in several sizes with the picture
+// the same size in each and black past it: Rush 2049's at 16:9, 533x301 and 533x275 every two frames, a 489x275
+// picture in both. Matched whole, a frame of another size than the one before starts the matching again, and with
+// sizes taking turns every two frames no three in a row are compared: its start line's flags broken into shards in the
+// frames between the game's passed unseen. So every frame is cut to the box before it is matched: the smallest frame's
+// size, less the columns and rows at its right and bottom that are black in each of 64 frames taken across the dump.
+// Its shape is the picture's, which the sides check takes too.
+function pictureBox(d) {
+    const fd = fs.openSync(path.join(d, 'frames.bin'), 'r');
+    const size = fs.fstatSync(fd).size;
+    const head = Buffer.alloc(HEADER);
+    const at = [];
+    let w = Infinity, h = Infinity;
+    for (let o = 0; o + HEADER <= size;) {
+        fs.readSync(fd, head, 0, HEADER, o);
+        const fw = head.readUInt32LE(4), fh = head.readUInt32LE(8);
+        if ((head.readUInt32LE(0) !== MAGIC) || (o + HEADER + fw * fh * 3 > size)) {
+            break;
+        }
+        w = Math.min(w, fw);
+        h = Math.min(h, fh);
+        at.push([o + HEADER, fw]);
+        o += HEADER + fw * fh * 3;
+    }
+    if (!at.length) {
+        fs.closeSync(fd);
+        return null;
+    }
+    const cols = new Uint8Array(w), rows = new Uint8Array(h);
+    const SAMPLES = 64;
+    for (let k = 0; k < SAMPLES; k++) {
+        const [o, fw] = at[Math.floor(k * at.length / SAMPLES)];
+        const rgb = Buffer.alloc(fw * h * 3);
+        fs.readSync(fd, rgb, 0, rgb.length, o);
+        for (let y = 0; y < h; y++) {
+            for (let x = 0, p = y * fw * 3; x < w; x++, p += 3) {
+                const v = Math.max(rgb[p], rgb[p + 1], rgb[p + 2]);
+                cols[x] = Math.max(cols[x], v);
+                rows[y] = Math.max(rows[y], v);
+            }
+        }
+    }
+    fs.closeSync(fd);
+    let bw = w, bh = h;
+    while ((bw > 1) && (cols[bw - 1] <= 8)) {
+        bw--;
+    }
+    while ((bh > 1) && (rows[bh - 1] <= 8)) {
+        bh--;
+    }
+    // A dump dark throughout keeps the smallest frame's size.
+    return ((bw < w / 2) || (bh < h / 2)) ? { w, h } : { w: bw, h: bh };
+}
+let box = null; // the picture's box in dir's frames: pictureBox(), once readFrames() starts
+
 function* readFrames() {
     const file = path.join(dir, 'frames.bin');
     if (!fs.existsSync(file)) {
         return;
     }
+    box ??= pictureBox(dir);
     const fd = fs.openSync(file, 'r');
     const size = fs.fstatSync(fd).size;
     const head = Buffer.alloc(HEADER);
@@ -104,11 +162,19 @@ function* readFrames() {
             break;
         }
         if (t >= from) {
-            const rgb = Buffer.allocUnsafe(bytes);
-            fs.readSync(fd, rgb, 0, bytes, o + HEADER);
+            // Cut to the picture's box: its rows, then its columns of each.
+            const whole = Buffer.allocUnsafe(w * box.h * 3);
+            fs.readSync(fd, whole, 0, whole.length, o + HEADER);
+            let rgb = whole;
+            if (w !== box.w) {
+                rgb = Buffer.allocUnsafe(box.w * box.h * 3);
+                for (let y = 0; y < box.h; y++) {
+                    whole.copy(rgb, y * box.w * 3, y * w * 3, (y * w + box.w) * 3);
+                }
+            }
             yield {
                 n, t, index: head.readUInt32LE(12), count: head.readUInt32LE(16), dropped: head.readUInt32LE(20),
-                presentId: Number(head.readBigUInt64LE(24)), w, h, rgb,
+                presentId: Number(head.readBigUInt64LE(24)), w: box.w, h: box.h, rgb,
             };
         }
         o += HEADER + bytes;
@@ -480,7 +546,8 @@ function sidesOf(d) {
         v.forEach((c, i) => { mean[i] += c; });
         n++;
     }
-    return { n, mean: mean.map((c) => c / Math.max(n, 1)), aspect: head.readUInt32LE(4) / head.readUInt32LE(8) };
+    const shape = pictureBox(d); // the picture's own shape, not its first frame's (pictureBox())
+    return { n, mean: mean.map((c) => c / Math.max(n, 1)), aspect: shape.w / shape.h };
 }
 // The mean triangles a workload with their middles past the 4:3 view's sides, from a to b view widths out on each.
 const pastSides = (s, a, b) => {

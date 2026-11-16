@@ -53,7 +53,8 @@
 # captures: a capture waits in memory only until it is saved, and a run ended early (a GPU turn's --max) leaves every
 # capture saved so far, its captures.tsv line and its flicker.txt lines on disk. Writing costs the captures nothing
 # measurable at 0.25 and takes some CPU at 1 from a large window, which on a busy host can slow them.
-# A key a game reads through SDL comes from the window's messages, so keys reach it with its window behind others.
+# A key a game reads through SDL comes from the window's messages, so keys reach it with its window behind others; the
+# window is brought to the front all the same, once it opens (below), for the rate it presents at.
 # RDRAM is read and written from outside, in the process this started: N64ModernRuntime commits it as one 512 MB region,
 # the start of its allocation, with 0x80000000 at its first byte and each 32-bit word in the host's order.
 #
@@ -103,6 +104,9 @@ public static class CaptureWindow {
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
     [DllImport("user32.dll")] public static extern uint MapVirtualKey(uint code, uint mapType);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int w, int h2, uint flags);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
     [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
     [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr p, IntPtr a, byte[] b, IntPtr n, out IntPtr done);
     [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr p, IntPtr a, byte[] b, IntPtr n, out IntPtr done);
@@ -409,6 +413,19 @@ while ($hwnd -eq [IntPtr]::Zero -and $clock.Elapsed.TotalSeconds -lt 60 -and -no
     Start-Sleep -Milliseconds 250; $hwnd = [CaptureWindow]::Of([uint32]$proc.Id)
 }
 Write-Output ("window after {0:N1}s" -f $clock.Elapsed.TotalSeconds)
+# Brought to the front: a window in the background can be held to 60 presents a second (by Windows, or a driver's
+# limit for background programs), and Rush 2049 at Framerate Display on a 240 Hz display showed, and RT64_FRAME_DUMP
+# dumped, its four frames a game frame 16.7 ms apart instead of 4 behind the window this was started from: 237 a
+# second in front. Windows lets only the process with the last input bring a window to
+# the front, so an Alt press and release comes first.
+if ($hwnd -ne [IntPtr]::Zero) {
+    [CaptureWindow]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero)
+    $front = [CaptureWindow]::SetForegroundWindow($hwnd)
+    [CaptureWindow]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)
+    if (-not $front -or ([CaptureWindow]::GetForegroundWindow() -ne $hwnd)) {
+        Write-Output 'window not brought to the front: it may be held to 60 presents a second'
+    }
+}
 
 # A number in a plan: decimal, hex with 0x, a name a find set, or [<address>], the word at that address now (a
 # pointer the game keeps); a name or [..] with +<number> after it for a field of its struct.
