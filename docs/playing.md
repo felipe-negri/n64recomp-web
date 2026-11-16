@@ -29,10 +29,10 @@ options; `docs/findings.md` has what was measured this way.
 - Check a desktop build's frames by machine with `tools/frame_check.mjs` (docs/new-recomp.md, 2a): a capture comes
   tens of milliseconds after the last, so captures miss a fault in the frames between the game's, and an eye misses
   one that looks plausible. With `RT64_FRAME_DUMP=<dir>` (and `RT64_FRAME_DUMP_SECONDS=<from>-<to>` for a scene's
-  worth), RT64 writes every frame presented and where the 3D's triangles lay across the view (rt64-web's
-  `src/hle/rt64_frame_dump.h`); `capture_window.ps1 -Env` passes the variables to the build it starts. frame_check
-  reads one dump for frames drawn for themselves alone between two that agree, and a 16:9 dump with a 32:9 one of the
-  same plan (`--wider`) for a world culled at the 4:3 view's sides.
+  worth), RT64 writes into that folder, made if it isn't there, every frame presented and where the 3D's triangles
+  lay across the view (rt64-web's `src/hle/rt64_frame_dump.h`); `capture_window.ps1 -Env` passes the variables to
+  the build it starts. frame_check reads one dump for frames drawn for themselves alone between two that agree, and a
+  16:9 dump with a 32:9 one of the same plan (`--wider`) for a world culled at the 4:3 view's sides.
 
 ## Plans
 

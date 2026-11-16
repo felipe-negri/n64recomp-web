@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 0601ec1296b6cc73cefebbfed31981d8ecf98b4b
+rt64: https://github.com/n64hub/rt64-web 2067ad05887db02184d8343332f73612a133cf4d
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -1805,10 +1805,10 @@ index 0e62be1..03dd071 100644
          bool reinterpretTile;
 diff --git a/src/hle/rt64_frame_dump.h b/src/hle/rt64_frame_dump.h
 new file mode 100644
-index 0000000..5dad173
+index 0000000..91a5ffc
 --- /dev/null
 +++ b/src/hle/rt64_frame_dump.h
-@@ -0,0 +1,296 @@
+@@ -0,0 +1,302 @@
 +//
 +// RT64
 +//
@@ -1857,6 +1857,7 @@ index 0000000..5dad173
 +#include <cstdlib>
 +#include <cstring>
 +#include <deque>
++#include <filesystem>
 +#include <memory>
 +#include <mutex>
 +#include <string>
@@ -1925,6 +1926,11 @@ index 0000000..5dad173
 +
 +                FrameDump *d = new FrameDump();
 +                d->dir = variable;
++
++                // The folder is made if it isn't there, so a first run writes its dump rather than saying where it can't.
++                std::error_code error;
++                std::filesystem::create_directories(std::filesystem::path(d->dir), error);
++
 +                const char *seconds = getenv("RT64_FRAME_DUMP_SECONDS");
 +                if (seconds != nullptr) {
 +                    sscanf(seconds, "%lf-%lf", &d->fromSeconds, &d->toSeconds);

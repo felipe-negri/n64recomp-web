@@ -1157,4 +1157,9 @@ rt64 95004d7           RT64_FRAME_DUMP's work all in rt64_frame_dump.h, called f
 plume f75d150          Vulkan's texture to buffer copy first in copyTextureRegion(), returning: Pokemon Snap's own plume
                        has one where b7285f9's was, and didn't apply over it
 rt64 0601ec1           plume-web f75d150
+plume 8b27cc9          D3D12: copyTextureRegion() into a buffer's placed footprint sets no sample positions: it read
+                       the missing destination texture's, so RT64_FRAME_DUMP crashed a desktop build on D3D12 at its
+                       first present (reading 0x6C)
+rt64 f5da0cc           plume-web 8b27cc9
+rt64 2067ad0           RT64_FRAME_DUMP makes its folder if it isn't there
 ```
