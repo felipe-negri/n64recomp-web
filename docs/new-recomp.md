@@ -44,7 +44,7 @@ items by almost no game when the record began.
 
 | Game | New recomp: left | Web port: left |
 |---|---|---|
-| San Francisco Rush 2049 | 2a, 4c fails, 8a fails | W5, W6's Drive |
+| San Francisco Rush 2049 | 2a fails, 4c fails, 8a fails | W5, W6's Drive |
 | Perfect Dark | 2a, 4c, 8a fails | W5 fails, W6's Drive |
 | Super Mario 64 | 2a | W5 fails, W6's Drive |
 | F-Zero X | 2a | W6's Drive |
@@ -324,6 +324,20 @@ What it looks for:
   any (Framerate Original, or a display no faster than the game) exits 2, not 0. Rayman 2's own build fails the
   Woods of Light's opening at 240 Hz, 9 of 3191 frames drawn from a camera halfway across a cut, and passes it at
   Framerate Original: RT64 finds no cut there even with `RT64_SKIP_CAMERA_CUTS`.
+  San Francisco Rush 2049's dumps brought two holes in the tools to light. Its frames come back in two sizes by
+  turns, the picture the same in both with black past it (RT64's targets are larger than the picture), and
+  frame_check, which started over at each change of size, matched 422 of 2150 frames; it now cuts every frame to the
+  picture's box first and matches them all. And capture_window left the game's window behind the one it was started
+  from, where it was held to 60 presents a second: at Framerate Display on a 240 Hz display its four frames a game
+  frame were presented, and dumped, 16.7 ms apart instead of 4, a quarter of the frames 2a means to test; it now
+  brings the window to the front, 237 a second. Rush 2049's own build fails 2a so played: its attract race's camera
+  cuts, a chase camera cut to another and an overhead camera to another angle, are drawn swung across the cut in
+  the frames between (3-4 frames within a second, filed), with `RT64_SKIP_CAMERA_CUTS` on or off. Its start line's
+  flags broken into shards between the game's frames (its v0.1.67, src/node_interpolation.cpp) is not caught: in
+  PRACTICE's chase view only their lower edge is in the picture, and the build without the fix flags no more frames
+  there than the build with it. Its sides read x1.00 at 240 Hz and x1.25 at 60 Hz: Rush 2049 culls by whole stretches
+  of scenery, not by the window, so it draws the same past the 4:3 view at 16:9 as at 32:9, which reads as culled to
+  4:3 (filed: the sides check fails a game that doesn't cull by the window).
 
 ### 3. Every controller its own port
 
