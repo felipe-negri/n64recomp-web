@@ -1169,4 +1169,16 @@ rt64 bf664d2           plume-web ccc49b1
 plume 391d08e          ccc49b1's lines word for word as Pokemon Snap's own plume has them, which makes the same change
                        with a comment of its own and conflicted over it
 rt64 02eadb3           plume-web 391d08e
+plume ae6b16e          D3D12: a device's D3D12MA allocator (after its upload pool) and a command list's queried
+                       interfaces are released, so an ended device is gone: it stayed alive with 20+ references, and
+                       D3D12CreateDevice gave the removed device back, so after a TDR the adapter was passed over and
+                       the game fell back to Vulkan. A device that ends with references left says so
+plume 3f80df3          PLUME_LOSE_DEVICES=<n>: the first n devices are lost (PLUME_LOSE_DEVICE_AFTER seconds after each
+                       is first asked), to test a replacement that is lost too
+plume 395aeb2          D3D12: the target (RTV and DSV) descriptor heaps go before the device's release, so it ends with
+                       no references left
+rt64 49684c3           A desktop build's device lost within 60 s of replacing a lost one, or a replacement that can't
+                       be set up, ends the game with a message box saying why and what may help, not a loop of new
+                       devices behind a frozen picture (Rush 2049 on a GPU that hung). The web is unchanged;
+                       plume-web 395aeb2
 ```

@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 02eadb395c0ce2ea31d36f2b2dc6ea674867d904
+rt64: https://github.com/n64hub/rt64-web 49684c37aadb5a299378c806b3e40092176c1b89
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -1401,7 +1401,7 @@ index 558f1ee..40a2e09 100644
      };
  };
 diff --git a/src/hle/rt64_application.cpp b/src/hle/rt64_application.cpp
-index 785de27..8ce578e 100644
+index 785de27..da8e5f0 100644
 --- a/src/hle/rt64_application.cpp
 +++ b/src/hle/rt64_application.cpp
 @@ -16,12 +16,18 @@
@@ -1652,7 +1652,7 @@ index 785de27..8ce578e 100644
          }
  
          drawDataUploader.reset();
-@@ -702,7 +820,38 @@ namespace RT64 {
+@@ -702,7 +820,75 @@ namespace RT64 {
          device.reset();
          renderInterface.reset();
  
@@ -1675,7 +1675,40 @@ index 785de27..8ce578e 100644
 +    // configuration and the window are kept, and so is what a caller set on the state; a render hook's objects are made
 +    // again with the replace device hook (rt64_render_hooks.h), not the deinit and init hooks. PLUME_LOSE_DEVICE_AFTER
 +    // tests it on a desktop build (plume's plume_lost_device_test.h).
++    //
++    // On a desktop build a device that replaced a lost one and is lost too within ReplacedDeviceLostForGoodSeconds of
++    // being made isn't replaced, and neither is one whose replacement can't be set up: the GPU stops responding to what
++    // the game draws, or the driver can't recover, and replacing it again only loops. A Windows player's Rush 2049, its
++    // GPU hung in a race, lost each replacement within seconds and showed a frozen picture, which the window's close,
++    // asking first in a prompt drawn on it, couldn't end. The game ends instead, with a message box saying why and what
++    // may help. A page's browser decides this for itself (plume's plume_webgpu_device.js).
++    static const int ReplacedDeviceLostForGoodSeconds = 60;
++
++    void Application::endForLostDevice(const char *reason) {
++        fprintf(stderr, "RT64: %s; the game ends.\n", reason);
++#   ifndef __EMSCRIPTEN__
++        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Graphics device lost",
++            "The game lost its graphics device and couldn't go on with a new one, so it has to close.\n\n"
++            "Updating the graphics driver may help, or choosing the other Graphics API in the Graphics settings.", nullptr);
++#   endif
++        fflush(stdout);
++        fflush(stderr);
++        std::_Exit(EXIT_FAILURE);
++    }
++
 +    void Application::replaceLostDevice() {
++#   ifndef __EMSCRIPTEN__
++        if (lostDeviceReplacedTime.has_value()) {
++            const auto age = std::chrono::steady_clock::now() - *lostDeviceReplacedTime;
++            if (age < std::chrono::seconds(ReplacedDeviceLostForGoodSeconds)) {
++                char reason[128];
++                snprintf(reason, sizeof(reason), "the graphics device that replaced a lost one was lost too, %d s after it was made",
++                    int(std::chrono::duration_cast<std::chrono::seconds>(age).count()));
++                endForLostDevice(reason);
++            }
++        }
++#   endif
++
 +        fprintf(stderr, "RT64: the graphics device was lost; starting again on a new one.\n");
 +        std::atomic<uint32_t> *displayListReads = state->displayListReads;
 +        replacingDevice = true;
@@ -1684,19 +1717,32 @@ index 785de27..8ce578e 100644
 +        replacingDevice = false;
 +        if (result != SetupResult::Success) {
 +            fprintf(stderr, "RT64 could not start again on a new graphics device (%d).\n", int(result));
++#       ifndef __EMSCRIPTEN__
++            endForLostDevice("no new graphics device could be set up");
++#       endif
 +            abort();
 +        }
 +
 +        state->displayListReads = displayListReads;
++        lostDeviceReplacedTime = std::chrono::steady_clock::now();
 +        fprintf(stderr, "RT64: going on with the new device.\n");
      }
  
      bool Application::loadConfiguration() {
 diff --git a/src/hle/rt64_application.h b/src/hle/rt64_application.h
-index 6c83fe0..bfcc1ed 100644
+index 6c83fe0..441aa1b 100644
 --- a/src/hle/rt64_application.h
 +++ b/src/hle/rt64_application.h
-@@ -90,6 +90,11 @@ namespace RT64 {
+@@ -4,6 +4,8 @@
+ 
+ #pragma once
+ 
++#include <chrono>
++#include <optional>
+ #include <sstream>
+ #include <filesystem>
+ 
+@@ -90,6 +92,11 @@ namespace RT64 {
  
              void (*checkInterrupts)();
  
@@ -1708,16 +1754,18 @@ index 6c83fe0..bfcc1ed 100644
              VI decodeVI() const;
          };
  
-@@ -136,6 +141,8 @@ namespace RT64 {
+@@ -136,6 +143,10 @@ namespace RT64 {
          std::atomic<bool> debuggerPaused;
          uint64_t frameCounter;
          uint32_t threadsAvailable;
 +        uint32_t setupThreadId = 0;
 +        bool replacingDevice = false;
++        // When replaceLostDevice() last set up a device in place of a lost one; nothing until it first does.
++        std::optional<std::chrono::steady_clock::time_point> lostDeviceReplacedTime;
          ProfilingTimer dlApiProfiler = ProfilingTimer(120);
          ProfilingTimer screenApiProfiler = ProfilingTimer(120);
  
-@@ -156,9 +163,13 @@ namespace RT64 {
+@@ -156,9 +167,14 @@ namespace RT64 {
          SetupResult setup(uint32_t threadId);
          void processDisplayLists(uint8_t *memory, uint32_t dlStartAddress, uint32_t dlEndAddress, bool isHLE);
          void updateScreen();
@@ -1728,6 +1776,7 @@ index 6c83fe0..bfcc1ed 100644
          void updateMultisampling();
          void end();
 +        void replaceLostDevice();
++        [[noreturn]] void endForLostDevice(const char *reason);
          bool loadConfiguration();
          bool saveConfiguration();
          bool checkDirectoryCreated(const std::filesystem::path &path);
