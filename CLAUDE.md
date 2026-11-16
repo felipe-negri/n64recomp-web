@@ -247,14 +247,17 @@ runtime too). One release carries every such change merged since the last, so th
 release of its own for it:
 
 - Its PR adds what the player gets to `releases/next.md`, a line under the others (the first change after a release
-  makes the file), and bumps no version.
+  makes the file), and bumps no version, unless it is the release itself (below).
 - Once it merges, the work stays until a release that carries it is out. With none of that game's releases in flight
   it releases, unasked; with one in flight it waits for that one and looks again, since a release started meanwhile
   may carry it. A release is in flight from the moment its PR (`Release v<version>`) is opened until GitHub has the
   release `v<version>`, so `gh pr list --search "Release v in:title"` and `gh release view v<main's version_string>`
   tell. A change merged during one rides the next, a wait of one release at most, and nobody holds a merge for one.
-- A release is that PR, which bumps `version_string` and moves `releases/next.md` to `releases/v<version>.md`, in the
-  last release's shape and saying what the player gets, then both archives built from its merge commit and booted on
+- A release is a PR titled `Release v<version>`, which bumps `version_string` and moves `releases/next.md` to
+  `releases/v<version>.md`, in the last release's shape and saying what the player gets. Work that releases its own
+  change with no release in flight makes that change's PR the release (`Release v<version>: <the change>`), its
+  notes the change's lines with any `releases/next.md` held: a fix PR and then a bump PR behind it cost a second CI
+  run and merge for nothing. Then both archives are built from its merge commit and booted on
   Windows and Linux before they are published (its `tools/release.sh`, which boots each with `boot windows` and
   `boot linux` through `tools/boot_release.sh` and publishes only archives that booted, from a commit of main without
   `releases/next.md`, not main's newest; Rush 2049's docs/releasing.md). One left in flight by work that stopped is
