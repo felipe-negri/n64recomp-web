@@ -54,8 +54,8 @@ items by almost no game when the record began.
 | Super Smash Bros. | 2a | W6's Drive |
 | Paper Mario | 2a, 4a, 4c, 6b | W5 fails, W6's Drive |
 | Mario Golf | | W6's Drive |
-| Rayman 2 | 2a | W5 fails, W6's Drive |
-| Donald Duck: Goin' Quackers | 2, 2a, 5b | W5 fails, W6's Drive |
+| Rayman 2 | 2a fails | W5 fails, W6's Drive |
+| Donald Duck: Goin' Quackers | 2, 5b | W5 fails, W6's Drive |
 | Dinosaur Planet | 2a | W5 fails |
 | Turok: Dinosaur Hunter | 2a, 5a | W5 fails, W6's Drive |
 | Turok 2: Seeds of Evil | 2 fails, 2a, 4c, 5a | W5 fails, W6's Drive |
@@ -316,7 +316,14 @@ What it looks for:
   4:3 view at 16:9 (its patches/cull.c). A capture lands tens of milliseconds from the last, anywhere between two of the
   game's frames, a tree where another tree stood reads as a tree, and water past cut ground reads as the course's own.
   frame_check fails its build without either fix on hole 1's flyover and passes it with both, and passes its menus'
-  split and stretching wipes.
+  split and stretching wipes. It fails Rayman 2's and Goin' Quackers' fixed faults too, played on builds without their
+  fixes: Rayman 2's world culled at the 4:3 view's sides (its v0.1.1, src/game/widescreen.cpp) reads x1.00 in the
+  Woods of Light's opening, and x1.73 with the fix; Goin' Quackers' outfit machine flickering in the frames between the
+  game's (its v0.1.7, rt64 6e8aa22 matching a pair's scales) fails 28 of 1431 frames in Gyro's lab without the
+  matching, and passes 0 of 4280 with it. Only frames between the game's test how they are paired, so a dump without
+  any (Framerate Original, or a display no faster than the game) exits 2, not 0. Rayman 2's own build fails the
+  Woods of Light's opening at 240 Hz, 9 of 3191 frames drawn from a camera halfway across a cut, and passes it at
+  Framerate Original: RT64 finds no cut there even with `RT64_SKIP_CAMERA_CUTS`.
 
 ### 3. Every controller its own port
 
