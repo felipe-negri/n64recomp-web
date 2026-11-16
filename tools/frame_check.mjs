@@ -64,6 +64,7 @@ const G = 8; // the picture's shift searched, in quarter-size pixels (32 grey pi
 const BAD = 14; // a block's mean difference to its best match that counts as unmatched, of 255
 const RATIO = 3; // ... and how much worse than the neighbours match each other there
 const MIN_BLOCKS = 4; // blocks a flagged frame has
+const BETWEEN_SHARE = 0.25; // the share of a frame between two of the game's that neither explains, flagged
 const P = 2; // a pixel's search about its block's best place, in grey pixels (eitherDiff())
 const M = 2; // the quarter pixels around a block that its own shift is found over (placesOf())
 const SIDES_GROW = 1.2; // how many times the triangles past the 4:3 view a wider picture has, at the least
@@ -71,34 +72,46 @@ const SIDES_DENSE = 0.5; // ... unless the strip is this dense against the view:
 
 let dumpStartMs = null; // the first frame's time, ms since 1970: the dump's second 0, sides.tsv's too
 
-// The frames, each { t (s since the first), n (its place in the dump), presentId, index, count, dropped, w, h, rgb }.
-function readFrames() {
+// The frames, one at a time as they are read, each { t (s since the first), n (its place in the dump), presentId, index,
+// count, dropped, w, h, rgb }: a dump of a minute or more is gigabytes, past what one read of a file can take.
+function* readFrames() {
     const file = path.join(dir, 'frames.bin');
     if (!fs.existsSync(file)) {
-        return [];
+        return;
     }
-    const buf = fs.readFileSync(file);
-    const frames = [];
-    for (let o = 0; o + HEADER <= buf.length;) {
-        if (buf.readUInt32LE(o) !== MAGIC) {
+    const fd = fs.openSync(file, 'r');
+    const size = fs.fstatSync(fd).size;
+    const head = Buffer.alloc(HEADER);
+    let n = 0;
+    for (let o = 0; o + HEADER <= size;) {
+        fs.readSync(fd, head, 0, HEADER, o);
+        if (head.readUInt32LE(0) !== MAGIC) {
             console.error(`frames.bin: no frame header at byte ${o}`);
             process.exit(2);
         }
-        const w = buf.readUInt32LE(o + 4), h = buf.readUInt32LE(o + 8);
-        const size = w * h * 3;
-        if (o + HEADER + size > buf.length) {
+        const w = head.readUInt32LE(4), h = head.readUInt32LE(8);
+        const bytes = w * h * 3;
+        if (o + HEADER + bytes > size) {
             break; // the last frame, cut off as the game was stopped
         }
-        const timeMs = Number(buf.readBigUInt64LE(o + 32));
+        const timeMs = Number(head.readBigUInt64LE(32));
         dumpStartMs ??= timeMs;
-        frames.push({
-            n: frames.length, t: (timeMs - dumpStartMs) / 1000, index: buf.readUInt32LE(o + 12), count: buf.readUInt32LE(o + 16),
-            dropped: buf.readUInt32LE(o + 20), presentId: Number(buf.readBigUInt64LE(o + 24)), w, h,
-            rgb: buf.subarray(o + HEADER, o + HEADER + size),
-        });
-        o += HEADER + size;
+        const t = (timeMs - dumpStartMs) / 1000;
+        if (t > to) {
+            break;
+        }
+        const f = {
+            n: n++, t, index: head.readUInt32LE(12), count: head.readUInt32LE(16), dropped: head.readUInt32LE(20),
+            presentId: Number(head.readBigUInt64LE(24)), w, h, rgb: null,
+        };
+        if (t >= from) {
+            f.rgb = Buffer.alloc(bytes);
+            fs.readSync(fd, f.rgb, 0, bytes, o + HEADER);
+            yield f;
+        }
+        o += HEADER + bytes;
     }
-    return frames;
+    fs.closeSync(fd);
 }
 
 // A grey copy of a frame, gw x gh, box-filtered.
@@ -263,6 +276,68 @@ function eitherDiff(c, a, b, ea, eb, k, gw, gh) {
     return s / (B * B);
 }
 
+// Block k of c as a blend of a's and b's about their best places (explain()'s): a + t (b - a), the t that fits best
+// between 0 and 1, its mean absolute difference. A fade or a dissolve draws a frame between two of the game's that is
+// neither, but lies between them pixel by pixel.
+function blendDiff(c, a, b, ea, eb, k, gw, gh) {
+    const bw = gw / B | 0;
+    const by = Math.floor(k / bw), bx = k % bw;
+    const clampY = (y) => Math.min(Math.max(y, 0), gh - 1), clampX = (x) => Math.min(Math.max(x, 0), gw - 1);
+    const cs = [], as = [], bs = [];
+    let num = 0, den = 0;
+    for (let y = by * B; y < (by + 1) * B; y++) {
+        for (let x = bx * B; x < (bx + 1) * B; x++) {
+            const v = c[y * gw + x];
+            const va = a[clampY(y + ea.dy[k]) * gw + clampX(x + ea.dx[k])];
+            const vb = b[clampY(y + eb.dy[k]) * gw + clampX(x + eb.dx[k])];
+            cs.push(v); as.push(va); bs.push(vb);
+            num += (v - va) * (vb - va);
+            den += (vb - va) * (vb - va);
+        }
+    }
+    const t = den ? Math.min(Math.max(num / den, 0), 1) : 0;
+    let s = 0;
+    for (let i = 0; i < cs.length; i++) {
+        s += Math.abs(cs[i] - as[i] - t * (bs[i] - as[i]));
+    }
+    return s / cs.length;
+}
+
+// The mean absolute difference of a to b moved by (dy, dx) grey pixels, over a's pixels whose place in b lies inside it.
+function shiftedDiff(a, b, gw, gh, dy, dx) {
+    let s = 0, n = 0;
+    for (let y = Math.max(0, -dy); y < Math.min(gh, gh - dy); y++) {
+        for (let x = Math.max(0, -dx); x < Math.min(gw, gw - dx); x++) {
+            s += Math.abs(a[y * gw + x] - b[(y + dy) * gw + x + dx]);
+            n++;
+        }
+    }
+    return s / Math.max(n, 1);
+}
+
+// c against a blend of a and b, each moved as a whole to where it matches c best: the mean absolute difference at the
+// blend that fits best, a + t (b - a) for t from 0 to 1.
+function wholeBlendDiff(c, a, b, gw, gh, sa, sb) {
+    let num = 0, den = 0;
+    const at = (g, s, y, x) => g[Math.min(Math.max(y + s[0], 0), gh - 1) * gw + Math.min(Math.max(x + s[1], 0), gw - 1)];
+    for (let y = 0; y < gh; y++) {
+        for (let x = 0; x < gw; x++) {
+            const va = at(a, sa, y, x), vb = at(b, sb, y, x), v = c[y * gw + x];
+            num += (v - va) * (vb - va);
+            den += (vb - va) * (vb - va);
+        }
+    }
+    const t = den ? Math.min(Math.max(num / den, 0), 1) : 0;
+    let s2 = 0;
+    for (let y = 0; y < gh; y++) {
+        for (let x = 0; x < gw; x++) {
+            const va = at(a, sa, y, x), vb = at(b, sb, y, x);
+            s2 += Math.abs(c[y * gw + x] - va - t * (vb - va));
+        }
+    }
+    return [s2 / (gw * gh), t];
+}
+
 function meanDiff(a, b) {
     let s = 0;
     for (let i = 0; i < a.length; i++) {
@@ -333,68 +408,167 @@ function saveTriplet(name, fs3, blocks, gw) {
 }
 
 let failed = false;
-const all = readFrames();
-const frames = all.filter((f) => (f.t >= from) && (f.t <= to));
-if (frames.length >= 3) {
-    if (saveDir) {
-        fs.mkdirSync(saveDir, { recursive: true });
-    }
-    // The frames in runs of one size (a resized window, a screen the game draws at another size starts a run), each
-    // matched within its own run, repeats left out.
-    const runs = [];
-    let repeats = 0, dropped = 0;
-    for (const f of frames) {
-        dropped += f.dropped;
-        let run = runs[runs.length - 1];
-        if (!run || (run.w !== f.w) || (run.h !== f.h)) {
-            const gw = Math.floor(W / B) * B, gh = Math.floor(W * f.h / f.w / B) * B;
-            run = { w: f.w, h: f.h, gw, gh, kept: [] };
-            runs.push(run);
+if (saveDir) {
+    fs.mkdirSync(saveDir, { recursive: true });
+}
+// The frames in runs of one size (a resized window, a screen the game draws at another size starts a run), each matched
+// within its own run, repeats left out, each against the kept frames either side of it as they are read: the last three
+// kept are all that is held.
+const flagged = [];
+const sizes = [];
+const betweenFlagged = [];
+let betweenChecked = 0;
+const debugFile = process.env.FRAME_CHECK_DEBUG || null;
+let presented = 0, first = null, last = null, repeats = 0, dropped = 0, checked = 0;
+let run = null;
+for (const f of readFrames()) {
+    presented++;
+    first ??= f;
+    last = f;
+    dropped += f.dropped;
+    if (!run || (run.w !== f.w) || (run.h !== f.h)) {
+        const gw = Math.floor(W / B) * B, gh = Math.floor(W * f.h / f.w / B) * B;
+        run = { w: f.w, h: f.h, gw, gh, kept: [], game: null, between: [] };
+        if (!sizes.includes(`${f.w}x${f.h}`)) {
+            sizes.push(`${f.w}x${f.h}`);
         }
-        const g = grey(f, run.gw, run.gh);
-        if (run.kept.length && meanDiff(g, run.kept[run.kept.length - 1].g) < 0.05) {
-            repeats++;
-            continue;
-        }
-        run.kept.push({ f, g, q: quarter(g, run.gw, run.gh) });
     }
-    const flagged = [];
-    let checked = 0;
-    for (const { gw, gh, kept } of runs) {
-        const qw = gw >> 2, qh = gh >> 2;
-        const bw = gw / B | 0, bh = gh / B | 0;
-        checked += Math.max(kept.length - 2, 0);
-        for (let k = 1; k + 1 < kept.length; k++) {
-            const a = kept[k - 1], c = kept[k], b = kept[k + 1];
-            const ea = explain(c.g, a.g, gw, gh, placesOf(c.q, a.q, qw, qh, bw, bh));
-            const eb = explain(c.g, b.g, gw, gh, placesOf(c.q, b.q, qw, qh, bw, bh));
-            // Where the neighbours match each other: a's blocks against b.
-            const eab = explain(a.g, b.g, gw, gh, placesOf(a.q, b.q, qw, qh, bw, bh));
-            const bad = [];
-            for (let by = 1; by < bh - 1; by++) {
-                for (let bx = 1; bx < bw - 1; bx++) {
-                    const i = by * bw + bx;
-                    let e = Math.min(ea[i], eb[i]);
-                    if (e > BAD) {
-                        e = eitherDiff(c.g, a.g, b.g, ea, eb, i, gw, gh);
-                    }
-                    // a's block that c's block i matched, roughly: i shifted by its match in a, in blocks
-                    const ay = Math.min(Math.max(by + Math.round(ea.dy[i] / B), 0), bh - 1);
-                    const ax = Math.min(Math.max(bx + Math.round(ea.dx[i] / B), 0), bw - 1);
-                    const base = eab[ay * bw + ax];
-                    if ((e > BAD) && (e > RATIO * base + 4)) {
-                        bad.push(i);
-                    }
-                }
+    const g = grey(f, run.gw, run.gh);
+    const entry = { f, g, q: quarter(g, run.gw, run.gh) };
+    checkPresent(entry, run);
+    const kept = run.kept;
+    if (kept.length && meanDiff(g, kept[kept.length - 1].g) < 0.05) {
+        repeats++;
+        continue;
+    }
+    if (!saveDir) {
+        f.rgb = null;
+    }
+    kept.push(entry);
+    if (kept.length > 3) {
+        kept.shift();
+    }
+    if (kept.length === 3) {
+        checked++;
+        checkMiddle(kept, run);
+    }
+}
+
+// The frames RT64 draws between two of the game's own (a present's frames before its last, which is the game's), each
+// against those two. Gathered until the present's own frame comes, and checked only where the dump has the present
+// whole and the game's frame before it.
+function checkPresent(e, run) {
+    const f = e.f;
+    if (f.dropped || (f.index === 0)) {
+        run.between = [];
+    }
+    if ((f.count < 2) || (f.index !== run.between.length)) {
+        run.between = [];
+        run.game = (f.index === f.count - 1) ? e : null;
+        return;
+    }
+    if (f.index < f.count - 1) {
+        run.between.push(e);
+        return;
+    }
+    if (run.game && (run.game.f.presentId === f.presentId - 1)) {
+        if (debugFile) {
+            const { gw, gh } = run, bw = gw / B | 0, bh = gh / B | 0;
+            const x = explain(e.g, run.game.g, gw, gh, placesOf(e.q, run.game.q, gw >> 2, gh >> 2, bw, bh));
+            let un = 0;
+            for (let i = 0; i < x.length; i++) {
+                un += (x[i] > BAD) ? 1 : 0;
             }
-            if (bad.length >= MIN_BLOCKS) {
-                flagged.push({ c, bad, bw, bh });
-                if (saveDir) {
-                    saveTriplet(`unlike-${String(c.f.n).padStart(5, '0')}.png`, [a.f, c.f, b.f], bad, gw);
-                }
+            fs.appendFileSync(debugFile, `P	${f.n}	${f.t.toFixed(3)}	${f.presentId}	${meanDiff(run.game.g, e.g).toFixed(1)}	${(un / x.length).toFixed(3)}
+`);
+        }
+        for (const c of run.between) {
+            checkBetween(run.game, c, e, run);
+        }
+    }
+    run.between = [];
+    run.game = e;
+}
+
+// A frame drawn between the game's frames a and b, block by block against both as the neighbours are, and as a blend of
+// the two, but not against how well a and b match each other: at a camera cut they don't match at all, and a frame
+// between them is right only as the new shot (or the old), never as the camera partway between the two shots.
+function checkBetween(a, c, b, { gw, gh }) {
+    const qw = gw >> 2, qh = gh >> 2;
+    const bw = gw / B | 0, bh = gh / B | 0;
+    const ea = explain(c.g, a.g, gw, gh, placesOf(c.q, a.q, qw, qh, bw, bh));
+    const eb = explain(c.g, b.g, gw, gh, placesOf(c.q, b.q, qw, qh, bw, bh));
+    const bad = [];
+    for (let by = 1; by < bh - 1; by++) {
+        for (let bx = 1; bx < bw - 1; bx++) {
+            const i = by * bw + bx;
+            let e = Math.min(ea[i], eb[i]);
+            if (e > BAD) {
+                e = eitherDiff(c.g, a.g, b.g, ea, eb, i, gw, gh);
+            }
+            if (e > BAD) {
+                e = Math.min(e, blendDiff(c.g, a.g, b.g, ea, eb, i, gw, gh));
+            }
+            if (e > BAD) {
+                bad.push(i);
             }
         }
     }
+    betweenChecked++;
+    const qw2 = gw >> 2, qh2 = gh >> 2;
+    const sab = shiftOf(a.q, b.q, qw2, qh2), sca = shiftOf(c.q, a.q, qw2, qh2), scb = shiftOf(c.q, b.q, qw2, qh2);
+    const D = shiftedDiff(a.g, b.g, gw, gh, sab[0], sab[1]);
+    const [E, T] = wholeBlendDiff(c.g, a.g, b.g, gw, gh, sca, scb);
+    const share = bad.length / ((bw - 2) * (bh - 2));
+    if (debugFile) {
+        fs.appendFileSync(debugFile, `${c.f.n}	${c.f.t.toFixed(3)}	${c.f.presentId}	${c.f.index + 1}/${c.f.count}	${bad.length}	${share.toFixed(3)}	${D.toFixed(2)}	${E.toFixed(2)}	${T.toFixed(2)}
+`);
+    }
+    if (share >= BETWEEN_SHARE) {
+        betweenFlagged.push({ c, bad, bw, bh });
+        if (saveDir) {
+            saveTriplet(`between-${String(c.f.n).padStart(5, '0')}.png`, [a.f, c.f, b.f], bad, gw);
+        }
+    }
+}
+
+// The middle of three kept frames, against the frames either side of it.
+function checkMiddle([a, c, b], { gw, gh }) {
+    const qw = gw >> 2, qh = gh >> 2;
+    const bw = gw / B | 0, bh = gh / B | 0;
+    const ea = explain(c.g, a.g, gw, gh, placesOf(c.q, a.q, qw, qh, bw, bh));
+    const eb = explain(c.g, b.g, gw, gh, placesOf(c.q, b.q, qw, qh, bw, bh));
+    // Where the neighbours match each other: a's blocks against b.
+    const eab = explain(a.g, b.g, gw, gh, placesOf(a.q, b.q, qw, qh, bw, bh));
+    const bad = [];
+    for (let by = 1; by < bh - 1; by++) {
+        for (let bx = 1; bx < bw - 1; bx++) {
+            const i = by * bw + bx;
+            let e = Math.min(ea[i], eb[i]);
+            if (e > BAD) {
+                e = eitherDiff(c.g, a.g, b.g, ea, eb, i, gw, gh);
+            }
+            if (e > BAD) {
+                e = Math.min(e, blendDiff(c.g, a.g, b.g, ea, eb, i, gw, gh));
+            }
+            // a's block that c's block i matched, roughly: i shifted by its match in a, in blocks
+            const ay = Math.min(Math.max(by + Math.round(ea.dy[i] / B), 0), bh - 1);
+            const ax = Math.min(Math.max(bx + Math.round(ea.dx[i] / B), 0), bw - 1);
+            const base = eab[ay * bw + ax];
+            if ((e > BAD) && (e > RATIO * base + 4)) {
+                bad.push(i);
+            }
+        }
+    }
+    if (bad.length >= MIN_BLOCKS) {
+        flagged.push({ c, bad, bw, bh });
+        if (saveDir) {
+            saveTriplet(`unlike-${String(c.f.n).padStart(5, '0')}.png`, [a.f, c.f, b.f], bad, gw);
+        }
+    }
+}
+
+if (presented >= 3) {
     // 3 or more flagged frames within a second, anywhere.
     let burst = 0;
     for (let i = 0, j = 0; i < flagged.length; i++) {
@@ -406,9 +580,8 @@ if (frames.length >= 3) {
     checked = Math.max(checked, 1);
     const fail = (flagged.length * 100 > checked) || (burst >= 3);
     failed ||= fail;
-    console.log(`frames: ${frames.length} presented over ${(frames[frames.length - 1].t - frames[0].t).toFixed(1)} s` +
-        ` (${repeats} repeats, ${dropped} dropped by the dump), ` + runs.map((r) => `${r.w}x${r.h}`)
-        .filter((s, i, a) => a.indexOf(s) === i).join(', '));
+    console.log(`frames: ${presented} presented over ${(last.t - first.t).toFixed(1)} s` +
+        ` (${repeats} repeats, ${dropped} dropped by the dump), ${sizes.join(', ')}`);
     console.log(`unlike both neighbours: ${flagged.length} of ${checked} frames, at most ${burst} within a second: ` +
         (fail ? 'FAILS' : 'passes'));
     if (!quiet) {
