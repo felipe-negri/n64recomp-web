@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 566092b0b6c63b400ce946c1bd213342578b01a0
+rt64: https://github.com/n64hub/rt64-web c7a0ac4fb8deefaff7137cccddfa1eef16458e7e
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -2540,7 +2540,7 @@ index 5c3c4d2..cba893c 100644
  
          uint32_t rdramUsed;
 diff --git a/src/hle/rt64_game_frame.cpp b/src/hle/rt64_game_frame.cpp
-index 87392d0..b267ecb 100644
+index 87392d0..2bf72d0 100644
 --- a/src/hle/rt64_game_frame.cpp
 +++ b/src/hle/rt64_game_frame.cpp
 @@ -2,6 +2,8 @@
@@ -3168,9 +3168,9 @@ index 87392d0..b267ecb 100644
              std::stable_sort(matchCandidates.begin(), matchCandidates.end());
              for (const MatchCandidate &candidate : matchCandidates) {
                  if (curScenesMatched[candidate.curIndex]) {
-@@ -375,6 +884,12 @@ namespace RT64 {
-         matchScenes(perspectiveScenes, prevFrame.perspectiveScenes);
-         matchScenes(orthographicScenes, prevFrame.orthographicScenes);
+@@ -372,6 +881,12 @@ namespace RT64 {
+             }
+         };
  
 +#if RT64_INTERPOLATE_RECT_SCROLLS
 +        for (const std::pair<uint32_t, uint32_t> &drawnPair : drawnPairs) {
@@ -3178,9 +3178,9 @@ index 87392d0..b267ecb 100644
 +        }
 +#endif
 +
-         if (!workloadsModified.empty()) {
-             thread_local std::vector<BufferUploader::Upload> uploads;
-             uploads.clear();
+         matchScenes(perspectiveScenes, prevFrame.perspectiveScenes);
+         matchScenes(orthographicScenes, prevFrame.orthographicScenes);
+ 
 @@ -403,8 +918,10 @@ namespace RT64 {
              return;
          }
