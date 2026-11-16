@@ -1166,4 +1166,7 @@ plume ccc49b1          8b27cc9's fix in setSamplePositions() (a null texture res
                        as upstream has it: Space Station Silicon Valley's, Tony Hawk's Pro Skater 2's and Rogue
                        Squadron's own plumes change the lines around its call, and didn't apply over 8b27cc9
 rt64 bf664d2           plume-web ccc49b1
+plume 391d08e          ccc49b1's lines word for word as Pokemon Snap's own plume has them, which makes the same change
+                       with a comment of its own and conflicted over it
+rt64 02eadb3           plume-web 391d08e
 ```
