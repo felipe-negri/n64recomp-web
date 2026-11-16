@@ -1162,4 +1162,8 @@ plume 8b27cc9          D3D12: copyTextureRegion() into a buffer's placed footpri
                        first present (reading 0x6C)
 rt64 f5da0cc           plume-web 8b27cc9
 rt64 2067ad0           RT64_FRAME_DUMP makes its folder if it isn't there
+plume ccc49b1          8b27cc9's fix in setSamplePositions() (a null texture resets the positions), copyTextureRegion()
+                       as upstream has it: Space Station Silicon Valley's, Tony Hawk's Pro Skater 2's and Rogue
+                       Squadron's own plumes change the lines around its call, and didn't apply over 8b27cc9
+rt64 bf664d2           plume-web ccc49b1
 ```
