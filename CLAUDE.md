@@ -52,10 +52,16 @@ A request that a rule here turns away is asked about, never answered no and clos
 mean to do it anyway, and let whoever asked decide. The rule may be what is wrong, and if so it changes in the same
 work.
 
-A rule, check or tool that blocks work for a reason the work didn't cause, or that reads as wrong where it is applied,
-is challenged and fixed or changed in the work it blocks, never routed around and not handed on by default: rules are
-written for what was known then, and they change as more is learned (CI blaming every PR for a red that another repo's
-main made is why `tools/ci_red_on_base.sh` exists).
+A check or tool that blocks work for a reason the work didn't cause is fixed in the work it blocks, never routed
+around and not handed on by default (CI blaming every PR for a red that another repo's main made is why
+`tools/ci_red_on_base.sh` exists).
+
+A rule is written for what was known then, so work that follows one and sees it block wrongly, read as wrong where
+it is applied, or cost for nothing there (a second PR, CI run or merge where one would do, a wait or a step that checks
+nothing) suggests a change to the project's owner, unasked and at once: the rule, its cost there, and the wording it
+would take. The rule changes only once the owner approves, in the same work: nobody changes a rule on their own
+judgment, and nobody waits to be asked why it costs (a fix PR and then a release PR behind it, opened twice with
+nobody suggesting otherwise, is why Releasing makes the change's PR the release).
 
 Priority is by what it breaks: high for a crash, med for an issue that affects every game, low for one game's. Work
 that comes from a player (a GitHub issue, a comment on one, a pull request from outside, a Quiver Launcher review that
@@ -161,7 +167,7 @@ hlslpp-web; N64ModernRuntime-web's `N64Recomp` is N64Recomp-web. Notes name a ch
 `rt64-0010`) or by fork and commit (`rt64 c89ced0`): `docs/forks.md` has every one, a line each, and a change pushed to
 a fork gets its row there in the PR that moves `forks.txt` onto it.
 
-Twenty-four options are off on a desktop build, on with Emscripten, and settable natively: docs/forks.md lists them
+Twenty-three options are off on a desktop build, on with Emscripten, and settable natively: docs/forks.md lists them
 (Options off on a desktop build).
 
 ## Changing it
@@ -247,14 +253,17 @@ runtime too). One release carries every such change merged since the last, so th
 release of its own for it:
 
 - Its PR adds what the player gets to `releases/next.md`, a line under the others (the first change after a release
-  makes the file), and bumps no version.
+  makes the file), and bumps no version, unless it is the release itself (below).
 - Once it merges, the work stays until a release that carries it is out. With none of that game's releases in flight
   it releases, unasked; with one in flight it waits for that one and looks again, since a release started meanwhile
   may carry it. A release is in flight from the moment its PR (`Release v<version>`) is opened until GitHub has the
   release `v<version>`, so `gh pr list --search "Release v in:title"` and `gh release view v<main's version_string>`
   tell. A change merged during one rides the next, a wait of one release at most, and nobody holds a merge for one.
-- A release is that PR, which bumps `version_string` and moves `releases/next.md` to `releases/v<version>.md`, in the
-  last release's shape and saying what the player gets, then both archives built from its merge commit and booted on
+- A release is a PR titled `Release v<version>`, which bumps `version_string` and moves `releases/next.md` to
+  `releases/v<version>.md`, in the last release's shape and saying what the player gets. Work that releases its own
+  change with no release in flight makes that change's PR the release (`Release v<version>: <the change>`), its
+  notes the change's lines with any `releases/next.md` held: a fix PR and then a bump PR behind it cost a second CI
+  run and merge for nothing. Then both archives are built from its merge commit and booted on
   Windows and Linux before they are published (its `tools/release.sh`, which boots each with `boot windows` and
   `boot linux` through `tools/boot_release.sh` and publishes only archives that booted, from a commit of main without
   `releases/next.md`, not main's newest; Rush 2049's docs/releasing.md). One left in flight by work that stopped is

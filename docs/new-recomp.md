@@ -317,13 +317,20 @@ What it looks for:
   game's frames, a tree where another tree stood reads as a tree, and water past cut ground reads as the course's own.
   frame_check fails its build without either fix on hole 1's flyover and passes it with both, and passes its menus'
   split and stretching wipes. It fails Rayman 2's and Goin' Quackers' fixed faults too, played on builds without their
-  fixes: Rayman 2's world culled at the 4:3 view's sides (its v0.1.1, src/game/widescreen.cpp) reads x1.00 in the
-  Woods of Light's opening, and x1.73 with the fix; Goin' Quackers' outfit machine flickering in the frames between the
+  fixes: Rayman 2's world culled at the 4:3 view's sides (its v0.1.1, src/game/widescreen.cpp) reads x0.99 in the
+  Fairy Glade's first 8 s, and passes with the fix; Goin' Quackers' outfit machine flickering in the frames between the
   game's (its v0.1.7, rt64 6e8aa22 matching a pair's scales) fails 28 of 1431 frames in Gyro's lab without the
   matching, and passes 0 of 4280 with it. Only frames between the game's test how they are paired, so a dump without
   any (Framerate Original, or a display no faster than the game) exits 2, not 0. Rayman 2's own build fails the
   Woods of Light's opening at 240 Hz, 9 of 3191 frames drawn from a camera halfway across a cut, and passes it at
-  Framerate Original: RT64 finds no cut there even with `RT64_SKIP_CAMERA_CUTS`.
+  Framerate Original: RT64 finds no cut there even with `RT64_SKIP_CAMERA_CUTS`. A game that culls nothing by the
+  window draws the same past the 4:3 view in both windows, as one culled to that view does: San Francisco Rush 2049's
+  attract race, its world drawn out to the 32:9 picture's edges, read x1.16 and failed. So the check also reads how
+  densely the 16:9 dump draws just past its own picture's edge, where a game culled to 4:3 thins out, and passes a
+  game that draws there as densely as inside it (frame_check's header has the numbers). A scene that draws next to
+  nothing past the 4:3 view can't fail and exits 2, as the Woods of Light's opening down a ravine does with the fix
+  and without it: its walls are a few large triangles counted where their middles lie, inside the view, so a sweep
+  checks the sides on a scene that draws more there.
 
 ### 3. Every controller its own port
 
