@@ -1,30 +1,40 @@
 // Checks a game's picture by machine, from what RT64 writes with RT64_FRAME_DUMP=<dir> set (rt64-web's
-// src/hle/rt64_frame_dump.h): docs/new-recomp.md item 2's flicker and interpolation and its widescreen culling, which
-// a person or a model looking at captures missed (Mario Golf's trees put where other trees stood in every frame drawn
-// between the game's, and its ground culled at the 4:3 view's sides), and which these find without anyone looking.
+// src/hle/rt64_frame_dump.h): docs/new-recomp.md item 2's flicker and interpolation and item 1's widescreen culling,
+// which a person or a model looking at captures missed (Mario Golf's trees put where other trees stood in every frame
+// drawn between the game's, and its ground culled at the 4:3 view's sides), and which these find without anyone
+// looking.
 //
-//   node tools/frame_check.mjs <dir> [--from <s>] [--to <s>] [--save <dir>] [--quiet]
+//   node tools/frame_check.mjs <dir> [--wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--quiet]
 //
-// <dir> is the dump's: frames.bin, every frame presented, and sides.tsv, where across the view the 3D's triangles lay.
-// --from and --to keep what came between those seconds of the dump, counted from its first frame; --save writes each flagged frame with the frames
-// either side of it as one PNG, its flagged blocks outlined, for whoever wants to see one.
+// <dir> is a dump's: frames.bin, every frame presented, and sides.tsv, where across the view the 3D's triangles lay.
+// --wider names a dump of the same plan and seconds in a wider window (32:9 beside 16:9) for the sides. --from and
+// --to keep what came between those seconds of the dumps, counted from each one's first frame; --save writes each
+// flagged frame with the frames either side of it as one PNG, its flagged blocks outlined, for whoever wants to see
+// one. A dump of 20 seconds at 60 a second takes a minute or two.
 //
 // - Frames unlike both neighbours. Each frame is matched against the frames presented before and after it, block by
 //   block (8 pixels of a grey copy about 400 wide), each block to the best place within a few pixels of where the
-//   picture as a whole moved: a block neither neighbour has anywhere near, where the neighbours match each other
-//   there, is something drawn for that frame alone. A frame paired wrongly between the game's own (a model drawn
-//   halfway to a look-alike's place, a camera cut stretched, polygons torn), a frame drawn in parts, a frame of
-//   garbage or an old picture between two right ones all read so; the game's own motion, a fade, a cut, something
-//   appearing for good don't. A presented frame equal to the one before (a repeat) is left out. It fails where such
-//   frames are more than 1 in 100, or come 3 or more within a second: a one-frame flash a game draws is rare and
-//   alone, and a pairing fault shows in every frame drawn between the game's for as long as the scene lasts.
-// - Culled at the 4:3 view's sides. For each workload of 3D (one with 200 triangles or more near the view's sides),
-//   the triangles covering the widened picture's strips past the view's left and right edges against those covering
-//   the same width just inside them. A game whose world is widened with the picture draws about as many past its
-//   view's edges as inside them; one that culls to its 4:3 view draws only what reaches over the edge from inside, a
-//   fraction. It fails where the median over the workloads is under 0.5.
+//   picture as a whole moved or of where the part around it moved (a screen split open from its middle, near and far
+//   parts of a scene), and each pixel of a block that matches neither whole to the nearest like it in either (the
+//   edge of a wipe that moved, a picture that stretches): a block neither neighbour has anywhere near, where the
+//   neighbours match each other there, is something drawn for that frame alone. A frame paired wrongly between the
+//   game's own (a model drawn halfway to a look-alike's place, a camera cut stretched, polygons torn), a frame drawn
+//   in parts, a frame of garbage or an old picture between two right ones all read so; the game's own motion, a fade,
+//   a cut, a wipe, something appearing for good don't. A presented frame equal to the one before (a repeat) is left
+//   out. It fails where such frames are more than 1 in 100, or come 3 or more within a second: a one-frame flash a
+//   game draws is rare and alone, and a pairing fault shows in every frame drawn between the game's for as long as
+//   the scene lasts.
+// - Culled at the 4:3 view's sides, from two dumps of the same plan: one at 16:9 and one --wider at 32:9. A game
+//   that culls its world to the picture draws more of it past the 4:3 view's sides as the picture widens; one that
+//   culls to its 4:3 view draws the same whatever the window, so the strip only the wider picture shows holds what
+//   reaches over the edge from inside and nothing more (water or sky where the ground goes on). It compares the
+//   triangles a workload of 3D (200 triangles or more) has in that strip in both, by where each one's middle lies,
+//   and fails where the wider has under 1.2 times as many and the strip is under half as dense as the view: a world
+//   drawn that densely past the view isn't culled at its sides at all. Without --wider it only counts them. One
+//   dump's own strip against the view tells nothing: Mario Golf's flyover, culled or not, draws a fraction past the
+//   edges of what it draws inside, the course being long and narrow.
 //
-// It exits 0 when both pass, 1 when one fails, 2 on a bad dump or arguments.
+// It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments.
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -36,12 +46,13 @@ const opt = (name, fallback) => {
 };
 const dir = args[0];
 if (!dir || dir.startsWith('--')) {
-    console.error('usage: node tools/frame_check.mjs <dir> [--from <s>] [--to <s>] [--save <dir>] [--quiet]');
+    console.error('usage: node tools/frame_check.mjs <dir> [--wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--quiet]');
     process.exit(2);
 }
 const from = Number(opt('--from', 0));
 const to = Number(opt('--to', Infinity));
 const saveDir = opt('--save', null);
+const widerDir = opt('--wider', null);
 const quiet = args.includes('--quiet');
 
 const MAGIC = 0x44465452; // rt64_frame_dump.h's FrameDump::Magic
@@ -54,7 +65,9 @@ const BAD = 14; // a block's mean difference to its best match that counts as un
 const RATIO = 3; // ... and how much worse than the neighbours match each other there
 const MIN_BLOCKS = 4; // blocks a flagged frame has
 const P = 2; // a pixel's search about its block's best place, in grey pixels (eitherDiff())
-const TILES_X = 4, TILES_Y = 3; // the parts of the picture whose shifts are found apart (placesOf())
+const M = 2; // the quarter pixels around a block that its own shift is found over (placesOf())
+const SIDES_GROW = 1.2; // how many times the triangles past the 4:3 view a wider picture has, at the least
+const SIDES_DENSE = 0.5; // ... unless the strip is this dense against the view: a world not culled at its sides
 
 let dumpStartMs = null; // the first frame's time, ms since 1970: the dump's second 0, sides.tsv's too
 
@@ -125,8 +138,7 @@ function quarter(g, gw, gh) {
     return out;
 }
 
-// How the picture a moved to become b, in grey pixels: the shift of the quarter-size copies that matches best, over
-// the whole picture or over the region x0-x1, y0-y1 of the quarter-size copy.
+// How the picture a moved to become b, in grey pixels: the shift of the quarter-size copies that matches best.
 function shiftOf(qa, qb, qw, qh, x0 = 0, x1 = qw, y0 = 0, y1 = qh) {
     let best = Infinity, by = 0, bx = 0;
     const m = G + 1;
@@ -148,28 +160,37 @@ function shiftOf(qa, qb, qw, qh, x0 = 0, x1 = qw, y0 = 0, y1 = qh) {
     return [by * 4, bx * 4];
 }
 
-// Where each block of a is looked for in b: where the picture as a whole moved, and where the part of it the block
-// lies in moved (a grid of TILES_X by TILES_Y), as [cy0, cx0, cy1, cx1], each an array of a value a block. A picture
-// whose parts move apart (a screen split open from its middle, a scene's near and far parts) has a part the whole's
-// shift misses by far more than a block's search reaches.
+// Where each block of a is looked for in b: where the picture as a whole moved, and where the block itself and what
+// lies around it moved (on the quarter-size copies, over the block and M quarter pixels around it), as
+// [cy0, cx0, cy1, cx1], each an array of a value a block. A picture whose parts move apart (a screen split open from
+// its middle, a scene's near and far parts) has parts the whole's shift misses by more than a block's search reaches.
 function placesOf(qa, qb, qw, qh, bw, bh) {
     const [gy, gx] = shiftOf(qa, qb, qw, qh);
-    const tiles = [];
-    for (let ty = 0; ty < TILES_Y; ty++) {
-        for (let tx = 0; tx < TILES_X; tx++) {
-            tiles.push(shiftOf(qa, qb, qw, qh, Math.floor(tx * qw / TILES_X), Math.floor((tx + 1) * qw / TILES_X),
-                Math.floor(ty * qh / TILES_Y), Math.floor((ty + 1) * qh / TILES_Y)));
-        }
-    }
     const n = bw * bh;
     const cy0 = new Int16Array(n).fill(gy), cx0 = new Int16Array(n).fill(gx);
     const cy1 = new Int16Array(n), cx1 = new Int16Array(n);
+    const q = B / 4; // a block's size in quarter pixels
     for (let by = 0; by < bh; by++) {
         for (let bx = 0; bx < bw; bx++) {
-            const [ty, tx] = tiles[Math.min(Math.floor(by * TILES_Y / bh), TILES_Y - 1) * TILES_X +
-                Math.min(Math.floor(bx * TILES_X / bw), TILES_X - 1)];
-            cy1[by * bw + bx] = ty;
-            cx1[by * bw + bx] = tx;
+            const y0 = Math.max(by * q - M, 0), y1 = Math.min((by + 1) * q + M, qh);
+            const x0 = Math.max(bx * q - M, 0), x1 = Math.min((bx + 1) * q + M, qw);
+            let best = Infinity, sy = 0, sx = 0;
+            for (let dy = -G; dy <= G; dy++) {
+                for (let dx = -G; dx <= G; dx++) {
+                    let s = 0;
+                    for (let y = y0; y < y1; y++) {
+                        const yy = Math.min(Math.max(y + dy, 0), qh - 1);
+                        for (let x = x0; x < x1; x++) {
+                            s += Math.abs(qa[y * qw + x] - qb[yy * qw + Math.min(Math.max(x + dx, 0), qw - 1)]);
+                        }
+                    }
+                    if (s < best) {
+                        best = s; sy = dy; sx = dx;
+                    }
+                }
+            }
+            cy1[by * bw + bx] = sy * 4;
+            cx1[by * bw + bx] = sx * 4;
         }
     }
     return [cy0, cx0, cy1, cx1];
@@ -314,7 +335,6 @@ function saveTriplet(name, fs3, blocks, gw) {
 let failed = false;
 const all = readFrames();
 const frames = all.filter((f) => (f.t >= from) && (f.t <= to));
-let aspect = null;
 if (frames.length >= 3) {
     if (saveDir) {
         fs.mkdirSync(saveDir, { recursive: true });
@@ -338,9 +358,6 @@ if (frames.length >= 3) {
         }
         run.kept.push({ f, g, q: quarter(g, run.gw, run.gh) });
     }
-    // The picture's shape is the one most frames have.
-    const widest = runs.reduce((a, r) => (r.kept.length > a.kept.length) ? r : a);
-    aspect = widest.w / widest.h;
     const flagged = [];
     let checked = 0;
     for (const { gw, gh, kept } of runs) {
@@ -410,47 +427,88 @@ else {
     console.log('frames: fewer than 3 in frames.bin, nothing to match');
 }
 
-// Sides: sides.tsv's bands are a twentieth of the view's width each, from one view left of it to one right.
-const sidesFile = path.join(dir, 'sides.tsv');
-if (fs.existsSync(sidesFile) && aspect) {
-    const PER = 20;
-    const ext = (aspect / (4 / 3) - 1) / 2; // the widened picture's strip past each side, in view widths
-    const n = Math.floor(ext * PER);
-    if (n < 1) {
-        console.log(`sides: the picture is ${aspect.toFixed(2)}:1, no wider than the view: nothing past its sides to check`);
+// Sides: sides.tsv's bands are a twentieth of the view's width each, from one view left of it to one right, each
+// workload's triangles counted by where their middles lie.
+const PER = 20;
+// A dump's 3D workloads (200 triangles or more) between --from and --to: their mean count a band, and the picture's
+// shape from its frames.
+function sidesOf(d) {
+    const file = path.join(d, 'sides.tsv');
+    const framesFile = path.join(d, 'frames.bin');
+    if (!fs.existsSync(file) || !fs.existsSync(framesFile)) {
+        return null;
     }
-    else {
-        const ratios = [];
-        for (const line of fs.readFileSync(sidesFile, 'utf8').split(/\r?\n/)) {
-            // <workload id>\t<ms since 1970>\t<a count a band>...
-            const cols = line.split('\t').map(Number);
-            const v = cols.slice(2);
-            const t = (cols[1] - dumpStartMs) / 1000;
-            if ((v.length !== PER * 3) || !(t >= from) || !(t <= to)) {
-                continue;
-            }
-            let outer = 0, inner = 0;
-            for (let i = 0; i < n; i++) {
-                outer += v[PER - 1 - i] + v[2 * PER + i];
-                inner += v[PER + i] + v[2 * PER - 1 - i];
-            }
-            if (inner + outer >= 200) {
-                ratios.push(outer / Math.max(inner, 1));
-            }
-        }
-        if (!ratios.length) {
-            console.log('sides: no workload drew 200 triangles near the view\'s sides');
-        }
-        else {
-            ratios.sort((a, b) => a - b);
-            const median = ratios[ratios.length >> 1];
-            const fail = median < 0.5;
-            failed ||= fail;
-            console.log(`sides: past the 4:3 view's edges against just inside them, ${(n / PER).toFixed(2)} of the view` +
-                ` a side: median ${median.toFixed(2)} over ${ratios.length} workloads` +
-                ` (a tenth ${ratios[ratios.length / 10 | 0].toFixed(2)}, nine tenths ${ratios[ratios.length * 9 / 10 | 0].toFixed(2)}): ` +
-                (fail ? 'FAILS, culled at the 4:3 view' : 'passes'));
-        }
+    const head = Buffer.alloc(HEADER);
+    const fd = fs.openSync(framesFile, 'r');
+    const read = fs.readSync(fd, head, 0, HEADER, 0);
+    fs.closeSync(fd);
+    if ((read < HEADER) || (head.readUInt32LE(0) !== MAGIC)) {
+        return null;
     }
+    const startMs = Number(head.readBigUInt64LE(32));
+    const mean = new Array(PER * 3).fill(0);
+    let n = 0;
+    for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+        // <workload id>\t<ms since 1970>\t<a count a band>...
+        const cols = line.split('\t').map(Number);
+        const v = cols.slice(2);
+        const t = (cols[1] - startMs) / 1000;
+        if ((v.length !== PER * 3) || !(t >= from) || !(t <= to) || (v.reduce((a, b) => a + b, 0) < 200)) {
+            continue;
+        }
+        v.forEach((c, i) => { mean[i] += c; });
+        n++;
+    }
+    return { n, mean: mean.map((c) => c / Math.max(n, 1)), aspect: head.readUInt32LE(4) / head.readUInt32LE(8) };
+}
+// The mean triangles a workload with their middles past the 4:3 view's sides, from a to b view widths out on each.
+const pastSides = (s, a, b) => {
+    let sum = 0;
+    for (let i = Math.round(a * PER); i < Math.round(b * PER); i++) {
+        sum += s.mean[PER - 1 - i] + s.mean[2 * PER + i];
+    }
+    return sum;
+};
+const insideView = (s) => s.mean.slice(PER, 2 * PER).reduce((a, b) => a + b, 0);
+const sides = sidesOf(dir);
+if (sides && sides.n && widerDir) {
+    const wider = sidesOf(widerDir);
+    const extOf = (aspect) => (aspect / (4 / 3) - 1) / 2; // a picture's strip past each side of the view, in view widths
+    if (!wider || !wider.n) {
+        console.error(`sides: no 3D in ${widerDir}'s dump between those seconds`);
+        process.exit(2);
+    }
+    const a = extOf(sides.aspect), b = Math.min(extOf(wider.aspect), 1);
+    const inA = insideView(sides), inB = insideView(wider);
+    if (b - a < 0.2) {
+        console.error(`sides: ${widerDir}'s picture (${wider.aspect.toFixed(2)}:1) is too little wider than ${dir}'s ` +
+            `(${sides.aspect.toFixed(2)}:1): dump it at 32:9`);
+        process.exit(2);
+    }
+    if (Math.abs(inA - inB) > 0.1 * Math.max(inA, inB)) {
+        console.error(`sides: the two dumps draw ${inA.toFixed(0)} and ${inB.toFixed(0)} triangles a workload inside the 4:3 ` +
+            'view: not the same scene, so play the same plan and seconds in both');
+        process.exit(2);
+    }
+    // Between the narrower picture's edge and the wider one's, where only the wider picture shows the world.
+    const pastA = pastSides(sides, a, b), pastB = pastSides(wider, a, b);
+    const grows = pastB / Math.max(pastA, 1);
+    // Drawn as densely there as inside the view, a world isn't culled at the sides at all: nothing to grow.
+    const density = (pastB / (2 * (b - a))) / Math.max(inB, 1);
+    const fail = (grows < SIDES_GROW) && (density < SIDES_DENSE);
+    failed ||= fail;
+    console.log(`sides: ${a.toFixed(2)}-${b.toFixed(2)} of the view past the 4:3 view's sides, ${pastA.toFixed(0)} triangles` +
+        ` a workload at ${sides.aspect.toFixed(2)}:1 and ${pastB.toFixed(0)} at ${wider.aspect.toFixed(2)}:1` +
+        ` (x${grows.toFixed(2)}; ${density.toFixed(2)} of the view's density), over ${sides.n} and ${wider.n} workloads: ` +
+        (fail ? 'FAILS, the world past the 4:3 view doesn\'t grow with the picture: culled to the 4:3 view' : 'passes'));
+}
+else if (sides && sides.n) {
+    const ext = (sides.aspect / (4 / 3) - 1) / 2;
+    console.log(`sides: ${pastSides(sides, 0, ext).toFixed(0)} triangles a workload past the 4:3 view's sides in the` +
+        ` ${sides.aspect.toFixed(2)}:1 picture, ${insideView(sides).toFixed(0)} inside it, over ${sides.n} workloads;` +
+        ' --wider <a dump of the same plan at 32:9> checks the culling');
+}
+else {
+    console.log('sides: no workload drew 200 triangles between those seconds');
 }
 process.exit(failed ? 1 : 0);
