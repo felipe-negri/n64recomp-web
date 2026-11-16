@@ -511,11 +511,8 @@ for (const f of readFrames()) {
     dropped += f.dropped;
     between += (f.index > 0) ? 1 : 0;
     sizes.add(`${f.w}x${f.h}`);
-    // A run is of one grey size, not one frame size: Mario Party 3's boot logos alternate 640x360 and 640x361
-    // frames, which as runs of their own left 2 of 1090 frames matched.
-    const gw = Math.floor(W / B) * B, gh = Math.floor(W * f.h / f.w / B) * B;
-    if (!run || (run.gw !== gw) || (run.gh !== gh)) {
-        run = { gw, gh, kept: [] };
+    if (!run || (run.w !== f.w) || (run.h !== f.h)) {
+        run = { w: f.w, h: f.h, gw: Math.floor(W / B) * B, gh: Math.floor(W * f.h / f.w / B) * B, kept: [] };
     }
     const g = grey(f, run.gw, run.gh);
     if (run.kept.length && (meanDiff(g, run.kept[run.kept.length - 1].g) < 0.05)) {
