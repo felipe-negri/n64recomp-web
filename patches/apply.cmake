@@ -119,6 +119,17 @@ function(n64recomp_browser_apply_patch name dir)
         execute_process(COMMAND ${unapply} --check "${stamp}.patch" WORKING_DIRECTORY "${top}"
             RESULT_VARIABLE result OUTPUT_QUIET ERROR_QUIET)
         file(READ "${stamp}.from" from)
+        # A copy that goes in again instead is a checkout put back to its commit since (a reset, publish_pages.sh's
+        # unpatch): its git dir kept the copy, and the checkout is patched again.
+        if (NOT result EQUAL 0)
+            execute_process(COMMAND git apply --whitespace=nowarn --check "${stamp}.patch" WORKING_DIRECTORY "${top}"
+                RESULT_VARIABLE back OUTPUT_QUIET ERROR_QUIET)
+            if (back EQUAL 0)
+                file(REMOVE "${stamp}.patch" "${stamp}.from" "${stamp}")
+                message(STATUS "N64Recomp-browser: ${name} was put back unpatched, patching it again")
+                set(from "")
+            endif()
+        endif()
         if (from STREQUAL patch_hash)
             if (NOT result EQUAL 0)
                 message(STATUS "N64Recomp-browser: ${name} is patched, with edits of its own on top")
