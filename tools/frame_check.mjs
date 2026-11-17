@@ -24,14 +24,18 @@
 //   out. It fails where such frames are more than 1 in 100, or come 3 or more within a second: a one-frame flash a
 //   game draws is rare and alone, and a pairing fault shows in every frame drawn between the game's for as long as
 //   the scene lasts. A frame between two of the game's own that differ over a fifth to a half of the picture (the
-//   share of the newer one's blocks with nothing like them near in the older, as the camera cuts' check reads it) isn't
-//   counted, nor the game's frame at either end, and they are listed apart: something passing close to the camera there
-//   moves further from frame to frame than a block's match follows, and the frames between are the camera's own path.
-//   Turok: Dinosaur Hunter's title fly-over swoops through plants, a leaf filling a frame between game frames 0.23-0.40
-//   apart, 5 frames within a third of a second. A pairing fault changes only the frames between, never the game's own,
-//   so where the game moves little it still fails: Turok 2's world missing at the picture's edge as the player turns
-//   lies between game frames 0.01-0.05 apart. Over half is a new shot, which the camera cuts' check judges and which
-//   stays counted here. A fault drawn while something passes that close to the camera goes unseen.
+//   share of the newer one's blocks with nothing like them near in the older, as the camera cuts' check reads it), where
+//   the game's frames before or after differ as much too, isn't counted, nor the game's frame at either end, and they are
+//   listed apart: something passing close to the camera, game frame after game frame, moves further from frame to
+//   frame than a block's match follows, and the frames between are the camera's own path. Turok: Dinosaur Hunter's
+//   title fly-over swoops through plants for a quarter of a second, its game frames 0.23-0.40 apart five in a row, a
+//   leaf filling a frame between; 4 of its 5 frames flagged within a third of a second go uncounted, and the last,
+//   after a lone jump of 0.35, counts. A cut is a lone jump (Mario Golf's to the tee after hole 1's flyover, 0.30 between
+//   game frames 0.00 apart either side), and over half is a new shot: both stay counted. A pairing fault changes only
+//   the frames between, never the game's own, so where the game moves little it still fails: Mario Golf's hole 1
+//   flyover, whose trees its build without rt64 eda3964 put where other trees stood, has game frames at most 0.09
+//   apart, and Turok 2's world missing at the picture's edge as the player turns lies between game frames 0.01-0.05
+//   apart. A fault drawn while something passes that close to the camera goes unseen.
 //   Only frames presented between the game's own (Framerate Display, on a display faster than the
 //   game) are paired, so a dump without one (Framerate Original, a 60 Hz display under a game of 60) leaves pairing
 //   untested and exits 2, whatever else passes.
@@ -626,10 +630,13 @@ const cuts = [], cutsPartway = [];
 // Each present's share of its game frame's blocks with nothing like them near in the game frame before (checkPresent()'s
 // whole), by its id: 0 where they are less than CUT apart.
 const moved = new Map();
-// A flagged frame between two of the game's that a near object passing the camera changes in part, not a new shot: its
-// own present, or for the game's frame that ends one, the next's too, where its neighbour after lies.
+// A flagged frame between two of the game's that something passing close to the camera changes in part, game frame
+// after game frame: its present, or for the game's frame that ends one the next too (where its neighbour after lies),
+// and a present beside that one, each NEAR to CUT_WHOLE of the picture apart. A cut, a new shot or not, is a jump the
+// presents beside it don't share: Mario Golf's to the tee after hole 1's flyover, 0.30 apart between 0.00 and 0.00.
+const band = (id) => (moved.get(id) >= NEAR) && (moved.get(id) < CUT_WHOLE);
 const nearPass = ({ f }) => [f.presentId, ...((f.index === f.count - 1) ? [f.presentId + 1] : [])]
-    .some((id) => (moved.get(id) >= NEAR) && (moved.get(id) < CUT_WHOLE));
+    .some((id) => band(id) && (band(id - 1) || band(id + 1)));
 
 function checkMiddle({ gw, gh, kept }) {
     const qw = gw >> 2, qh = gh >> 2;
@@ -714,7 +721,7 @@ if (presented >= 3) {
     }
     console.log(`unlike both neighbours: ${counted.length} of ${checked} frames, at most ${burst} within a second: ` +
         (fail ? 'FAILS' : 'passes') + (passing.length ? ` (${passing.length} more, not counted, where something passes` +
-        ` close to the camera: the game's frames ${NEAR}-${CUT_WHOLE} of the picture apart)` : ''));
+        ` close to the camera: the game's frames ${NEAR}-${CUT_WHOLE} of the picture apart, two presents running)` : ''));
     if (!quiet) {
         for (const { c, bad, bw, bh } of flagged.slice(0, 40)) {
             const xs = bad.map((i) => i % bw), ys = bad.map((i) => Math.floor(i / bw));
