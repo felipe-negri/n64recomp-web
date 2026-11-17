@@ -48,9 +48,9 @@ items by almost no game when the record began.
 | Perfect Dark | 2a, 4c, 8a fails | W5 fails, W6's Drive |
 | Super Mario 64 | 2a | W5 fails, W6's Drive |
 | F-Zero X | 2a | W6's Drive |
-| Mario Party | 2a, 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
-| Mario Party 2 | 2a, 4c, 5b, 6a, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
-| Mario Party 3 | 2a, 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
+| Mario Party | 2a fails, 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
+| Mario Party 2 | 2a fails, 4c, 5b, 6a, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
+| Mario Party 3 | 2a fails, 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Super Smash Bros. | 2a | W6's Drive |
 | Paper Mario | 2a, 4a, 4c, 6b | W5 fails, W6's Drive |
 | Mario Golf | | W6's Drive |
@@ -365,6 +365,14 @@ What it looks for:
   flags broken into shards between the game's frames (its v0.1.67, src/node_interpolation.cpp) is not caught: in
   PRACTICE's chase view only their lower edge is in the picture, and the build without the fix flags no more frames
   there than the build with it.
+  Mario Party 1, 2 and 3 fail 2a on their main, built at v0.226.0 and played at 59 Hz through the opening, title,
+  menus, the first board and its minigame (filed): the board's letterbox wipe between turns in 1 and 2 (5 and 13
+  frames within a second), 2's minigame roulette, and 3's item menu, whose frame between draws the cursor on an
+  option neither neighbour has. Their side check tests nothing: a board's picture past the 4:3 view is its 2D
+  background, 5-12 triangles a workload, which the triangle count can't read (filed). Mario Party 3's opening
+  without its models' tags (lib/mario-party-engine's model_ids.cpp) was flagged under the 4 blocks a frame needs, a
+  small star drawn where neither neighbour has it, every frame between for 0.3 s; frame_check now counts small
+  flags that recur in one place (its header).
 
 ### 3. Every controller its own port
 
