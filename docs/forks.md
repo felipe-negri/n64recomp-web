@@ -8,7 +8,7 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Twenty-three options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Twenty-four options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
@@ -17,7 +17,8 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
 2d2db0c, d798d28, a17b46a, 952d327, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4,
-1682468, which it turns on too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
+1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES` (rt64 9ef2024, which it turns on too),
+`ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
 `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
@@ -1214,4 +1215,9 @@ rt64 b24056f           RT64_SKIP_CAMERA_CUTS: the turn is the whole rotation bet
                        the trace, the three axes' cosines less 1, halved), so a roll about the way the camera looks
                        counts: Rush 2049's attract race cuts between overhead cameras by rolling the picture 86-180
                        degrees, and the frames between swung it round. Rush 2049 carried it as runtime-patches/rt64-0017
+rt64 9ef2024           RT64_INTERPOLATE_SCREEN_VERTICES: a screen position a game writes into a vertex (G_MODIFYVTX's
+                       XYSCREEN) is drawn between the game frame before's and its own, paired in the order the game
+                       wrote them through one projection: Mario Golf writes four corners of its pin's flagstick, which
+                       stood still on the screen a game frame at a time while the green moved under it, its foot
+                       sliding across the cup and back, four frames a game frame at 120 Hz
 ```
