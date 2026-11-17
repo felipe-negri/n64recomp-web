@@ -49,8 +49,8 @@
 //   Golf's flyover without its patches/cull.c 197 and 186. Without --wider it only counts them. One dump's own strip
 //   against the view tells nothing: Mario Golf's flyover, culled or not, draws a fraction past the edges of what it
 //   draws inside, the course being long and narrow. The picture's shape is the
-//   size most of a dump's frames between --from and --to have, not its first frame's: a dump that starts before its
-//   plan sizes the window begins at 4:3.
+//   picture's box between --from and --to (pictureBox()), not its first frame's: a dump that starts before its plan
+//   sizes the window begins at 4:3, and one whose frames come in several sizes has black past the picture in some.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
 // the pairing or the sides. frames.bin is read a frame at a time, three kept: a dump at a 240 Hz display's rate is about 160 MB a
@@ -93,14 +93,93 @@ const SIDES_FEW = 50; // triangles a workload in the wider picture's strip under
 
 let dumpStartMs = null; // the first frame's time, ms since 1970: the dump's second 0, sides.tsv's too
 
+// The picture's box in a dump's frames between --from and --to, from their top left corner. RT64 draws a frame into a
+// color target that can be larger than the picture (one kept from a larger frame before, the targets of the frames
+// drawn between the game's), and the dump reads back the whole target, so one dump's frames can come in several sizes
+// with the picture the same size in each and black past it: Rush 2049's at 16:9, 533x301 and 533x275 every two
+// frames, a 489x275 picture in both. Matched whole, a frame of another size than the one before starts the matching
+// again, and with sizes taking turns every two frames no three in a row are compared: 422 of Rush 2049's 2150 were.
+// So every frame is cut to the box before it is matched. The box is the smallest of the sizes at least half as many of
+// those frames have as the commonest size does, so a dump that starts before its plan sizes the window (Rayman 2's
+// first 129 frames at 300x224, then 533x300) takes the size the plan set, and a frame smaller than it is matched whole,
+// starting the matching again.
+// Where those sizes differ, the box is less the columns and rows at its right and bottom that are black in each of 64
+// frames taken across those seconds; a dump in one size is its own box, so a picture the game itself pillarboxes isn't
+// cut on one side only. Its shape is the picture's, which the sides check takes too (sidesOf()).
+function pictureBox(d) {
+    const fd = fs.openSync(path.join(d, 'frames.bin'), 'r');
+    const size = fs.fstatSync(fd).size;
+    const head = Buffer.alloc(HEADER);
+    const at = [];
+    const sizes = new Map();
+    let startMs = null;
+    for (let o = 0; o + HEADER <= size;) {
+        fs.readSync(fd, head, 0, HEADER, o);
+        const fw = head.readUInt32LE(4), fh = head.readUInt32LE(8);
+        if ((head.readUInt32LE(0) !== MAGIC) || (o + HEADER + fw * fh * 3 > size)) {
+            break;
+        }
+        const timeMs = Number(head.readBigUInt64LE(32));
+        startMs ??= timeMs;
+        const t = (timeMs - startMs) / 1000;
+        if (t > to) {
+            break;
+        }
+        if (t >= from) {
+            at.push([o + HEADER, fw, fh]);
+            sizes.set(`${fw}x${fh}`, (sizes.get(`${fw}x${fh}`) ?? 0) + 1);
+        }
+        o += HEADER + fw * fh * 3;
+    }
+    if (!at.length) {
+        fs.closeSync(fd);
+        return null;
+    }
+    const most = Math.max(...sizes.values());
+    const common = [...sizes].filter(([, c]) => c * 2 >= most).map(([s]) => s.split('x').map(Number));
+    const w = Math.min(...common.map(([fw]) => fw)), h = Math.min(...common.map(([, fh]) => fh));
+    if (common.length === 1) {
+        fs.closeSync(fd);
+        return { w, h };
+    }
+    const fit = at.filter(([, fw, fh]) => (fw >= w) && (fh >= h));
+    const cols = new Uint8Array(w), rows = new Uint8Array(h);
+    const SAMPLES = 64;
+    for (let k = 0; k < SAMPLES; k++) {
+        const [o, fw] = fit[Math.floor(k * fit.length / SAMPLES)];
+        const rgb = Buffer.alloc(fw * h * 3);
+        fs.readSync(fd, rgb, 0, rgb.length, o);
+        for (let y = 0; y < h; y++) {
+            for (let x = 0, p = y * fw * 3; x < w; x++, p += 3) {
+                const v = Math.max(rgb[p], rgb[p + 1], rgb[p + 2]);
+                cols[x] = Math.max(cols[x], v);
+                rows[y] = Math.max(rows[y], v);
+            }
+        }
+    }
+    fs.closeSync(fd);
+    let bw = w, bh = h;
+    while ((bw > 1) && (cols[bw - 1] <= 8)) {
+        bw--;
+    }
+    while ((bh > 1) && (rows[bh - 1] <= 8)) {
+        bh--;
+    }
+    // A dump dark throughout keeps the smallest common size.
+    return ((bw < w / 2) || (bh < h / 2)) ? { w, h } : { w: bw, h: bh };
+}
+let box = null; // the picture's box in dir's frames: pictureBox(), once readFrames() starts
+
 // The frames between --from and --to, one at a time, each { t (s since the first), n (its place in the dump),
-// presentId, index, count, dropped, w, h, rgb }. frames.bin is read a frame at a time, never whole: a dump at a 240 Hz
-// display's rate is about 160 MB a second, Node reads no file over 2 GiB at once, and the check keeps three frames.
+// presentId, index, count, dropped, w, h, rgb }, cut to the picture's box. frames.bin is read a frame at a time, never
+// whole: a dump at a 240 Hz display's rate is about 160 MB a second, Node reads no file over 2 GiB at once, and the
+// check keeps three frames.
 function* readFrames() {
     const file = path.join(dir, 'frames.bin');
     if (!fs.existsSync(file)) {
         return;
     }
+    box ??= pictureBox(dir);
     const fd = fs.openSync(file, 'r');
     const size = fs.fstatSync(fd).size;
     const head = Buffer.alloc(HEADER);
@@ -122,11 +201,20 @@ function* readFrames() {
             break;
         }
         if (t >= from) {
-            const rgb = Buffer.allocUnsafe(bytes);
-            fs.readSync(fd, rgb, 0, bytes, o + HEADER);
+            // Cut to the picture's box: its rows, then its columns of each. A frame smaller than the box is kept whole.
+            const [cw, ch] = ((w >= box.w) && (h >= box.h)) ? [box.w, box.h] : [w, h];
+            const whole = Buffer.allocUnsafe(w * ch * 3);
+            fs.readSync(fd, whole, 0, whole.length, o + HEADER);
+            let rgb = whole;
+            if (w !== cw) {
+                rgb = Buffer.allocUnsafe(cw * ch * 3);
+                for (let y = 0; y < ch; y++) {
+                    whole.copy(rgb, y * cw * 3, y * w * 3, (y * w + cw) * 3);
+                }
+            }
             yield {
                 n, t, index: head.readUInt32LE(12), count: head.readUInt32LE(16), dropped: head.readUInt32LE(20),
-                presentId: Number(head.readBigUInt64LE(24)), w, h, rgb,
+                presentId: Number(head.readBigUInt64LE(24)), w: cw, h: ch, rgb,
             };
         }
         o += HEADER + bytes;
@@ -470,40 +558,24 @@ else {
 // workload's triangles counted by where their middles lie.
 const PER = 20;
 // A dump's 3D workloads (200 triangles or more) between --from and --to: their mean count a band, and the picture's
-// shape: the size most of its frames between those seconds have, so a dump that starts before its plan sizes the window
-// (Rayman 2's first 2 s of frames at 4:3 in a 16:9 window) reads the size the plan set.
+// shape: its picture's box between those seconds (pictureBox()), so a dump that starts before its plan sizes the window
+// (Rayman 2's first 2 s of frames at 4:3 in a 16:9 window) reads the size the plan set, and one whose frames come in
+// several sizes (Rush 2049's) reads its picture's, not its color target's.
 function sidesOf(d) {
     const file = path.join(d, 'sides.tsv');
     const framesFile = path.join(d, 'frames.bin');
     if (!fs.existsSync(file) || !fs.existsSync(framesFile)) {
         return null;
     }
-    const head = Buffer.alloc(HEADER);
-    const fd = fs.openSync(framesFile, 'r');
-    const size = fs.fstatSync(fd).size;
-    let startMs = null;
-    const shapes = new Map();
-    for (let o = 0; o + HEADER <= size;) {
-        fs.readSync(fd, head, 0, HEADER, o);
-        if (head.readUInt32LE(0) !== MAGIC) {
-            break;
-        }
-        const w = head.readUInt32LE(4), h = head.readUInt32LE(8), timeMs = Number(head.readBigUInt64LE(32));
-        startMs ??= timeMs;
-        const t = (timeMs - startMs) / 1000;
-        if (t > to) {
-            break;
-        }
-        if (t >= from) {
-            shapes.set(`${w}x${h}`, (shapes.get(`${w}x${h}`) ?? 0) + 1);
-        }
-        o += HEADER + w * h * 3;
-    }
-    fs.closeSync(fd);
-    if (!shapes.size) {
+    const shape = pictureBox(d);
+    if (!shape) {
         return null;
     }
-    const [w, h] = [...shapes].sort((x, y) => y[1] - x[1])[0][0].split('x').map(Number);
+    const head = Buffer.alloc(HEADER);
+    const fd = fs.openSync(framesFile, 'r');
+    fs.readSync(fd, head, 0, HEADER, 0);
+    fs.closeSync(fd);
+    const startMs = Number(head.readBigUInt64LE(32)); // the dump's second 0
     const mean = new Array(PER * 3).fill(0);
     let n = 0;
     for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
@@ -517,7 +589,7 @@ function sidesOf(d) {
         v.forEach((c, i) => { mean[i] += c; });
         n++;
     }
-    return { n, mean: mean.map((c) => c / Math.max(n, 1)), aspect: w / h };
+    return { n, mean: mean.map((c) => c / Math.max(n, 1)), aspect: shape.w / shape.h };
 }
 // The mean triangles a workload with their middles past the 4:3 view's sides, from a to b view widths out on each.
 const pastSides = (s, a, b) => {

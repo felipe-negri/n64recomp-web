@@ -107,7 +107,9 @@ function(n64recomp_browser_apply_patch name dir)
     # Patched already: that copy comes out again and this patch made it. A copy another version of the patch made (this
     # repository moved on and edited it) is taken out first: the new patch neither comes out of a checkout holding the
     # old one nor goes onto it, where the edit touched the old one's lines, and a hunk the edit dropped would stay in.
-    # The copy is what went in, three-way merged or not, so it comes out where the patch itself can't.
+    # The copy is what went in, three-way merged or not, so it comes out where the patch itself can't. A copy this patch
+    # made that no longer comes out is a checkout edited by hand on top of it (a fork change tried in a game first,
+    # CLAUDE.md's Changing it): it is patched, and the edit stays.
     execute_process(COMMAND git rev-parse --path-format=absolute --git-path "n64recomp-browser-${name}"
         WORKING_DIRECTORY "${top}" OUTPUT_VARIABLE stamp OUTPUT_STRIP_TRAILING_WHITESPACE)
     file(SHA1 "${patch}" patch_hash)
@@ -116,11 +118,14 @@ function(n64recomp_browser_apply_patch name dir)
     if (EXISTS "${stamp}.patch")
         execute_process(COMMAND ${unapply} --check "${stamp}.patch" WORKING_DIRECTORY "${top}"
             RESULT_VARIABLE result OUTPUT_QUIET ERROR_QUIET)
-        if (result EQUAL 0)
-            file(READ "${stamp}.from" from)
-            if (from STREQUAL patch_hash)
-                return()
+        file(READ "${stamp}.from" from)
+        if (from STREQUAL patch_hash)
+            if (NOT result EQUAL 0)
+                message(STATUS "N64Recomp-browser: ${name} is patched, with edits of its own on top")
             endif()
+            return()
+        endif()
+        if (result EQUAL 0)
             execute_process(COMMAND ${unapply} "${stamp}.patch" WORKING_DIRECTORY "${top}" RESULT_VARIABLE result)
             if (NOT result EQUAL 0)
                 message(FATAL_ERROR "N64Recomp-browser: can't take the older ${name}.patch out of ${dir}")

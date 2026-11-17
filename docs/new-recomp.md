@@ -44,7 +44,7 @@ items by almost no game when the record began.
 
 | Game | New recomp: left | Web port: left |
 |---|---|---|
-| San Francisco Rush 2049 | 2a, 4c fails, 8a fails | W5, W6's Drive |
+| San Francisco Rush 2049 | 2a fails, 4c fails, 8a fails | W5, W6's Drive |
 | Perfect Dark | 2a, 4c, 8a fails | W5 fails, W6's Drive |
 | Super Mario 64 | 2a | W5 fails, W6's Drive |
 | F-Zero X | 2a | W6's Drive |
@@ -114,7 +114,9 @@ sides and corners on its desktop build at 16:9 and 21:9 and on its page, with th
 the middle, and since mario-golf-recomp #18 the course's ground is culled at the wide picture's width rather than the
 4:3 frame's (before, a flyover and Training's hole select showed water past straight-cut ground at 16:9's and 21:9's
 sides, its trees left standing on the water: its patches/cull.c), so it passes 1 (its HUD's scissors stay inside the 3D's border, which
-RT64 widens with the picture: past it the HUD's slide-in left marks never cleared, its src/game/hud.cpp); four pads
+RT64 widens with the picture: past it the HUD's slide-in left marks never cleared, its src/game/hud.cpp, and the sun's light
+on the sky goes on past the 4:3 frame's sides while any of it is in the picture, where it was cut in a straight line at
+the frame's right side in a flyover and went once the sun was 64 pixels past a side, its src/game/backdrop.cpp); four pads
 play four golfers, each from the pad that picked it and buzzed on its turn (3, W7), and two pads of one model pulled
 out and plugged in again at the tee get their ports back and rumble once the game has found their Rumble Paks, a few
 seconds on (4c); a tournament saved and quit continues after a restart (5a), and the scripted presses that once didn't
@@ -292,7 +294,10 @@ What it looks for:
   title backdrop the window's top row, flickering with three framebuffers' old frames, since the game's full-screen
   projection falls a quarter of a line short of the top, which only a picture taller than 240 rows shows, its
   patches/widescreen.c).
-- Tiling: seams or misaligned tiles on walls, ground, sky and the HUD's pieces at high resolution.
+- Tiling: seams or misaligned tiles on walls, ground, sky and the HUD's pieces at high resolution, and cracks of the
+  background's colour where ground drawn at two levels of detail meets, a fraction of a pixel on a console (Mario
+  Golf's far terrain left thin pale lines across the rough at 4K, where a finer block's edge bent at its midpoint
+  beside a coarser one's straight edge, its us.toml).
 - Widescreen: things culled or the level cut off near the picture's left and right edges (a game can cut its level a
   second time, at 16:9, as Turok 2 does); an off-screen marker (a bubble or an arrow for a character past the edge)
   placed at the 4:3 picture's edge; full-screen overlays, tints, wipes and fades cut at the 4:3 picture's
@@ -331,6 +336,18 @@ What it looks for:
   nothing past the 4:3 view can't fail and exits 2, as the Woods of Light's opening down a ravine does with the fix
   and without it: its walls are a few large triangles counted where their middles lie, inside the view, so a sweep
   checks the sides on a scene that draws more there.
+  San Francisco Rush 2049's dumps brought two more holes in the tools to light. Its frames come back in two sizes by
+  turns, the picture the same in both with black past it (RT64's targets are larger than the picture), and
+  frame_check, which started over at each change of size, matched 422 of 2150 frames; it now cuts every frame to the
+  picture's box first and matches them all. And capture_window left the game's window behind the one it was started
+  from, where it was held to 60 presents a second: at Framerate Display on a 240 Hz display its four frames a game
+  frame were presented, and dumped, 16.7 ms apart instead of 4, a quarter of the frames 2a means to test; it now
+  brings the window to the front, 237 a second. Rush 2049's own build fails 2a so played: its attract race's camera
+  cuts, a chase camera cut to another and an overhead camera to another angle, are drawn swung across the cut in
+  the frames between (3-4 frames within a second, filed), with `RT64_SKIP_CAMERA_CUTS` on or off. Its start line's
+  flags broken into shards between the game's frames (its v0.1.67, src/node_interpolation.cpp) is not caught: in
+  PRACTICE's chase view only their lower edge is in the picture, and the build without the fix flags no more frames
+  there than the build with it.
 
 ### 3. Every controller its own port
 
