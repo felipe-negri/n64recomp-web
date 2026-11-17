@@ -114,7 +114,9 @@ sides and corners on its desktop build at 16:9 and 21:9 and on its page, with th
 the middle, and since mario-golf-recomp #18 the course's ground is culled at the wide picture's width rather than the
 4:3 frame's (before, a flyover and Training's hole select showed water past straight-cut ground at 16:9's and 21:9's
 sides, its trees left standing on the water: its patches/cull.c), so it passes 1 (its HUD's scissors stay inside the 3D's border, which
-RT64 widens with the picture: past it the HUD's slide-in left marks never cleared, its src/game/hud.cpp); four pads
+RT64 widens with the picture: past it the HUD's slide-in left marks never cleared, its src/game/hud.cpp, and the sun's light
+on the sky goes on past the 4:3 frame's sides while any of it is in the picture, where it was cut in a straight line at
+the frame's right side in a flyover and went once the sun was 64 pixels past a side, its src/game/backdrop.cpp); four pads
 play four golfers, each from the pad that picked it and buzzed on its turn (3, W7), and two pads of one model pulled
 out and plugged in again at the tee get their ports back and rumble once the game has found their Rumble Paks, a few
 seconds on (4c); a tournament saved and quit continues after a restart (5a), and the scripted presses that once didn't
