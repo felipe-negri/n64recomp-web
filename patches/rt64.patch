@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 21ed4b98ea4449ebbbdc7c35adb959682ab7c6aa
+rt64: https://github.com/n64hub/rt64-web 3c875ecdab9bdba94156e7f9c9024e162ca16438
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -4261,10 +4261,10 @@ index 87392d0..a5405bb 100644
      }
  
 diff --git a/src/hle/rt64_game_frame.h b/src/hle/rt64_game_frame.h
-index 00a72f6..0f2bca2 100644
+index 00a72f6..9475061 100644
 --- a/src/hle/rt64_game_frame.h
 +++ b/src/hle/rt64_game_frame.h
-@@ -47,12 +47,17 @@ namespace RT64 {
+@@ -47,10 +47,16 @@ namespace RT64 {
              RigidBody rigidBody;
              uint32_t prevTransformIndex = 0;
              bool mapped = false;
@@ -4276,13 +4276,12 @@ index 00a72f6..0f2bca2 100644
  
          struct TransformMap {
              RigidBody rigidBody;
++            // Its vertices as its pair's of the frame before (RT64_SKIP_PLACE_SWAPS).
++            bool verticesStill = false;
              uint32_t prevTransformIndex = 0;
              bool mapped = false;
-+            bool verticesStill = false;
          };
- 
-         struct TileMap {
-@@ -64,6 +69,18 @@ namespace RT64 {
+@@ -64,6 +70,18 @@ namespace RT64 {
              float prevUlt = 0;
              float prevLrs = 0;
              float prevLrt = 0;
@@ -4301,7 +4300,7 @@ index 00a72f6..0f2bca2 100644
              bool mapped = false;
          };
  
-@@ -74,6 +91,10 @@ namespace RT64 {
+@@ -74,6 +92,10 @@ namespace RT64 {
          };
  
          struct WorkloadMap {
@@ -4312,7 +4311,7 @@ index 00a72f6..0f2bca2 100644
              std::vector<ViewProjectionMap> viewProjections;
              std::vector<TransformMap> transforms;
              std::vector<TileMap> tiles;
-@@ -126,9 +147,12 @@ namespace RT64 {
+@@ -126,9 +148,12 @@ namespace RT64 {
          bool isSceneCompatible(const WorkloadQueue &workloadQueue, const GameScene &scene, const GameIndices::Projection &proj);
          void set(WorkloadQueue &workloadQueue, const uint32_t *workloadIndices, uint32_t indicesCount);
          void match(RenderWorker *worker, WorkloadQueue &workloadQueue, const GameFrame &prevFrame, BufferUploader *velocityUploader, bool &velocityUploaderUsed, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed);

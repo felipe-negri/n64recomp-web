@@ -1223,4 +1223,6 @@ rt64 21ed4b9           RT64_SKIP_PLACE_SWAPS: nor a pair of a transform whose ve
                        in Turok 2's Port of Adia. Turok puts its camera in the world matrices in places, so only the
                        meshes tell the blocks apart. A mesh that held still or had just come and then changes steps for
                        a frame
+rt64 3c875ec           TransformMap's verticesStill moved after its rigidBody: WWF No Mercy's rt64 adds fields after
+                       mapped, and a field there too was its three-way merge's conflict (wwf-patches). It does the same
 ```
