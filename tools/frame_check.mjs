@@ -116,11 +116,18 @@
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
 // the pairing or the sides. frames.bin is read a frame at a time, those the workers have yet to match kept (a few a
 // worker, pool.room()): a dump at a 240 Hz display's rate is about 160 MB a second.
+//
+// It runs below normal priority, its workers with it: it takes every core but one, and it is run beside plays,
+// builds and a person at the desktop, which come first. On an idle host that costs it nothing; on a busy one it
+// takes what is left rather than making the host 100% busy for everything else.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { Worker, isMainThread, parentPort } from 'node:worker_threads';
+
+// Before any worker starts, so each is made at it (the header says why). Best effort: a host that refuses keeps normal.
+if (isMainThread) try { os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* runs at normal */ }
 
 const args = process.argv.slice(2);
 const opt = (name, fallback) => {
