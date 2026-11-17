@@ -16,8 +16,8 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7, c0d27e5),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4,
-54e47fb, 2d2db0c, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it
-turns on too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
+54e47fb, 2d2db0c, d798d28, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468,
+which it turns on too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
 `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
@@ -1193,4 +1193,7 @@ rt64 2d2db0c           RT64_INTERPOLATE_RECT_SCROLLS: a texrect with none of the
                        side away, and is drawn between where it stood and where it is: Mario Golf moves its far hills'
                        strips as the camera pitches (4-10 px a game frame following the ball), and they still stepped
                        a game frame at a time against the interpolated trees
+rt64 d798d28           a moved rect's offset is added to its screen offset after the lines that place it, DrawParams'
+                       fields follow curWorkload and rectMoves is first in WorkloadMap: Conker's, Pokemon Snap's, 1080
+                       Snowboarding's, Rogue Squadron's and Rush 2049's own RT64 changes didn't apply over 2d2db0c
 ```
