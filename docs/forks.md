@@ -1196,4 +1196,7 @@ rt64 2d2db0c           RT64_INTERPOLATE_RECT_SCROLLS: a texrect with none of the
 rt64 d798d28           a moved rect's offset is added to its screen offset after the lines that place it, DrawParams'
                        fields follow curWorkload and rectMoves is first in WorkloadMap: Conker's, Pokemon Snap's, 1080
                        Snowboarding's, Rogue Squadron's and Rush 2049's own RT64 changes didn't apply over 2d2db0c
+rt64 ae0a708           a rect's or scissor's edge within a thousandth of a pixel of a whole one is on it: a 16:9
+                       window's ratio of 0.75000006 put Mario Golf's 4:3 scissor's left edge on 367.99994 of 2560,
+                       floored to 367, and its menu's sea was drawn a column into the black border
 ```
