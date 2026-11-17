@@ -419,8 +419,12 @@ function explain(a, b, gw, gh, places) {
 }
 
 // Block k of c against a and b each about its best place (explain()'s), each pixel against the closest pixel of either
-// within P of there: a block half one picture and half the other (the edge of a wipe that moved between them), or
-// stretched a little (a wipe that scales), is explained, a model where neither has anything like it nearby isn't.
+// within P of there, or against the span between the two's pixels there: a block half one picture and half the other
+// (the edge of a wipe that moved between them), or stretched a little (a wipe that scales), is explained, a model where
+// neither has anything like it nearby isn't. A wipe's edge seldom falls on a grey pixel's edge, so the pixel it crosses
+// is part the one picture and part the other, a shade neither has: Mario Party 2's board opening from a band across
+// the middle between turns, a strip a lone game frame grows, had its edges flagged in every frame of it. Where a and
+// b agree, the span between them is nothing, so a model drawn where both have the same thing still reads as unlike.
 function eitherDiff(c, a, b, ea, eb, k, gw, gh) {
     const bw = gw / B | 0;
     const by = Math.floor(k / bw), bx = k % bw;
@@ -434,7 +438,8 @@ function eitherDiff(c, a, b, ea, eb, k, gw, gh) {
             for (let py = -P; py <= P; py++) {
                 const ya = clampY(y + ady + py) * gw, yb = clampY(y + bdy + py) * gw;
                 for (let px = -P; px <= P; px++) {
-                    m = Math.min(m, Math.abs(v - a[ya + clampX(x + adx + px)]), Math.abs(v - b[yb + clampX(x + bdx + px)]));
+                    const va = a[ya + clampX(x + adx + px)], vb = b[yb + clampX(x + bdx + px)];
+                    m = Math.min(m, Math.abs(v - va), Math.abs(v - vb), Math.max(Math.min(va, vb) - v, v - Math.max(va, vb), 0));
                 }
             }
             s += m;
@@ -809,9 +814,17 @@ function middleBad(gw, gh, a, c, b) {
     return bad;
 }
 
+// A frame presented again unchanged after it (a repeat) is a picture the game held, not one drawn for a frame alone,
+// and isn't matched: repeats left out, the frames either side of it are the ones before and after the hold, and a
+// menu's cursor that steps from option to option and stays on each reads as unlike both, the step before and the step
+// after. Mario Party 3's book of minigames drew it 12 times in a second, its bar's edge one block each. A frame between
+// paired wrongly is never shown twice: the game's own frame after it is drawn as the game has it.
 function checkMiddle({ gw, gh, kept }) {
     const bw = gw / B | 0, bh = gh / B | 0;
     const [a, c, b] = kept;
+    if (c.held) {
+        return;
+    }
     checked++;
     middles.push(pool.run('middle', gw, gh, kept).then((bad) => {
         const small = bad.length < MIN_BLOCKS;
@@ -840,6 +853,7 @@ for (const f of readFrames()) {
     checkPresent(entry, run);
     if (run.kept.length && (meanDiff(g, run.kept[run.kept.length - 1].g) < 0.05)) {
         repeats++;
+        run.kept[run.kept.length - 1].held = true;
         continue;
     }
     run.kept.push(entry);
