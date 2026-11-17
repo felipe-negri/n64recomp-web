@@ -59,7 +59,7 @@ items by almost no game when the record began.
 | Dinosaur Planet | 2a | W5 fails |
 | Turok: Dinosaur Hunter | 2a fails, 5a | W5 fails, W6's Drive |
 | Turok 2: Seeds of Evil | 2 fails, 2a fails, 4c, 5a | W5 fails, W6's Drive |
-| Turok 3: Shadow of Oblivion | 4c, 5a | W5 fails, W6's Drive |
+| Turok 3: Shadow of Oblivion | 2a's sides, 4c, 5a | W5 fails, W6's Drive |
 | GoldenEye 007 | | W2, W5 fails, W6, W7 |
 | The Legend of Zelda: Majora's Mask | | W2, W5, W6, W7 |
 | Banjo-Kazooie | | W2, W5, W6, W7 |
@@ -105,10 +105,12 @@ point in a level (`saves/controllerpak_0.mpk` stays absent through their boots, 
 turok-engine writes the pak only on a change), and no save point was reached near Turok 1's or Turok 2's start; the
 Turoks' 2a was played on desktop builds of their main with N64Recomp-browser v0.225.0 (they pin v0.205.0, older than the
 frame dump), each game's page plan at 16:9 and 32:9 (Turok 1's title, fly-over and first level, Turok 2's menus,
-opening cinematics and Port of Adia, Turok 3's menus and the Breach): all three pass the sides (Turok 1 x0.89 and 0.86
-as dense past the 16:9 edge, Turok 2 x1.08 and 0.70, Turok 3 in the Breach x0.99 and 0.72, x1.22 and 0.76) and the
+opening cinematics and Port of Adia, Turok 3's menus and the Breach): all three passed the sides as frame_check read
+them then, against the 16:9 dump with a pass for a world drawn as densely past the 16:9 edge as inside it, which passes a
+build culled to 4:3 too (Turok 1 x0.89 and 0.86 as dense past the 16:9 edge, Turok 2 x1.08 and 0.70, Turok 3 in the
+Breach x0.99 and 0.72, x1.22 and 0.76), so their sides are played again against a 4:3 window (filed); all three pass the
 camera cuts (Turok 2's cinematics' 21, none drawn partway), and Turok 3 the frames between the game's (9 of 12419, at
-most 2 a second), so Turok 3 passes 2a; Turok 2 fails it, the world missing at the picture's edge in frames between
+most 2 a second), so Turok 3 passes 2a but for its sides; Turok 2 fails it, the world missing at the picture's edge in frames between
 the game's while the player turns (the background showing at the top left 3 times in a second in the Port of Adia), as
 Turok 1 does once (a dark wedge at the left edge), filed for turok-engine; Turok 1's title fly-over through a leaf drew
 5 frames in a second unlike both neighbours that are the camera's own (a near object moving further between two frames
@@ -116,7 +118,8 @@ than a block's match follows), which frame_check no longer counts (its header), 
 the Mario Parties' READMEs don't link their pages (8c); Mario Golf's courses, Mini-Golf, every play mode and a whole
 Tournament round draw on its desktop build at 16:9, 21:9 and 4:3, so it was passed 2, on captures that missed its trees
 drawn where other trees stood in the frames between the game's, which its first players reported, and passes 2a since
-rt64 eda3964 and b12ecad and its patches/cull.c (hole 1's flyover and its menus, at 16:9 and 32:9): at Framerate
+rt64 eda3964 and b12ecad and its patches/cull.c (hole 1's flyover and its menus, at 16:9 and 32:9, the flyover's
+sides against a 4:3 window too, x1.87-1.92): at Framerate
 Display a flyover drew
 a frame with the course torn into loose polygons in 3 of 10 before v0.212.0, where rt64 0372264 pairs a vertex in
 RT64's automatic interpolation only with its own last place, and none of 3 on it; its HUD sits at the wide picture's
@@ -321,38 +324,39 @@ What it looks for:
 
 - **2a.** The frames between the game's and the culling at the sides are checked by machine, not by eye. Each scene the
   sweep plays (a level's intro or flyover, its first minute, a transition, a menu) is played on the desktop build at
-  Framerate Display with `RT64_FRAME_DUMP` set, by one plan in a 16:9 window and again in a 32:9 one, and
-  `tools/frame_check.mjs <16:9 dump> --wider <32:9 dump>` passes (its header says how, and what it fails). It fails a
-  frame drawn for itself alone between two that agree (a model put halfway to a look-alike's place, a stretched camera
-  cut, a frame drawn in parts or of garbage) and a world that draws no more past the 4:3 view's sides in the wider
-  window. Mario Golf was passed 2 on window captures, contact sheets and a brightness test of the picture's edges with
+  Framerate Display with `RT64_FRAME_DUMP` set, by one plan in a 16:9 window, again in a 4:3 one and again in a 32:9
+  one, and `tools/frame_check.mjs <16:9 dump> --narrower <4:3 dump> --wider <32:9 dump>` passes (its header says how,
+  and what it fails). It fails a frame drawn for itself alone between two that agree (a model put halfway to a
+  look-alike's place, a stretched camera cut, a frame drawn in parts or of garbage) and a world that draws no more past
+  the 4:3 view's sides at 32:9 than in the 4:3 window, where nothing past the view shows. Mario Golf was passed 2 on
+  window captures, contact sheets and a brightness test of the picture's edges with
   both faults in every hole's flyover, and was released twice with both: its trees drawn where other trees stood in
   the frames between the game's (rt64 eda3964 and b12ecad, on for its desktop build), and its ground missing past the
   4:3 view at 16:9 (its patches/cull.c). A capture lands tens of milliseconds from the last, anywhere between two of the
   game's frames, a tree where another tree stood reads as a tree, and water past cut ground reads as the course's own.
   frame_check fails its build without either fix on hole 1's flyover and passes it with both, and passes its menus'
   split and stretching wipes. It fails Rayman 2's and Goin' Quackers' fixed faults too, played on builds without their
-  fixes: Rayman 2's world culled at the 4:3 view's sides (its v0.1.1, src/game/widescreen.cpp) reads x0.99 in the
-  Fairy Glade's first 8 s, and passes with the fix; Goin' Quackers' outfit machine flickering in the frames between the
+  fixes: Rayman 2's world culled at the 4:3 view's sides (its v0.1.1, src/game/widescreen.cpp) fails in the
+  Fairy Glade, and passes with the fix; Goin' Quackers' outfit machine flickering in the frames between the
   game's (its v0.1.7, rt64 6e8aa22 matching a pair's scales) fails 28 of 1431 frames in Gyro's lab without the
   matching, and passes 0 of 4280 with it. Only frames between the game's test how they are paired, so a dump without
   any (Framerate Original, or a display no faster than the game) exits 2, not 0. Rayman 2's build before v0.1.18 failed the
   Woods of Light's opening at 240 Hz, 9 of 3191 frames drawn from a camera halfway across a cut, and passed it at
   Framerate Original: the game puts its camera into every model's matrix, so RT64 saw no camera to cut, and since then
-  it hands RT64 its view, the one its frame's models were drawn with (its `src/game/camera_view.cpp`). A game that culls nothing by the
-  window draws the same past the 4:3 view in both windows, as one culled to that view does: San Francisco Rush 2049's
-  attract race, its world drawn out to the 32:9 picture's edges, read x1.16 and failed. So the check also reads how
-  densely the 16:9 dump draws just past its own picture's edge, where a game culled to 4:3 thins out, and passes a
-  game that draws there as densely as inside it (frame_check's header has the numbers). A scene that draws next to
-  nothing past the 4:3 view can't fail and exits 2, as the ravine the Woods of Light's opening fades in on does with
-  the fix and without it: its walls are a few large triangles counted where their middles lie, inside the view. A
-  scene whose world is a few large objects, each reaching into the 16:9 picture, is no test either, and fails with
-  its world drawn out to the 32:9 picture's edges: the game draws those objects whole in both windows, so nothing
-  grows. Rayman 2's language menu, a backdrop of a few cliffs, fails so on the build with the fix, and its opening's
-  shots after the ravine read near every line, so a dump of the whole opening passes or fails by how long its plan
-  holds each shot (frame_check's header has the numbers). A sides fail is looked at in the 32:9 dump's frames before
-  it is called the game's, and a sweep of Rayman 2 checks its opening without `--wider` and the sides on the Fairy
-  Glade.
+  it hands RT64 its view, the one its frame's models were drawn with (its `src/game/camera_view.cpp`). The sides
+  compare the 32:9 dump with the 4:3 one pose by pose, so runs out of step compare alike: Mario Golf's hole 1 flyover
+  reads x1.02-1.05 without its patches/cull.c and x1.87-1.92 with it, Rayman 2's Fairy Glade x0.99-1.00 without its
+  v0.1.1 and x1.21-1.22 with it, and San Francisco Rush 2049's attract race, which culls whole stretches of scenery
+  but draws its world out to the 32:9 picture's edges, x1.19-1.49. Against a 16:9 dump in the 4:3 one's place a
+  fixed build grows too little to tell from a culled one (Rush 2049 x1.00-1.16), and the check, which then also passed
+  a world drawn as densely just past the 16:9 picture's edge as inside it, passed Rayman 2's culled Fairy Glade. A scene
+  that draws next to nothing past the 4:3 view can't fail and exits 2, as the ravine the Woods of Light's opening fades
+  in on does with the fix and without it: its walls are a few large triangles counted where their middles lie, inside
+  the view. A shot whose every object reaches into the view is no test either, and fails with its world drawn out to
+  the 32:9 picture's edges: the game draws those objects whole in both windows, so nothing grows. Rayman 2's first
+  still shot of Rayman, a few cliffs, fails so on the build with the fix. So the sides are checked on a scene whose
+  world goes on past the view (a course, a field, a race; Rayman 2's Fairy Glade), and a sides fail is looked at in
+  the 32:9 dump's frames before it is called the game's.
   San Francisco Rush 2049's dumps brought two more holes in the tools to light. Its frames come back in two sizes by
   turns, the picture the same in both with black past it (RT64's targets are larger than the picture), and
   frame_check, which started over at each change of size, matched 422 of 2150 frames; it now cuts every frame to the
