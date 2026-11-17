@@ -7,7 +7,7 @@
 //   node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--quiet]
 //
 // <dir> is a dump's: frames.bin, every frame presented, and sides.tsv, where across the view the 3D's triangles lay.
-// --wider names a dump of the same plan and seconds in a wider window (32:9 beside 16:9) for the sides. --from and
+// --narrower and --wider name two dumps of the same plan for the sides, one in a 4:3 window and one at 32:9. --from and
 // --to keep what came between those seconds of the dumps, counted from each one's first frame; --save writes each
 // flagged frame with the frames either side of it as one PNG, its flagged blocks outlined, for whoever wants to see
 // one. It matches the frames on a worker thread a core: 20 s of Turok's 640x360 frames at 120 a second (1025 matched)
@@ -64,39 +64,36 @@
 //   Turok 2's 0.29 and 0.21, 49 and 58 times. Turok 2's cinematics' cuts change 0.62-0.80 of theirs where they are
 //   lit; a cut between two dark shots, whose blocks differ by less than a block's match allows, reads lower, and under a
 //   tenth goes untested.
-// - Culled at the 4:3 view's sides, from two dumps of the same plan: one at 16:9 and one --wider at 32:9. A game
-//   that culls its world to the picture draws more of it past the 4:3 view's sides as the picture widens; one that
-//   culls to its 4:3 view draws the same whatever the window, so the strip only the wider picture shows holds what
-//   reaches over the edge from inside and nothing more (water or sky where the ground goes on). It compares the
-//   triangles a workload of 3D (200 triangles or more) has in that strip in both, by where each one's middle lies,
-//   and fails where the wider has under 1.2 times as many and the strip is under half as dense as the view: a world
-//   drawn that densely past the view isn't culled at its sides at all. A game that culls nothing by the window draws
-//   the same whatever the window too, so the two dumps alone read it like one culled to its 4:3 view: San Francisco
-//   Rush 2049 culls whole stretches of scenery and draws its world out to the 32:9 picture's edges, and its attract
-//   race read x1.16 on a 60 Hz display and x1.00 on a 240 Hz one. The narrower dump tells them apart. A game culled to
-//   4:3 thins out past the narrower picture's own edge, where nothing of it shows, and one not culled by the window
-//   draws there as it does inside, so the check passes where the strip past that edge (out as far again as the edge
-//   lies past the view, 0.17-0.33 of it at 16:9) is 0.65 or more as dense a band as the strip inside the edge: Mario
-//   Golf's hole 1 flyover read 0.28 without its patches/cull.c and 0.59 with it, Rayman 2's Woods of Light 0.25-0.54
-//   without its v0.1.1, Rush 2049's attract race 0.74 and Practice on its first track 0.81. A scene that draws under
-//   50 triangles a workload in the strip at 32:9 can't fail, and exits 2: the fifth more the check asks for is then an
-//   object or two, and a game culling to the picture draws an object reaching into the narrower one whole, past its
-//   edge too. Rayman 2's Woods of Light opens on a fade-in down a ravine whose walls are a few large triangles, their
-//   middles inside the view: its fixed build reads 22 and 25 there (x1.14) and the build without its v0.1.1 11 and 11,
-//   where its first 8 s in the Fairy Glade read 102 and 117 (passing on 0.74) and 62 and 61 (failing), and Mario
-//   Golf's flyover without its patches/cull.c 197 and 186. A scene of more is no test either where its world is a few
-//   large objects that each reach into the narrower picture: a game culling to the picture draws them whole in both
-//   windows, so it grows no more than one culled to 4:3, and fails with its world out to the wider picture's edges.
-//   Rayman 2's language menu, a backdrop of a few cliffs, reads 78 and 91 (x1.17; 0.46 past the edge) and fails, the
-//   shots of its Woods of Light opening after the ravine 33 and 38 (x1.15) and pass on 0.67, and Rayman's first still
-//   shot 108 and 111 (x1.02) on 1.03, so a dump of the whole opening passes or fails by how long its plan holds each:
-//   one pair read 74 and 79 (x1.06) and passed on 0.85, another 46 and 52 (x1.14) and failed.
-//   So a fail is looked at in the wider dump's frames before it is called the game's. Without --wider it only counts
-//   them. One dump's own strip
-//   against the view tells nothing: Mario Golf's flyover, culled or not, draws a fraction past the edges of what it
-//   draws inside, the course being long and narrow. The picture's shape is the
-//   picture's box between --from and --to (pictureBox()), not its first frame's: a dump that starts before its plan
-//   sizes the window begins at 4:3, and one whose frames come in several sizes has black past the picture in some.
+// - Culled at the 4:3 view's sides, from two more dumps of the same plan: one --narrower in a 4:3 window, where
+//   nothing past the view shows, and one --wider at 32:9. A game that culls its world to the picture draws more of it
+//   past the view's sides at 32:9 than in the 4:3 window; one that culls to its 4:3 view draws the same in both, what
+//   reaches over the view's edge from inside and nothing more (water or sky where the ground goes on). Each workload of
+//   3D (200 triangles or more) at 32:9 is paired with the 4:3 dump's that draws most nearly the same inside the view
+//   (its triangles counted a twentieth of the view at a time, differing by a tenth of them at most), so two runs out
+//   of step, or a shot held longer in one, compare the same poses; it compares the triangles the pairs have past the
+//   view's sides, out to the 32:9 picture's edges (0.83 of the view either side), by where each one's middle lies, and
+//   fails where the 32:9 dump has under 1.1 times as many and draws there under half as densely as inside the view: a
+//   world drawn that densely past the view isn't culled at its sides at all. A build culled to 4:3 reads x0.99-1.05 and
+//   a fixed one x1.17 or more: Mario Golf's hole 1 flyover x1.02-1.05 without its patches/cull.c (57-367 triangles a
+//   workload past the view) and x1.87-1.92 with it, Rayman 2's first 45 s in the Fairy Glade x0.99-1.00 without its
+//   v0.1.1 and x1.21-1.22 with it, its Woods of Light opening x1.00 and x1.17, and San Francisco Rush 2049's attract
+//   race, which culls whole stretches of scenery and draws its world out to the 32:9 picture's edges, x1.19-1.49. A
+//   16:9 window in the 4:3 one's place tells less: it draws past the view itself, so a fixed build grows less against
+//   it (Rush 2049's attract race x1.00-1.16, Rayman 2's opening x1.10), and a culled one passed Rayman 2's Fairy Glade
+//   on how densely it drew there. A scene drawing under 50 triangles a workload past the view at 32:9 can't fail and
+//   exits 2, too few to tell from an object or two reaching over the edge: Rayman 2's ravine down into the Woods of
+//   Light, a few large walls whose middles lie inside the view, reads 29 culled and 43 fixed. A shot whose every
+//   object reaches into the view draws them whole in both windows and fails whatever the build: Rayman 2's first still
+//   shot of Rayman, a few cliffs, x1.00 with its v0.1.1. So a scene is picked where the world goes on past the view (a
+//   course, a field, a race), and a fail is looked at in the 32:9 dump's frames before it is called the game's. A 4:3
+//   window's target can be a little off 4:3 (Rush 2049's is 640x440): a --narrower dump wider than 1.6:1, a --wider
+//   one narrower than 8:3, or a pair of which under 30 or a tenth of the 32:9 workloads find a match (not the same
+//   scene), exits 2. Without them it only counts the triangles. One dump's own strip against the view tells nothing:
+//   Mario Golf's flyover, culled or not, draws a fraction past the view's edges of what it draws inside, the course
+//   being long and narrow. The picture's shape is the picture's box between --from and --to (pictureBox()), not its
+//   first frame's: a dump that starts before its plan sizes the window begins at 4:3, and one whose frames come in
+//   several sizes has black past the picture in some. Rayman 2's language menu draws its frames at 300x224 for its
+//   first 6 s whatever the window, so --from starts a dump of it after that.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
 // the pairing or the sides. frames.bin is read a frame at a time, those the workers have yet to match kept (a few a
