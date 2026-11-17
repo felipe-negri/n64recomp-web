@@ -48,13 +48,16 @@
 //   drawn between the two should be the new shot or the old, its parts moved on as they move (a model, an animated
 //   texture): block by block, each to its best place in either, one unlike both by 0.3 or more of how unlike the two
 //   are to each other fails. A game camera that moves that far in one frame and that little either side is a cut,
-//   whatever the game meant by it, if half or more of the new frame's blocks (the picture's edge left out) match nothing
-//   near them in the old: a new shot. A near object passing the camera changes the picture as much and only in part,
-//   and its frames between are the camera's own, rightly drawn: Turok: Dinosaur Hunter's title fly-over goes through a
-//   leaf between two of the game's frames, changing 0.35 of the picture, and the frame drawn between them is the leaf,
-//   0.94 unlike both. Turok 2's cinematics' cuts change 0.62-0.80 of theirs where they are lit; a cut
-//   between two dark shots, whose blocks differ by less than a block's match allows, reads lower (one of Turok 2's
-//   0.18) and goes untested.
+//   whatever the game meant by it, if it is a new shot: half or more of the new frame's blocks (the picture's edge left
+//   out) match nothing near them in the old, or a tenth or more where it jumps 3 times as far as the game's frames
+//   either side or more. A near object passing the camera changes the picture as much and only in part, and its frames
+//   between are the camera's own, rightly drawn: Turok: Dinosaur Hunter's title fly-over goes through a leaf between
+//   two of the game's frames, changing 0.35 of the picture, 2.4 times as far as either side, and the frame drawn between
+//   them is the leaf, 0.94 unlike both. A cut to a shot that shares much of the old one's picture changes less of it,
+//   but alone: Mario Golf's from hole 1's fly-over to the tee changes 0.30, 24 times as far as either side, and two of
+//   Turok 2's 0.29 and 0.21, 49 and 58 times. Turok 2's cinematics' cuts change 0.62-0.80 of theirs where they are
+//   lit; a cut between two dark shots, whose blocks differ by less than a block's match allows, reads lower, and under a
+//   tenth goes untested.
 // - Culled at the 4:3 view's sides, from two dumps of the same plan: one at 16:9 and one --wider at 32:9. A game
 //   that culls its world to the picture draws more of it past the 4:3 view's sides as the picture widens; one that
 //   culls to its 4:3 view draws the same whatever the window, so the strip only the wider picture shows holds what
@@ -127,7 +130,9 @@ const CUT = 8; // the mean difference of two of the game's frames in a row, of 2
 const CUT_JUMP = 2; // ... and how many times the game's frames either side of them differ, at the least
 const CUT_PARTWAY = 0.3; // a frame between a cut's two as unlike both, against how unlike they are: the camera partway
 const CUT_WHOLE = 0.5; // ... and the share of the new frame's blocks the old one has nothing like: a new shot
-const NEAR = 0.2; // ... the share, at the least, of a near object passing the camera: frames between left uncounted
+const CUT_LONE = 3; // ... or, where the game's frames either side of them differ this many times less, at the least,
+const CUT_PART = 0.1; // ... this share of the new frame's blocks: a new shot much like the old one
+const NEAR = 0.2; // the share, at the least, of something passing near the camera: frames between not counted
 const P = 2; // a pixel's search about its block's best place, in grey pixels (eitherDiff())
 const M = 2; // the quarter pixels around a block that its own shift is found over (placesOf())
 const SIDES_GROW = 1.2; // how many times the triangles past the 4:3 view a wider picture has, at the least
@@ -690,7 +695,8 @@ function cutParts(gw, gh, a, e, ...between) {
 // frame between them; one that is neither is the camera drawn partway from one shot to the other, the whole picture
 // swept or stretched across for a moment.
 function checkCut([before, p, after]) {
-    if ((p.D < CUT) || (p.D < CUT_JUMP * Math.max(before.D, after.D)) || (p.whole < CUT_WHOLE)) {
+    p.jump = p.D / Math.max(before.D, after.D, 0.1);
+    if ((p.D < CUT) || (p.jump < CUT_JUMP) || ((p.whole < CUT_WHOLE) && ((p.jump < CUT_LONE) || (p.whole < CUT_PART)))) {
         return;
     }
     cuts.push(p);
@@ -833,7 +839,7 @@ if (presented >= 3) {
     if (!quiet) {
         for (const p of cuts) {
             console.log(`  present ${p.f.presentId} at ${p.f.t.toFixed(2)} s (frame ${p.f.n}): ${p.D.toFixed(1)} apart, ` +
-                `${p.whole.toFixed(2)} of its blocks, between them ${p.partway.toFixed(2)} of that unlike both` + ((p.partway >= CUT_PARTWAY) ? ', PARTWAY' : ''));
+                `${p.jump.toFixed(1)} times either side, ${p.whole.toFixed(2)} of its blocks, between them ${p.partway.toFixed(2)} of that unlike both` + ((p.partway >= CUT_PARTWAY) ? ', PARTWAY' : ''));
         }
     }
 }
