@@ -15,8 +15,8 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_PARTIAL_SCREEN_PAIRS` (rt64 89abe33), `RT64_STRETCH_SCREEN_COVERS` (rt64 4550e10), `RT64_KEEP_THIN_RECTS` (rt64
 04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7, c0d27e5),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
-eda3964, 8314128, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4,
-54e47fb, 2d2db0c, d798d28, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468,
+eda3964, 8314128, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
+2d2db0c, d798d28, a17b46a, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468,
 which it turns on too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
@@ -1199,4 +1199,8 @@ rt64 d798d28           a moved rect's offset is added to its screen offset after
 rt64 ae0a708           a rect's or scissor's edge within a thousandth of a pixel of a whole one is on it: a 16:9
                        window's ratio of 0.75000006 put Mario Golf's 4:3 scissor's left edge on 367.99994 of 2560,
                        floored to 367, and its menu's sea was drawn a column into the black border
+rt64 a17b46a           RT64_INTERPOLATE_RECT_SCROLLS: a paired rect that moved and whose texture jumped (its
+                       texcoords moved its whole span) is still drawn between where it stood and where it is: Mario
+                       Golf's pin marker, four frames side by side in one tile, turns a frame every four game frames,
+                       and stood still a present each time while the course panned on
 ```
