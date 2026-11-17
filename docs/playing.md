@@ -32,7 +32,8 @@ options; `docs/findings.md` has what was measured this way.
   worth), RT64 writes into that folder, made if it isn't there, every frame presented and where the 3D's triangles
   lay across the view (rt64-web's `src/hle/rt64_frame_dump.h`); `capture_window.ps1 -Env` passes the variables to
   the build it starts. frame_check reads one dump for frames drawn for themselves alone between two that agree, and a
-  16:9 dump with a 32:9 one of the same plan (`--wider`) for a world culled at the 4:3 view's sides.
+  dump of the same plan in a 4:3 window with one at 32:9 (`--narrower`, `--wider`) for a world culled at the 4:3
+  view's sides.
 
 ## Plans
 
