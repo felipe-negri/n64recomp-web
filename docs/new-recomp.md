@@ -344,9 +344,15 @@ What it looks for:
   attract race, its world drawn out to the 32:9 picture's edges, read x1.16 and failed. So the check also reads how
   densely the 16:9 dump draws just past its own picture's edge, where a game culled to 4:3 thins out, and passes a
   game that draws there as densely as inside it (frame_check's header has the numbers). A scene that draws next to
-  nothing past the 4:3 view can't fail and exits 2, as the Woods of Light's opening down a ravine does with the fix
-  and without it: its walls are a few large triangles counted where their middles lie, inside the view, so a sweep
-  checks the sides on a scene that draws more there.
+  nothing past the 4:3 view can't fail and exits 2, as the ravine the Woods of Light's opening fades in on does with
+  the fix and without it: its walls are a few large triangles counted where their middles lie, inside the view. A
+  scene whose world is a few large objects, each reaching into the 16:9 picture, is no test either, and fails with
+  its world drawn out to the 32:9 picture's edges: the game draws those objects whole in both windows, so nothing
+  grows. Rayman 2's language menu, a backdrop of a few cliffs, fails so on the build with the fix, and its opening's
+  shots after the ravine read near every line, so a dump of the whole opening passes or fails by how long its plan
+  holds each shot (frame_check's header has the numbers). A sides fail is looked at in the 32:9 dump's frames before
+  it is called the game's, and a sweep of Rayman 2 checks its opening without `--wider` and the sides on the Fairy
+  Glade.
   San Francisco Rush 2049's dumps brought two more holes in the tools to light. Its frames come back in two sizes by
   turns, the picture the same in both with black past it (RT64's targets are larger than the picture), and
   frame_check, which started over at each change of size, matched 422 of 2150 frames; it now cuts every frame to the
