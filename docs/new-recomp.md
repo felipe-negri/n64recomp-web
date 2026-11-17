@@ -292,7 +292,10 @@ What it looks for:
   title backdrop the window's top row, flickering with three framebuffers' old frames, since the game's full-screen
   projection falls a quarter of a line short of the top, which only a picture taller than 240 rows shows, its
   patches/widescreen.c).
-- Tiling: seams or misaligned tiles on walls, ground, sky and the HUD's pieces at high resolution.
+- Tiling: seams or misaligned tiles on walls, ground, sky and the HUD's pieces at high resolution, and cracks of the
+  background's colour where ground drawn at two levels of detail meets, a fraction of a pixel on a console (Mario
+  Golf's far terrain left thin pale lines across the rough at 4K, where a finer block's edge bent at its midpoint
+  beside a coarser one's straight edge, its us.toml).
 - Widescreen: things culled or the level cut off near the picture's left and right edges (a game can cut its level a
   second time, at 16:9, as Turok 2 does); an off-screen marker (a bubble or an arrow for a character past the edge)
   placed at the 4:3 picture's edge; full-screen overlays, tints, wipes and fades cut at the 4:3 picture's
