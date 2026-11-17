@@ -1,8 +1,8 @@
-rt64: https://github.com/n64hub/rt64-web b24056fdff98518831f917efbe69330d030b1488
+rt64: https://github.com/n64hub/rt64-web 5c902447f8c37cdbf286a180635f0c76923f8cd4
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 79dfc38..3cf3857 100644
+index 79dfc38..9b99aed 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -11,7 +11,26 @@ endif()
@@ -26,7 +26,7 @@ index 79dfc38..3cf3857 100644
 +option(RT64_KEEP_THIN_RECTS "Leave a rect one pixel tall or wide as the game drew it when Fix LR with Scissor would stretch it to the scissor's edge, so a game that copies a framebuffer back a row at a time draws no row twice, the second from texels it never loaded (always on with Emscripten)" OFF)
 +option(RT64_EXACT_PRIM_DEPTH "Draw a G_ZS_PRIM triangle through a perspective or orthographic projection at exactly its prim depth, by a viewport depth range of no height, not at the vertex shader's z = primDepth * w, which the perspective divide leaves an ulp off on some vertices, so that under a strict depth test only the first of its triangles to cover a pixel draws there, as on the console (always on with Emscripten)" OFF)
 +option(RT64_SKIP_CAMERA_CUTS "Pair nothing across a camera the game gives no matrix group of its own that cut to another shot between two game frames (it turned more than 45 degrees, or its eye jumped more than 8 near plane distances and 4 times its last step), nor anything its scene draws, so the frames between draw the new shot as it is, not the world halfway between two places (always on with Emscripten)" OFF)
-+option(RT64_SKIP_PLACE_SWAPS "Never pair a transform with one of the game frame before at another place when both frames drew something at both places, so that a model the game draws at many places, in another order or with another call each frame, is not interpolated from one of its places to another (always on with Emscripten)" OFF)
++option(RT64_SKIP_PLACE_SWAPS "Never pair a transform with one of the game frame before at another place when both frames drew something at both places, nor one whose vertices are others than its pair's when that one's held still or had just come, so that a model the game draws at many places, in another order or with another call each frame, is not interpolated from one of its places to another, nor a block of a level that came into view from one that left it (always on with Emscripten)" OFF)
 +option(RT64_INTERPOLATE_RECT_SCROLLS "Pair a texrect with one of the game frame before that drew the same place with the same textures, and when its texture only scrolled inside it, by less than a quarter of what it spans, slide the texture there in the frames between, as a scroll on a 3D draw is; one with none there pairs with the nearest that drew the same textures at the same size less than its longer side away, and is drawn between where it stood and where it is, so that a background the game draws as 2D strips, scrolls as the camera turns and moves as it pitches (a horizon panorama) moves on every frame with the world in front of it, not a step a game frame (always on with Emscripten)" OFF)
 +option(RT64_EXPAND_SCREEN_VERTICES "Scale the screen x a game writes into a vertex itself (G_MODIFYVTX's XYSCREEN) toward its viewport's centre as its projection's x is scaled for a picture RT64 draws wider than 4:3 (Aspect Ratio Expand), so that a game that projects its own geometry draws it where its projected models and its 2D are, not stretched across the picture (always on with Emscripten)" OFF)
  
@@ -2901,7 +2901,7 @@ index 5c3c4d2..cba893c 100644
  
          uint32_t rdramUsed;
 diff --git a/src/hle/rt64_game_frame.cpp b/src/hle/rt64_game_frame.cpp
-index 87392d0..efdd039 100644
+index 87392d0..a5405bb 100644
 --- a/src/hle/rt64_game_frame.cpp
 +++ b/src/hle/rt64_game_frame.cpp
 @@ -2,6 +2,8 @@
@@ -2991,7 +2991,7 @@ index 87392d0..efdd039 100644
          bool valid = false;
  
          float computeDifference() const {
-@@ -212,10 +271,124 @@ namespace RT64 {
+@@ -212,10 +271,136 @@ namespace RT64 {
                  totalDiff += screenSpaceDifference * ScreenSpaceDiffScale;
              }
  
@@ -3111,12 +3111,24 @@ index 87392d0..efdd039 100644
 +        std::sort(places.begin(), places.end());
 +        places.erase(std::unique(places.begin(), places.end()), places.end());
 +    }
++
++    // A hash of each transform's vertices, as many and where they are: one mesh from another.
++    static void collectTransformMeshes(const Workload &workload, std::vector<uint64_t> &meshes) {
++        const DrawData &drawData = workload.drawData;
++        const uint32_t transformCount = uint32_t(drawData.worldTransformVertexIndices.size());
++        meshes.resize(transformCount);
++        for (uint32_t i = 0; i < transformCount; i++) {
++            const uint32_t vertexIndex = drawData.worldTransformVertexIndices[i];
++            const uint32_t vertexCount = drawData.worldTransformVertexCount(i);
++            meshes[i] = (vertexCount > 0) ? XXH3_64bits_withSeed(&drawData.posFloats[vertexIndex * 3], vertexCount * 3 * sizeof(float), vertexCount) : 0;
++        }
++    }
 +#endif
 +
      TransformMatchResult computeTransformMatch(const hlslpp::float4x4 &curTransform, const hlslpp::float4x4 &curViewProj, const hlslpp::float4x4 &prevTransform, const hlslpp::float4x4 &prevViewProj, const RigidBody *prevRigidBody) {
          TransformMatchResult matchResult;
  
-@@ -226,6 +399,18 @@ namespace RT64 {
+@@ -226,6 +411,18 @@ namespace RT64 {
              return matchResult;
          }
  
@@ -3135,7 +3147,7 @@ index 87392d0..efdd039 100644
          // Compute the difference between the translation components of the 4x4 matrices.
          const hlslpp::float3 curPos = curTransform[3].xyz;
          hlslpp::float3 prevPos = prevTransform[3].xyz;
-@@ -241,6 +426,18 @@ namespace RT64 {
+@@ -241,6 +438,18 @@ namespace RT64 {
              (1.0f - hlslpp::dot(hlslpp::normalize(curTransform[1].xyz), hlslpp::normalize(prevTransform[1].xyz))) +
              (1.0f - hlslpp::dot(hlslpp::normalize(curTransform[2].xyz), hlslpp::normalize(prevTransform[2].xyz)));
  
@@ -3154,7 +3166,7 @@ index 87392d0..efdd039 100644
          // Compute the difference between the screen-space position of both transforms on their respective projections.
          hlslpp::float4 prevScreenPos = hlslpp::mul(prevTransform[3], prevViewProj);
          hlslpp::float4 curScreenPos = hlslpp::mul(curTransform[3], curViewProj);
-@@ -252,6 +449,374 @@ namespace RT64 {
+@@ -252,6 +461,374 @@ namespace RT64 {
          return matchResult;
      }
  
@@ -3529,7 +3541,7 @@ index 87392d0..efdd039 100644
      void GameFrame::match(RenderWorker *worker, WorkloadQueue &workloadQueue, const GameFrame &prevFrame, BufferUploader *velocityUploader, bool &velocityUploaderUsed, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed) {
          tileInterpolationUsed = false;
          lookAtInterpolationUsed = false;
-@@ -260,17 +825,49 @@ namespace RT64 {
+@@ -260,17 +837,49 @@ namespace RT64 {
          thread_local std::unordered_map<uint32_t, ModifiedBuffers> workloadsModified;
          workloadsModified.clear();
  
@@ -3547,7 +3559,7 @@ index 87392d0..efdd039 100644
 +                if (workloadQueue.workloads[workloadIndex].fbPairCount > 0) {
 +                    drawn.emplace_back(workloadIndex);
 +                }
-             }
++            }
 +        };
 +
 +        drawnWorkloads(workloads, curDrawn);
@@ -3567,7 +3579,7 @@ index 87392d0..efdd039 100644
 +        {
 +            for (uint32_t w = 0; (w < curDrawn.size()) && (w < prevDrawn.size()); w++) {
 +                drawnPairs.emplace_back(curDrawn[w], prevDrawn[w]);
-+            }
+             }
 +        }
 +
 +        for (const std::pair<uint32_t, uint32_t> &drawnPair : drawnPairs) {
@@ -3585,7 +3597,7 @@ index 87392d0..efdd039 100644
              const Workload &prevWorkload = workloadQueue.workloads[workloadMap.prevWorkloadIndex];
              workloadMap.viewProjections.clear();
              workloadMap.viewProjections.resize(curWorkload.drawData.viewProjTransforms.size());
-@@ -290,7 +887,7 @@ namespace RT64 {
+@@ -290,7 +899,7 @@ namespace RT64 {
              buildTransformIdMap(curWorkload, curWorkload.transformIdMap, curWorkload.transformIgnoredIds);
  
              // Retrieve the matching maps for the current and previous workload.
@@ -3594,7 +3606,7 @@ index 87392d0..efdd039 100644
              const GameFrameMap::WorkloadMap *prevWorkloadMap = nullptr;
              if (prevFrame.matched && prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex].mapped) {
                  prevWorkloadMap = &prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex];
-@@ -316,7 +913,7 @@ namespace RT64 {
+@@ -316,7 +925,7 @@ namespace RT64 {
              }
  
              if (!modifiedBuffers.empty()) {
@@ -3603,7 +3615,7 @@ index 87392d0..efdd039 100644
              }
  
              // Any transforms tagged with the empty ID will be instantly marked as used and skipped.
-@@ -343,6 +940,14 @@ namespace RT64 {
+@@ -343,6 +952,14 @@ namespace RT64 {
                  const hlslpp::float4x4 &curProjTransform = curWorkload.drawData.projTransforms[curProj.transformsIndex];
                  for (uint32_t j = 0; j < prevScenes.size(); j++) {
                      const GameIndices::Projection prevFirstProj = prevScenes[j].projections[0];
@@ -3618,7 +3630,7 @@ index 87392d0..efdd039 100644
                      const Workload &prevWorkload = workloadQueue.workloads[prevFirstProj.workloadIndex];
                      const FramebufferPair &prevFbPair = prevWorkload.fbPairs[prevFirstProj.fbPairIndex];
                      const Projection &prevProj = prevFbPair.projections[prevFirstProj.projectionIndex];
-@@ -356,6 +961,40 @@ namespace RT64 {
+@@ -356,6 +973,40 @@ namespace RT64 {
              prevScenesMatched.clear();
              curScenesMatched.resize(curScenes.size());
              prevScenesMatched.resize(prevScenes.size());
@@ -3659,7 +3671,7 @@ index 87392d0..efdd039 100644
              std::stable_sort(matchCandidates.begin(), matchCandidates.end());
              for (const MatchCandidate &candidate : matchCandidates) {
                  if (curScenesMatched[candidate.curIndex]) {
-@@ -396,6 +1035,14 @@ namespace RT64 {
+@@ -396,6 +1047,14 @@ namespace RT64 {
          else {
              velocityUploaderUsed = false;
          }
@@ -3674,7 +3686,7 @@ index 87392d0..efdd039 100644
      }
  
      void GameFrame::matchScene(WorkloadQueue &workloadQueue, const GameFrame &prevFrame, const GameScene &curScene, const GameScene &prevScene, std::unordered_map<uint32_t, ModifiedBuffers> &workloadsModified, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed) {
-@@ -403,8 +1050,10 @@ namespace RT64 {
+@@ -403,8 +1062,10 @@ namespace RT64 {
              return;
          }
  
@@ -3687,7 +3699,7 @@ index 87392d0..efdd039 100644
          curCallHashMap.clear();
          prevCallHashMap.clear();
  
-@@ -478,6 +1127,24 @@ namespace RT64 {
+@@ -478,6 +1139,24 @@ namespace RT64 {
                  }
                  else {
                      viewProjMap.mapped = (curProjGroup.matrixId == G_EX_ID_AUTO);
@@ -3712,7 +3724,7 @@ index 87392d0..efdd039 100644
                  }
  
                  if (viewProjMap.mapped) {
-@@ -509,69 +1176,163 @@ namespace RT64 {
+@@ -509,69 +1188,163 @@ namespace RT64 {
              buildCallHashMap(p, prevWorkload, prevProj, prevCallHashMap);
          }
  
@@ -3922,7 +3934,7 @@ index 87392d0..efdd039 100644
          }
  
          // Compute all the differences between transforms and insert them into a vector that will be sorted according to the differences.
-@@ -592,6 +1353,30 @@ namespace RT64 {
+@@ -592,6 +1365,51 @@ namespace RT64 {
              }
          }
  
@@ -3935,12 +3947,33 @@ index 87392d0..efdd039 100644
 +        // out on the fairway every other frame, and its trees jumped about as a shot was aimed, a fifth of a frame's
 +        // trees paired so. Left unpaired, each is drawn at its own place between the frames, as it stood. What moves
 +        // into the very place another left in the same frame is left unpaired too, and steps for a frame.
++        //
++        // Nor a transform whose vertices are other than those of the frame before's, unless that one's were changing
++        // then (paired with other vertices in the frame before that): a mesh that held still or had just come, and has
++        // other vertices now, is another mesh the game drew with the same call, not the same one moving. Turok's
++        // levels are made of blocks, each a mesh of its own that never changes, and as one came into view, or took
++        // another level of detail and so another call, it was paired with one that left, and drawn partway from its
++        // place in the frames between: a slab of cliff over the sky, a hole at the picture's edge where the background
++        // showed instead of a wall. Turok puts its camera in the world matrices in places, so each moves as the camera
++        // turns, and only the meshes tell one block from another. A mesh that held still or had just come and then changes,
++        // and what it is drawn with, steps for a frame.
 +        if (!matchCandidates.empty()) {
 +            thread_local std::vector<TransformPlace> curPlaces;
 +            thread_local std::vector<TransformPlace> prevPlaces;
++            thread_local std::vector<uint64_t> curMeshes;
++            thread_local std::vector<uint64_t> prevMeshes;
 +            collectTransformPlaces(firstCurWorkload, curPlaces);
 +            collectTransformPlaces(firstPrevWorkload, prevPlaces);
++            collectTransformMeshes(firstCurWorkload, curMeshes);
++            collectTransformMeshes(firstPrevWorkload, prevMeshes);
 +            auto tradesPlaces = [&](const MatchCandidate &candidate) {
++                if ((firstPrevWorkloadMap != nullptr) && (candidate.curIndex < curMeshes.size()) && (candidate.prevIndex < prevMeshes.size())) {
++                    const GameFrameMap::TransformMap &prevMap = firstPrevWorkloadMap->transforms[candidate.prevIndex];
++                    if ((!prevMap.mapped || prevMap.verticesStill) && (curMeshes[candidate.curIndex] != prevMeshes[candidate.prevIndex])) {
++                        return true;
++                    }
++                }
++
 +                const TransformPlace curPlace = transformPlace(firstCurWorkload.drawData.worldTransforms[candidate.curIndex]);
 +                const TransformPlace prevPlace = transformPlace(firstPrevWorkload.drawData.worldTransforms[candidate.prevIndex]);
 +                return !(curPlace == prevPlace) && std::binary_search(prevPlaces.begin(), prevPlaces.end(), curPlace) && std::binary_search(curPlaces.begin(), curPlaces.end(), prevPlace);
@@ -3953,7 +3986,7 @@ index 87392d0..efdd039 100644
          ModifiedBuffers modifiedBuffers;
          std::stable_sort(matchCandidates.begin(), matchCandidates.end());
          for (const MatchCandidate candidate : matchCandidates) {
-@@ -669,17 +1454,160 @@ namespace RT64 {
+@@ -669,17 +1487,160 @@ namespace RT64 {
              const bool wrappedUlt = (curTile.cmt == G_TX_WRAP) && (modulo(integerUlt, curTile.maskt * 4) == modulo(expectedUlt, curTile.maskt * 4));
              const bool wrappedLrs = (curTile.cms == G_TX_WRAP) && (modulo(integerLrs, curTile.masks * 4) == modulo(expectedLrs, curTile.masks * 4));
              const bool wrappedLrt = (curTile.cmt == G_TX_WRAP) && (modulo(integerLrt, curTile.maskt * 4) == modulo(expectedLrt, curTile.maskt * 4));
@@ -4119,7 +4152,26 @@ index 87392d0..efdd039 100644
          }
  
          // Check for look at matches.
-@@ -782,9 +1710,78 @@ namespace RT64 {
+@@ -727,6 +1688,18 @@ namespace RT64 {
+         curTransformMap.mapped = true;
+         curWorkloadMap.prevTransformsMapped[prevTransformIndex] = true;
+ 
++#if RT64_SKIP_PLACE_SWAPS
++        // Whether its vertices held still, for the pairs of the next frame (above).
++        {
++            const uint32_t vertexIndex = curWorkload.drawData.worldTransformVertexIndices[curTransformIndex];
++            const uint32_t vertexCount = curWorkload.drawData.worldTransformVertexCount(curTransformIndex);
++            const uint32_t prevIndex = prevWorkload.drawData.worldTransformVertexIndices[prevTransformIndex];
++            const uint32_t prevCount = prevWorkload.drawData.worldTransformVertexCount(prevTransformIndex);
++            curTransformMap.verticesStill = (vertexCount == prevCount) && ((vertexCount == 0) ||
++                (memcmp(&curWorkload.drawData.posFloats[vertexIndex * 3], &prevWorkload.drawData.posFloats[prevIndex * 3], vertexCount * 3 * sizeof(float)) == 0));
++        }
++#endif
++
+         uint64_t curVertexHash = 0;
+         uint64_t prevVertexHash = 0;
+         uint32_t curVertexIndex = curWorkload.drawData.worldTransformVertexIndices[curTransformIndex];
+@@ -782,9 +1755,78 @@ namespace RT64 {
  
              modifiedBuffers.texcoordVelocity = true;
          }
@@ -4199,7 +4251,7 @@ index 87392d0..efdd039 100644
          for (uint32_t c = 0; c < proj.gameCallCount; c++) {
              const GameCall &call = proj.gameCalls[c];
              uint32_t matrixIdHash = 0;
-@@ -802,7 +1799,7 @@ namespace RT64 {
+@@ -802,7 +1844,7 @@ namespace RT64 {
                  doTileMatching = doTileMatching || (group.tileInterpolation == G_EX_COMPONENT_AUTO);
              }
  
@@ -4209,10 +4261,10 @@ index 87392d0..efdd039 100644
      }
  
 diff --git a/src/hle/rt64_game_frame.h b/src/hle/rt64_game_frame.h
-index 00a72f6..d59128b 100644
+index 00a72f6..9475061 100644
 --- a/src/hle/rt64_game_frame.h
 +++ b/src/hle/rt64_game_frame.h
-@@ -47,6 +47,10 @@ namespace RT64 {
+@@ -47,10 +47,16 @@ namespace RT64 {
              RigidBody rigidBody;
              uint32_t prevTransformIndex = 0;
              bool mapped = false;
@@ -4223,7 +4275,13 @@ index 00a72f6..d59128b 100644
          };
  
          struct TransformMap {
-@@ -64,6 +68,18 @@ namespace RT64 {
+             RigidBody rigidBody;
++            // Its vertices as its pair's of the frame before (RT64_SKIP_PLACE_SWAPS).
++            bool verticesStill = false;
+             uint32_t prevTransformIndex = 0;
+             bool mapped = false;
+         };
+@@ -64,6 +70,18 @@ namespace RT64 {
              float prevUlt = 0;
              float prevLrs = 0;
              float prevLrt = 0;
@@ -4242,7 +4300,7 @@ index 00a72f6..d59128b 100644
              bool mapped = false;
          };
  
-@@ -74,6 +90,10 @@ namespace RT64 {
+@@ -74,6 +92,10 @@ namespace RT64 {
          };
  
          struct WorkloadMap {
@@ -4253,7 +4311,7 @@ index 00a72f6..d59128b 100644
              std::vector<ViewProjectionMap> viewProjections;
              std::vector<TransformMap> transforms;
              std::vector<TileMap> tiles;
-@@ -126,9 +146,12 @@ namespace RT64 {
+@@ -126,9 +148,12 @@ namespace RT64 {
          bool isSceneCompatible(const WorkloadQueue &workloadQueue, const GameScene &scene, const GameIndices::Projection &proj);
          void set(WorkloadQueue &workloadQueue, const uint32_t *workloadIndices, uint32_t indicesCount);
          void match(RenderWorker *worker, WorkloadQueue &workloadQueue, const GameFrame &prevFrame, BufferUploader *velocityUploader, bool &velocityUploaderUsed, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed);
@@ -8098,10 +8156,10 @@ index 69a82ac..1dd31f7 100644
              dstNorm = builder.addReadWriteStructuredBuffer(9);
              dstVel = builder.addReadWriteStructuredBuffer(10);
 diff --git a/src/render/rt64_framebuffer_renderer.cpp b/src/render/rt64_framebuffer_renderer.cpp
-index 9fae0d4..f027198 100644
+index 9fae0d4..a97e1e2 100644
 --- a/src/render/rt64_framebuffer_renderer.cpp
 +++ b/src/render/rt64_framebuffer_renderer.cpp
-@@ -63,17 +63,40 @@ namespace RT64 {
+@@ -63,17 +63,35 @@ namespace RT64 {
                  }
              };
  
@@ -8127,25 +8185,20 @@ index 9fae0d4..f027198 100644
  
 -            int32_t left = static_cast<int32_t>(std::floor((computeOrigin(leftOrigin) + (rect.left(true) - computeOrigin(leftOrigin)) * aspectRatioScale) * resScale.x));
 -            int32_t right = static_cast<int32_t>(std::ceil((computeOrigin(rightOrigin) + (rect.right(true) - computeOrigin(rightOrigin)) * aspectRatioScale) * resScale.x));
-+            // An edge a float's rounding leaves just short of or past a whole pixel is on that pixel: the 4:3 picture's
-+            // scaled into a 16:9 window (a ratio of 0.75000006) put a scissor's left edge at x 8 on 367.99994 of 2560,
-+            // which floored to 367, a column of a triangle under it drawn left of the rects beside it.
-+            auto floorPixel = [](float coord) {
-+                const float nearest = std::round(coord);
-+                return static_cast<int32_t>((std::fabs(coord - nearest) < 1.0e-3f) ? nearest : std::floor(coord));
-+            };
-+
-+            auto ceilPixel = [](float coord) {
-+                const float nearest = std::round(coord);
-+                return static_cast<int32_t>((std::fabs(coord - nearest) < 1.0e-3f) ? nearest : std::ceil(coord));
-+            };
-+
-+            int32_t left = floorPixel((computeOrigin(leftOrigin) + (rect.left(true) - computeOrigin(leftOrigin)) * aspectRatioScale) * resScale.x);
-+            int32_t right = ceilPixel((computeOrigin(rightOrigin) + (rect.right(true) - computeOrigin(rightOrigin)) * aspectRatioScale) * resScale.x);
++            // Each side is on the pixel nearest it, as a rect's are (convertViewportRect) and as the top and bottom are,
++            // so a scissor and a rect with a side at the same x put it on the same column. Floored on the left and
++            // ceiled on the right, a scissor took in the column a side only partly reaches, which the rect beside it
++            // leaves out: where the picture's scale puts x 8 off a whole pixel (7.1125 pixels each in a 2276-wide
++            // picture, 8 on 56.9), a triangle under the 3D's scissor drew a column past a rect drawn over the
++            // scissor's whole width to cover it, a line of the 3D down each side of a screen that is black; and an
++            // edge a float's rounding leaves a hair short of a whole pixel (8 on 367.99994 of 2560, from a ratio of
++            // 0.75000006) floored to the column before it.
++            int32_t left = lround((computeOrigin(leftOrigin) + (rect.left(true) - computeOrigin(leftOrigin)) * aspectRatioScale) * resScale.x);
++            int32_t right = lround((computeOrigin(rightOrigin) + (rect.right(true) - computeOrigin(rightOrigin)) * aspectRatioScale) * resScale.x);
              int32_t top = lround(rect.top(true) * resScale.y);
              int32_t bottom = lround(rect.bottom(true) * resScale.y);
              left = correctMisalignment(left, leftOrigin);
-@@ -95,8 +118,14 @@ namespace RT64 {
+@@ -95,8 +113,14 @@ namespace RT64 {
              }
          };
          
@@ -8160,7 +8213,7 @@ index 9fae0d4..f027198 100644
                  return (coord - std::fmod(coord, resScale[1])) - horizontalMisalignment;
              }
              else {
-@@ -151,6 +180,7 @@ namespace RT64 {
+@@ -151,6 +175,7 @@ namespace RT64 {
  
          shaderUploader = std::make_unique<BufferUploader>(worker->device);
          descCommonSet = std::make_unique<FramebufferRendererDescriptorCommonSet>(shaderLibrary->samplerLibrary, worker->device->getCapabilities().raytracing, worker->device);
@@ -8168,7 +8221,7 @@ index 9fae0d4..f027198 100644
  
  #   if RT_ENABLED
          if (rtSupport) {
-@@ -161,6 +191,8 @@ namespace RT64 {
+@@ -161,6 +186,8 @@ namespace RT64 {
      }
  
      FramebufferRenderer::~FramebufferRenderer() {
@@ -8177,7 +8230,7 @@ index 9fae0d4..f027198 100644
          dummyColorTargetView.reset();
          dummyDepthTargetView.reset();
          dummyColorTarget.reset();
-@@ -187,7 +219,7 @@ namespace RT64 {
+@@ -187,7 +214,7 @@ namespace RT64 {
  
          // Create dummy depth target if it hasn't been created yet.
          if (dummyDepthTarget == nullptr) {
@@ -8186,7 +8239,7 @@ index 9fae0d4..f027198 100644
              dummyDepthTarget = worker->device->createTexture(dummyDepthDesc);
              dummyDepthTarget->setName("Framebuffer Renderer Depth Dummy");
              dummyDepthTargetView = dummyDepthTarget->createTextureView(RenderTextureViewDesc::Texture2D(dummyDepthDesc.format));
-@@ -310,12 +342,12 @@ namespace RT64 {
+@@ -310,12 +337,12 @@ namespace RT64 {
          assert(worker != nullptr);
          assert(drawBuffers != nullptr);
          
@@ -8201,7 +8254,7 @@ index 9fae0d4..f027198 100644
              descriptorTextureVersions.clear();
              descriptorTextureGlobalVersion = 0;
              descriptorTextureReplacementMapEnabled = textureCacheReplacementMapEnabled;
-@@ -373,10 +405,36 @@ namespace RT64 {
+@@ -373,10 +400,36 @@ namespace RT64 {
  
          descCommonSet->setBuffer(descCommonSet->FrParams, frameParamsBuffer.get(), sizeof(interop::FrameParams));
          descCommonSet->setBuffer(descCommonSet->instanceRenderIndices, renderIndicesBuffer.get(), RenderBufferStructuredView(sizeof(interop::RenderIndices)));
@@ -8238,7 +8291,7 @@ index 9fae0d4..f027198 100644
  
          // Make sure the versions vector matches the texture cache size.
          descriptorTextureVersions.resize(textureCacheSize, 0);
-@@ -473,16 +531,30 @@ namespace RT64 {
+@@ -473,16 +526,30 @@ namespace RT64 {
          interop::RasterParams rasterParams;
          RenderDescriptorSet *descRealFbSet = framebuffer.descRealFbSet->get();
          RenderDescriptorSet *descDummyFbSet = framebuffer.descDummyFbSet->get();
@@ -8271,7 +8324,7 @@ index 9fae0d4..f027198 100644
              worker->commandList->setGraphicsDescriptorSet(depthState ? descRealFbSet : descDummyFbSet, 3);
              worker->commandList->setViewports(framebuffer.viewport);
          };
-@@ -499,12 +571,13 @@ namespace RT64 {
+@@ -499,12 +566,13 @@ namespace RT64 {
              }
          };
  
@@ -8287,7 +8340,7 @@ index 9fae0d4..f027198 100644
              }
          };
  
-@@ -551,13 +624,14 @@ namespace RT64 {
+@@ -551,13 +619,14 @@ namespace RT64 {
                  }
  
                  // A new pass must be started if decals are required and something wrote to the depth buffer before this call.
@@ -8304,7 +8357,7 @@ index 9fae0d4..f027198 100644
                      switchToDepthWrite();
                  }
  
-@@ -570,10 +644,49 @@ namespace RT64 {
+@@ -570,10 +639,49 @@ namespace RT64 {
                      worker->commandList->setPipeline(triangles.pipeline);
                      previousPipeline = triangles.pipeline;
                  }
@@ -8354,7 +8407,7 @@ index 9fae0d4..f027198 100644
                  worker->commandList->setGraphicsPushConstants(0, &rasterParams);
  
                  drawCallTriangles(drawCall);
-@@ -618,7 +731,12 @@ namespace RT64 {
+@@ -618,7 +726,12 @@ namespace RT64 {
                  const interop::RSPVertexTestZCB &testZCB = drawCall.vertexTestZ;
                  switchToDepthRead();
  
@@ -8367,7 +8420,7 @@ index 9fae0d4..f027198 100644
                  const auto &rspVertexTestZ = useMSAA ? shaderLibrary->rspVertexTestZMS : shaderLibrary->rspVertexTestZ;
                  worker->commandList->barriers(RenderBarrierStage::COMPUTE, RenderBufferBarrier(testZIndexBuffer, RenderBufferAccess::WRITE));
                  worker->commandList->setPipeline(rspVertexTestZ.pipeline.get());
-@@ -1335,12 +1453,22 @@ namespace RT64 {
+@@ -1335,12 +1448,22 @@ namespace RT64 {
          }
  
          Framebuffer &framebuffer = framebufferVector[framebufferCount - 1];
@@ -8392,7 +8445,7 @@ index 9fae0d4..f027198 100644
          framebuffer.descRealFbSet->setBuffer(framebuffer.descRealFbSet->FbParams, framebuffer.paramsBuffer.get(), sizeof(interop::FramebufferParams));
          framebuffer.descRealFbSet->setTexture(framebuffer.descRealFbSet->gBackgroundColor, backgroundColorTexture, RenderTextureLayout::SHADER_READ, backgroundColorTextureView);
          framebuffer.descRealFbSet->setTexture(framebuffer.descRealFbSet->gBackgroundDepth, p.fbStorage->depthTarget->texture.get(), RenderTextureLayout::DEPTH_READ, p.fbStorage->depthTarget->textureView.get());
-@@ -1608,8 +1736,28 @@ namespace RT64 {
+@@ -1608,8 +1731,28 @@ namespace RT64 {
                          triangles.shaderDesc = call.shaderDesc;
  
                          RasterShader *gpuShader = p.ubershadersOnly ? nullptr : p.rasterShaderCache->getGPUShader(call.shaderDesc);
@@ -8421,7 +8474,7 @@ index 9fae0d4..f027198 100644
                          }
                          else {
                              const bool copyMode = (call.shaderDesc.otherMode.cycleType() == G_CYC_COPY);
-@@ -1619,7 +1767,7 @@ namespace RT64 {
+@@ -1619,7 +1762,7 @@ namespace RT64 {
                                  (call.shaderDesc.otherMode.cvgDst() == CVG_DST_WRAP) || (call.shaderDesc.otherMode.cvgDst() == CVG_DST_SAVE));
                          }
                          
@@ -8430,7 +8483,7 @@ index 9fae0d4..f027198 100644
                          triangles.vertexTestZ = (vertexTestZCallIndex >= 0);
                          triangles.postBlendDitherNoise = false;
  
-@@ -1628,6 +1776,16 @@ namespace RT64 {
+@@ -1628,6 +1771,16 @@ namespace RT64 {
                          switch (proj.type) {
                          case Projection::Type::Perspective:
                          case Projection::Type::Orthographic: {
@@ -8447,7 +8500,7 @@ index 9fae0d4..f027198 100644
                              instanceDrawCall.type = InstanceDrawCall::Type::IndexedTriangles;
                              triangles.indexStart = triangles.vertexTestZ ? vertexTestZFaceIndicesStart : call.meshDesc.faceIndicesStart;
                              invRatioScale = projInvRatioScale;
-@@ -1656,6 +1814,20 @@ namespace RT64 {
+@@ -1656,6 +1809,20 @@ namespace RT64 {
                              triangles.screenScale = { viewportRect.width / framebuffer.viewport.width, viewportRect.height / framebuffer.viewport.height };
                              triangles.screenOffset.x = halfPixelOffset.x + ((viewportRect.x + viewportRect.width / 2.0f) - halfViewportSize.x) / halfViewportSize.x;
                              triangles.screenOffset.y = halfPixelOffset.y + (halfViewportSize.y - (viewportRect.y + viewportRect.height / 2.0f)) / halfViewportSize.y;
@@ -8468,7 +8521,7 @@ index 9fae0d4..f027198 100644
  
                              if (p.postBlendNoise) {
                                  // Indicate if post blend dither noise should be applied.
-@@ -1760,7 +1932,215 @@ namespace RT64 {
+@@ -1760,7 +1927,215 @@ namespace RT64 {
          checkRasterScene(rasterScene);
      }
  
@@ -8685,7 +8738,7 @@ index 9fae0d4..f027198 100644
          bool shaderViewRtEnabled = false;
          std::vector<BufferUploader::Upload> shaderUploads = {
              { renderIndicesVector.data(), { 0, renderIndicesVector.size() }, sizeof(interop::RenderIndices), RenderBufferFlag::STORAGE, { }, &renderIndicesBuffer},
-@@ -1816,8 +2196,16 @@ namespace RT64 {
+@@ -1816,8 +2191,16 @@ namespace RT64 {
          }
  #   endif
  

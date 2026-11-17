@@ -1214,4 +1214,9 @@ rt64 b24056f           RT64_SKIP_CAMERA_CUTS: the turn is the whole rotation bet
                        the trace, the three axes' cosines less 1, halved), so a roll about the way the camera looks
                        counts: Rush 2049's attract race cuts between overhead cameras by rolling the picture 86-180
                        degrees, and the frames between swung it round. Rush 2049 carried it as runtime-patches/rt64-0017
+rt64 5c90244           a scissor's left and right sides are on the pixel nearest them, as a rect's are and as its own
+                       top and bottom were, not floored and ceiled: where the picture's scale left an x off a whole
+                       pixel, the scissor took in a column on each side that a rect over the same x leaves out, and
+                       Mario Golf's course showed in a line down each side of the black screen its closed iris wipe
+                       draws in a wide window (x 8 on 56.9 of 2276). It takes in ae0a708's case
 ```
