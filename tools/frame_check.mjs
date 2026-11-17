@@ -634,6 +634,16 @@ function checkMiddle({ gw, gh, kept }) {
             }
         }
     }
+    if (process.env.FC_DEBUG) {
+        let ab = 0, u = 0, n = 0;
+        for (let by = 1; by < bh - 1; by++) {
+            for (let bx = 1; bx < bw - 1; bx++) {
+                const i = by * bw + bx;
+                ab += +(eab[i] > BAD); u += +(Math.min(ea[i], eb[i]) > BAD); n++;
+            }
+        }
+        console.log(`DEBUG${(bad.length >= MIN_BLOCKS) ? "!" : " "} frame ${c.f.n} ${c.f.t.toFixed(2)} idx ${c.f.index}/${c.f.count} bad ${bad.length} apart ${(ab / n).toFixed(2)} unlike ${(u / n).toFixed(2)}`);
+    }
     if (bad.length >= MIN_BLOCKS) {
         flagged.push({ c: { f: { ...c.f, rgb: null } }, bad, bw, bh });
         if (saveDir) {
