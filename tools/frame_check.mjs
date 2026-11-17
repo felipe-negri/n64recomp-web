@@ -36,7 +36,13 @@
 //   the frames between, never the game's own, so where the game moves little it still fails: Mario Golf's hole 1
 //   flyover, whose trees its build without rt64 eda3964 put where other trees stood, has game frames at most 0.09
 //   apart, and Turok 2's world missing at the picture's edge as the player turns lies between game frames 0.01-0.05
-//   apart. A fault drawn while something passes that close to the camera goes unseen.
+//   apart. A fault drawn while something passes that close to the camera goes unseen. A frame between the game's own
+//   with fewer blocks than 4 counts where 3 others between, within a second either side, have theirs within 4 blocks
+//   of its: one small thing paired wrongly, again and again in one place, where the odd small block of a clean game
+//   lands anywhere. Mario Party 3's opening without its models' tags (lib/mario-party-engine's model_ids.cpp) draws a
+//   small star for a frame where neither neighbour has it, at one place in every frame between for 0.3 s, 1-2 blocks
+//   each: 23 of 689 frames flagged, 11 without this; with the tags, 3 of 654 either way. On Rayman 2's, Turok 2's and
+//   3's and Rush 2049's dumps it changes no verdict, and adds nothing to the ones that pass.
 //   Only frames presented between the game's own (Framerate Display, on a display faster than the
 //   game) are paired, so a dump without one (Framerate Original, a 60 Hz display under a game of 60) leaves pairing
 //   untested and exits 2, whatever else passes.
@@ -127,6 +133,9 @@ const G = 8; // the picture's shift searched, in quarter-size pixels (32 grey pi
 const BAD = 14; // a block's mean difference to its best match that counts as unmatched, of 255
 const RATIO = 3; // ... and how much worse than the neighbours match each other there
 const MIN_BLOCKS = 4; // blocks a flagged frame has
+const NEAR_BLOCKS = 4; // ... or, drawn between the game's own, fewer within this many blocks of where
+const NEAR_FRAMES = 3; // ... this many other frames drawn between had theirs
+const NEAR_SECONDS = 1; // ... within this many seconds either side
 const CUT = 8; // the mean difference of two of the game's frames in a row, of 255, at the least, that is a cut
 const CUT_JUMP = 2; // ... and how many times the game's frames either side of them differ, at the least
 const CUT_PARTWAY = 0.3; // a frame between a cut's two as unlike both, against how unlike they are: the camera partway
@@ -757,13 +766,14 @@ function checkMiddle({ gw, gh, kept }) {
     const [a, c, b] = kept;
     checked++;
     middles.push(pool.run('middle', gw, gh, kept).then((bad) => {
-        if (bad.length < MIN_BLOCKS) {
+        const small = bad.length < MIN_BLOCKS;
+        if (small && (!bad.length || (c.f.index === c.f.count - 1))) {
             return null;
         }
         if (saveDir) {
-            saveTriplet(`unlike-${String(c.f.n).padStart(5, '0')}.png`, [a.f, c.f, b.f], bad, gw);
+            saveTriplet(`${small ? 'small' : 'unlike'}-${String(c.f.n).padStart(5, '0')}.png`, [a.f, c.f, b.f], bad, gw);
         }
-        return { c: { f: { ...c.f, rgb: null } }, bad, bw, bh };
+        return { c: { f: { ...c.f, rgb: null } }, bad, bw, bh, small };
     }));
 }
 for (const f of readFrames()) {
@@ -791,7 +801,26 @@ for (const f of readFrames()) {
     }
     await pool.room();
 }
-flagged.push(...(await Promise.all(middles)).filter(Boolean));
+const found = (await Promise.all(middles)).filter(Boolean);
+flagged.push(...found.filter((u) => !u.small));
+// Small ones drawn between that recur in one place.
+const small = found.filter((u) => u.small);
+const near = (u, v) => (u.bw === v.bw) && u.bad.some((i) => v.bad.some((k) =>
+    (Math.abs(i % u.bw - k % v.bw) <= NEAR_BLOCKS) && (Math.abs(Math.floor(i / u.bw) - Math.floor(k / v.bw)) <= NEAR_BLOCKS)));
+for (const u of small) {
+    const recur = small.filter((v) => (v !== u) && (Math.abs(v.c.f.t - u.c.f.t) <= NEAR_SECONDS) && near(u, v)).length;
+    const name = `-${String(u.c.f.n).padStart(5, '0')}.png`;
+    if (recur >= NEAR_FRAMES) {
+        flagged.push(u);
+        if (saveDir) {
+            fs.renameSync(path.join(saveDir, 'small' + name), path.join(saveDir, 'unlike' + name));
+        }
+    }
+    else if (saveDir) {
+        fs.rmSync(path.join(saveDir, 'small' + name));
+    }
+}
+flagged.sort((u, v) => u.c.f.t - v.c.f.t);
 await Promise.all(cutChecks);
 cuts.sort((x, y) => x.f.n - y.f.n);
 if (presented >= 3) {
