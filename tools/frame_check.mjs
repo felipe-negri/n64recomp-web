@@ -10,7 +10,8 @@
 // --wider names a dump of the same plan and seconds in a wider window (32:9 beside 16:9) for the sides. --from and
 // --to keep what came between those seconds of the dumps, counted from each one's first frame; --save writes each
 // flagged frame with the frames either side of it as one PNG, its flagged blocks outlined, for whoever wants to see
-// one. A dump of 20 seconds at 60 a second takes a minute or two.
+// one. It matches the frames on a worker thread a core: 20 s of Turok's 640x360 frames at 120 a second (1025 matched)
+// took 88 s on a 12-core host already 100% busy, where one thread took 17 minutes.
 //
 // - Frames unlike both neighbours. Each frame is matched against the frames presented before and after it, block by
 //   block (8 pixels of a grey copy about 400 wide), each block to the best place within a few pixels of where the
@@ -23,12 +24,46 @@
 //   a cut, a wipe, something appearing for good don't. A presented frame equal to the one before (a repeat) is left
 //   out. It fails where such frames are more than 1 in 100, or come 3 or more within a second: a one-frame flash a
 //   game draws is rare and alone, and a pairing fault shows in every frame drawn between the game's for as long as
-//   the scene lasts. A frame drawn between the game's own with fewer blocks than that counts where 3 others drawn
-//   between, within a second either side, have theirs within 4 blocks of its: one small thing paired wrongly, again
-//   and again in one place (Mario Party 3's opening before its models were tagged, a head drawn on the next
-//   character for a frame, one block each time), where the odd small block of a clean game lands anywhere. Only frames presented between the game's own (Framerate Display, on a display faster than the
+//   the scene lasts. A frame between two of the game's own that differ over a fifth to a half of the picture (the
+//   share of the newer one's blocks with nothing like them near in the older, as the camera cuts' check reads it), where
+//   the game's frames before or after differ as much too, isn't counted, nor the game's frame at either end, and they are
+//   listed apart: something passing close to the camera, game frame after game frame, moves further from frame to
+//   frame than a block's match follows, and the frames between are the camera's own path. Turok: Dinosaur Hunter's
+//   title fly-over swoops through plants for a quarter of a second, its game frames 0.23-0.40 apart five in a row, a
+//   leaf filling a frame between; 4 of its 5 frames flagged within a third of a second go uncounted, and the last,
+//   after a lone jump of 0.35, counts. A cut is a lone jump (Mario Golf's to the tee after hole 1's flyover, 0.30 between
+//   game frames 0.00 apart either side), and over half is a new shot: both stay counted. A pairing fault changes only
+//   the frames between, never the game's own, so where the game moves little it still fails: Mario Golf's hole 1
+//   flyover, whose trees its build without rt64 eda3964 put where other trees stood, has game frames at most 0.09
+//   apart, and Turok 2's world missing at the picture's edge as the player turns lies between game frames 0.01-0.05
+//   apart. A fault drawn while something passes that close to the camera goes unseen. A frame between the game's own
+//   with fewer blocks than 4 counts where 3 others between, within a second either side, have theirs within 4 blocks
+//   of its: one small thing paired wrongly, again and again in one place, where the odd small block of a clean game
+//   lands anywhere. Mario Party 3's opening without its models' tags (lib/mario-party-engine's model_ids.cpp) draws a
+//   small star for a frame where neither neighbour has it, at one place in every frame between for 0.3 s, 1-2 blocks
+//   each: 23 of 695 frames flagged, 10 without this; with the tags, 3 of 698 either way. On Rayman 2's, Turok 2's and
+//   3's and Rush 2049's dumps it changes no verdict, and adds nothing to the ones that pass.
+//   Only frames presented between the game's own (Framerate Display, on a display faster than the
 //   game) are paired, so a dump without one (Framerate Original, a 60 Hz display under a game of 60) leaves pairing
 //   untested and exits 2, whatever else passes.
+// - Camera cuts drawn partway. A cut is two of the game's frames in a row far apart (a mean difference of 8 of 255
+//   after the best shift of one against the other) where the game's frames before and after them are at least twice as
+//   near: the camera jumps in one frame. RT64 interpolates a camera unless the game says it cut, so a cut the game
+//   doesn't mark is drawn partway, the whole picture swept or stretched from one shot to the other for a frame or three,
+//   which the check above can't see: neither neighbour matches the frames before or after it, as at any cut. Every frame
+//   drawn between the two should be the new shot or the old, its parts moved on as they move (a model, an animated
+//   texture): block by block, each to its best place in either, one unlike both by 0.3 or more of how unlike the two
+//   are to each other fails. A game camera that moves that far in one frame and that little either side is a cut,
+//   whatever the game meant by it, if it is a new shot: half or more of the new frame's blocks (the picture's edge left
+//   out) match nothing near them in the old, or a tenth or more where it jumps 3 times as far as the game's frames
+//   either side or more. A near object passing the camera changes the picture as much and only in part, and its frames
+//   between are the camera's own, rightly drawn: Turok: Dinosaur Hunter's title fly-over goes through a leaf between
+//   two of the game's frames, changing 0.35 of the picture, 2.4 times as far as either side, and the frame drawn between
+//   them is the leaf, 0.94 unlike both. A cut to a shot that shares much of the old one's picture changes less of it,
+//   but alone: Mario Golf's from hole 1's fly-over to the tee changes 0.30, 24 times as far as either side, and two of
+//   Turok 2's 0.29 and 0.21, 49 and 58 times. Turok 2's cinematics' cuts change 0.62-0.80 of theirs where they are
+//   lit; a cut between two dark shots, whose blocks differ by less than a block's match allows, reads lower, and under a
+//   tenth goes untested.
 // - Culled at the 4:3 view's sides, from two dumps of the same plan: one at 16:9 and one --wider at 32:9. A game
 //   that culls its world to the picture draws more of it past the 4:3 view's sides as the picture widens; one that
 //   culls to its 4:3 view draws the same whatever the window, so the strip only the wider picture shows holds what
@@ -49,18 +84,28 @@
 //   edge too. Rayman 2's Woods of Light opens on a fade-in down a ravine whose walls are a few large triangles, their
 //   middles inside the view: its fixed build reads 22 and 25 there (x1.14) and the build without its v0.1.1 11 and 11,
 //   where its first 8 s in the Fairy Glade read 102 and 117 (passing on 0.74) and 62 and 61 (failing), and Mario
-//   Golf's flyover without its patches/cull.c 197 and 186. Without --wider it only counts them. One dump's own strip
+//   Golf's flyover without its patches/cull.c 197 and 186. A scene of more is no test either where its world is a few
+//   large objects that each reach into the narrower picture: a game culling to the picture draws them whole in both
+//   windows, so it grows no more than one culled to 4:3, and fails with its world out to the wider picture's edges.
+//   Rayman 2's language menu, a backdrop of a few cliffs, reads 78 and 91 (x1.17; 0.46 past the edge) and fails, the
+//   shots of its Woods of Light opening after the ravine 33 and 38 (x1.15) and pass on 0.67, and Rayman's first still
+//   shot 108 and 111 (x1.02) on 1.03, so a dump of the whole opening passes or fails by how long its plan holds each:
+//   one pair read 74 and 79 (x1.06) and passed on 0.85, another 46 and 52 (x1.14) and failed.
+//   So a fail is looked at in the wider dump's frames before it is called the game's. Without --wider it only counts
+//   them. One dump's own strip
 //   against the view tells nothing: Mario Golf's flyover, culled or not, draws a fraction past the edges of what it
 //   draws inside, the course being long and narrow. The picture's shape is the
 //   picture's box between --from and --to (pictureBox()), not its first frame's: a dump that starts before its plan
 //   sizes the window begins at 4:3, and one whose frames come in several sizes has black past the picture in some.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
-// the pairing or the sides. frames.bin is read a frame at a time, three kept: a dump at a 240 Hz display's rate is about 160 MB a
-// second.
+// the pairing or the sides. frames.bin is read a frame at a time, those the workers have yet to match kept (a few a
+// worker, pool.room()): a dump at a 240 Hz display's rate is about 160 MB a second.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { Worker, isMainThread, parentPort } from 'node:worker_threads';
 
 const args = process.argv.slice(2);
 const opt = (name, fallback) => {
@@ -68,7 +113,7 @@ const opt = (name, fallback) => {
     return (i >= 0) ? args[i + 1] : fallback;
 };
 const dir = args[0];
-if (!dir || dir.startsWith('--')) {
+if (isMainThread && (!dir || dir.startsWith('--'))) {
     console.error('usage: node tools/frame_check.mjs <dir> [--wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--quiet]');
     process.exit(2);
 }
@@ -90,6 +135,13 @@ const MIN_BLOCKS = 4; // blocks a flagged frame has
 const NEAR_BLOCKS = 4; // ... or, drawn between the game's own, fewer within this many blocks of where
 const NEAR_FRAMES = 3; // ... this many other frames drawn between had theirs
 const NEAR_SECONDS = 1; // ... within this many seconds either side
+const CUT = 8; // the mean difference of two of the game's frames in a row, of 255, at the least, that is a cut
+const CUT_JUMP = 2; // ... and how many times the game's frames either side of them differ, at the least
+const CUT_PARTWAY = 0.3; // a frame between a cut's two as unlike both, against how unlike they are: the camera partway
+const CUT_WHOLE = 0.5; // ... and the share of the new frame's blocks the old one has nothing like: a new shot
+const CUT_LONE = 3; // ... or, where the game's frames either side of them differ this many times less, at the least,
+const CUT_PART = 0.1; // ... this share of the new frame's blocks: a new shot much like the old one
+const NEAR = 0.2; // the share, at the least, of something passing near the camera: frames between not counted
 const P = 2; // a pixel's search about its block's best place, in grey pixels (eitherDiff())
 const M = 2; // the quarter pixels around a block that its own shift is found over (placesOf())
 const SIDES_GROW = 1.2; // how many times the triangles past the 4:3 view a wider picture has, at the least
@@ -390,6 +442,45 @@ function eitherDiff(c, a, b, ea, eb, k, gw, gh) {
     return s / (B * B);
 }
 
+// Block k of c as a blend of a's and b's about their best places (explain()'s): a + t (b - a), the t that fits best
+// between 0 and 1, its mean absolute difference. A fade or a dissolve draws a frame between two of the game's that is
+// neither, but lies between them pixel by pixel.
+function blendDiff(c, a, b, ea, eb, k, gw, gh) {
+    const bw = gw / B | 0;
+    const by = Math.floor(k / bw), bx = k % bw;
+    const clampY = (y) => Math.min(Math.max(y, 0), gh - 1), clampX = (x) => Math.min(Math.max(x, 0), gw - 1);
+    const cs = [], as = [], bs = [];
+    let num = 0, den = 0;
+    for (let y = by * B; y < (by + 1) * B; y++) {
+        for (let x = bx * B; x < (bx + 1) * B; x++) {
+            const v = c[y * gw + x];
+            const va = a[clampY(y + ea.dy[k]) * gw + clampX(x + ea.dx[k])];
+            const vb = b[clampY(y + eb.dy[k]) * gw + clampX(x + eb.dx[k])];
+            cs.push(v); as.push(va); bs.push(vb);
+            num += (v - va) * (vb - va);
+            den += (vb - va) * (vb - va);
+        }
+    }
+    const t = den ? Math.min(Math.max(num / den, 0), 1) : 0;
+    let s = 0;
+    for (let i = 0; i < cs.length; i++) {
+        s += Math.abs(cs[i] - as[i] - t * (bs[i] - as[i]));
+    }
+    return s / cs.length;
+}
+
+// The mean absolute difference of a to b moved by (dy, dx) grey pixels, over a's pixels whose place in b lies inside it.
+function shiftedDiff(a, b, gw, gh, dy, dx) {
+    let s = 0, n = 0;
+    for (let y = Math.max(0, -dy); y < Math.min(gh, gh - dy); y++) {
+        for (let x = Math.max(0, -dx); x < Math.min(gw, gw - dx); x++) {
+            s += Math.abs(a[y * gw + x] - b[(y + dy) * gw + x + dx]);
+            n++;
+        }
+    }
+    return s / Math.max(n, 1);
+}
+
 function meanDiff(a, b) {
     let s = 0;
     for (let i = 0; i < a.length; i++) {
@@ -459,22 +550,190 @@ function saveTriplet(name, fs3, blocks, gw) {
     fs.writeFileSync(path.join(saveDir, name), png(f.w * 3, f.h, out));
 }
 
+// The matching runs on worker threads, this same file: each frame's against its neighbours (middleBad()) and each
+// present's against the game's frames either side of it (cutParts()) needs only those frames' grey copies, so the main
+// thread reads the frames in order, makes their grey copies, leaves repeats out and pairs them as before, and hands the
+// matching to a worker a core.
+if (!isMainThread) {
+    parentPort.on('message', ({ kind, gw, gh, frames }) => {
+        parentPort.postMessage((kind === 'middle') ? middleBad(gw, gh, ...frames) : cutParts(gw, gh, ...frames));
+    });
+    await new Promise(() => {}); // a worker runs no more of the file: the main thread ends it
+}
+const pool = {
+    size: Math.max(os.availableParallelism() - 1, 1), // the main thread reads and greys the frames on the last core
+    workers: [], idle: [], queue: [],
+    // A job's result, from the first worker free. A job holds its frames' grey copies until it is posted.
+    run(kind, gw, gh, entries) {
+        if (!this.workers.length) {
+            for (let i = 0; i < this.size; i++) {
+                const w = new Worker(new URL(import.meta.url));
+                w.on('message', (r) => {
+                    const job = w.job;
+                    w.job = null;
+                    this.idle.push(w);
+                    this.pump();
+                    job.resolve(r);
+                });
+                w.on('error', (e) => {
+                    console.error(e);
+                    process.exit(2);
+                });
+                this.workers.push(w);
+                this.idle.push(w);
+            }
+        }
+        return new Promise((resolve) => {
+            this.queue.push({ resolve, task: { kind, gw, gh, frames: entries.map(({ g, q }) => ({ g, q })) } });
+            this.pump();
+        });
+    },
+    pump() {
+        while (this.idle.length && this.queue.length) {
+            const w = this.idle.pop(), job = this.queue.shift();
+            w.job = job;
+            w.postMessage(job.task);
+        }
+        while (this.waiting.length && (this.queue.length < this.size * 2)) {
+            this.waiting.shift()();
+        }
+    },
+    waiting: [],
+    // Resolves once few enough jobs wait for a worker: the frames read ahead stay a few per worker, not the whole dump.
+    room() {
+        return (this.queue.length < this.size * 2) ? null : new Promise((resolve) => this.waiting.push(resolve));
+    },
+};
+
 let failed = false;
 if (saveDir) {
     fs.mkdirSync(saveDir, { recursive: true });
 }
 // Each frame matched against the kept frames either side of it as the frames are read, in runs of one size (a resized
-// window, a screen the game draws at another size starts a run), repeats left out.
+// window, a screen the game draws at another size starts a run), repeats left out. Each one's result comes back from
+// its worker in its own time: middles keeps them in the frames' order.
+const middles = [];
 const flagged = [];
-const small = []; // frames drawn between with fewer than MIN_BLOCKS flagged, for NEAR_BLOCKS
 let checked = 0, repeats = 0, dropped = 0, presented = 0, between = 0, first = null, last = null, run = null;
 let untested = false;
 const sizes = new Set();
-function checkMiddle({ gw, gh, kept }) {
+// The game's frames, each against the one before it, and the frames RT64 drew between the two (a present's frames
+// before its last, which is the game's). Gathered until the present's own frame comes, and checked only where the dump
+// has the present whole and the game's frame before it.
+const cutChecks = [];
+function checkPresent(e, run) {
+    const f = e.f;
+    if (f.dropped || (f.index === 0)) {
+        run.between = [];
+    }
+    if ((f.count < 2) || (f.index !== run.between.length)) {
+        run.between = [];
+        run.game = (f.index === f.count - 1) ? e : null;
+        return;
+    }
+    if (f.index < f.count - 1) {
+        run.between.push(e);
+        return;
+    }
+    if (run.game && (run.game.f.presentId === f.presentId - 1)) {
+        const { gw, gh } = run, qw = gw >> 2, qh = gh >> 2, a = run.game;
+        const s = shiftOf(a.q, e.q, qw, qh);
+        const D = shiftedDiff(a.g, e.g, gw, gh, s[0], s[1]);
+        const p = { f, D, partway: 0, whole: 0, frames: null };
+        if (D >= CUT) {
+            const between = run.between;
+            p.ready = pool.run('cut', gw, gh, [a, e, ...between]).then(({ partway, whole, worst }) => {
+                Object.assign(p, { partway, whole, frames: (worst >= 0) ? [a.f, between[worst].f, f] : null });
+            });
+        }
+        moved.set(f.presentId, p);
+        if (p.ready) {
+            cutChecks.push(p.ready);
+        }
+        run.presents.push(p);
+        if (run.presents.length === 3) {
+            const three = [...run.presents];
+            cutChecks.push(Promise.all(three.map((x) => x.ready)).then(() => checkCut(three)));
+            run.presents.shift();
+        }
+    }
+    else {
+        run.presents = [];
+    }
+    run.between = [];
+    run.game = e;
+}
+
+// Part by part (explain()'s blocks, each where it fits best): how unlike the game's frames a and e are, and each frame
+// drawn between them unlike both, the worst of them by its place among them (-1 for none). A frame of the new shot
+// whose parts move on (a model, an animated texture) fits it part by part; one of a camera partway between the shots
+// fits neither anywhere.
+function cutParts(gw, gh, a, e, ...between) {
     const qw = gw >> 2, qh = gh >> 2;
     const bw = gw / B | 0, bh = gh / B | 0;
-    const [a, c, b] = kept;
-    checked++;
+    const inner = (x) => {
+        let m = 0;
+        for (let by = 1; by < bh - 1; by++) {
+            for (let bx = 1; bx < bw - 1; bx++) {
+                m += x[by * bw + bx];
+            }
+        }
+        return m / ((bw - 2) * (bh - 2));
+    };
+    const ae = explain(e.g, a.g, gw, gh, placesOf(e.q, a.q, qw, qh, bw, bh));
+    const apart = Math.max(inner(ae), 1);
+    const whole = inner(ae.map((x) => +(x > BAD)));
+    let partway = 0, worst = -1;
+    between.forEach((c, k) => {
+        const ea = explain(c.g, a.g, gw, gh, placesOf(c.q, a.q, qw, qh, bw, bh));
+        const eb = explain(c.g, e.g, gw, gh, placesOf(c.q, e.q, qw, qh, bw, bh));
+        for (let i = 0; i < ea.length; i++) {
+            ea[i] = Math.min(ea[i], eb[i]);
+        }
+        const unlike = inner(ea) / apart;
+        if (unlike >= partway) {
+            partway = unlike;
+            worst = k;
+        }
+    });
+    return { partway, whole, worst };
+}
+
+// A cut: the game's two frames in a row far apart where the frames before and after them move little, the camera
+// jumping in one frame. Every frame drawn between the two should be the new shot (or the old), as the game draws no
+// frame between them; one that is neither is the camera drawn partway from one shot to the other, the whole picture
+// swept or stretched across for a moment.
+function checkCut([before, p, after]) {
+    p.jump = p.D / Math.max(before.D, after.D, 0.1);
+    if ((p.D < CUT) || (p.jump < CUT_JUMP) || ((p.whole < CUT_WHOLE) && ((p.jump < CUT_LONE) || (p.whole < CUT_PART)))) {
+        return;
+    }
+    cuts.push(p);
+    if (p.partway >= CUT_PARTWAY) {
+        cutsPartway.push(p);
+        if (saveDir) {
+            saveTriplet(`cut-${String(p.frames[1].n).padStart(5, '0')}.png`, p.frames, [], 1);
+        }
+    }
+    p.frames = null;
+}
+const cuts = [], cutsPartway = [];
+// Each present checked (checkPresent()'s, whose whole is the share of its game frame's blocks with nothing like them near
+// in the game frame before, 0 where they are less than CUT apart), by its id.
+const moved = new Map();
+// A flagged frame between two of the game's that something passing close to the camera changes in part, game frame
+// after game frame: its present, or for the game's frame that ends one the next too (where its neighbour after lies),
+// and a present beside that one, each NEAR to CUT_WHOLE of the picture apart. A cut, a new shot or not, is a jump the
+// presents beside it don't share: Mario Golf's to the tee after hole 1's flyover, 0.30 apart between 0.00 and 0.00.
+const wholeOf = (id) => moved.get(id)?.whole ?? 0;
+const band = (id) => (wholeOf(id) >= NEAR) && (wholeOf(id) < CUT_WHOLE);
+const nearPass = ({ f }) => [f.presentId, ...((f.index === f.count - 1) ? [f.presentId + 1] : [])]
+    .some((id) => band(id) && (band(id - 1) || band(id + 1)));
+
+// The blocks of c that neither a nor b explains, where a and b match each other.
+function middleBad(gw, gh, a, c, b) {
+    const qw = gw >> 2, qh = gh >> 2;
+    const bw = gw / B | 0, bh = gh / B | 0;
     const ea = explain(c.g, a.g, gw, gh, placesOf(c.q, a.q, qw, qh, bw, bh));
     const eb = explain(c.g, b.g, gw, gh, placesOf(c.q, b.q, qw, qh, bw, bh));
     // Where the neighbours match each other: a's blocks against b.
@@ -487,6 +746,9 @@ function checkMiddle({ gw, gh, kept }) {
             if (e > BAD) {
                 e = eitherDiff(c.g, a.g, b.g, ea, eb, i, gw, gh);
             }
+            if (e > BAD) {
+                e = Math.min(e, blendDiff(c.g, a.g, b.g, ea, eb, i, gw, gh));
+            }
             // a's block that c's block i matched, roughly: i shifted by its match in a, in blocks
             const ay = Math.min(Math.max(by + Math.round(ea.dy[i] / B), 0), bh - 1);
             const ax = Math.min(Math.max(bx + Math.round(ea.dx[i] / B), 0), bw - 1);
@@ -496,13 +758,23 @@ function checkMiddle({ gw, gh, kept }) {
             }
         }
     }
-    const big = bad.length >= MIN_BLOCKS;
-    if (big || (bad.length && (c.f.index + 1 < c.f.count))) {
-        (big ? flagged : small).push({ c: { f: { ...c.f, rgb: null } }, bad, bw, bh });
-        if (saveDir) {
-            saveTriplet(`${big ? 'unlike' : 'small'}-${String(c.f.n).padStart(5, '0')}.png`, [a.f, c.f, b.f], bad, gw);
+    return bad;
+}
+
+function checkMiddle({ gw, gh, kept }) {
+    const bw = gw / B | 0, bh = gh / B | 0;
+    const [a, c, b] = kept;
+    checked++;
+    middles.push(pool.run('middle', gw, gh, kept).then((bad) => {
+        const small = bad.length < MIN_BLOCKS;
+        if (small && (!bad.length || (c.f.index === c.f.count - 1))) {
+            return null;
         }
-    }
+        if (saveDir) {
+            saveTriplet(`${small ? 'small' : 'unlike'}-${String(c.f.n).padStart(5, '0')}.png`, [a.f, c.f, b.f], bad, gw);
+        }
+        return { c: { f: { ...c.f, rgb: null } }, bad, bw, bh, small };
+    }));
 }
 for (const f of readFrames()) {
     presented++;
@@ -512,47 +784,58 @@ for (const f of readFrames()) {
     between += (f.index > 0) ? 1 : 0;
     sizes.add(`${f.w}x${f.h}`);
     if (!run || (run.w !== f.w) || (run.h !== f.h)) {
-        run = { w: f.w, h: f.h, gw: Math.floor(W / B) * B, gh: Math.floor(W * f.h / f.w / B) * B, kept: [] };
+        run = { w: f.w, h: f.h, gw: Math.floor(W / B) * B, gh: Math.floor(W * f.h / f.w / B) * B, kept: [], game: null,
+            between: [], presents: [] };
     }
     const g = grey(f, run.gw, run.gh);
+    const entry = { f, g, q: quarter(g, run.gw, run.gh) };
+    checkPresent(entry, run);
     if (run.kept.length && (meanDiff(g, run.kept[run.kept.length - 1].g) < 0.05)) {
         repeats++;
         continue;
     }
-    run.kept.push({ f, g, q: quarter(g, run.gw, run.gh) });
+    run.kept.push(entry);
     if (run.kept.length === 3) {
         checkMiddle(run);
         run.kept.shift();
     }
+    await pool.room();
 }
-if (presented >= 3) {
-    // Small ones drawn between that recur in one place.
-    const near = (u, v) => u.bad.some((i) => v.bad.some((k) => (u.bw === v.bw) &&
-        (Math.abs(i % u.bw - k % v.bw) <= NEAR_BLOCKS) && (Math.abs(Math.floor(i / u.bw) - Math.floor(k / v.bw)) <= NEAR_BLOCKS)));
-    for (const u of small) {
-        const recur = small.filter((v) => (v !== u) && (Math.abs(v.c.f.t - u.c.f.t) <= NEAR_SECONDS) && near(u, v)).length;
-        const name = `-${String(u.c.f.n).padStart(5, '0')}.png`;
-        if (recur >= NEAR_FRAMES) {
-            flagged.push(u);
-            if (saveDir) {
-                fs.renameSync(path.join(saveDir, 'small' + name), path.join(saveDir, 'unlike' + name));
-            }
-        }
-        else if (saveDir) {
-            fs.rmSync(path.join(saveDir, 'small' + name));
+const found = (await Promise.all(middles)).filter(Boolean);
+flagged.push(...found.filter((u) => !u.small));
+// Small ones drawn between that recur in one place.
+const small = found.filter((u) => u.small);
+const near = (u, v) => (u.bw === v.bw) && u.bad.some((i) => v.bad.some((k) =>
+    (Math.abs(i % u.bw - k % v.bw) <= NEAR_BLOCKS) && (Math.abs(Math.floor(i / u.bw) - Math.floor(k / v.bw)) <= NEAR_BLOCKS)));
+for (const u of small) {
+    const recur = small.filter((v) => (v !== u) && (Math.abs(v.c.f.t - u.c.f.t) <= NEAR_SECONDS) && near(u, v)).length;
+    const name = `-${String(u.c.f.n).padStart(5, '0')}.png`;
+    if (recur >= NEAR_FRAMES) {
+        flagged.push(u);
+        if (saveDir) {
+            fs.renameSync(path.join(saveDir, 'small' + name), path.join(saveDir, 'unlike' + name));
         }
     }
-    flagged.sort((u, v) => u.c.f.t - v.c.f.t);
+    else if (saveDir) {
+        fs.rmSync(path.join(saveDir, 'small' + name));
+    }
+}
+flagged.sort((u, v) => u.c.f.t - v.c.f.t);
+await Promise.all(cutChecks);
+cuts.sort((x, y) => x.f.n - y.f.n);
+if (presented >= 3) {
+    const passing = flagged.filter(({ c }) => nearPass(c));
+    const counted = flagged.filter(({ c }) => !nearPass(c));
     // 3 or more flagged frames within a second, anywhere.
     let burst = 0;
-    for (let i = 0, j = 0; i < flagged.length; i++) {
-        while (flagged[i].c.f.t - flagged[j].c.f.t > 1) {
+    for (let i = 0, j = 0; i < counted.length; i++) {
+        while (counted[i].c.f.t - counted[j].c.f.t > 1) {
             j++;
         }
         burst = Math.max(burst, i - j + 1);
     }
     checked = Math.max(checked, 1);
-    const fail = (flagged.length * 100 > checked) || (burst >= 3);
+    const fail = (counted.length * 100 > checked) || (burst >= 3);
     failed ||= fail;
     console.log(`frames: ${presented} presented over ${(last.t - first.t).toFixed(1)} s, ${between} of them between the` +
         ` game's own (${repeats} repeats, ${dropped} dropped by the dump), ${[...sizes].join(', ')}`);
@@ -561,17 +844,31 @@ if (presented >= 3) {
         console.log('frames: none presented between the game\'s own, so nothing tests how they are paired: dump at' +
             ' Framerate Display on a display faster than the game');
     }
-    console.log(`unlike both neighbours: ${flagged.length} of ${checked} frames, at most ${burst} within a second: ` +
-        (fail ? 'FAILS' : 'passes'));
+    console.log(`unlike both neighbours: ${counted.length} of ${checked} frames, at most ${burst} within a second: ` +
+        (fail ? 'FAILS' : 'passes') + (passing.length ? ` (${passing.length} more, not counted, where something passes` +
+        ` close to the camera: the game's frames ${NEAR}-${CUT_WHOLE} of the picture apart, two presents running)` : ''));
     if (!quiet) {
         for (const { c, bad, bw, bh } of flagged.slice(0, 40)) {
             const xs = bad.map((i) => i % bw), ys = bad.map((i) => Math.floor(i / bw));
+            const ids = [c.f.presentId, ...((c.f.index === c.f.count - 1) ? [c.f.presentId + 1] : [])];
             console.log(`  frame ${c.f.n} at ${c.f.t.toFixed(2)} s (present ${c.f.presentId}, ${c.f.index + 1} of ${c.f.count}):` +
                 ` ${bad.length} blocks, x ${(Math.min(...xs) / bw).toFixed(2)}-${((Math.max(...xs) + 1) / bw).toFixed(2)}` +
-                ` y ${(Math.min(...ys) / bh).toFixed(2)}-${((Math.max(...ys) + 1) / bh).toFixed(2)} of the picture`);
+                ` y ${(Math.min(...ys) / bh).toFixed(2)}-${((Math.max(...ys) + 1) / bh).toFixed(2)} of the picture` +
+                (nearPass(c) ? `, not counted: the game's frames ${ids.map((id) => wholeOf(id).toFixed(2)).join(' and ')} apart` :
+                    ''));
         }
         if (flagged.length > 40) {
             console.log(`  ... and ${flagged.length - 40} more`);
+        }
+    }
+    const cutFail = cutsPartway.length > 0;
+    failed ||= cutFail;
+    console.log(`camera cuts: ${cuts.length} among the game's frames, ${cutsPartway.length} with a frame between drawn ` +
+        `partway from one shot to the other: ` + (cutFail ? 'FAILS' : (cuts.length ? 'passes' : 'none to test')));
+    if (!quiet) {
+        for (const p of cuts) {
+            console.log(`  present ${p.f.presentId} at ${p.f.t.toFixed(2)} s (frame ${p.f.n}): ${p.D.toFixed(1)} apart, ` +
+                `${p.jump.toFixed(1)} times either side, ${p.whole.toFixed(2)} of its blocks, between them ${p.partway.toFixed(2)} of that unlike both` + ((p.partway >= CUT_PARTWAY) ? ', PARTWAY' : ''));
         }
     }
 }

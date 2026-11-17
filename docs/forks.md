@@ -15,9 +15,9 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_PARTIAL_SCREEN_PAIRS` (rt64 89abe33), `RT64_STRETCH_SCREEN_COVERS` (rt64 4550e10), `RT64_KEEP_THIN_RECTS` (rt64
 04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7, c0d27e5),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
-eda3964, 8314128, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4,
-54e47fb, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too),
-`ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
+eda3964, 8314128, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
+2d2db0c, d798d28, a17b46a, 952d327, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4,
+1682468, which it turns on too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
 `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
@@ -1188,4 +1188,30 @@ rt64 54e7fe3, 408b560  RT64_FREE_DISCARDED_TARGETS (rt64 51c3fdd) on by default 
                        a desktop build kept a target for every framebuffer address its game drew to, Perfect Dark's
                        about 65-120 MB of memory and as much video memory a mission, never given back. 54e7fe3 also
                        changed 308 files' line endings, which 408b560 puts back byte for byte
+rt64 2d2db0c           RT64_INTERPOLATE_RECT_SCROLLS: a texrect with none of the frame before's at its place pairs
+                       with the nearest that drew the same textures at the same size and scale less than its longer
+                       side away, and is drawn between where it stood and where it is: Mario Golf moves its far hills'
+                       strips as the camera pitches (4-10 px a game frame following the ball), and they still stepped
+                       a game frame at a time against the interpolated trees
+rt64 d798d28           a moved rect's offset is added to its screen offset after the lines that place it, DrawParams'
+                       fields follow curWorkload and rectMoves is first in WorkloadMap: Conker's, Pokemon Snap's, 1080
+                       Snowboarding's, Rogue Squadron's and Rush 2049's own RT64 changes didn't apply over 2d2db0c
+rt64 ae0a708           a rect's or scissor's edge within a thousandth of a pixel of a whole one is on it: a 16:9
+                       window's ratio of 0.75000006 put Mario Golf's 4:3 scissor's left edge on 367.99994 of 2560,
+                       floored to 367, and its menu's sea was drawn a column into the black border
+rt64 a17b46a           RT64_INTERPOLATE_RECT_SCROLLS: a paired rect that moved and whose texture jumped (its
+                       texcoords moved its whole span) is still drawn between where it stood and where it is: Mario
+                       Golf's pin marker, four frames side by side in one tile, turns a frame every four game frames,
+                       and stood still a present each time while the course panned on
+rt64 952d327           RT64_INTERPOLATE_RECT_SCROLLS: a rect resized with an edge held (one edge each way stayed, the
+                       other moved less than a quarter of its side) pairs last, and each edge is drawn between where
+                       it was and where it is: Mario Golf's hills end in a tall rect whose bottom stays at the
+                       picture's edge, and the strip above it, drawn between, left a line of the sky across the hills
+rt64 bf3943f           WORKLOAD_QUEUE_SIZE, the workload queue's 64 (4 without RT64_GAME_FRAME_WORKLOADS), set by a game
+                       where it sets it, PUBLIC on the rt64 target: a game that draws a frame in one or two keeps 16
+                       with a compile definition, where Rush 2049's page and DKR-R-web each patched the line
+rt64 b24056f           RT64_SKIP_CAMERA_CUTS: the turn is the whole rotation between the cameras' axes (its cosine from
+                       the trace, the three axes' cosines less 1, halved), so a roll about the way the camera looks
+                       counts: Rush 2049's attract race cuts between overhead cameras by rolling the picture 86-180
+                       degrees, and the frames between swung it round. Rush 2049 carried it as runtime-patches/rt64-0017
 ```

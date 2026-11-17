@@ -37,6 +37,10 @@
 #   <s> or <addr> <bits>      ors bits into it: a cheat that reaches a later level, the way a page plan's n64w does
 #   <s> peek <addr>[,<addr>]  prints the 32-bit words at those addresses, in hex: a saved setting before and after a
 #                             restart (a byte at an address of 4 is the word's top byte, 0x01000000 for 1)
+#   <s> dump <addr> <bytes> <name>
+#                             writes that much of RDRAM from addr to <name>.bin in -OutDir, in the host's order as it
+#                             is held (each 32-bit word's bytes reversed from the console's): two dumps compared find
+#                             what a game keeps where, a counter that a later level or hole has moved
 #   <s> find <name> <word>,<word> <timeout s> [key]
 #                             waits until RDRAM's first 32 MB hold those two words side by side and names their address:
 #                             a struct a game's patch marks with magic words (Perfect Dark's survey, 0x53484452,0x53525659),
@@ -152,6 +156,11 @@ public static class CaptureWindow {
         IntPtr n;
         if (!WriteProcessMemory(p, rdram + (int)(addr - 0x80000000u), BitConverter.GetBytes(v), (IntPtr)4, out n))
             throw new Exception("can't write RDRAM");
+    }
+    public static byte[] ReadBytes(IntPtr p, IntPtr rdram, uint addr, uint len) {
+        var b = new byte[len]; IntPtr n;
+        if (!ReadProcessMemory(p, rdram + (int)(addr - 0x80000000u), b, (IntPtr)len, out n)) throw new Exception("can't read RDRAM");
+        return b;
     }
     // The RDRAM address of the first 4-aligned pair of words a, b in the first len bytes, or zero: a struct a game's
     // patch marks with magic words, for a plan's find. Read 64 KB at a time, a chunk that can't be read skipped.
@@ -516,6 +525,8 @@ try {
                 Write-Output ("{0,6:N1}s find {1} at 0x{2:X8}" -f $clock.Elapsed.TotalSeconds, $p[2], $at) }
             'peek' { $words = $p[2] -split ',' | ForEach-Object { '{0}=0x{1:X8}' -f $_, [CaptureWindow]::Read($handle, (Rdram), (Num $_)) }
                 Write-Output ("{0,6:N1}s peek {1}" -f $clock.Elapsed.TotalSeconds, ($words -join ' ')) }
+            'dump' { [IO.File]::WriteAllBytes((Join-Path $OutDir "$($p[4]).bin"), [CaptureWindow]::ReadBytes($handle, (Rdram), (Num $p[2]), (Num $p[3])))
+                Write-Output ("{0,6:N1}s dump {1} {2} {3}.bin" -f $clock.Elapsed.TotalSeconds, $p[2], $p[3], $p[4]) }
             'end' { break plan }
             default { throw "unknown plan step: $line" }
         }
