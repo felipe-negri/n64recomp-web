@@ -10,7 +10,8 @@
 // --wider names a dump of the same plan and seconds in a wider window (32:9 beside 16:9) for the sides. --from and
 // --to keep what came between those seconds of the dumps, counted from each one's first frame; --save writes each
 // flagged frame with the frames either side of it as one PNG, its flagged blocks outlined, for whoever wants to see
-// one. A dump of 20 seconds at 60 a second takes a minute or two.
+// one. It matches the frames on a worker thread a core: 20 s of Turok's 640x360 frames at 120 a second (1025 matched)
+// took 88 s on a 12-core host already 100% busy, where one thread took 17 minutes.
 //
 // - Frames unlike both neighbours. Each frame is matched against the frames presented before and after it, block by
 //   block (8 pixels of a grey copy about 400 wide), each block to the best place within a few pixels of where the
@@ -76,8 +77,8 @@
 //   sizes the window begins at 4:3, and one whose frames come in several sizes has black past the picture in some.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
-// the pairing or the sides. frames.bin is read a frame at a time, three kept: a dump at a 240 Hz display's rate is about 160 MB a
-// second.
+// the pairing or the sides. frames.bin is read a frame at a time, those the workers have yet to match kept (a few a
+// worker, pool.room()): a dump at a 240 Hz display's rate is about 160 MB a second.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -524,7 +525,7 @@ function saveTriplet(name, fs3, blocks, gw) {
 // The matching runs on worker threads, this same file: each frame's against its neighbours (middleBad()) and each
 // present's against the game's frames either side of it (cutParts()) needs only those frames' grey copies, so the main
 // thread reads the frames in order, makes their grey copies, leaves repeats out and pairs them as before, and hands the
-// matching to a worker a core. On one thread a 12-core host 84% busy took 52 minutes over a 121 s dump of 5516 frames.
+// matching to a worker a core.
 if (!isMainThread) {
     parentPort.on('message', ({ kind, gw, gh, frames }) => {
         parentPort.postMessage((kind === 'middle') ? middleBad(gw, gh, ...frames) : cutParts(gw, gh, ...frames));
