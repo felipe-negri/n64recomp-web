@@ -1207,4 +1207,7 @@ rt64 952d327           RT64_INTERPOLATE_RECT_SCROLLS: a rect resized with an edg
                        other moved less than a quarter of its side) pairs last, and each edge is drawn between where
                        it was and where it is: Mario Golf's hills end in a tall rect whose bottom stays at the
                        picture's edge, and the strip above it, drawn between, left a line of the sky across the hills
+rt64 bf3943f           WORKLOAD_QUEUE_SIZE, the workload queue's 64 (4 without RT64_GAME_FRAME_WORKLOADS), set by a game
+                       where it sets it, PUBLIC on the rt64 target: a game that draws a frame in one or two keeps 16
+                       with a compile definition, where Rush 2049's page and DKR-R-web each patched the line
 ```
