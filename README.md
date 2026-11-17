@@ -110,6 +110,8 @@ if (EMSCRIPTEN)
     add_subdirectory(lib/N64Recomp-browser/frontend ${CMAKE_BINARY_DIR}/web_frontend)
     n64recomp_browser_frontend_page(<the recomp's executable>)
     target_link_options(<the recomp's executable> PRIVATE -sINITIAL_MEMORY=2GB)   # if 1536MB, frontend/'s, isn't enough
+    target_compile_definitions(rt64 PUBLIC WORKLOAD_QUEUE_SIZE=16)   # if the game draws each frame in one or two
+                                                                     # workloads: RT64 keeps 64, each with its buffers
 endif()
 ```
 
