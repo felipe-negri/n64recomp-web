@@ -71,8 +71,10 @@
 // the pairing or the sides. frames.bin is read a frame at a time, three kept: a dump at a 240 Hz display's rate is about 160 MB a
 // second.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { Worker, isMainThread, parentPort } from 'node:worker_threads';
 
 const args = process.argv.slice(2);
 const opt = (name, fallback) => {
@@ -80,7 +82,7 @@ const opt = (name, fallback) => {
     return (i >= 0) ? args[i + 1] : fallback;
 };
 const dir = args[0];
-if (!dir || dir.startsWith('--')) {
+if (isMainThread && (!dir || dir.startsWith('--'))) {
     console.error('usage: node tools/frame_check.mjs <dir> [--wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--quiet]');
     process.exit(2);
 }
@@ -511,12 +513,69 @@ function saveTriplet(name, fs3, blocks, gw) {
     fs.writeFileSync(path.join(saveDir, name), png(f.w * 3, f.h, out));
 }
 
+// The matching runs on worker threads, this same file: each frame's against its neighbours (middleBad()) and each
+// present's against the game's frames either side of it (cutParts()) needs only those frames' grey copies, so the main
+// thread reads the frames in order, makes their grey copies, leaves repeats out and pairs them as before, and hands the
+// matching to a worker a core. On one thread a 12-core host 84% busy took 52 minutes over a 121 s dump of 5516 frames.
+if (!isMainThread) {
+    parentPort.on('message', ({ kind, gw, gh, frames }) => {
+        parentPort.postMessage((kind === 'middle') ? middleBad(gw, gh, ...frames) : cutParts(gw, gh, ...frames));
+    });
+    await new Promise(() => {}); // a worker runs no more of the file: the main thread ends it
+}
+const pool = {
+    size: Math.max(os.availableParallelism() - 1, 1), // the main thread reads and greys the frames on the last core
+    workers: [], idle: [], queue: [],
+    // A job's result, from the first worker free. A job holds its frames' grey copies until it is posted.
+    run(kind, gw, gh, entries) {
+        if (!this.workers.length) {
+            for (let i = 0; i < this.size; i++) {
+                const w = new Worker(new URL(import.meta.url));
+                w.on('message', (r) => {
+                    const job = w.job;
+                    w.job = null;
+                    this.idle.push(w);
+                    this.pump();
+                    job.resolve(r);
+                });
+                w.on('error', (e) => {
+                    console.error(e);
+                    process.exit(2);
+                });
+                this.workers.push(w);
+                this.idle.push(w);
+            }
+        }
+        return new Promise((resolve) => {
+            this.queue.push({ resolve, task: { kind, gw, gh, frames: entries.map(({ g, q }) => ({ g, q })) } });
+            this.pump();
+        });
+    },
+    pump() {
+        while (this.idle.length && this.queue.length) {
+            const w = this.idle.pop(), job = this.queue.shift();
+            w.job = job;
+            w.postMessage(job.task);
+        }
+        while (this.waiting.length && (this.queue.length < this.size * 2)) {
+            this.waiting.shift()();
+        }
+    },
+    waiting: [],
+    // Resolves once few enough jobs wait for a worker: the frames read ahead stay a few per worker, not the whole dump.
+    room() {
+        return (this.queue.length < this.size * 2) ? null : new Promise((resolve) => this.waiting.push(resolve));
+    },
+};
+
 let failed = false;
 if (saveDir) {
     fs.mkdirSync(saveDir, { recursive: true });
 }
 // Each frame matched against the kept frames either side of it as the frames are read, in runs of one size (a resized
-// window, a screen the game draws at another size starts a run), repeats left out.
+// window, a screen the game draws at another size starts a run), repeats left out. Each one's result comes back from
+// its worker in its own time: middles keeps them in the frames' order.
+const middles = [];
 const flagged = [];
 let checked = 0, repeats = 0, dropped = 0, presented = 0, between = 0, first = null, last = null, run = null;
 let untested = false;
@@ -524,6 +583,7 @@ const sizes = new Set();
 // The game's frames, each against the one before it, and the frames RT64 drew between the two (a present's frames
 // before its last, which is the game's). Gathered until the present's own frame comes, and checked only where the dump
 // has the present whole and the game's frame before it.
+const cutChecks = [];
 function checkPresent(e, run) {
     const f = e.f;
     if (f.dropped || (f.index === 0)) {
@@ -542,40 +602,17 @@ function checkPresent(e, run) {
         const { gw, gh } = run, qw = gw >> 2, qh = gh >> 2, a = run.game;
         const s = shiftOf(a.q, e.q, qw, qh);
         const D = shiftedDiff(a.g, e.g, gw, gh, s[0], s[1]);
-        let partway = 0, worst = null, whole = 0;
+        const p = { f, D, partway: 0, whole: 0, frames: null };
         if (D >= CUT) {
-            // Part by part (explain()'s blocks, each where it fits best): how unlike the two are, and each frame drawn
-            // between them unlike both. A frame of the new shot whose parts move on (a model, an animated texture)
-            // fits it part by part; one of a camera partway between the shots fits neither anywhere.
-            const bw = gw / B | 0, bh = gh / B | 0;
-            const inner = (x) => {
-                let m = 0;
-                for (let by = 1; by < bh - 1; by++) {
-                    for (let bx = 1; bx < bw - 1; bx++) {
-                        m += x[by * bw + bx];
-                    }
-                }
-                return m / ((bw - 2) * (bh - 2));
-            };
-            const ae = explain(e.g, a.g, gw, gh, placesOf(e.q, a.q, qw, qh, bw, bh));
-            const apart = Math.max(inner(ae), 1);
-            whole = inner(ae.map((x) => +(x > BAD)));
-            for (const c of run.between) {
-                const ea = explain(c.g, a.g, gw, gh, placesOf(c.q, a.q, qw, qh, bw, bh));
-                const eb = explain(c.g, e.g, gw, gh, placesOf(c.q, e.q, qw, qh, bw, bh));
-                for (let i = 0; i < ea.length; i++) {
-                    ea[i] = Math.min(ea[i], eb[i]);
-                }
-                const unlike = inner(ea) / apart;
-                if (unlike >= partway) {
-                    partway = unlike;
-                    worst = c;
-                }
-            }
+            const between = run.between;
+            p.ready = pool.run('cut', gw, gh, [a, e, ...between]).then(({ partway, whole, worst }) => {
+                Object.assign(p, { partway, whole, frames: (worst >= 0) ? [a.f, between[worst].f, f] : null });
+            });
         }
-        run.presents.push({ f, D, partway, whole, frames: worst && [a.f, worst.f, f] });
+        run.presents.push(p);
         if (run.presents.length === 3) {
-            checkCut(run.presents);
+            const three = [...run.presents];
+            cutChecks.push(Promise.all(three.map((x) => x.ready)).then(() => checkCut(three)));
             run.presents.shift();
         }
     }
@@ -584,6 +621,41 @@ function checkPresent(e, run) {
     }
     run.between = [];
     run.game = e;
+}
+
+// Part by part (explain()'s blocks, each where it fits best): how unlike the game's frames a and e are, and each frame
+// drawn between them unlike both, the worst of them by its place among them (-1 for none). A frame of the new shot
+// whose parts move on (a model, an animated texture) fits it part by part; one of a camera partway between the shots
+// fits neither anywhere.
+function cutParts(gw, gh, a, e, ...between) {
+    const qw = gw >> 2, qh = gh >> 2;
+    const bw = gw / B | 0, bh = gh / B | 0;
+    const inner = (x) => {
+        let m = 0;
+        for (let by = 1; by < bh - 1; by++) {
+            for (let bx = 1; bx < bw - 1; bx++) {
+                m += x[by * bw + bx];
+            }
+        }
+        return m / ((bw - 2) * (bh - 2));
+    };
+    const ae = explain(e.g, a.g, gw, gh, placesOf(e.q, a.q, qw, qh, bw, bh));
+    const apart = Math.max(inner(ae), 1);
+    const whole = inner(ae.map((x) => +(x > BAD)));
+    let partway = 0, worst = -1;
+    between.forEach((c, k) => {
+        const ea = explain(c.g, a.g, gw, gh, placesOf(c.q, a.q, qw, qh, bw, bh));
+        const eb = explain(c.g, e.g, gw, gh, placesOf(c.q, e.q, qw, qh, bw, bh));
+        for (let i = 0; i < ea.length; i++) {
+            ea[i] = Math.min(ea[i], eb[i]);
+        }
+        const unlike = inner(ea) / apart;
+        if (unlike >= partway) {
+            partway = unlike;
+            worst = k;
+        }
+    });
+    return { partway, whole, worst };
 }
 
 // A cut: the game's two frames in a row far apart where the frames before and after them move little, the camera
@@ -605,11 +677,10 @@ function checkCut([before, p, after]) {
 }
 const cuts = [], cutsPartway = [];
 
-function checkMiddle({ gw, gh, kept }) {
+// The blocks of c that neither a nor b explains, where a and b match each other.
+function middleBad(gw, gh, a, c, b) {
     const qw = gw >> 2, qh = gh >> 2;
     const bw = gw / B | 0, bh = gh / B | 0;
-    const [a, c, b] = kept;
-    checked++;
     const ea = explain(c.g, a.g, gw, gh, placesOf(c.q, a.q, qw, qh, bw, bh));
     const eb = explain(c.g, b.g, gw, gh, placesOf(c.q, b.q, qw, qh, bw, bh));
     // Where the neighbours match each other: a's blocks against b.
@@ -634,12 +705,22 @@ function checkMiddle({ gw, gh, kept }) {
             }
         }
     }
-    if (bad.length >= MIN_BLOCKS) {
-        flagged.push({ c: { f: { ...c.f, rgb: null } }, bad, bw, bh });
+    return bad;
+}
+
+function checkMiddle({ gw, gh, kept }) {
+    const bw = gw / B | 0, bh = gh / B | 0;
+    const [a, c, b] = kept;
+    checked++;
+    middles.push(pool.run('middle', gw, gh, kept).then((bad) => {
+        if (bad.length < MIN_BLOCKS) {
+            return null;
+        }
         if (saveDir) {
             saveTriplet(`unlike-${String(c.f.n).padStart(5, '0')}.png`, [a.f, c.f, b.f], bad, gw);
         }
-    }
+        return { c: { f: { ...c.f, rgb: null } }, bad, bw, bh };
+    }));
 }
 for (const f of readFrames()) {
     presented++;
@@ -664,7 +745,11 @@ for (const f of readFrames()) {
         checkMiddle(run);
         run.kept.shift();
     }
+    await pool.room();
 }
+flagged.push(...(await Promise.all(middles)).filter(Boolean));
+await Promise.all(cutChecks);
+cuts.sort((x, y) => x.f.n - y.f.n);
 if (presented >= 3) {
     // 3 or more flagged frames within a second, anywhere.
     let burst = 0;
