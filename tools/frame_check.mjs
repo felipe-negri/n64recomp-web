@@ -144,6 +144,7 @@ const CUT_PART = 0.1; // ... this share of the new frame's blocks: a new shot mu
 const NEAR = 0.2; // the share, at the least, of something passing near the camera: frames between not counted
 const P = 2; // a pixel's search about its block's best place, in grey pixels (eitherDiff())
 const M = 2; // the quarter pixels around a block that its own shift is found over (placesOf())
+const RM = 24; // how far a block's thing moved from one neighbour to the other is looked for, in grey pixels (movedDiff())
 const SIDES_GROW = 1.2; // how many times the triangles past the 4:3 view a wider picture has, at the least
 const SIDES_DENSE = 0.5; // ... unless the strip is this dense against the view: a world not culled at its sides
 const SIDES_OPEN = 0.65; // ... or the narrower picture this dense past its own edge as inside it: not culled by the window
@@ -469,6 +470,50 @@ function blendDiff(c, a, b, ea, eb, k, gw, gh) {
     return s / cs.length;
 }
 
+// Block k of c as something that moved from a to b through it: the same block in a at -d and in b at +d (within a pixel),
+// for the d up to RM that fits best, where a has nothing like it at +d nor b at -d. A thing moving faster than a block's
+// search follows (a menu's cursor and its bar a whole option a frame, a title sliding in) lies halfway along its path in
+// a frame between, as unlike both as a model put where it never is, but it left the place it was in a for the place it
+// is in b. A model drawn halfway to a look-alike's place lies between the two as well, but both stand where they stand
+// in a and in b, so the like at the other end is there in both, and the block is not explained.
+function movedDiff(c, a, b, k, gw, gh) {
+    const bw = gw / B | 0;
+    const by = Math.floor(k / bw) * B, bx = (k % bw) * B;
+    const at = (f, dy, dx) => {
+        let s = 0;
+        for (let y = 0; y < B; y++) {
+            const r = Math.min(Math.max(by + y + dy, 0), gh - 1) * gw;
+            for (let x = 0; x < B; x++) {
+                s += Math.abs(c[(by + y) * gw + bx + x] - f[r + Math.min(Math.max(bx + x + dx, 0), gw - 1)]);
+            }
+        }
+        return s / (B * B);
+    };
+    let best = Infinity;
+    for (let dy = -RM; dy <= RM; dy++) {
+        for (let dx = -RM; dx <= RM; dx++) {
+            if (Math.max(Math.abs(dy), Math.abs(dx)) <= R) {
+                continue;
+            }
+            const da = at(a, -dy, -dx);
+            if ((da >= best) || (da > BAD)) {
+                continue;
+            }
+            let db = Infinity;
+            for (let ey = -1; ey <= 1; ey++) {
+                for (let ex = -1; ex <= 1; ex++) {
+                    db = Math.min(db, at(b, dy + ey, dx + ex));
+                }
+            }
+            if ((db > BAD) || (Math.max(da, db) >= best) || (at(a, dy, dx) <= BAD) || (at(b, -dy, -dx) <= BAD)) {
+                continue;
+            }
+            best = Math.max(da, db);
+        }
+    }
+    return best;
+}
+
 // The mean absolute difference of a to b moved by (dy, dx) grey pixels, over a's pixels whose place in b lies inside it.
 function shiftedDiff(a, b, gw, gh, dy, dx) {
     let s = 0, n = 0;
@@ -748,6 +793,9 @@ function middleBad(gw, gh, a, c, b) {
             }
             if (e > BAD) {
                 e = Math.min(e, blendDiff(c.g, a.g, b.g, ea, eb, i, gw, gh));
+            }
+            if (e > BAD) {
+                e = Math.min(e, movedDiff(c.g, a.g, b.g, i, gw, gh));
             }
             // a's block that c's block i matched, roughly: i shifted by its match in a, in blocks
             const ay = Math.min(Math.max(by + Math.round(ea.dy[i] / B), 0), bh - 1);
