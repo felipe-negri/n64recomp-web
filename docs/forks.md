@@ -1207,4 +1207,8 @@ rt64 952d327           RT64_INTERPOLATE_RECT_SCROLLS: a rect resized with an edg
                        other moved less than a quarter of its side) pairs last, and each edge is drawn between where
                        it was and where it is: Mario Golf's hills end in a tall rect whose bottom stays at the
                        picture's edge, and the strip above it, drawn between, left a line of the sky across the hills
+rt64 b24056f           RT64_SKIP_CAMERA_CUTS: the turn is the whole rotation between the cameras' axes (its cosine from
+                       the trace, the three axes' cosines less 1, halved), so a roll about the way the camera looks
+                       counts: Rush 2049's attract race cuts between overhead cameras by rolling the picture 86-180
+                       degrees, and the frames between swung it round. Rush 2049 carried it as runtime-patches/rt64-0017
 ```

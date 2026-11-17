@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 952d3276cb758faecd9a6881e2bae729bacb8029
+rt64: https://github.com/n64hub/rt64-web b24056fdff98518831f917efbe69330d030b1488
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -2901,7 +2901,7 @@ index 5c3c4d2..cba893c 100644
  
          uint32_t rdramUsed;
 diff --git a/src/hle/rt64_game_frame.cpp b/src/hle/rt64_game_frame.cpp
-index 87392d0..f15359d 100644
+index 87392d0..efdd039 100644
 --- a/src/hle/rt64_game_frame.cpp
 +++ b/src/hle/rt64_game_frame.cpp
 @@ -2,6 +2,8 @@
@@ -2991,7 +2991,7 @@ index 87392d0..f15359d 100644
          bool valid = false;
  
          float computeDifference() const {
-@@ -212,10 +271,113 @@ namespace RT64 {
+@@ -212,10 +271,124 @@ namespace RT64 {
                  totalDiff += screenSpaceDifference * ScreenSpaceDiffScale;
              }
  
@@ -3017,6 +3017,11 @@ index 87392d0..f15359d 100644
 +    // between drew its trees stretched to several times their height for a frame. Its cameras that move (its flyovers,
 +    // the ball's flight) moved at most about 7 near plane distances and turned at most about 24 degrees a game frame, and
 +    // its fastest moved as fast for many frames running, which the second check's ratio to the frame before leaves out.
++    //
++    // The turn is the whole turn from one camera to the other, the angle of the rotation between their axes, and not only
++    // how far the way the camera looks moved: San Francisco Rush 2049's attract race cuts between cameras that look
++    // straight down at the cars by rolling about the way they look, turning the picture 86-180 degrees, which left the
++    // way they look where it was.
 +    static bool isCameraCut(const hlslpp::float4x4 &curView, const hlslpp::float4x4 &curProj, const hlslpp::float4x4 &prevView, float prevEyeStep, float &eyeStep) {
 +        eyeStep = 0.0f;
 +
@@ -3041,7 +3046,13 @@ index 87392d0..f15359d 100644
 +        const hlslpp::float3 curEye = -hlslpp::mul(hlslpp::float3(curView[3].xyz), curInverse);
 +        const hlslpp::float3 prevEye = -hlslpp::mul(hlslpp::float3(prevView[3].xyz), prevInverse);
 +        const float step = float(hlslpp::length(curEye - prevEye)) / nearDistance;
-+        const float turnCosine = hlslpp::dot(hlslpp::normalize(curInverse[2]), hlslpp::normalize(prevInverse[2]));
++        // The cosine of the rotation's angle, from its trace: the sum of each axis's cosine to its old place is 1 + 2 cos.
++        float axisCosines = 0.0f;
++        for (int a = 0; a < 3; a++) {
++            axisCosines += float(hlslpp::dot(hlslpp::normalize(curInverse[a]), hlslpp::normalize(prevInverse[a])));
++        }
++
++        const float turnCosine = (axisCosines - 1.0f) / 2.0f;
 +        if (!std::isfinite(step) || !std::isfinite(turnCosine)) {
 +            return false;
 +        }
@@ -3105,7 +3116,7 @@ index 87392d0..f15359d 100644
      TransformMatchResult computeTransformMatch(const hlslpp::float4x4 &curTransform, const hlslpp::float4x4 &curViewProj, const hlslpp::float4x4 &prevTransform, const hlslpp::float4x4 &prevViewProj, const RigidBody *prevRigidBody) {
          TransformMatchResult matchResult;
  
-@@ -226,6 +388,18 @@ namespace RT64 {
+@@ -226,6 +399,18 @@ namespace RT64 {
              return matchResult;
          }
  
@@ -3124,7 +3135,7 @@ index 87392d0..f15359d 100644
          // Compute the difference between the translation components of the 4x4 matrices.
          const hlslpp::float3 curPos = curTransform[3].xyz;
          hlslpp::float3 prevPos = prevTransform[3].xyz;
-@@ -241,6 +415,18 @@ namespace RT64 {
+@@ -241,6 +426,18 @@ namespace RT64 {
              (1.0f - hlslpp::dot(hlslpp::normalize(curTransform[1].xyz), hlslpp::normalize(prevTransform[1].xyz))) +
              (1.0f - hlslpp::dot(hlslpp::normalize(curTransform[2].xyz), hlslpp::normalize(prevTransform[2].xyz)));
  
@@ -3143,7 +3154,7 @@ index 87392d0..f15359d 100644
          // Compute the difference between the screen-space position of both transforms on their respective projections.
          hlslpp::float4 prevScreenPos = hlslpp::mul(prevTransform[3], prevViewProj);
          hlslpp::float4 curScreenPos = hlslpp::mul(curTransform[3], curViewProj);
-@@ -252,6 +438,374 @@ namespace RT64 {
+@@ -252,6 +449,374 @@ namespace RT64 {
          return matchResult;
      }
  
@@ -3518,7 +3529,7 @@ index 87392d0..f15359d 100644
      void GameFrame::match(RenderWorker *worker, WorkloadQueue &workloadQueue, const GameFrame &prevFrame, BufferUploader *velocityUploader, bool &velocityUploaderUsed, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed) {
          tileInterpolationUsed = false;
          lookAtInterpolationUsed = false;
-@@ -260,17 +814,49 @@ namespace RT64 {
+@@ -260,17 +825,49 @@ namespace RT64 {
          thread_local std::unordered_map<uint32_t, ModifiedBuffers> workloadsModified;
          workloadsModified.clear();
  
@@ -3574,7 +3585,7 @@ index 87392d0..f15359d 100644
              const Workload &prevWorkload = workloadQueue.workloads[workloadMap.prevWorkloadIndex];
              workloadMap.viewProjections.clear();
              workloadMap.viewProjections.resize(curWorkload.drawData.viewProjTransforms.size());
-@@ -290,7 +876,7 @@ namespace RT64 {
+@@ -290,7 +887,7 @@ namespace RT64 {
              buildTransformIdMap(curWorkload, curWorkload.transformIdMap, curWorkload.transformIgnoredIds);
  
              // Retrieve the matching maps for the current and previous workload.
@@ -3583,7 +3594,7 @@ index 87392d0..f15359d 100644
              const GameFrameMap::WorkloadMap *prevWorkloadMap = nullptr;
              if (prevFrame.matched && prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex].mapped) {
                  prevWorkloadMap = &prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex];
-@@ -316,7 +902,7 @@ namespace RT64 {
+@@ -316,7 +913,7 @@ namespace RT64 {
              }
  
              if (!modifiedBuffers.empty()) {
@@ -3592,7 +3603,7 @@ index 87392d0..f15359d 100644
              }
  
              // Any transforms tagged with the empty ID will be instantly marked as used and skipped.
-@@ -343,6 +929,14 @@ namespace RT64 {
+@@ -343,6 +940,14 @@ namespace RT64 {
                  const hlslpp::float4x4 &curProjTransform = curWorkload.drawData.projTransforms[curProj.transformsIndex];
                  for (uint32_t j = 0; j < prevScenes.size(); j++) {
                      const GameIndices::Projection prevFirstProj = prevScenes[j].projections[0];
@@ -3607,7 +3618,7 @@ index 87392d0..f15359d 100644
                      const Workload &prevWorkload = workloadQueue.workloads[prevFirstProj.workloadIndex];
                      const FramebufferPair &prevFbPair = prevWorkload.fbPairs[prevFirstProj.fbPairIndex];
                      const Projection &prevProj = prevFbPair.projections[prevFirstProj.projectionIndex];
-@@ -356,6 +950,40 @@ namespace RT64 {
+@@ -356,6 +961,40 @@ namespace RT64 {
              prevScenesMatched.clear();
              curScenesMatched.resize(curScenes.size());
              prevScenesMatched.resize(prevScenes.size());
@@ -3648,7 +3659,7 @@ index 87392d0..f15359d 100644
              std::stable_sort(matchCandidates.begin(), matchCandidates.end());
              for (const MatchCandidate &candidate : matchCandidates) {
                  if (curScenesMatched[candidate.curIndex]) {
-@@ -396,6 +1024,14 @@ namespace RT64 {
+@@ -396,6 +1035,14 @@ namespace RT64 {
          else {
              velocityUploaderUsed = false;
          }
@@ -3663,7 +3674,7 @@ index 87392d0..f15359d 100644
      }
  
      void GameFrame::matchScene(WorkloadQueue &workloadQueue, const GameFrame &prevFrame, const GameScene &curScene, const GameScene &prevScene, std::unordered_map<uint32_t, ModifiedBuffers> &workloadsModified, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed) {
-@@ -403,8 +1039,10 @@ namespace RT64 {
+@@ -403,8 +1050,10 @@ namespace RT64 {
              return;
          }
  
@@ -3676,7 +3687,7 @@ index 87392d0..f15359d 100644
          curCallHashMap.clear();
          prevCallHashMap.clear();
  
-@@ -478,6 +1116,24 @@ namespace RT64 {
+@@ -478,6 +1127,24 @@ namespace RT64 {
                  }
                  else {
                      viewProjMap.mapped = (curProjGroup.matrixId == G_EX_ID_AUTO);
@@ -3701,7 +3712,7 @@ index 87392d0..f15359d 100644
                  }
  
                  if (viewProjMap.mapped) {
-@@ -509,69 +1165,163 @@ namespace RT64 {
+@@ -509,69 +1176,163 @@ namespace RT64 {
              buildCallHashMap(p, prevWorkload, prevProj, prevCallHashMap);
          }
  
@@ -3911,7 +3922,7 @@ index 87392d0..f15359d 100644
          }
  
          // Compute all the differences between transforms and insert them into a vector that will be sorted according to the differences.
-@@ -592,6 +1342,30 @@ namespace RT64 {
+@@ -592,6 +1353,30 @@ namespace RT64 {
              }
          }
  
@@ -3942,7 +3953,7 @@ index 87392d0..f15359d 100644
          ModifiedBuffers modifiedBuffers;
          std::stable_sort(matchCandidates.begin(), matchCandidates.end());
          for (const MatchCandidate candidate : matchCandidates) {
-@@ -669,17 +1443,160 @@ namespace RT64 {
+@@ -669,17 +1454,160 @@ namespace RT64 {
              const bool wrappedUlt = (curTile.cmt == G_TX_WRAP) && (modulo(integerUlt, curTile.maskt * 4) == modulo(expectedUlt, curTile.maskt * 4));
              const bool wrappedLrs = (curTile.cms == G_TX_WRAP) && (modulo(integerLrs, curTile.masks * 4) == modulo(expectedLrs, curTile.masks * 4));
              const bool wrappedLrt = (curTile.cmt == G_TX_WRAP) && (modulo(integerLrt, curTile.maskt * 4) == modulo(expectedLrt, curTile.maskt * 4));
@@ -4108,7 +4119,7 @@ index 87392d0..f15359d 100644
          }
  
          // Check for look at matches.
-@@ -782,9 +1699,78 @@ namespace RT64 {
+@@ -782,9 +1710,78 @@ namespace RT64 {
  
              modifiedBuffers.texcoordVelocity = true;
          }
@@ -4188,7 +4199,7 @@ index 87392d0..f15359d 100644
          for (uint32_t c = 0; c < proj.gameCallCount; c++) {
              const GameCall &call = proj.gameCalls[c];
              uint32_t matrixIdHash = 0;
-@@ -802,7 +1788,7 @@ namespace RT64 {
+@@ -802,7 +1799,7 @@ namespace RT64 {
                  doTileMatching = doTileMatching || (group.tileInterpolation == G_EX_COMPONENT_AUTO);
              }
  
@@ -7658,7 +7669,7 @@ index 5a331aa..6419139 100644
  
                  processCursor = -1;
 diff --git a/src/hle/rt64_workload_queue.h b/src/hle/rt64_workload_queue.h
-index bde2f03..04fc97c 100644
+index bde2f03..f6f05eb 100644
 --- a/src/hle/rt64_workload_queue.h
 +++ b/src/hle/rt64_workload_queue.h
 @@ -5,6 +5,7 @@
@@ -7669,7 +7680,7 @@ index bde2f03..04fc97c 100644
  
  #include "common/rt64_enhancement_configuration.h"
  #include "common/rt64_profiling_timer.h"
-@@ -23,11 +24,58 @@
+@@ -23,11 +24,62 @@
  #   include "render/rt64_raytracing_shader_cache.h"
  #endif
  
@@ -7685,9 +7696,13 @@ index bde2f03..04fc97c 100644
 +// them, lost its last now and then, and with it the PAUSE window. With too few for the next one too the game waits for
 +// every interpolated frame to be presented: its frames take longer, its rate falls and the interpolated frames grow,
 +// down to a rate of one or two a second and a color target for each of hundreds of display frames. Each workload keeps
-+// the buffers its biggest draws took, so a game of one workload a frame holds that many frames' vertices.
-+#   define WORKLOAD_QUEUE_SIZE 64
-+#else
++// the buffers its biggest draws took, so a game of one workload a frame holds that many frames' vertices: a game whose
++// frames need fewer sets WORKLOAD_QUEUE_SIZE itself, PUBLIC on the rt64 target so that everything including this
++// header agrees.
++#   ifndef WORKLOAD_QUEUE_SIZE
++#       define WORKLOAD_QUEUE_SIZE 64
++#   endif
++#elif !defined(WORKLOAD_QUEUE_SIZE)
 +#   define WORKLOAD_QUEUE_SIZE 4
 +#endif
  
@@ -7729,7 +7744,7 @@ index bde2f03..04fc97c 100644
      struct WorkloadQueue {
          struct External {
              RenderDevice *device = nullptr;
-@@ -69,6 +117,43 @@ namespace RT64 {
+@@ -69,6 +121,43 @@ namespace RT64 {
          std::condition_variable cursorCondition;
          uint64_t workloadId;
          uint64_t lastPresentId;
@@ -7773,7 +7788,7 @@ index bde2f03..04fc97c 100644
          std::mutex workloadIdMutex;
          std::condition_variable workloadIdCondition;
          std::thread *renderThread = nullptr;
-@@ -91,6 +176,15 @@ namespace RT64 {
+@@ -91,6 +180,15 @@ namespace RT64 {
          std::unique_ptr<RSPProcessor> rspProcessor;
          std::unique_ptr<VertexProcessor> vertexProcessor;
          std::unique_ptr<RenderTarget> dummyDepthTarget;
@@ -7789,7 +7804,7 @@ index bde2f03..04fc97c 100644
          std::unique_ptr<RenderQueryPool> queryPool;
          FramebufferChangePool scratchFbChangePool;
          ProfilingTimer rendererCPUProfiler = ProfilingTimer(120);
-@@ -105,6 +199,13 @@ namespace RT64 {
+@@ -105,6 +203,13 @@ namespace RT64 {
          ~WorkloadQueue();
          void reset();
          void advanceToNextWorkload();
@@ -7803,7 +7818,7 @@ index bde2f03..04fc97c 100644
          void repeatLastWorkload();
          uint32_t previousWriteCursor() const;
          void waitForIdle();
-@@ -115,12 +216,13 @@ namespace RT64 {
+@@ -115,12 +220,13 @@ namespace RT64 {
          void threadConfigurationValidate();
          void threadRenderFrame(GameFrame &curFrame, const GameFrame &prevFrame, const WorkloadConfiguration &workloadConfig,
              const DebuggerRenderer &debuggerRenderer, const DebuggerCamera &debuggerCamera, float curFrameWeight, float prevFrameWeight,
