@@ -61,7 +61,15 @@
 //   edge too. Rayman 2's Woods of Light opens on a fade-in down a ravine whose walls are a few large triangles, their
 //   middles inside the view: its fixed build reads 22 and 25 there (x1.14) and the build without its v0.1.1 11 and 11,
 //   where its first 8 s in the Fairy Glade read 102 and 117 (passing on 0.74) and 62 and 61 (failing), and Mario
-//   Golf's flyover without its patches/cull.c 197 and 186. Without --wider it only counts them. One dump's own strip
+//   Golf's flyover without its patches/cull.c 197 and 186. A scene of more is no test either where its world is a few
+//   large objects that each reach into the narrower picture: a game culling to the picture draws them whole in both
+//   windows, so it grows no more than one culled to 4:3, and fails with its world out to the wider picture's edges.
+//   Rayman 2's language menu, a backdrop of a few cliffs, reads 78 and 91 (x1.17; 0.46 past the edge) and fails, the
+//   shots of its Woods of Light opening after the ravine 33 and 38 (x1.15) and pass on 0.67, and Rayman's first still
+//   shot 108 and 111 (x1.02) on 1.03, so a dump of the whole opening passes or fails by how long its plan holds each:
+//   one pair read 74 and 79 (x1.06) and passed on 0.85, another 46 and 52 (x1.14) and failed.
+//   So a fail is looked at in the wider dump's frames before it is called the game's. Without --wider it only counts
+//   them. One dump's own strip
 //   against the view tells nothing: Mario Golf's flyover, culled or not, draws a fraction past the edges of what it
 //   draws inside, the course being long and narrow. The picture's shape is the
 //   picture's box between --from and --to (pictureBox()), not its first frame's: a dump that starts before its plan
