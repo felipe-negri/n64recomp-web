@@ -110,13 +110,13 @@ as dense past the 16:9 edge, Turok 2 x1.08 and 0.70, Turok 3 in the Breach x0.99
 camera cuts (Turok 2's cinematics' 21, none drawn partway), and Turok 3 the frames between the game's (9 of 12419, at
 most 2 a second), so Turok 3 passes 2a; Turok 2 fails it, the world missing at the picture's edge in frames between
 the game's while the player turns (the background showing at the top left 3 times in a second in the Port of Adia), as
-Turok 1 does once (a dark wedge at the left edge), filed for turok-engine; and Turok 1 fails too where its title
-fly-over goes through a leaf, 5 frames in a second unlike both neighbours that are the camera's own (a near object
-moving further between two frames than a block's match follows), which frame_check can't yet tell from a fault; the
-Mario Parties' READMEs don't link their pages (8c); Mario Golf's courses, Mini-Golf, every play mode and a whole
-Tournament round draw on its desktop build at 16:9, 21:9 and 4:3, so it was passed 2, on captures that missed its
-trees drawn where other trees stood in the frames between the game's, which its first players reported, and passes 2a
-since rt64 eda3964 and b12ecad and its patches/cull.c (hole 1's flyover and its menus, at 16:9 and 32:9): at Framerate
+Turok 1 does once (a dark wedge at the left edge), filed for turok-engine; Turok 1's title fly-over through a leaf drew
+5 frames in a second unlike both neighbours that are the camera's own (a near object moving further between two frames
+than a block's match follows), which frame_check no longer counts (its header), so Turok 1 fails 2a on the wedge alone;
+the Mario Parties' READMEs don't link their pages (8c); Mario Golf's courses, Mini-Golf, every play mode and a whole
+Tournament round draw on its desktop build at 16:9, 21:9 and 4:3, so it was passed 2, on captures that missed its trees
+drawn where other trees stood in the frames between the game's, which its first players reported, and passes 2a since
+rt64 eda3964 and b12ecad and its patches/cull.c (hole 1's flyover and its menus, at 16:9 and 32:9): at Framerate
 Display a flyover drew
 a frame with the course torn into loose polygons in 3 of 10 before v0.212.0, where rt64 0372264 pairs a vertex in
 RT64's automatic interpolation only with its own last place, and none of 3 on it; its HUD sits at the wide picture's
