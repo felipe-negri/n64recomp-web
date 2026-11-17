@@ -4,7 +4,7 @@
 // drawn between the game's, and its ground culled at the 4:3 view's sides), and which these find without anyone
 // looking.
 //
-//   node tools/frame_check.mjs <dir> [--wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--quiet]
+//   node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--quiet]
 //
 // <dir> is a dump's: frames.bin, every frame presented, and sides.tsv, where across the view the 3D's triangles lay.
 // --wider names a dump of the same plan and seconds in a wider window (32:9 beside 16:9) for the sides. --from and
@@ -108,13 +108,14 @@ const opt = (name, fallback) => {
 };
 const dir = args[0];
 if (isMainThread && (!dir || dir.startsWith('--'))) {
-    console.error('usage: node tools/frame_check.mjs <dir> [--wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--quiet]');
+    console.error('usage: node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--quiet]');
     process.exit(2);
 }
 const from = Number(opt('--from', 0));
 const to = Number(opt('--to', Infinity));
 const saveDir = opt('--save', null);
 const widerDir = opt('--wider', null);
+const narrowerDir = opt('--narrower', null);
 const quiet = args.includes('--quiet');
 
 const MAGIC = 0x44465452; // rt64_frame_dump.h's FrameDump::Magic
@@ -135,10 +136,9 @@ const CUT_PART = 0.1; // ... this share of the new frame's blocks: a new shot mu
 const NEAR = 0.2; // the share, at the least, of something passing near the camera: frames between not counted
 const P = 2; // a pixel's search about its block's best place, in grey pixels (eitherDiff())
 const M = 2; // the quarter pixels around a block that its own shift is found over (placesOf())
-const SIDES_GROW = 1.2; // how many times the triangles past the 4:3 view a wider picture has, at the least
+const SIDES_GROW = 1.1; // how many times the triangles past the 4:3 view a 32:9 picture has against a 4:3 one, at least
 const SIDES_DENSE = 0.5; // ... unless the strip is this dense against the view: a world not culled at its sides
-const SIDES_OPEN = 0.65; // ... or the narrower picture this dense past its own edge as inside it: not culled by the window
-const SIDES_FEW = 50; // triangles a workload in the wider picture's strip under which a scene can't fail: too few to tell
+const SIDES_FEW = 50; // triangles a workload past the view in the wider picture under which a scene can't fail: too few to tell
 
 let dumpStartMs = null; // the first frame's time, ms since 1970: the dump's second 0, sides.tsv's too
 
@@ -884,66 +884,71 @@ function sidesOf(d) {
     }
     return { n, mean: mean.map((c) => c / Math.max(n, 1)), aspect: shape.w / shape.h };
 }
-// The mean triangles a workload with their middles past the 4:3 view's sides, from a to b view widths out on each.
-const pastSides = (s, a, b) => {
+// The mean triangles a workload with their middles past the 4:3 view's sides, out to b view widths on each.
+const pastSides = (s, b) => {
     let sum = 0;
-    for (let i = Math.round(a * PER); i < Math.round(b * PER); i++) {
+    for (let i = 0; i < Math.round(b * PER); i++) {
         sum += s.mean[PER - 1 - i] + s.mean[2 * PER + i];
     }
     return sum;
 };
-// ... and a band's mean of them there, both sides together.
-const perBand = (s, a, b) => pastSides(s, a, b) / Math.max(Math.round(b * PER) - Math.round(a * PER), 1);
 const insideView = (s) => s.mean.slice(PER, 2 * PER).reduce((a, b) => a + b, 0);
+const extOf = (aspect) => (aspect / (4 / 3) - 1) / 2; // a picture's strip past each side of the view, in view widths
 const sides = sidesOf(dir);
-if (sides && sides.n && widerDir) {
-    const wider = sidesOf(widerDir);
-    const extOf = (aspect) => (aspect / (4 / 3) - 1) / 2; // a picture's strip past each side of the view, in view widths
-    if (!wider || !wider.n) {
-        console.error(`sides: no 3D in ${widerDir}'s dump between those seconds`);
+if (widerDir || narrowerDir) {
+    const needs = '--narrower <a dump of the same plan in a 4:3 window> --wider <one at 32:9>';
+    if (!widerDir || !narrowerDir) {
+        console.error(`sides: the culling check takes two dumps, ${needs}`);
         process.exit(2);
     }
-    const a = extOf(sides.aspect), b = Math.min(extOf(wider.aspect), 1);
-    const inA = insideView(sides), inB = insideView(wider);
-    if (b - a < 0.2) {
-        console.error(`sides: ${widerDir}'s picture (${wider.aspect.toFixed(2)}:1) is too little wider than ${dir}'s ` +
-            `(${sides.aspect.toFixed(2)}:1): dump it at 32:9`);
+    const narrower = sidesOf(narrowerDir), wider = sidesOf(widerDir);
+    for (const [d, s] of [[narrowerDir, narrower], [widerDir, wider]]) {
+        if (!s || !s.n) {
+            console.error(`sides: no 3D in ${d}'s dump between those seconds`);
+            process.exit(2);
+        }
+    }
+    const b = Math.min(extOf(wider.aspect), 1);
+    if (extOf(narrower.aspect) > 0.02) {
+        console.error(`sides: ${narrowerDir}'s picture is ${narrower.aspect.toFixed(2)}:1: dump it in a 4:3 window, where ` +
+            'a game culling to the picture draws what one culled to its 4:3 view does');
         process.exit(2);
     }
+    if (b < 0.5) {
+        console.error(`sides: ${widerDir}'s picture (${wider.aspect.toFixed(2)}:1) is too little wider than 4:3: dump it at 32:9`);
+        process.exit(2);
+    }
+    const inA = insideView(narrower), inB = insideView(wider);
     if (Math.abs(inA - inB) > 0.1 * Math.max(inA, inB)) {
         console.error(`sides: the two dumps draw ${inA.toFixed(0)} and ${inB.toFixed(0)} triangles a workload inside the 4:3 ` +
             'view: not the same scene, so play the same plan and seconds in both');
         process.exit(2);
     }
-    // Between the narrower picture's edge and the wider one's, where only the wider picture shows the world.
-    const pastA = pastSides(sides, a, b), pastB = pastSides(wider, a, b);
+    // Past the 4:3 view, out to the wider picture's edge: the 4:3 window's are what reaches over from inside, which a
+    // game culled to its 4:3 view draws whatever the window.
+    const pastA = pastSides(narrower, b), pastB = pastSides(wider, b);
     const grows = pastB / Math.max(pastA, 1);
     // Drawn as densely there as inside the view, a world isn't culled at the sides at all: nothing to grow.
-    const density = (pastB / (2 * (b - a))) / Math.max(inB, 1);
-    // Drawn past the narrower picture's own edge (as far out again as the edge is) as densely as just inside it, a world
-    // isn't culled by the window: it draws the same whatever the window, so it doesn't grow, and isn't culled to 4:3.
-    const open = perBand(sides, a, 2 * a) / Math.max(perBand(sides, 0, a), 1);
-    const unmet = (grows < SIDES_GROW) && (density < SIDES_DENSE) && (open < SIDES_OPEN);
-    // A scene that draws next to nothing past the view can't show the growth: a fifth of a few dozen triangles is an
-    // object or two, whose triangles a game culling to the picture draws whole in both windows once it reaches into the
-    // narrower one.
+    const density = (pastB / (2 * b)) / Math.max(inB, 1);
+    const unmet = (grows < SIDES_GROW) && (density < SIDES_DENSE);
+    // A scene that draws next to nothing past the view can't show the growth: a tenth of a few dozen triangles is a
+    // stray triangle or two of a game whose frames don't come in step from run to run.
     const few = unmet && (pastB < SIDES_FEW);
     const fail = unmet && !few;
     failed ||= fail;
     untested ||= few;
-    console.log(`sides: ${a.toFixed(2)}-${b.toFixed(2)} of the view past the 4:3 view's sides, ${pastA.toFixed(0)} triangles` +
-        ` a workload at ${sides.aspect.toFixed(2)}:1 and ${pastB.toFixed(0)} at ${wider.aspect.toFixed(2)}:1` +
-        ` (x${grows.toFixed(2)}; ${density.toFixed(2)} of the view's density; ${open.toFixed(2)} as dense past the` +
-        ` ${sides.aspect.toFixed(2)}:1 picture's edge as inside it), over ${sides.n} and ${wider.n} workloads: ` +
-        (fail ? 'FAILS, the world past the 4:3 view doesn\'t grow with the picture: culled to the 4:3 view' :
+    console.log(`sides: ${pastA.toFixed(0)} triangles a workload past the 4:3 view's sides in the 4:3 window and ` +
+        `${pastB.toFixed(0)} in the ${wider.aspect.toFixed(2)}:1 picture, out to ${b.toFixed(2)} of the view ` +
+        `(x${grows.toFixed(2)}; ${density.toFixed(2)} of the view's density), over ${narrower.n} and ${wider.n} workloads: ` +
+        (fail ? 'FAILS, the wider picture draws no more past the 4:3 view than the 4:3 window: culled to the 4:3 view, ' +
+            'or a scene whose every object reaches into the view (look at the wider dump\'s frames)' :
             few ? `untested, too little drawn past the view to tell (under ${SIDES_FEW} triangles a workload): a scene ` +
                 'that draws more there tests it' : 'passes'));
 }
 else if (sides && sides.n) {
-    const ext = (sides.aspect / (4 / 3) - 1) / 2;
-    console.log(`sides: ${pastSides(sides, 0, ext).toFixed(0)} triangles a workload past the 4:3 view's sides in the` +
-        ` ${sides.aspect.toFixed(2)}:1 picture, ${insideView(sides).toFixed(0)} inside it, over ${sides.n} workloads;` +
-        ' --wider <a dump of the same plan at 32:9> checks the culling');
+    console.log(`sides: ${pastSides(sides, extOf(sides.aspect)).toFixed(0)} triangles a workload past the 4:3 view's sides ` +
+        `in the ${sides.aspect.toFixed(2)}:1 picture, ${insideView(sides).toFixed(0)} inside it, over ${sides.n} workloads; ` +
+        '--narrower <a dump of the same plan in a 4:3 window> --wider <one at 32:9> checks the culling');
 }
 else {
     console.log('sides: no workload drew 200 triangles between those seconds');
