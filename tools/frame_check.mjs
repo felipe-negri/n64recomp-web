@@ -879,7 +879,7 @@ else {
 // Sides: sides.tsv's bands are a twentieth of the view's width each, from one view left of it to one right, each
 // workload's triangles counted by where their middles lie.
 const PER = 20;
-// A dump's 3D workloads (200 triangles or more) between --from and --to: their mean count a band, and the picture's
+// A dump's 3D workloads (200 triangles or more) between --from and --to, their counts a band each, and the picture's
 // shape: its picture's box between those seconds (pictureBox()), so a dump that starts before its plan sizes the window
 // (Rayman 2's first 2 s of frames at 4:3 in a 16:9 window) reads the size the plan set, and one whose frames come in
 // several sizes (Rush 2049's) reads its picture's, not its color target's.
@@ -898,8 +898,7 @@ function sidesOf(d) {
     fs.readSync(fd, head, 0, HEADER, 0);
     fs.closeSync(fd);
     const startMs = Number(head.readBigUInt64LE(32)); // the dump's second 0
-    const mean = new Array(PER * 3).fill(0);
-    let n = 0;
+    const rows = [];
     for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
         // <workload id>\t<ms since 1970>\t<a count a band>...
         const cols = line.split('\t').map(Number);
@@ -908,26 +907,27 @@ function sidesOf(d) {
         if ((v.length !== PER * 3) || !(t >= from) || !(t <= to) || (v.reduce((a, b) => a + b, 0) < 200)) {
             continue;
         }
-        v.forEach((c, i) => { mean[i] += c; });
-        n++;
+        rows.push(v);
     }
-    return { n, mean: mean.map((c) => c / Math.max(n, 1)), aspect: shape.w / shape.h };
+    return { n: rows.length, rows, aspect: shape.w / shape.h };
 }
-// The mean triangles a workload with their middles past the 4:3 view's sides, out to b view widths on each.
-const pastSides = (s, b) => {
+// A workload's triangles with their middles past the 4:3 view's sides, out to b view widths on each, and inside it.
+const pastOf = (v, b) => {
     let sum = 0;
     for (let i = 0; i < Math.round(b * PER); i++) {
-        sum += s.mean[PER - 1 - i] + s.mean[2 * PER + i];
+        sum += v[PER - 1 - i] + v[2 * PER + i];
     }
     return sum;
 };
-const insideView = (s) => s.mean.slice(PER, 2 * PER).reduce((a, b) => a + b, 0);
+const insideOf = (v) => v.slice(PER, 2 * PER).reduce((a, b) => a + b, 0);
 const extOf = (aspect) => (aspect / (4 / 3) - 1) / 2; // a picture's strip past each side of the view, in view widths
+// Two workloads draw the same shot where their bands inside the view differ by at most this share of their triangles.
+const SIDES_MATCH = 0.1;
 const sides = sidesOf(dir);
 if (widerDir || narrowerDir) {
-    const needs = '--narrower <a dump of the same plan in a 4:3 window> --wider <one at 32:9>';
     if (!widerDir || !narrowerDir) {
-        console.error(`sides: the culling check takes two dumps, ${needs}`);
+        console.error('sides: the culling check takes two dumps, --narrower <a dump of the same plan in a 4:3 window> ' +
+            '--wider <one at 32:9>');
         process.exit(2);
     }
     const narrower = sidesOf(narrowerDir), wider = sidesOf(widerDir);
@@ -937,48 +937,76 @@ if (widerDir || narrowerDir) {
             process.exit(2);
         }
     }
-    const b = Math.min(extOf(wider.aspect), 1);
     // A 4:3 window's frames are the game's own target, which can be a little off 4:3 (Rush 2049's 640x440): a 16:9 one isn't.
     if (narrower.aspect > 1.6) {
         console.error(`sides: ${narrowerDir}'s picture is ${narrower.aspect.toFixed(2)}:1: dump it in a 4:3 window, where ` +
             'a game culling to the picture draws what one culled to its 4:3 view does');
         process.exit(2);
     }
+    const b = Math.min(extOf(wider.aspect), 1);
     if (b < 0.5) {
         console.error(`sides: ${widerDir}'s picture (${wider.aspect.toFixed(2)}:1) is too little wider than 4:3: dump it at 32:9`);
         process.exit(2);
     }
-    const inA = insideView(narrower), inB = insideView(wider);
-    if (Math.abs(inA - inB) > 0.1 * Math.max(inA, inB)) {
-        console.error(`sides: the two dumps draw ${inA.toFixed(0)} and ${inB.toFixed(0)} triangles a workload inside the 4:3 ` +
-            'view: not the same scene, so play the same plan and seconds in both');
+    // Each of the wider dump's workloads paired with the 4:3 one's that draws the same inside the view: the same shot,
+    // whenever each run came to it, since two runs of a plan don't keep step (Mario Golf's flyover, a race).
+    const narrowIn = narrower.rows.map(insideOf);
+    let n = 0, pastA = 0, pastB = 0, inB = 0;
+    for (const w of wider.rows) {
+        const wIn = insideOf(w);
+        let best = null, bestD = SIDES_MATCH;
+        narrower.rows.forEach((u, k) => {
+            const scale = Math.max(wIn, narrowIn[k], 1), limit = bestD * scale;
+            let d = 0;
+            for (let i = PER; (i < 2 * PER) && (d <= limit); i++) {
+                d += Math.abs(w[i] - u[i]);
+            }
+            d /= scale;
+            if (d <= bestD) {
+                bestD = d;
+                best = u;
+            }
+        });
+        if (best) {
+            n++;
+            pastA += pastOf(best, b);
+            pastB += pastOf(w, b);
+            inB += wIn;
+        }
+    }
+    if (n < Math.max(30, 0.1 * wider.n)) {
+        console.error(`sides: ${n} of ${widerDir}'s ${wider.n} workloads draw what one of ${narrowerDir}'s does inside the ` +
+            '4:3 view: not the same scene, so play the same plan and seconds in both');
         process.exit(2);
     }
-    // Past the 4:3 view, out to the wider picture's edge: the 4:3 window's are what reaches over from inside, which a
-    // game culled to its 4:3 view draws whatever the window.
-    const pastA = pastSides(narrower, b), pastB = pastSides(wider, b);
+    pastA /= n;
+    pastB /= n;
+    inB /= n;
     const grows = pastB / Math.max(pastA, 1);
-    // Drawn as densely there as inside the view, a world isn't culled at the sides at all: nothing to grow.
+    // Drawn as densely past the view as inside it, a world isn't culled at the sides at all: nothing to grow.
     const density = (pastB / (2 * b)) / Math.max(inB, 1);
     const unmet = (grows < SIDES_GROW) && (density < SIDES_DENSE);
     // A scene that draws next to nothing past the view can't show the growth: a tenth of a few dozen triangles is a
-    // stray triangle or two of a game whose frames don't come in step from run to run.
+    // triangle or two.
     const few = unmet && (pastB < SIDES_FEW);
     const fail = unmet && !few;
     failed ||= fail;
     untested ||= few;
     console.log(`sides: ${pastA.toFixed(0)} triangles a workload past the 4:3 view's sides in the 4:3 window and ` +
         `${pastB.toFixed(0)} in the ${wider.aspect.toFixed(2)}:1 picture, out to ${b.toFixed(2)} of the view ` +
-        `(x${grows.toFixed(2)}; ${density.toFixed(2)} of the view's density), over ${narrower.n} and ${wider.n} workloads: ` +
+        `(x${grows.toFixed(2)}; ${density.toFixed(2)} of the view's density), over ${n} of its ${wider.n} workloads paired ` +
+        `with one of the ${narrower.n} at 4:3 that draws the same inside the view: ` +
         (fail ? 'FAILS, the wider picture draws no more past the 4:3 view than the 4:3 window: culled to the 4:3 view, ' +
             'or a scene whose every object reaches into the view (look at the wider dump\'s frames)' :
             few ? `untested, too little drawn past the view to tell (under ${SIDES_FEW} triangles a workload): a scene ` +
                 'that draws more there tests it' : 'passes'));
 }
 else if (sides && sides.n) {
-    console.log(`sides: ${pastSides(sides, extOf(sides.aspect)).toFixed(0)} triangles a workload past the 4:3 view's sides ` +
-        `in the ${sides.aspect.toFixed(2)}:1 picture, ${insideView(sides).toFixed(0)} inside it, over ${sides.n} workloads; ` +
-        '--narrower <a dump of the same plan in a 4:3 window> --wider <one at 32:9> checks the culling');
+    const past = sides.rows.reduce((a, v) => a + pastOf(v, extOf(sides.aspect)), 0) / sides.n;
+    const inside = sides.rows.reduce((a, v) => a + insideOf(v), 0) / sides.n;
+    console.log(`sides: ${past.toFixed(0)} triangles a workload past the 4:3 view's sides in the ${sides.aspect.toFixed(2)}:1 ` +
+        `picture, ${inside.toFixed(0)} inside it, over ${sides.n} workloads; --narrower <a dump of the same plan in a 4:3 ` +
+        'window> --wider <one at 32:9> checks the culling');
 }
 else {
     console.log('sides: no workload drew 200 triangles between those seconds');
