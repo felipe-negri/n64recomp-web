@@ -909,7 +909,8 @@ if (widerDir || narrowerDir) {
         }
     }
     const b = Math.min(extOf(wider.aspect), 1);
-    if (extOf(narrower.aspect) > 0.02) {
+    // A 4:3 window's frames are the game's own target, which can be a little off 4:3 (Rush 2049's 640x440): a 16:9 one isn't.
+    if (narrower.aspect > 1.6) {
         console.error(`sides: ${narrowerDir}'s picture is ${narrower.aspect.toFixed(2)}:1: dump it in a 4:3 window, where ` +
             'a game culling to the picture draws what one culled to its 4:3 view does');
         process.exit(2);
