@@ -94,6 +94,24 @@
 //   first frame's: a dump that starts before its plan sizes the window begins at 4:3, and one whose frames come in
 //   several sizes has black past the picture in some. Rayman 2's language menu draws its frames at 300x224 for its
 //   first 6 s whatever the window, so --from starts a dump of it after that.
+// - The picture at the 4:3 view's sides, from each dump's frames alone (pictureAtSides()), every dump given: what the
+//   triangles can't read, a world past the view drawn in 2D (Mario Party's boards are a background of tiles, 3-12
+//   triangles a workload past the view), and a picture something cuts. Its frames are looked at ten a second. Cut
+//   short: the picture fills the view out to its side, then ends in black past it with something drawn on the black,
+//   for a second or more in a row: a board whose background is drawn only under 4:3 draws its 3D spaces and characters
+//   out past it. A picture that ends where its world does (a board's map reaching no further, a stage built short of a
+//   wide window) has nothing on the black past it, and a 4:3 scene or a logo on black doesn't fill the view to its
+//   side, so neither counts. Mario Party 3's Chilly Waters at 32:9 with its board's tiles picked under 4:3 alone
+//   (lib/mario-party-engine's board_back_area() with no side) is cut short in 339 of 544 frames, 14.5 s in a row, and
+//   the game as released in none of 381, though its map ends short of the window in much of them. A straight line: a
+//   column within a twentieth of the view's width of its side that steps sharply in 0.3 more of its rows than the
+//   columns around it (only rows drawn either side of it, so a picture's own end isn't one), in the same column in a
+//   quarter or more of the frames where the scene moves, looked at four a second: something the game cuts a few
+//   pixels short of the side, the picture behind it showing. Mario Party 3's opening without mario-party-engine
+//   245ec52 draws its 3D grass under a scissor 8 of the console's pixels inside the screen, the background's grass in a
+//   band around it: a line 6 pixels in from the view's side (a 640x180 dump at 32:9) in 32 of 56 frames where the
+//   scene moves, and none with it. Turok 1's and 2's 16:9 sweeps and Mario Golf's iris wipes have neither. Neither needs
+//   two runs to agree, so a board the computer players play differently each time is checked too.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
 // the pairing or the sides. frames.bin is read a frame at a time, those the workers have yet to match kept (a few a
