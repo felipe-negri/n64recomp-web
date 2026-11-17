@@ -107,7 +107,9 @@ function(n64recomp_browser_apply_patch name dir)
     # Patched already: that copy comes out again and this patch made it. A copy another version of the patch made (this
     # repository moved on and edited it) is taken out first: the new patch neither comes out of a checkout holding the
     # old one nor goes onto it, where the edit touched the old one's lines, and a hunk the edit dropped would stay in.
-    # The copy is what went in, three-way merged or not, so it comes out where the patch itself can't.
+    # The copy is what went in, three-way merged or not, so it comes out where the patch itself can't. A copy this patch
+    # made that no longer comes out is a checkout edited by hand on top of it (a fork change tried in a game first,
+    # CLAUDE.md's Changing it): it is patched, and the edit stays.
     execute_process(COMMAND git rev-parse --path-format=absolute --git-path "n64recomp-browser-${name}"
         WORKING_DIRECTORY "${top}" OUTPUT_VARIABLE stamp OUTPUT_STRIP_TRAILING_WHITESPACE)
     file(SHA1 "${patch}" patch_hash)
@@ -115,12 +117,23 @@ function(n64recomp_browser_apply_patch name dir)
     set(unapply git apply --whitespace=nowarn --reverse)
     if (EXISTS "${stamp}.patch")
         execute_process(COMMAND ${unapply} --check "${stamp}.patch" WORKING_DIRECTORY "${top}"
-            RESULT_VARIABLE result OUTPUT_QUIET ERROR_QUIET)
-        if (result EQUAL 0)
-            file(READ "${stamp}.from" from)
-            if (from STREQUAL patch_hash)
+            RESULT_VARIABLE out OUTPUT_QUIET ERROR_QUIET)
+        file(READ "${stamp}.from" from)
+        if (from STREQUAL patch_hash AND out EQUAL 0)
+            return()
+        elseif (from STREQUAL patch_hash)
+            # It doesn't come out. A copy that goes in again is one the checkout lost: it was put back to its commit (a
+            # game's build script or tools/publish_pages.sh resets it when this repository moves), which leaves the git
+            # dir behind, so it is patched again below. One that goes neither way has edits on top.
+            execute_process(COMMAND git apply --whitespace=nowarn --check "${stamp}.patch" WORKING_DIRECTORY "${top}"
+                RESULT_VARIABLE in OUTPUT_QUIET ERROR_QUIET)
+            if (NOT in EQUAL 0)
+                message(STATUS "N64Recomp-browser: ${name} is patched, with edits of its own on top")
                 return()
             endif()
+            file(REMOVE "${stamp}.patch" "${stamp}.from")
+            message(STATUS "N64Recomp-browser: ${dir} was put back since it was patched with ${name}.patch")
+        elseif (out EQUAL 0)
             execute_process(COMMAND ${unapply} "${stamp}.patch" WORKING_DIRECTORY "${top}" RESULT_VARIABLE result)
             if (NOT result EQUAL 0)
                 message(FATAL_ERROR "N64Recomp-browser: can't take the older ${name}.patch out of ${dir}")
