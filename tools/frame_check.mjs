@@ -26,6 +26,21 @@
 //   the scene lasts. Only frames presented between the game's own (Framerate Display, on a display faster than the
 //   game) are paired, so a dump without one (Framerate Original, a 60 Hz display under a game of 60) leaves pairing
 //   untested and exits 2, whatever else passes.
+// - Camera cuts drawn partway. A cut is two of the game's frames in a row far apart (a mean difference of 8 of 255
+//   after the best shift of one against the other) where the game's frames before and after them are at least twice as
+//   near: the camera jumps in one frame. RT64 interpolates a camera unless the game says it cut, so a cut the game
+//   doesn't mark is drawn partway, the whole picture swept or stretched from one shot to the other for a frame or three,
+//   which the check above can't see: neither neighbour matches the frames before or after it, as at any cut. Every frame
+//   drawn between the two should be the new shot or the old, its parts moved on as they move (a model, an animated
+//   texture): block by block, each to its best place in either, one unlike both by 0.3 or more of how unlike the two
+//   are to each other fails. A game camera that moves that far in one frame and that little either side is a cut,
+//   whatever the game meant by it, if half or more of the new frame's blocks (the picture's edge left out) match nothing
+//   near them in the old: a new shot. A near object passing the camera changes the picture as much and only in part,
+//   and its frames between are the camera's own, rightly drawn: Turok: Dinosaur Hunter's title fly-over goes through a
+//   leaf between two of the game's frames, changing 0.35 of the picture, and the frame drawn between them is the leaf,
+//   0.94 unlike both. Turok 2's cinematics' cuts change 0.62-0.80 of theirs where they are lit; a cut
+//   between two dark shots, whose blocks differ by less than a block's match allows, reads lower (one of Turok 2's
+//   0.18) and goes untested.
 // - Culled at the 4:3 view's sides, from two dumps of the same plan: one at 16:9 and one --wider at 32:9. A game
 //   that culls its world to the picture draws more of it past the 4:3 view's sides as the picture widens; one that
 //   culls to its 4:3 view draws the same whatever the window, so the strip only the wider picture shows holds what
@@ -84,6 +99,10 @@ const G = 8; // the picture's shift searched, in quarter-size pixels (32 grey pi
 const BAD = 14; // a block's mean difference to its best match that counts as unmatched, of 255
 const RATIO = 3; // ... and how much worse than the neighbours match each other there
 const MIN_BLOCKS = 4; // blocks a flagged frame has
+const CUT = 8; // the mean difference of two of the game's frames in a row, of 255, at the least, that is a cut
+const CUT_JUMP = 2; // ... and how many times the game's frames either side of them differ, at the least
+const CUT_PARTWAY = 0.3; // a frame between a cut's two as unlike both, against how unlike they are: the camera partway
+const CUT_WHOLE = 0.5; // ... and the share of the new frame's blocks the old one has nothing like: a new shot
 const P = 2; // a pixel's search about its block's best place, in grey pixels (eitherDiff())
 const M = 2; // the quarter pixels around a block that its own shift is found over (placesOf())
 const SIDES_GROW = 1.2; // how many times the triangles past the 4:3 view a wider picture has, at the least
@@ -384,6 +403,45 @@ function eitherDiff(c, a, b, ea, eb, k, gw, gh) {
     return s / (B * B);
 }
 
+// Block k of c as a blend of a's and b's about their best places (explain()'s): a + t (b - a), the t that fits best
+// between 0 and 1, its mean absolute difference. A fade or a dissolve draws a frame between two of the game's that is
+// neither, but lies between them pixel by pixel.
+function blendDiff(c, a, b, ea, eb, k, gw, gh) {
+    const bw = gw / B | 0;
+    const by = Math.floor(k / bw), bx = k % bw;
+    const clampY = (y) => Math.min(Math.max(y, 0), gh - 1), clampX = (x) => Math.min(Math.max(x, 0), gw - 1);
+    const cs = [], as = [], bs = [];
+    let num = 0, den = 0;
+    for (let y = by * B; y < (by + 1) * B; y++) {
+        for (let x = bx * B; x < (bx + 1) * B; x++) {
+            const v = c[y * gw + x];
+            const va = a[clampY(y + ea.dy[k]) * gw + clampX(x + ea.dx[k])];
+            const vb = b[clampY(y + eb.dy[k]) * gw + clampX(x + eb.dx[k])];
+            cs.push(v); as.push(va); bs.push(vb);
+            num += (v - va) * (vb - va);
+            den += (vb - va) * (vb - va);
+        }
+    }
+    const t = den ? Math.min(Math.max(num / den, 0), 1) : 0;
+    let s = 0;
+    for (let i = 0; i < cs.length; i++) {
+        s += Math.abs(cs[i] - as[i] - t * (bs[i] - as[i]));
+    }
+    return s / cs.length;
+}
+
+// The mean absolute difference of a to b moved by (dy, dx) grey pixels, over a's pixels whose place in b lies inside it.
+function shiftedDiff(a, b, gw, gh, dy, dx) {
+    let s = 0, n = 0;
+    for (let y = Math.max(0, -dy); y < Math.min(gh, gh - dy); y++) {
+        for (let x = Math.max(0, -dx); x < Math.min(gw, gw - dx); x++) {
+            s += Math.abs(a[y * gw + x] - b[(y + dy) * gw + x + dx]);
+            n++;
+        }
+    }
+    return s / Math.max(n, 1);
+}
+
 function meanDiff(a, b) {
     let s = 0;
     for (let i = 0; i < a.length; i++) {
@@ -463,6 +521,90 @@ const flagged = [];
 let checked = 0, repeats = 0, dropped = 0, presented = 0, between = 0, first = null, last = null, run = null;
 let untested = false;
 const sizes = new Set();
+// The game's frames, each against the one before it, and the frames RT64 drew between the two (a present's frames
+// before its last, which is the game's). Gathered until the present's own frame comes, and checked only where the dump
+// has the present whole and the game's frame before it.
+function checkPresent(e, run) {
+    const f = e.f;
+    if (f.dropped || (f.index === 0)) {
+        run.between = [];
+    }
+    if ((f.count < 2) || (f.index !== run.between.length)) {
+        run.between = [];
+        run.game = (f.index === f.count - 1) ? e : null;
+        return;
+    }
+    if (f.index < f.count - 1) {
+        run.between.push(e);
+        return;
+    }
+    if (run.game && (run.game.f.presentId === f.presentId - 1)) {
+        const { gw, gh } = run, qw = gw >> 2, qh = gh >> 2, a = run.game;
+        const s = shiftOf(a.q, e.q, qw, qh);
+        const D = shiftedDiff(a.g, e.g, gw, gh, s[0], s[1]);
+        let partway = 0, worst = null, whole = 0;
+        if (D >= CUT) {
+            // Part by part (explain()'s blocks, each where it fits best): how unlike the two are, and each frame drawn
+            // between them unlike both. A frame of the new shot whose parts move on (a model, an animated texture)
+            // fits it part by part; one of a camera partway between the shots fits neither anywhere.
+            const bw = gw / B | 0, bh = gh / B | 0;
+            const inner = (x) => {
+                let m = 0;
+                for (let by = 1; by < bh - 1; by++) {
+                    for (let bx = 1; bx < bw - 1; bx++) {
+                        m += x[by * bw + bx];
+                    }
+                }
+                return m / ((bw - 2) * (bh - 2));
+            };
+            const ae = explain(e.g, a.g, gw, gh, placesOf(e.q, a.q, qw, qh, bw, bh));
+            const apart = Math.max(inner(ae), 1);
+            whole = inner(ae.map((x) => +(x > BAD)));
+            for (const c of run.between) {
+                const ea = explain(c.g, a.g, gw, gh, placesOf(c.q, a.q, qw, qh, bw, bh));
+                const eb = explain(c.g, e.g, gw, gh, placesOf(c.q, e.q, qw, qh, bw, bh));
+                for (let i = 0; i < ea.length; i++) {
+                    ea[i] = Math.min(ea[i], eb[i]);
+                }
+                const unlike = inner(ea) / apart;
+                if (unlike >= partway) {
+                    partway = unlike;
+                    worst = c;
+                }
+            }
+        }
+        run.presents.push({ f, D, partway, whole, frames: worst && [a.f, worst.f, f] });
+        if (run.presents.length === 3) {
+            checkCut(run.presents);
+            run.presents.shift();
+        }
+    }
+    else {
+        run.presents = [];
+    }
+    run.between = [];
+    run.game = e;
+}
+
+// A cut: the game's two frames in a row far apart where the frames before and after them move little, the camera
+// jumping in one frame. Every frame drawn between the two should be the new shot (or the old), as the game draws no
+// frame between them; one that is neither is the camera drawn partway from one shot to the other, the whole picture
+// swept or stretched across for a moment.
+function checkCut([before, p, after]) {
+    if ((p.D < CUT) || (p.D < CUT_JUMP * Math.max(before.D, after.D)) || (p.whole < CUT_WHOLE)) {
+        return;
+    }
+    cuts.push(p);
+    if (p.partway >= CUT_PARTWAY) {
+        cutsPartway.push(p);
+        if (saveDir) {
+            saveTriplet(`cut-${String(p.frames[1].n).padStart(5, '0')}.png`, p.frames, [], 1);
+        }
+    }
+    p.frames = null;
+}
+const cuts = [], cutsPartway = [];
+
 function checkMiddle({ gw, gh, kept }) {
     const qw = gw >> 2, qh = gh >> 2;
     const bw = gw / B | 0, bh = gh / B | 0;
@@ -479,6 +621,9 @@ function checkMiddle({ gw, gh, kept }) {
             let e = Math.min(ea[i], eb[i]);
             if (e > BAD) {
                 e = eitherDiff(c.g, a.g, b.g, ea, eb, i, gw, gh);
+            }
+            if (e > BAD) {
+                e = Math.min(e, blendDiff(c.g, a.g, b.g, ea, eb, i, gw, gh));
             }
             // a's block that c's block i matched, roughly: i shifted by its match in a, in blocks
             const ay = Math.min(Math.max(by + Math.round(ea.dy[i] / B), 0), bh - 1);
@@ -504,14 +649,17 @@ for (const f of readFrames()) {
     between += (f.index > 0) ? 1 : 0;
     sizes.add(`${f.w}x${f.h}`);
     if (!run || (run.w !== f.w) || (run.h !== f.h)) {
-        run = { w: f.w, h: f.h, gw: Math.floor(W / B) * B, gh: Math.floor(W * f.h / f.w / B) * B, kept: [] };
+        run = { w: f.w, h: f.h, gw: Math.floor(W / B) * B, gh: Math.floor(W * f.h / f.w / B) * B, kept: [], game: null,
+            between: [], presents: [] };
     }
     const g = grey(f, run.gw, run.gh);
+    const entry = { f, g, q: quarter(g, run.gw, run.gh) };
+    checkPresent(entry, run);
     if (run.kept.length && (meanDiff(g, run.kept[run.kept.length - 1].g) < 0.05)) {
         repeats++;
         continue;
     }
-    run.kept.push({ f, g, q: quarter(g, run.gw, run.gh) });
+    run.kept.push(entry);
     if (run.kept.length === 3) {
         checkMiddle(run);
         run.kept.shift();
@@ -547,6 +695,16 @@ if (presented >= 3) {
         }
         if (flagged.length > 40) {
             console.log(`  ... and ${flagged.length - 40} more`);
+        }
+    }
+    const cutFail = cutsPartway.length > 0;
+    failed ||= cutFail;
+    console.log(`camera cuts: ${cuts.length} among the game's frames, ${cutsPartway.length} with a frame between drawn ` +
+        `partway from one shot to the other: ` + (cutFail ? 'FAILS' : (cuts.length ? 'passes' : 'none to test')));
+    if (!quiet) {
+        for (const p of cuts) {
+            console.log(`  present ${p.f.presentId} at ${p.f.t.toFixed(2)} s (frame ${p.f.n}): ${p.D.toFixed(1)} apart, ` +
+                `${p.whole.toFixed(2)} of its blocks, between them ${p.partway.toFixed(2)} of that unlike both` + ((p.partway >= CUT_PARTWAY) ? ', PARTWAY' : ''));
         }
     }
 }

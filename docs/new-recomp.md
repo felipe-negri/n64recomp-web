@@ -57,9 +57,9 @@ items by almost no game when the record began.
 | Rayman 2 | 2a fails | W5 fails, W6's Drive |
 | Donald Duck: Goin' Quackers | 2, 5b | W5 fails, W6's Drive |
 | Dinosaur Planet | 2a | W5 fails |
-| Turok: Dinosaur Hunter | 2a, 5a | W5 fails, W6's Drive |
-| Turok 2: Seeds of Evil | 2 fails, 2a, 4c, 5a | W5 fails, W6's Drive |
-| Turok 3: Shadow of Oblivion | 2a, 4c, 5a | W5 fails, W6's Drive |
+| Turok: Dinosaur Hunter | 2a fails, 5a | W5 fails, W6's Drive |
+| Turok 2: Seeds of Evil | 2 fails, 2a fails, 4c, 5a | W5 fails, W6's Drive |
+| Turok 3: Shadow of Oblivion | 4c, 5a | W5 fails, W6's Drive |
 | GoldenEye 007 | | W2, W5 fails, W6, W7 |
 | The Legend of Zelda: Majora's Mask | | W2, W5, W6, W7 |
 | Banjo-Kazooie | | W2, W5, W6, W7 |
@@ -103,6 +103,16 @@ Turok 2's desktop build drops its map from some of the frames Frame Interpolatio
 moves, 5-13 of 75-80 captures, with `RT64_GAME_FRAME_WORKLOADS` on or off and none at Original (filed); Turok 2's and Turok 3's split screen, played on their desktop builds with two, three and four players at 16:9 and 21:9, widens every view to the window with its own HUD since turok-engine #38 (the lower views had none, Turok 3's kept an old frame at the window's sides, and Turok 2's top half was stretched, the pair of a view's HUD judged by a scissor that ended at the view's bottom), with no strip at the outermost columns, and since turok-engine #39 each quarter's weapon with its view (in the right-hand quarters it stayed where it is at 4:3, a quarter of the view short of its edge at 21:9: the weapon shared a framebuffer pair with the view's HUD, judged by the HUD's whole-screen scissor) and the line between the top and bottom quarters out to the window's edges; and their pages the same since turok-engine #40, played with two and four players at 16:9 and 21:9 (on the page, `RT64_PARTIAL_SCREEN_PAIRS` judged each view's world and weapon pairs by the whole screen and kept them in the 4:3 picture, with black bars at the window's sides, while the views' HUD went out to the widened views' edges); the Turoks' 5a is unplayed: none of the three writes its Controller Pak before a save
 point in a level (`saves/controllerpak_0.mpk` stays absent through their boots, intros and attract demos, and
 turok-engine writes the pak only on a change), and no save point was reached near Turok 1's or Turok 2's start; the
+Turoks' 2a was played on desktop builds of their main with N64Recomp-browser v0.225.0 (they pin v0.205.0, older than the
+frame dump), each game's page plan at 16:9 and 32:9 (Turok 1's title, fly-over and first level, Turok 2's menus,
+opening cinematics and Port of Adia, Turok 3's menus and the Breach): all three pass the sides (Turok 1 x0.89 and 0.86
+as dense past the 16:9 edge, Turok 2 x1.08 and 0.70, Turok 3 in the Breach x0.99 and 0.72, x1.22 and 0.76) and the
+camera cuts (Turok 2's cinematics' 21, none drawn partway), and Turok 3 the frames between the game's (9 of 12419, at
+most 2 a second), so Turok 3 passes 2a; Turok 2 fails it, the world missing at the picture's edge in frames between
+the game's while the player turns (the background showing at the top left 3 times in a second in the Port of Adia), as
+Turok 1 does once (a dark wedge at the left edge), filed for turok-engine; and Turok 1 fails too where its title
+fly-over goes through a leaf, 5 frames in a second unlike both neighbours that are the camera's own (a near object
+moving further between two frames than a block's match follows), which frame_check can't yet tell from a fault; the
 Mario Parties' READMEs don't link their pages (8c); Mario Golf's courses, Mini-Golf, every play mode and a whole
 Tournament round draw on its desktop build at 16:9, 21:9 and 4:3, so it was passed 2, on captures that missed its
 trees drawn where other trees stood in the frames between the game's, which its first players reported, and passes 2a
@@ -326,9 +336,10 @@ What it looks for:
   Fairy Glade's first 8 s, and passes with the fix; Goin' Quackers' outfit machine flickering in the frames between the
   game's (its v0.1.7, rt64 6e8aa22 matching a pair's scales) fails 28 of 1431 frames in Gyro's lab without the
   matching, and passes 0 of 4280 with it. Only frames between the game's test how they are paired, so a dump without
-  any (Framerate Original, or a display no faster than the game) exits 2, not 0. Rayman 2's own build fails the
-  Woods of Light's opening at 240 Hz, 9 of 3191 frames drawn from a camera halfway across a cut, and passes it at
-  Framerate Original: RT64 finds no cut there even with `RT64_SKIP_CAMERA_CUTS`. A game that culls nothing by the
+  any (Framerate Original, or a display no faster than the game) exits 2, not 0. Rayman 2's build before v0.1.18 failed the
+  Woods of Light's opening at 240 Hz, 9 of 3191 frames drawn from a camera halfway across a cut, and passed it at
+  Framerate Original: the game puts its camera into every model's matrix, so RT64 saw no camera to cut, and since then
+  it hands RT64 its view, the one its frame's models were drawn with (its `src/game/camera_view.cpp`). A game that culls nothing by the
   window draws the same past the 4:3 view in both windows, as one culled to that view does: San Francisco Rush 2049's
   attract race, its world drawn out to the 32:9 picture's edges, read x1.16 and failed. So the check also reads how
   densely the 16:9 dump draws just past its own picture's edge, where a game culled to 4:3 thins out, and passes a
