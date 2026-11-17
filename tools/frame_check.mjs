@@ -41,7 +41,7 @@
 //   of its: one small thing paired wrongly, again and again in one place, where the odd small block of a clean game
 //   lands anywhere. Mario Party 3's opening without its models' tags (lib/mario-party-engine's model_ids.cpp) draws a
 //   small star for a frame where neither neighbour has it, at one place in every frame between for 0.3 s, 1-2 blocks
-//   each: 23 of 695 frames flagged, 10 without this; with the tags, 3 of 698 either way. On Rayman 2's, Turok 2's and
+//   each: 23 of 689 frames flagged, 11 without this; with the tags, 3 of 654 either way. On Rayman 2's, Turok 2's and
 //   3's and Rush 2049's dumps it changes no verdict, and adds nothing to the ones that pass.
 //   Only frames presented between the game's own (Framerate Display, on a display faster than the
 //   game) are paired, so a dump without one (Framerate Original, a 60 Hz display under a game of 60) leaves pairing
