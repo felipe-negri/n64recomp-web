@@ -94,6 +94,24 @@
 //   first frame's: a dump that starts before its plan sizes the window begins at 4:3, and one whose frames come in
 //   several sizes has black past the picture in some. Rayman 2's language menu draws its frames at 300x224 for its
 //   first 6 s whatever the window, so --from starts a dump of it after that.
+// - The picture at the 4:3 view's sides, from each dump's frames alone (pictureAtSides()), every dump given: what the
+//   triangles can't read, a world past the view drawn in 2D (Mario Party's boards are a background of tiles, 3-12
+//   triangles a workload past the view), and a picture something cuts. Its frames are looked at ten a second. Cut
+//   short: the picture fills the view out to its side, then ends in black past it with something drawn on the black,
+//   for a second or more in a row: a board whose background is drawn only under 4:3 draws its 3D spaces and characters
+//   out past it. A picture that ends where its world does (a board's map reaching no further, a stage built short of a
+//   wide window) has nothing on the black past it, and a 4:3 scene or a logo on black doesn't fill the view to its
+//   side, so neither counts. Mario Party 3's Chilly Waters at 32:9 with its board's tiles picked under 4:3 alone
+//   (lib/mario-party-engine's board_back_area() with no side) is cut short in 339 of 544 frames, 14.5 s in a row, and
+//   the game as released in none of 381, though its map ends short of the window in much of them. A straight line: a
+//   column within a twentieth of the view's width of its side that steps sharply in 0.3 more of its rows than the
+//   columns around it (only rows drawn either side of it, so a picture's own end isn't one), in the same column in a
+//   quarter or more of the frames where the scene moves, looked at four a second: something the game cuts a few
+//   pixels short of the side, the picture behind it showing. Mario Party 3's opening without mario-party-engine
+//   245ec52 draws its 3D grass under a scissor 8 of the console's pixels inside the screen, the background's grass in a
+//   band around it: a line 6 pixels in from the view's side (a 640x180 dump at 32:9) in 32 of 56 frames where the
+//   scene moves, and none with it. Turok 1's and 2's 16:9 sweeps and Mario Golf's iris wipes have neither. Neither
+//   needs two runs to agree, so a board the computer players play differently each time is checked too.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
 // the pairing or the sides. frames.bin is read a frame at a time, those the workers have yet to match kept (a few a
@@ -1014,5 +1032,171 @@ else if (sides && sides.n) {
 }
 else {
     console.log('sides: no workload drew 200 triangles between those seconds');
+}
+// The picture at the 4:3 view's sides, from each dump's frames alone (pictureAtSides()): what the triangle count above
+// can't read, a picture whose world past the view is 2D (a board's background) or that a scissor cuts.
+const PIC_EVERY = 0.1; // seconds between the frames looked at
+const PIC_LIT = 16; // a pixel brighter than this in any channel, of 255, is drawn
+const PIC_FULL = 0.8; // a column with this share of its rows drawn is the picture's
+const PIC_SOME = 0.02; // ... the black past where the picture ends has something drawn on it from this share
+const PIC_DARK = 0.3; // ... to this (more is the picture going on with a gap in it)
+const PIC_ROOM = 0.1; // ... and is this much of the view's width at least
+const PIC_RUN = 1; // seconds in a row of frames cut short that fail
+const SEAM_EVERY = 0.25; // seconds between the frames a straight line is looked for in
+const SEAM_MOVES = 2; // a frame's mean difference to the last one looked at, of 255, from which the scene moves
+const SEAM_STEP = 10; // a step between two pixels, of 255, that counts in a column
+const SEAM_OVER = 0.3; // the share of a column's rows stepping, over its neighbours', that is a straight line
+const SEAM_NEAR = 0.05; // ... within this much of the view's width of its sides
+const SEAM_SHARE = 0.25; // ... in this share of the frames where the scene moves: fails
+
+// A dump's frames between --from and --to, one every <every> seconds, cut to its picture's box.
+function* sampledFrames(d, every) {
+    const file = path.join(d, 'frames.bin');
+    const shape = fs.existsSync(file) && pictureBox(d);
+    if (!shape) {
+        return;
+    }
+    const fd = fs.openSync(file, 'r');
+    const size = fs.fstatSync(fd).size;
+    const head = Buffer.alloc(HEADER);
+    let startMs = null, next = from;
+    for (let o = 0; o + HEADER <= size;) {
+        fs.readSync(fd, head, 0, HEADER, o);
+        const w = head.readUInt32LE(4), h = head.readUInt32LE(8);
+        if ((head.readUInt32LE(0) !== MAGIC) || (o + HEADER + w * h * 3 > size)) {
+            break;
+        }
+        const timeMs = Number(head.readBigUInt64LE(32));
+        startMs ??= timeMs;
+        const t = (timeMs - startMs) / 1000;
+        if (t > to) {
+            break;
+        }
+        if ((t >= next) && (w >= shape.w) && (h >= shape.h)) {
+            const rgb = Buffer.allocUnsafe(shape.w * shape.h * 3);
+            const whole = Buffer.allocUnsafe(w * shape.h * 3);
+            fs.readSync(fd, whole, 0, whole.length, o + HEADER);
+            for (let y = 0; y < shape.h; y++) {
+                whole.copy(rgb, y * shape.w * 3, y * w * 3, (y * w + shape.w) * 3);
+            }
+            yield { t, w: shape.w, h: shape.h, rgb };
+            next = t + every;
+        }
+        o += HEADER + w * h * 3;
+    }
+    fs.closeSync(fd);
+}
+
+// Two faults of the picture at the view's sides, each read from one dump's frames. Cut short: the picture fills the
+// view out to its side and ends in black past it, with something drawn on the black, as a board whose background is
+// drawn to 4:3 draws its 3D spaces out past the map. A picture that ends where its world does (a board's map reaching
+// no further, a stage built short of a wide window) has nothing on the black past it, and a 4:3 scene, or a logo on
+// black, doesn't fill the view to its side. A straight line inside the picture along the view's side, in the same
+// column while the scene moves: something the game cuts a few pixels short of the side, the picture behind it showing.
+function pictureAtSides(d) {
+    let looked = 0, cutShort = 0, longest = 0, runFrom = null, runAt = null, moving = 0, prev = null, nextSeam = from;
+    let vw = 0, v0 = 0, v1 = 0, aspect = 0;
+    const seams = new Map();
+    for (const f of sampledFrames(d, PIC_EVERY)) {
+        const { w, h, rgb } = f;
+        aspect = w / h;
+        vw = h * 4 / 3;
+        v0 = Math.round((w - vw) / 2);
+        v1 = Math.round((w + vw) / 2);
+        const drawn = new Uint8Array(w * h);
+        const lit = new Float32Array(w);
+        for (let i = 0, p = 0; i < w * h; i++, p += 3) {
+            drawn[i] = (Math.max(rgb[p], rgb[p + 1], rgb[p + 2]) > PIC_LIT) ? 1 : 0;
+            lit[i % w] += drawn[i] / h;
+        }
+        looked++;
+        let cut = false;
+        if (aspect > 4 / 3 * 1.1) {
+            for (const [first, step, last] of [[v0 - 1, -1, 0], [v1, 1, w - 1]]) {
+                const within = (x) => ((step < 0) ? (x >= last) : (x <= last));
+                // The view drawn out to its side: the twentieth of it inside the side.
+                let full = true;
+                for (let k = 1; k <= Math.ceil(vw / 20); k++) {
+                    full &&= lit[first - step * k] >= PIC_FULL;
+                }
+                let reach = first - step;
+                for (let x = first; within(x) && (lit[x] >= PIC_FULL); x += step) {
+                    reach = x;
+                }
+                const n = Math.abs(last - reach);
+                let beyond = 0;
+                for (let x = reach + step; within(x); x += step) {
+                    beyond += lit[x];
+                }
+                beyond /= Math.max(n, 1);
+                cut ||= full && (n >= PIC_ROOM * vw) && (beyond >= PIC_SOME) && (beyond <= PIC_DARK);
+            }
+        }
+        if (cut) {
+            runFrom = ((runAt !== null) && (f.t - runAt <= 2.5 * PIC_EVERY)) ? runFrom : f.t;
+            runAt = f.t;
+            cutShort++;
+            longest = Math.max(longest, runAt - runFrom + PIC_EVERY);
+        }
+        if (f.t < nextSeam) {
+            continue;
+        }
+        nextSeam = f.t + SEAM_EVERY;
+        const g = grey(f, w, h);
+        const moved = (prev && (prev.length === g.length)) ? meanDiff(g, prev) : Infinity;
+        prev = g;
+        if (moved < SEAM_MOVES) {
+            continue;
+        }
+        moving++;
+        // Each column's share of the rows drawn two pixels either side of it that step to the next column.
+        const share = new Float32Array(w);
+        for (let x = 1; x < w - 2; x++) {
+            let rows = 0, steps = 0;
+            for (let i = x; i < w * h; i += w) {
+                if (drawn[i - 1] && drawn[i] && drawn[i + 1] && drawn[i + 2]) {
+                    rows++;
+                    steps += (Math.abs(g[i + 1] - g[i]) > SEAM_STEP) ? 1 : 0;
+                }
+            }
+            share[x] = (rows >= h / 2) ? steps / rows : 0;
+        }
+        const near = Math.ceil(SEAM_NEAR * vw);
+        for (const side of [v0, v1 - 1]) {
+            for (let x = Math.max(side - near, 7); x <= Math.min(side + near, w - 9); x++) {
+                const around = [];
+                for (let k = 2; k <= 6; k++) {
+                    around.push(share[x - k], share[x + k]);
+                }
+                around.sort((a, b) => a - b);
+                if ((share[x] - around[around.length >> 1] >= SEAM_OVER) && (share[x] >= share[x - 1]) &&
+                    (share[x] >= share[x + 1])) {
+                    seams.set(x, (seams.get(x) ?? 0) + 1);
+                }
+            }
+        }
+    }
+    const seam = [...seams].sort((a, b) => b[1] - a[1])[0];
+    return { looked, cutShort, longest, moving, seam, vw, v0, v1, aspect };
+}
+for (const d of [dir, narrowerDir, widerDir].filter(Boolean)) {
+    const p = pictureAtSides(d);
+    if (!p.looked) {
+        continue;
+    }
+    const wide = p.aspect > 4 / 3 * 1.1;
+    const cutFails = p.longest >= PIC_RUN;
+    const seamFails = !!p.seam && (p.seam[1] >= SEAM_SHARE * p.moving);
+    failed ||= cutFails || seamFails;
+    // Where the line lies from the view's side it is nearer, in the dump's pixels: in toward the middle or out from it.
+    const off = p.seam && ((p.seam[0] < p.v0 + p.vw / 2) ? (p.seam[0] + 1 - p.v0) : (p.v1 - 1 - p.seam[0]));
+    console.log(`picture at the sides (${d}, ${p.aspect.toFixed(2)}:1): ` +
+        (wide ? `${p.cutShort} of ${p.looked} frames cut short past the 4:3 view (something drawn on black past where ` +
+            `the picture ends), at most ${p.longest.toFixed(1)} s in a row` +
+            (cutFails ? ': FAILS, the picture stops where the world goes on' : '') : 'no room past the 4:3 view') + '; ' +
+        (p.seam ? `a straight line ${Math.abs(off)} pixels ${(off < 0) ? 'out' : 'in'} from the view's side in ` +
+            `${p.seam[1]} of ${p.moving} frames where the scene moves` +
+            (seamFails ? ': FAILS, something cut short of the picture\'s side' : '') :
+            `no straight line along the view's sides in ${p.moving} frames where the scene moves`));
 }
 process.exit(failed ? 1 : (untested ? 2 : 0));

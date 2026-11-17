@@ -328,7 +328,9 @@ What it looks for:
   one, and `tools/frame_check.mjs <16:9 dump> --narrower <4:3 dump> --wider <32:9 dump>` passes (its header says how,
   and what it fails). It fails a frame drawn for itself alone between two that agree (a model put halfway to a
   look-alike's place, a stretched camera cut, a frame drawn in parts or of garbage) and a world that draws no more past
-  the 4:3 view's sides at 32:9 than in the 4:3 window, where nothing past the view shows. Mario Golf was passed 2 on
+  the 4:3 view's sides at 32:9 than in the 4:3 window, where nothing past the view shows, and in any one dump a
+  picture that stops at the view's side with things drawn on the black past it, or has a straight line along the
+  side where something stops short of it. Mario Golf was passed 2 on
   window captures, contact sheets and a brightness test of the picture's edges with
   both faults in every hole's flyover, and was released twice with both: its trees drawn where other trees stood in
   the frames between the game's (rt64 eda3964 and b12ecad, on for its desktop build), and its ground missing past the
@@ -372,8 +374,12 @@ What it looks for:
   Mario Party 1, 2 and 3 fail 2a on their main, built at v0.226.0 and played at 59 Hz through the opening, title,
   menus, the first board and its minigame (filed): the board's letterbox wipe between turns in 1 and 2 (5 and 13
   frames within a second), 2's minigame roulette, and 3's item menu, whose frame between draws the cursor on an
-  option neither neighbour has. Their side check tests nothing: a board's picture past the 4:3 view is its 2D
-  background, 5-12 triangles a workload, which the triangle count can't read (filed). Mario Party 3's opening
+  option neither neighbour has. Their triangles test nothing at the sides: a board's picture past the 4:3 view is
+  its 2D background, 5-12 triangles a workload. frame_check reads each dump's frames there too (its header, the
+  picture at the 4:3 view's sides), which needs no second run to agree: Mario Party 3's Chilly Waters at 32:9 passes,
+  and fails with the board's tiles picked under 4:3 alone, as boards were drawn before the engine widened them; its
+  opening passes, and fails without mario-party-engine 245ec52's scissor, a band of background along the 3D's sides.
+  Mario Party 3's opening
   without its models' tags (lib/mario-party-engine's model_ids.cpp) was flagged under the 4 blocks a frame needs, a
   small star drawn where neither neighbour has it, every frame between for 0.3 s; frame_check now counts small
   flags that recur in one place (its header).
