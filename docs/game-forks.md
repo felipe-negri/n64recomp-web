@@ -332,7 +332,9 @@ code (`scripts/prepare_payloads.py`: the save layout, the in-world portraits, th
 so without the local model detail, which DKR-R builds only with both revisions, or the owned rollback engine. DKR-R's
 generators take N64Recomp's `recomp.h` by the hash of DKR-R's own, so the build keeps that aside before the web's
 patch to it. Where a configure-time stage of DKR-R's meets the web's lines (its texture capture over the web's TMEM
-upload), `patches/web/stage/` has it written on top of them. `record_shaders.mjs --from` goes on with a recording of its list stopped partway.
+upload), `patches/web/stage/` has it written on top of them. The page keeps 16 of RT64's workloads, as Rush 2049's
+does, since with 64 1.0.15's race frames filled its 1536 MB heap and the overlay its first balloon won attaches ran it
+out (its docs/WEB.md). `record_shaders.mjs --from` goes on with a recording of its list stopped partway.
 The list was recorded in Accurate; in Modern, recorded with `?record-shaders` over the title, the menus, Timber's
 Island and Dino Domain, the game asked for 119 descriptions, all in it but one, which differs from one in it only by
 the culling bit. Its docs/WEB.md and the headers of `scripts/build_web.sh`, `web/shader_survey.js` and
