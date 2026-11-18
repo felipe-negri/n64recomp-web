@@ -1,5 +1,5 @@
 // Checks a game's picture by machine, from what RT64 writes with RT64_FRAME_DUMP=<dir> set (rt64-web's
-// src/hle/rt64_frame_dump.h): docs/new-recomp.md item 2's flicker and interpolation and item 1's widescreen culling,
+// src/hle/rt64_frame_dump.h): flicker, the frames interpolated between the game's own, and widescreen culling,
 // which a person or a model looking at captures missed (Mario Golf's trees put where other trees stood in every frame
 // drawn between the game's, and its ground culled at the 4:3 view's sides), and which these find without anyone
 // looking.

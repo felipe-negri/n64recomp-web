@@ -6,7 +6,7 @@
 //                             in navigator.getGamepads() from then on, and a gamepadconnected event each. Call it once
 //                             the program has started SDL (the launcher is SDL's), say at the start of the plan's
 //                             "start" steps, before Start Game: a page whose RecompFrontend is older than 060709f
-//                             never opens a pad that is there as SDL starts (site/touch_pad.js).
+//                             never opens a pad that is there as SDL starts (the hub's touch_pad.js).
 //   unplugPad(index)          pulls pad <index> out, as Chrome sees one go: its place in navigator.getGamepads() is null
 //                             from then on, the Gamepad the page holds says connected false, and a
 //                             gamepaddisconnected event says so. true, or false while no pad <index> is in.

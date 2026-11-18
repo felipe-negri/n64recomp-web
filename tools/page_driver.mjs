@@ -71,7 +71,7 @@
 // nowhere, no copy came, and the run failed a minute later at 'RDRAM not found'. In Chrome the step says so and fails.
 // And Chrome builds a page's prebuilt shader list behind its launcher (rt64's "RT64: <n> prebuilt shaders, <m> pipelines,
 // ... built behind the game once it draws", then "RT64: all <m> prebuilt shaders built"), where a click on Load ROM can
-// be lost (docs/findings.md, Behind CLAUDE.md's rules): F-Zero X's boot from Pages, whose plan pressed 3 s after the
+// be lost: F-Zero X's boot from Pages, whose plan pressed 3 s after the
 // device came, pressed three times into a build on a busy host, opened no picker and failed. So a rom step presses only
 // once a list building behind the launcher is built, waiting up to listBuiltMs and saying how long, whatever the plan
 // waits for. Firefox builds none there and says nothing that waits.
@@ -122,7 +122,7 @@ export const option = (args, name, fallback) => {
 // default) is a free one, server.address().port, so plays started beside each other don't clash; a port taken is
 // refused. The ROM and saves are kept per origin, port included, so a profile kept between runs needs the same port
 // each time. A path ending in / is its index.html, as
-// GitHub Pages serves it: a plan whose page is "" opens publish_page.sh's staged dir at /. A file it hasn't got is
+// GitHub Pages serves it: a plan whose page is "" opens a staged dir's index.html at /. A file it hasn't got is
 // printed once, since a page that 404s on its own files loads nothing and says nothing in its console.
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm' };
 const missing = new Set();
