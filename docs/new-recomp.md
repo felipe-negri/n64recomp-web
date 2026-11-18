@@ -374,18 +374,23 @@ What it looks for:
   flags broken into shards between the game's frames (its v0.1.67, src/node_interpolation.cpp) is not caught: in
   PRACTICE's chase view only their lower edge is in the picture, and the build without the fix flags no more frames
   there than the build with it.
-  Mario Party 1, 2 and 3 fail 2a on their main, built at v0.226.0 and played at 59 Hz through the opening, title,
-  menus, the first board and its minigame (filed): the board's letterbox wipe between turns in 1 and 2 (5 and 13
-  frames within a second), 2's minigame roulette, and 3's item menu, whose frame between draws the cursor on an
-  option neither neighbour has. Their triangles test nothing at the sides: a board's picture past the 4:3 view is
-  its 2D background, 5-12 triangles a workload. frame_check reads each dump's frames there too (its header, the
-  picture at the 4:3 view's sides), which needs no second run to agree: Mario Party 3's Chilly Waters at 32:9 passes,
-  and fails with the board's tiles picked under 4:3 alone, as boards were drawn before the engine widened them; its
-  opening passes, and fails without mario-party-engine 245ec52's scissor, a band of background along the 3D's sides.
-  Mario Party 3's opening
-  without its models' tags (lib/mario-party-engine's model_ids.cpp) was flagged under the 4 blocks a frame needs, a
-  small star drawn where neither neighbour has it, every frame between for 0.3 s; frame_check now counts small
-  flags that recur in one place (its header).
+  Mario Party 1, 2 and 3, on their main built at v0.226.0 and played at 59 Hz through the opening, title, menus,
+  the first board and its minigame, first failed 2a on frame_check's own misreadings, not pairing faults: the
+  board's letterbox wipe between turns, a strip grown from the middle whose edge pixels blend black and board, a
+  menu's cursor stepped from option to option and held on each, and the game's own frames changing in a step faster
+  than a block's match follows (Mario Party 2's warp pipes, Mario Party's turn order dice). frame_check now reads
+  those rightly (its header), and Mario Party passes them; Mario Party 2 fails on its opening's two camera cuts, drawn
+  with the camera partway from one shot to the next (filed), and Mario Party 3 on its party setup's spinning star,
+  whose frames between draw its BONUS sign face-on and a second outline neither game frame has
+  (filed). Their triangles test nothing at the sides: a board's picture past the 4:3 view is its 2D background,
+  5-12 triangles a workload. frame_check reads each dump's frames there too (its header, the picture at the 4:3
+  view's sides), which needs no second run to agree: Mario Party 3's Chilly Waters at 32:9 passes, and fails with
+  the board's tiles picked under 4:3 alone, as boards were drawn before the engine widened them; its opening passes,
+  and fails without mario-party-engine 245ec52's scissor, a band of background along the 3D's sides. Mario Party 3's
+  opening without its models' tags (lib/mario-party-engine's model_ids.cpp) was flagged under the 4 blocks a frame
+  needs, a small star drawn where neither neighbour has it, every frame between for 0.3 s; frame_check now counts
+  small flags that recur in one place, and fails flags drawn between that keep coming back to one place, 4 within
+  5 s (its header): the setup star's come at most 2 within a second.
 
 ### 3. Every controller its own port
 
