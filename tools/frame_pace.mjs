@@ -20,6 +20,7 @@ const BAD = 10; // a block's mean difference to its best place, of 255, over whi
 const CORNER = 2; // how much worse, of 255, a block matches 2 pixels off its place any way, at least
 const EDGE = 16; // a step to the next pixel, of 255, that makes a pixel a detailed one (still())
 const STILL = 0.25; // the share of a moving block's detailed pixels unmoved, at least, that leaves it out (still())
+const UNIQUE = 1.5; // how much worse, of 255, the best coarse match away from a block's place is, at least
 const MOVE = 2; // grey pixels a block moves between the game's frames, at least, to be measured
 const MIN_MOVING = 12; // moving blocks placed in a frame between, at least, for its common weight
 const OFF = 0.3; // a block's fraction off the frame's common one, at least
@@ -114,22 +115,39 @@ function still(g1, g0, gw, bx, by) {
     return edge ? same / edge : 0;
 }
 
-// Where the block at (bx, by) in the game's new frame g1 was in its frame before, g0: { dx, dy (sub-pixel), err } or
+// Where the block at (bx, by) in the last frame g1 was in the first, g0: { dx, dy (sub-pixel), err } or
 // null where it isn't placed.
 function placeBefore(g1, q1, g0, q0, gw, gh, bx, by) {
     const qw = Math.floor(gw / Q), qh = Math.floor(gh / Q);
     // Coarse: a window of 2 blocks around the block's middle.
     const cs = 2 * B / Q, cx = Math.round((bx + B / 2) / Q - cs / 2), cy = Math.round((by + B / 2) / Q - cs / 2);
+    if ((cx < 0) || (cy < 0) || (cx + cs > qw) || (cy + cs > qh)) {
+        return null;
+    }
+    const n = 2 * CR + 1, costs = new Float32Array(n * n);
     let best = Infinity, bdx = 0, bdy = 0;
     for (let dy = -CR; dy <= CR; dy++) {
         for (let dx = -CR; dx <= CR; dx++) {
-            const s = (cx < 0 || cy < 0 || cx + cs > qw || cy + cs > qh) ? Infinity : sad(q1, q0, qw, qh, cx, cy, dx, dy, cs, 1);
+            const s = costs[(dy + CR) * n + dx + CR] = sad(q1, q0, qw, qh, cx, cy, dx, dy, cs, 1);
             if (s < best) {
                 best = s; bdx = dx; bdy = dy;
             }
         }
     }
     if (best === Infinity) {
+        return null;
+    }
+    // Placed only where nothing else in the search matches nearly as well: a row of like trees, a pattern that repeats,
+    // matches a neighbour of its own as well as itself.
+    let other = Infinity;
+    for (let dy = -CR; dy <= CR; dy++) {
+        for (let dx = -CR; dx <= CR; dx++) {
+            if ((Math.abs(dx - bdx) > 1) || (Math.abs(dy - bdy) > 1)) {
+                other = Math.min(other, costs[(dy + CR) * n + dx + CR]);
+            }
+        }
+    }
+    if (other - best < UNIQUE) {
         return null;
     }
     // Fine, about it.
@@ -164,8 +182,9 @@ function placeBefore(g1, q1, g0, q0, gw, gh, bx, by) {
     return { dx: fx + para(c(fx - 1, fy), fb, c(fx + 1, fy)), dy: fy + para(c(fx, fy - 1), fb, c(fx, fy + 1)), err: fb };
 }
 
-// Where along the way from its new place to its old the block is in a frame between, as a fraction s (0 at the new
-// game frame's place, 1 at the old's), searched from -0.5 to 1.5 a pixel at a time, then between: { s, err, sharp }.
+// Where along the way from its place in the last frame to its place in the first the block is in the middle one, as a
+// fraction s (0 at the last's place, 1 at the first's), searched from -0.5 to 1.5 a half pixel at a time, then between:
+// { s, err, sharp }.
 function placeBetween(g1, gk, gw, gh, bx, by, o) {
     const len = Math.hypot(o.dx, o.dy);
     const steps = Math.ceil(len * 2);
@@ -204,7 +223,9 @@ function median(v) {
     return s.length ? s[s.length >> 1] : NaN;
 }
 
-// One present: the game's frame before (g0), the frames between and the game's new frame (g1).
+// Three frames in a row: the first (g0), the middle one and the last (g1). Each block of the last with something
+// drawn in it, placed in the first, is placed along that way in the middle one, and set against the middle fraction
+// of the blocks placed there (the frame's common weight).
 function checkPresent(prev, frames, gw, gh) {
     const last = frames[frames.length - 1];
     const g0 = prev.g, q0 = prev.q, g1 = last.g, q1 = last.q;
@@ -296,8 +317,8 @@ function png(width, height, rgb) {
         chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
 }
 
-// The game's frame before, the frames between and the game's new one side by side, the off blocks outlined in the
-// frame between they were off in (magenta a step, yellow too far, cyan otherwise).
+// A triplet side by side, the blocks off outlined in the middle frame (magenta a step, yellow too far, cyan
+// otherwise).
 function save(file, prev, frames, off, gw) {
     const all = [prev, ...frames];
     const w = prev.w, h = prev.h, n = all.length;
@@ -369,6 +390,7 @@ const PLACE_WINDOW = 2; // seconds a place's blocks are counted over
 const PLACE_OFF = 8; // ... off in this many triplets, at least,
 const PLACE_SHARE = 0.5; // ... and this share of those where they were measured,
 const PLACE_SPAN = 0.5; // ... from the first to the last over this many seconds at least
+const PLACE_BLOCKS = 3; // blocks so off within 2 blocks of each other, at least, that fail
 
 // Checks a dump's pace: { failed, untested, lines }.
 export async function checkPace(dir, { from = 0, to = Infinity, workers = 1, saveDir = null, verbose = false,
@@ -495,7 +517,7 @@ export async function checkPace(dir, { from = 0, to = Infinity, workers = 1, sav
         places = places.filter((q) => !near.includes(q));
         places.push([c, ...near.flat()]);
     }
-    places.sort((p, q) => q.length - p.length);
+    places = places.filter((p) => p.length >= PLACE_BLOCKS).sort((p, q) => q.length - p.length);
     const untested = !read && (betweenFrames < framesRead / 100);
     log(`pace (${dir}): ${results.length} triplets of frames matched (${framesRead} frames, ${betweenFrames} drawn ` +
         `between the game's own, ${repeats} repeats), ${places.length} places off the rest's pace` +

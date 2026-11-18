@@ -41,8 +41,9 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   one that looks plausible. With `RT64_FRAME_DUMP=<dir>` (and `RT64_FRAME_DUMP_SECONDS=<from>-<to>` for a scene's
   worth), RT64 writes into that folder, made if it isn't there, every frame presented and where the 3D's triangles
   lay across the view (rt64-web's `src/hle/rt64_frame_dump.h`); `capture_window.ps1 -Env` passes the variables to
-  the build it starts. frame_check reads one dump for frames drawn for themselves alone between two that agree and for
-  a picture cut short at the 4:3 view's sides, and a
+  the build it starts. frame_check reads one dump for frames drawn for themselves alone between two that agree, for
+  a part of the picture moving at another pace than the rest through the frames drawn between the game's own
+  (`tools/frame_pace.mjs`) and for a picture cut short at the 4:3 view's sides, and a
   dump of the same plan in a 4:3 window with one at 32:9 (`--narrower`, `--wider`) for a world culled at the 4:3
   view's sides. Where a Linux host with an NVIDIA GPU is at hand, the dumps and the check are made there and not on
   the machine that works on the game: `tools/remote_frame_dump.sh` plays the game's Linux build by the same plan in

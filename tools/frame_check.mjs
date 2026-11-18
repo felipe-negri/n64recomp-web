@@ -192,6 +192,9 @@
 //   even counting only those where both sides of it move, and not one inside the view.
 //   Turok 1's and 2's 16:9 sweeps and Mario Golf's iris wipes have neither. Neither
 //   needs two runs to agree, so a board the computer players play differently each time is checked too.
+// - The pace of what moves through the frames drawn between the game's own: a part of the picture that steps at the
+//   game's rate while the rest moves on every frame, or that moves past where the game's frames have it or back and
+//   forth (tools/frame_pace.mjs, its header). It reads the one dump, after the checks above; --sides skips it.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
 // the pairing or the sides. frames.bin is read a frame at a time, those the workers have yet to match kept (a few a
