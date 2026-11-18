@@ -57,6 +57,7 @@ const game = path.resolve(need('--game')), exe = need('--exe'), gameId = need('-
 const rom = path.resolve(need('--rom')), planFile = path.resolve(need('--plan')), out = path.resolve(need('--out'));
 const windows = opt('--window') ? opt('--window').split(',').map((s) => s.split('x').map(Number)) : null;
 const rate = Number(opt('--rate', 240));
+const restart = flag('--restart');
 const here = path.dirname(new URL(import.meta.url).pathname);
 const runNames = ['main', 'narrower', 'wider'];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -97,16 +98,21 @@ function rdramOf(pid) {
   return merged ? merged.end - size : null;
 }
 
-async function playRun(i, size, signal, config) {
-  const name = windows ? runNames[i] : 'main';
-  const dir = path.join(out, name), work = path.join(dir, 'run');
+// One run of the plan as <out>/<name>: in a new copy of the game with config's files (<out>/<name>/run), or, given
+// work, in that folder as an earlier run left it (a restart).
+async function playRun(name, size, signal, { config, work: kept }) {
+  const dir = path.join(out, name), work = kept ?? path.join(dir, 'run');
   fs.rmSync(dir, { recursive: true, force: true });
-  fs.cpSync(game, work, { recursive: true });
-  fs.writeFileSync(path.join(work, 'portable.txt'), '');
-  fs.copyFileSync(rom, path.join(work, `${gameId}.z64`));
-  for (const f of fs.readdirSync(config)) fs.copyFileSync(path.join(config, f), path.join(work, f));
+  fs.mkdirSync(dir, { recursive: true });
+  if (!kept) {
+    fs.cpSync(game, work, { recursive: true });
+    fs.writeFileSync(path.join(work, 'portable.txt'), '');
+    fs.copyFileSync(rom, path.join(work, `${gameId}.z64`));
+    for (const f of config ? fs.readdirSync(config) : []) fs.copyFileSync(path.join(config, f), path.join(work, f));
+  }
   const env = { ...process.env, DISPLAY: display, SDL_AUDIODRIVER: 'dummy', RT64_FRAME_DUMP: path.join(dir, 'dump') };
   if (opt('--seconds')) env.RT64_FRAME_DUMP_SECONDS = opt('--seconds');
+  if (restart) env.RT64_FRAME_DUMP_RATE = String(rate); // a first launch has no graphics.json to set Manual in
   for (const kv of (opt('--env') ?? '').split(',').filter(Boolean)) { const k = kv.indexOf('='); env[kv.slice(0, k)] = kv.slice(k + 1); }
   const [w, h] = size ?? [1280, 720];
   const progArgs = ['--boot', '--window', `${w}x${h}`, ...(opt('--args') ?? '').split(/\s+/).filter(Boolean)];
@@ -246,8 +252,118 @@ async function makeConfig() {
 async function dumps(signal) {
   const config = await makeConfig();
   const made = [];
-  for (const [i, size] of (windows ?? [null]).entries()) made.push(await playRun(i, size, signal, config));
+  for (const [i, size] of (windows ?? [null]).entries())
+    made.push(await playRun(windows ? runNames[i] : 'main', size, signal, { config }));
   return made;
+}
+
+// --restart: the plan played three times in one copy of the game, a first launch with only --config's files and two
+// starts after it, each run's settings files copied to <out>/<run>/settings as it ends.
+const restartNames = ['first', 'restart', 'again'];
+const jsonFiles = (d) => fs.readdirSync(d).filter((f) => f.endsWith('.json') && fs.statSync(path.join(d, f)).isFile());
+async function restartRuns(signal) {
+  const config = opt('--config') ? path.resolve(opt('--config')) : null;
+  const work = path.join(out, 'first', 'run');
+  for (const name of restartNames) {
+    await playRun(name, windows?.[0] ?? null, signal, { config, work: name === 'first' ? undefined : work });
+    const kept = path.join(out, name, 'settings');
+    fs.mkdirSync(kept, { recursive: true });
+    for (const f of jsonFiles(work)) fs.copyFileSync(path.join(work, f), path.join(kept, f));
+  }
+}
+
+// Each settings file's values by key (a.b.c, a.0 for an array's first), as JSON text.
+function flatten(v, key = '', into = new Map()) {
+  if (v !== null && typeof v === 'object' && (Array.isArray(v) ? v.length : Object.keys(v).length))
+    for (const [k, x] of Object.entries(v)) flatten(x, key ? `${key}.${k}` : k, into);
+  else into.set(key, JSON.stringify(v));
+  return into;
+}
+function settingsOf(d) {
+  const files = new Map();
+  for (const f of fs.existsSync(d) ? jsonFiles(d) : []) {
+    try { files.set(f, flatten(JSON.parse(fs.readFileSync(path.join(d, f), 'utf8')))); }
+    catch (e) { files.set(f, new Map([['(the file)', `not JSON: ${e.message}`]])); }
+  }
+  return files;
+}
+// What changed from settings a to b: each value that differs, and each file or key one of them lacks.
+function settingsDiff(a, b, keysOfA = false) {
+  const lines = [];
+  for (const [f, av] of a) {
+    const bv = b.get(f);
+    if (!bv) { lines.push(`${f}: gone`); continue; }
+    for (const [k, x] of av) if (bv.get(k) !== x) lines.push(`${f}: ${k} ${x} -> ${bv.get(k) ?? '(gone)'}`);
+    if (!keysOfA) for (const k of bv.keys()) if (!av.has(k)) lines.push(`${f}: ${k} (new) ${bv.get(k)}`);
+  }
+  if (!keysOfA) for (const f of b.keys()) if (!a.has(f)) lines.push(`${f}: new`);
+  return lines;
+}
+
+// A shot as a grey 160x120 picture, for comparing runs' shots of the same window.
+function thumb(file) {
+  return execFileSync('convert', [file, '-resize', '160x120!', '-colorspace', 'Gray', '-depth', '8', 'gray:-'],
+    { maxBuffer: 1 << 20 });
+}
+const mae = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]); return s / a.length; };
+
+// A dump's frames by their headers alone: the size they were drawn at and how many frames each game frame was shown
+// in, the most common of each.
+function dumpShape(d) {
+  const file = path.join(d, 'frames.bin');
+  if (!fs.existsSync(file)) return null;
+  const fd = fs.openSync(file, 'r'), size = fs.fstatSync(fd).size, head = Buffer.alloc(40);
+  const sizes = new Map(), counts = new Map();
+  let frames = 0;
+  for (let o = 0; o + 40 <= size; frames++) {
+    fs.readSync(fd, head, 0, 40, o);
+    if (head.readUInt32LE(0) !== 0x44465452) break; // rt64_frame_dump.h's FrameDump::Magic
+    const w = head.readUInt32LE(4), h = head.readUInt32LE(8), k = `${w}x${h}`, c = head.readUInt32LE(16);
+    sizes.set(k, (sizes.get(k) ?? 0) + 1);
+    counts.set(c, (counts.get(c) ?? 0) + 1);
+    o += 40 + w * h * 3;
+  }
+  fs.closeSync(fd);
+  const most = (m) => [...m].sort((x, y) => y[1] - x[1])[0]?.[0];
+  return frames ? { frames, size: most(sizes), count: most(counts) } : null;
+}
+
+// --restart's verdict, also in <out>/restart.txt. It fails where the first launch's settings files don't hold
+// --config's values, where a start changed a value the one before it wrote (a setting or a binding not read back),
+// where a dump's frames were drawn at another size or shown in another number of frames a game frame, and where a
+// shot of the first launch differs from the restart's by more than SHOT_SLACK (of 255, a grey pixel's mean) beyond
+// twice what the restart's and the next start's differ by: the two restarts read the same files, so what they differ
+// by is how much the plan's moment wanders from run to run.
+const SHOT_SLACK = 3;
+function restartCheck() {
+  const lines = [], say = (s) => lines.push(s);
+  let failed = false;
+  const fail = (s) => { failed = true; say(`FAIL ${s}`); };
+  const given = settingsOf(opt('--config') ? path.resolve(opt('--config')) : path.join(out, 'none'));
+  const runs = restartNames.map((n) => ({ name: n, settings: settingsOf(path.join(out, n, 'settings')) }));
+  say(`settings files the first launch left: ${[...runs[0].settings.keys()].join(', ') || 'none'}`);
+  for (const l of settingsDiff(given, runs[0].settings, true)) fail(`--config's value not kept by the first launch: ${l}`);
+  for (let i = 1; i < runs.length; i++)
+    for (const l of settingsDiff(runs[i - 1].settings, runs[i].settings)) fail(`changed by the ${runs[i].name} start: ${l}`);
+  const shapes = restartNames.map((n) => dumpShape(path.join(out, n, 'dump')));
+  if (shapes.every(Boolean)) {
+    say(`dumps: ${shapes.map((s, i) => `${restartNames[i]} ${s.frames} frames at ${s.size}, ${s.count} a game frame`).join('; ')}`);
+    for (const k of ['size', 'count']) if (new Set(shapes.map((s) => s[k])).size > 1) fail(`the runs' frames differ in ${k}`);
+  } else say('dumps: not in every run (a build without RT64_FRAME_DUMP), so only the shots compare the pictures');
+  const shots = fs.readdirSync(path.join(out, 'first')).filter((f) => f.endsWith('.png'));
+  for (const s of shots) {
+    const files = restartNames.map((n) => path.join(out, n, s));
+    if (!files.every((f) => fs.existsSync(f))) { say(`shot ${s}: not in every run`); continue; }
+    const [a, b, c] = files.map(thumb), first = mae(a, b), noise = mae(b, c);
+    const bad = first > 2 * noise + SHOT_SLACK;
+    (bad ? fail : say)(`shot ${s}: first launch against the restart ${first.toFixed(2)}, the restart against the next start ${noise.toFixed(2)}`);
+  }
+  if (!shots.length) say('shots: none in the plan, so the pictures aren\'t compared');
+  say(failed ? 'restart check: FAILS' : 'restart check: passes');
+  const text = lines.join('\n') + '\n';
+  fs.writeFileSync(path.join(out, 'restart.txt'), text);
+  process.stdout.write(text);
+  return failed ? 1 : 0;
 }
 
 function check(made) {
@@ -283,14 +399,17 @@ try {
       ...(vramMiB === 'auto' ? { guessMiB: 1024 } : {}), ramMiB: capMiB(),
       url: opt('--url') || undefined, ref: process.env.HOSTNAME,
       onUpdate: (j) => j.state === 'waiting' && log(`queue: ${type} waiting, ${j.ahead} ahead: ${j.why?.text ?? 'going next'}`) });
-    const made = await gpuRun(spec('frame-dump', `Frame dump: ${gameId}`, opt('--vram', 'auto') === 'auto' ? 'auto' : Number(opt('--vram'))), (signal) => dumps(signal));
-    code = await gpuRun(spec('frame-check', `frame_check: ${gameId}`, 0), async () => check(made));
-  } else code = check(await dumps(null));
+    const made = await gpuRun(spec('frame-dump', `Frame dump: ${gameId}`, opt('--vram', 'auto') === 'auto' ? 'auto' : Number(opt('--vram'))),
+      (signal) => (restart ? restartRuns(signal) : dumps(signal)));
+    // --restart's check reads headers and 160x120 shots, seconds of one core: no job of its own.
+    code = restart ? restartCheck() : await gpuRun(spec('frame-check', `frame_check: ${gameId}`, 0), async () => check(made));
+  } else if (restart) { await restartRuns(null); code = restartCheck(); }
+  else code = check(await dumps(null));
 } catch (e) {
   log(`frame_dump: ${e instanceof RunFailed ? e.message : e?.stack ?? e}`);
   code = stopped ? 75 : 3;
 }
-if (!flag('--keep')) for (const n of [...runNames, 'first-start']) {
+if (!flag('--keep')) for (const n of [...runNames, ...restartNames, 'first-start']) {
   fs.rmSync(path.join(out, n, 'dump'), { recursive: true, force: true });
   fs.rmSync(path.join(out, n, 'run'), { recursive: true, force: true });
 }
