@@ -7,7 +7,7 @@
 //   node tools/frame_dump.mjs --game <dir> --exe <name> --game-id <id> --rom <file> --plan <file> --out <dir>
 //       [--window <w>x<h>[,<w>x<h>,<w>x<h>]] [--rate <hz>] [--seconds <from>-<to>] [--args "<program args>"]
 //       [--env K=V,...] [--config <dir>] [--check "<frame_check args>"] [--workers <n>] [--keep]
-//       [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>]
+//       [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>] [--no-dump]
 //
 // --game is the folder of a recomp's Linux build (its release archive unpacked, or its build folder with assets/),
 // --exe the program in it, --game-id the name its runtime stores the ROM under (<game id>.z64, as Load ROM does). Each
@@ -42,8 +42,29 @@
 // --workers is frame_check's (a third of the cores it sees unless given), for a container held to fewer cores than
 // the host has.
 //
-// Exit: frame_check's own (0 passes, 1 fails, 2 has nothing to test), 3 when a run failed (the program exited or
-// crashed, an until or find unmet, no window), 75 when the queue asked it to stop.
+// Input, by a stand-in pad (tools/stand_in_pad.c, built here with gcc and preloaded into the program when a plan
+// uses one): what a player's press, a stick and a pad pulled out do on a release as it was shipped, with no pad on the
+// machine. The pad is plugged in as the program first polls SDL's events, and these steps drive it:
+//   <s> pad <control> <value>   a button (SDL's names: a, b, x, y, back, start, leftshoulder, dpup...) 1 or 0, or an
+//                               axis (leftx, lefty, rightx, righty, lefttrigger, righttrigger) -32768 to 32767
+//   <s> unplug, <s> replug      the pad pulled out, and the same pad (its GUID) plugged in again
+//   <s> answer <name> <control> <value> <hold s> [<press ms> [<still ms>]]
+// answer times the picture's answer to a press: it reads the window's pixels from Xvfb's screen (-fbdir) every few
+// milliseconds, so it needs nothing of the build (old releases have no RT64_FRAME_DUMP), for a second, then sets
+// <control> to <value> (a pad's control, or key:<key> for a key through XTEST), holds it <hold s>, lets go and reads
+// on for 2.5 s. The picture has answered at the first read after the press that changes more of a grid of its pixels
+// than twice the most a read changed in the second before (and at least 2%), and is still once no read changes that
+// much again before the end. It fails when the answer comes later than <press ms> (250) after the press, or none comes,
+// or the picture is still moving later than <still ms> (250) after the release: a game whose view eases towards the
+// stick and springs back when it is let go (Turok 2's look before v0.2.8, about a second either way) fails the second.
+// Each answer is a line in <out>/<run>/answers.txt and in the output, the press and release timed by when the pad
+// applied them (the shim's log, <run>/pad.log). Pick a still scene and a control that moves the picture at once: a
+// menu's cursor, the view turning. A pad plugged in again answering a press is item 4c's check on a desktop build.
+// --no-dump leaves RT64_FRAME_DUMP and frame_check out, for a plan that checks only its answers.
+//
+// Exit: frame_check's own (0 passes, 1 fails, 2 has nothing to test), or 1 when an answer failed (0 with --no-dump
+// when all passed), 3 when a run failed (the program exited or crashed, an until or find unmet, no window, the pad took
+// no command), 75 when the queue asked it to stop.
 import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -67,10 +88,19 @@ let stopped = false; // the queue asked for a stop
 
 const plan = fs.readFileSync(planFile, 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
   .map((l) => l.split(/\s+/));
+const noDump = flag('--no-dump');
+const answers = plan.some((p) => p[1] === 'answer');
+const usesPad = plan.some((p) => ['pad', 'unplug', 'replug'].includes(p[1]) || (p[1] === 'answer' && !p[3].startsWith('key:')));
+let answersFailed = 0;
 
-// The X server every run draws into, larger than any window a plan asks for.
+// The X server every run draws into, larger than any window a plan asks for. With answer steps its screen is also a
+// file (-fbdir, an XWD image kept up to date) the answers read the window's pixels from: 66 MB, in the container's
+// /dev/shm (remote_frame_dump.sh gives it 1 GB).
 const display = ':7';
-const xvfb = spawn('Xvfb', [display, '-screen', '0', '7680x2160x24', '-nolisten', 'tcp'], { stdio: 'ignore' });
+const fbdir = answers ? fs.mkdtempSync(path.join(fs.existsSync('/dev/shm') ? '/dev/shm' : '/tmp', 'frame-dump-')) : null;
+const xvfb = spawn('Xvfb', [display, '-screen', '0', '7680x2160x24', '-nolisten', 'tcp', ...(fbdir ? ['-fbdir', fbdir] : [])],
+  { stdio: 'ignore' });
+process.on('exit', () => { if (fbdir) fs.rmSync(fbdir, { recursive: true, force: true }); });
 process.on('exit', () => xvfb.kill());
 const xdo = (...a) => execFileSync('xdotool', a, { env: { ...process.env, DISPLAY: display } }).toString().trim();
 
@@ -81,6 +111,57 @@ const keysym = (name) => {
   if (/^[A-Za-z0-9]$/.test(name)) return name.toLowerCase();
   throw new RunFailed(`unknown key ${name}`);
 };
+
+// The stand-in pad, built once for every run.
+let padLib = null;
+function buildPad() {
+  padLib = path.join(out, 'stand_in_pad.so');
+  execFileSync('gcc', ['-shared', '-fPIC', '-O2', '-o', padLib, path.join(here, 'stand_in_pad.c'), '-ldl']);
+}
+
+// Xvfb's screen file: where its pixels start and how long a row is (an XWD header, its fields 32-bit big-endian).
+function openScreen() {
+  const fd = fs.openSync(path.join(fbdir, 'Xvfb_screen0'), 'r');
+  const h = Buffer.alloc(100);
+  fs.readSync(fd, h, 0, 100, 0);
+  const u = (i) => h.readUInt32BE(i * 4);
+  if (u(11) !== 32) throw new RunFailed(`Xvfb's screen has ${u(11)} bits a pixel, not 32`);
+  return { fd, base: u(0) + u(19) * 12, bpl: u(12) };
+}
+// The window's picture as the luma of a grid of its pixels, a row of the screen file read for each of the grid's rows.
+const GW = 64, GH = 48;
+function signature(scr, g) {
+  const sig = new Uint8Array(GW * GH), row = Buffer.alloc(g.w * 4);
+  for (let y = 0; y < GH; y++) {
+    fs.readSync(scr.fd, row, 0, row.length, scr.base + (g.y + Math.floor((y + 0.5) * g.h / GH)) * scr.bpl + g.x * 4);
+    for (let x = 0; x < GW; x++) {
+      const o = Math.floor((x + 0.5) * g.w / GW) * 4; // B, G, R, X
+      sig[y * GW + x] = (row[o] * 29 + row[o + 1] * 150 + row[o + 2] * 77) >> 8;
+    }
+  }
+  return sig;
+}
+// The share of the grid two reads differ at.
+const changed = (a, b) => { let n = 0; for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > 12) n++; return n / a.length; };
+
+// An answer's verdict from its reads ({ t, sig }), the press's and release's times and its limits.
+function judge(samples, pressed, released, maxPress, maxStill) {
+  const d = samples.slice(1).map((s, i) => ({ t: s.t, c: changed(samples[i].sig, s.sig) }));
+  const noise = Math.max(0, ...d.filter((x) => x.t < pressed).map((x) => x.c));
+  const threshold = Math.max(0.02, 2 * noise);
+  const reads = d.length / ((d.at(-1).t - d[0].t) / 1000);
+  const first = d.find((x) => x.t > pressed && x.c > threshold);
+  const last = d.findLast((x) => x.t > released && x.c > threshold);
+  const end = d.at(-1).t - released;
+  const r = { noise, threshold, reads, answer: first ? first.t - pressed : null, still: last ? last.t - released : 0 };
+  const why = [];
+  if (noise >= 0.25) why.push(`the picture wasn't still before the press (${(noise * 100).toFixed(0)}% of it changed in a read)`);
+  if (r.answer === null) why.push('the picture never answered the press');
+  else if (r.answer > maxPress) why.push(`the picture answered ${r.answer} ms after the press, over ${maxPress}`);
+  if (last && end - r.still < 500) why.push(`the picture was still moving ${r.still} ms after the release, at the end of the reads`);
+  else if (r.still > maxStill) why.push(`the picture was still moving ${r.still} ms after the release, over ${maxStill}`);
+  return { ...r, why };
+}
 
 // The runtime's RDRAM in pid: its anonymous read-write mapping of 512 MB, or the last 512 MB of a larger one that ends
 // where the inaccessible rest of the runtime's reservation (its kuseg window, ---p) begins. The kernel merges the region
@@ -105,8 +186,14 @@ async function playRun(i, size, signal, config) {
   fs.writeFileSync(path.join(work, 'portable.txt'), '');
   fs.copyFileSync(rom, path.join(work, `${gameId}.z64`));
   for (const f of fs.readdirSync(config)) fs.copyFileSync(path.join(config, f), path.join(work, f));
-  const env = { ...process.env, DISPLAY: display, SDL_AUDIODRIVER: 'dummy', RT64_FRAME_DUMP: path.join(dir, 'dump') };
+  const env = { ...process.env, DISPLAY: display, SDL_AUDIODRIVER: 'dummy' };
+  if (!noDump) env.RT64_FRAME_DUMP = path.join(dir, 'dump');
   if (opt('--seconds')) env.RT64_FRAME_DUMP_SECONDS = opt('--seconds');
+  const padCmds = path.join(dir, 'pad.txt'), padLog = path.join(dir, 'pad.log');
+  if (usesPad) {
+    fs.writeFileSync(padCmds, '');
+    Object.assign(env, { LD_PRELOAD: padLib, STAND_IN_PAD: padCmds, STAND_IN_PAD_LOG: padLog });
+  }
   for (const kv of (opt('--env') ?? '').split(',').filter(Boolean)) { const k = kv.indexOf('='); env[kv.slice(0, k)] = kv.slice(k + 1); }
   const [w, h] = size ?? [1280, 720];
   const progArgs = ['--boot', '--window', `${w}x${h}`, ...(opt('--args') ?? '').split(/\s+/).filter(Boolean)];
@@ -151,6 +238,25 @@ async function playRun(i, size, signal, config) {
     return Number(s) >>> 0;
   };
   const press = async (key, ms = 120) => { xdo('keydown', keysym(key)); await sleep(ms); xdo('keyup', keysym(key)); };
+  // A command to the stand-in pad, and when it applied it (ms since 1970): its line in the pad's log, waited for while
+  // `meanwhile` runs (an answer's reads).
+  let padSent = 0;
+  const padLines = () => (fs.existsSync(padLog) ? fs.readFileSync(padLog, 'utf8').split('\n').filter((l) => l && l.split(' ')[1] !== 'plug') : []);
+  const pad = async (cmd, meanwhile = () => sleep(5)) => {
+    const n = padSent++;
+    fs.appendFileSync(padCmds, cmd + '\n');
+    for (const end = Date.now() + 2000; Date.now() < end; await meanwhile()) {
+      live();
+      const l = padLines()[n];
+      if (!l) continue;
+      const [ms, ...rest] = l.split(' ');
+      if (!/ ok$/.test(l)) throw new RunFailed(`the stand-in pad refused ${cmd}: ${rest.join(' ')}`);
+      return Number(ms);
+    }
+    const plugged = fs.existsSync(padLog) ? fs.readFileSync(padLog, 'utf8').split('\n').find((l) => / plug /.test(l)) : null;
+    throw new RunFailed(`the stand-in pad took no ${cmd} in 2 s (${plugged ?? 'never plugged in: the program polls no SDL events, or the pad was not preloaded'})`);
+  };
+  const results = [];
   try {
     await findWindow();
     if (size) xdo('windowsize', win, String(w), String(h));
@@ -198,6 +304,39 @@ async function playRun(i, size, signal, config) {
         case 'or': { const a = num(p[2]); write(a, read(a).readUInt32LE() | num(p[3])); say(`or ${p[2]} ${p[3]}`); break; }
         case 'peek': say('peek ' + p[2].split(',').map((a) => `${a}=0x${read(num(a)).readUInt32LE().toString(16).toUpperCase().padStart(8, '0')}`).join(' ')); break;
         case 'dump': fs.writeFileSync(path.join(dir, p[4] + '.bin'), read(num(p[2]), num(p[3]))); say(`dump ${p[2]} ${p[3]} ${p[4]}.bin`); break;
+        case 'pad': await pad(`${p[2]} ${p[3]}`); say(`pad ${p[2]} ${p[3]}`); break;
+        case 'unplug': case 'replug': await pad(p[1]); say(p[1]); break;
+        case 'answer': {
+          const [, , label, control, value, hold, maxPress = 250, maxStill = 250] = p;
+          const scr = openScreen();
+          const geo = Object.fromEntries(xdo('getwindowgeometry', '--shell', win).split('\n').map((l) => l.split('=')));
+          const g = { x: Number(geo.X), y: Number(geo.Y), w: Number(geo.WIDTH), h: Number(geo.HEIGHT) };
+          const samples = [];
+          const sample = async () => { samples.push({ t: Date.now(), sig: signature(scr, g) }); await sleep(3); };
+          const readFor = async (ms) => { for (const end = Date.now() + ms; Date.now() < end; await sample()) live(); };
+          const set = async (v) => {
+            if (!control.startsWith('key:')) return pad(`${control} ${v}`, sample);
+            const ms = Date.now();
+            xdo(Number(v) ? 'keydown' : 'keyup', keysym(control.slice(4)));
+            return ms;
+          };
+          try {
+            await readFor(1000);
+            const pressed = await set(value);
+            await readFor(Number(hold) * 1000 - (Date.now() - pressed));
+            const released = await set(0);
+            await readFor(2500 - (Date.now() - released));
+            const r = judge(samples, pressed, released, Number(maxPress), Number(maxStill));
+            const text = `answer ${label}: ${control} ${value} for ${hold} s: ` +
+              `${r.answer === null ? 'no answer' : `answered in ${r.answer} ms`}, still ${r.still} ms after the release ` +
+              `(${r.reads.toFixed(0)} reads a second, noise ${(r.noise * 100).toFixed(1)}%, moved over ${(r.threshold * 100).toFixed(1)}%)` +
+              (r.why.length ? `: FAILS: ${r.why.join('; ')}` : ': passes');
+            if (r.why.length) answersFailed++;
+            results.push(text);
+            say(text);
+          } finally { fs.closeSync(scr.fd); }
+          break;
+        }
         case 'end': break plan;
         default: throw new RunFailed(`unknown plan step: ${p.join(' ')}`);
       }
@@ -211,6 +350,7 @@ async function playRun(i, size, signal, config) {
       say('stopped');
     }
   }
+  if (results.length) fs.writeFileSync(path.join(dir, 'answers.txt'), results.join('\n') + '\n');
   const crash = fs.readFileSync(path.join(dir, 'stderr.log'), 'utf8').match(/^.*Crash:.*$/m);
   if (crash) throw new RunFailed(`the program crashed: ${crash[0]}`);
   return path.join(dir, 'dump');
@@ -245,12 +385,14 @@ async function makeConfig() {
 
 async function dumps(signal) {
   const config = await makeConfig();
+  if (usesPad) buildPad();
   const made = [];
   for (const [i, size] of (windows ?? [null]).entries()) made.push(await playRun(i, size, signal, config));
   return made;
 }
 
 function check(made) {
+  if (noDump) return answersFailed ? 1 : 0;
   const a = [path.join(here, 'frame_check.mjs'), made[0]];
   if (made.length === 3) a.push('--narrower', made[1], '--wider', made[2]);
   if (opt('--workers')) a.push('--workers', opt('--workers'));
@@ -262,7 +404,8 @@ function check(made) {
   fs.writeFileSync(path.join(out, 'frame_check.txt'), text);
   process.stdout.write(text);
   log(`frame_check exited ${code}`);
-  return code;
+  if (answersFailed) log(`${answersFailed} answer${answersFailed > 1 ? 's' : ''} failed`);
+  return answersFailed ? 1 : code;
 }
 
 // The container's memory cap in MiB (cgroup v2's memory.max), null when it has none (the queue then reads the game's
@@ -284,7 +427,7 @@ try {
       url: opt('--url') || undefined, ref: process.env.HOSTNAME,
       onUpdate: (j) => j.state === 'waiting' && log(`queue: ${type} waiting, ${j.ahead} ahead: ${j.why?.text ?? 'going next'}`) });
     const made = await gpuRun(spec('frame-dump', `Frame dump: ${gameId}`, opt('--vram', 'auto') === 'auto' ? 'auto' : Number(opt('--vram'))), (signal) => dumps(signal));
-    code = await gpuRun(spec('frame-check', `frame_check: ${gameId}`, 0), async () => check(made));
+    code = noDump ? check(made) : await gpuRun(spec('frame-check', `frame_check: ${gameId}`, 0), async () => check(made));
   } else code = check(await dumps(null));
 } catch (e) {
   log(`frame_dump: ${e instanceof RunFailed ? e.message : e?.stack ?? e}`);
