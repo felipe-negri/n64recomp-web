@@ -42,7 +42,14 @@
 //   lands anywhere. Mario Party 3's opening without its models' tags (lib/mario-party-engine's model_ids.cpp) draws a
 //   small star for a frame where neither neighbour has it, at one place in every frame between for 0.3 s, 1-2 blocks
 //   each: 23 of 689 frames flagged, 11 without this; with the tags, 3 of 654 either way. On Rayman 2's, Turok 2's and
-//   3's and Rush 2049's dumps it changes no verdict, and adds nothing to the ones that pass.
+//   3's and Rush 2049's dumps it changes no verdict, and adds nothing to the ones that pass. And a flagged frame
+//   between the game's own (not the last of its present, which is the game's) that is unlike the whole picture either
+//   side of it, by 10 of 255 at the least and 3 times as much as those two differ from each other, fails alone: a pairing
+//   fault that comes once per event, not once per frame. Dinosaur Planet's map blocks paired with a look-alike across a
+//   step of its world's origin (its src/game/interpolation.cpp before its block groups) draw a cliff over the camera for
+//   one frame between at each step, every 6-20 s of walking: 1-2 of about 2000 frames, under both counts above, but
+//   23-32 of 255 from either neighbour at 3.8-4.2 times their own difference, where no other frame between on the
+//   builds with or without the fix reads over 1.3 times or 2.3 of 255.
 //   Only frames presented between the game's own (Framerate Display, on a display faster than the
 //   game) are paired, so a dump without one (Framerate Original, a 60 Hz display under a game of 60) leaves pairing
 //   untested and exits 2, whatever else passes.
