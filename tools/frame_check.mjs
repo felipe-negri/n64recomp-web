@@ -56,7 +56,9 @@
 //   step of its world's origin (its src/game/interpolation.cpp before its block groups) draw a cliff over the camera for
 //   one frame between at each step, every 6-20 s of walking: 1-2 of about 2000 frames, under both counts above, but
 //   23-32 of 255 from either neighbour at 3.8-4.2 times their own difference, where no other frame between on the
-//   builds with or without the fix reads over 1.3 times or 2.3 of 255.
+//   builds with or without the fix reads over 1.3 times or 2.3 of 255. The fault isn't in every play: two plays of
+//   SwapStone Hollow without the fix drew it and fail, two more on a busy host drew no such frame and pass, so a
+//   plan reaches several of its triggers (here, origin steps) before a pass says the build is clean.
 //   Only frames presented between the game's own (Framerate Display, on a display faster than the
 //   game) are paired, so a dump where under 1 in 100 of the frames matched are drawn between, not the game's own
 //   picture repeated (Framerate Original, a 60 Hz display under a game of 60), leaves pairing untested and exits 2,
