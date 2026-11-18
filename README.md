@@ -460,7 +460,7 @@ take the web support without moving its submodules to the forks (Using it in a r
   `capture_window.ps1` plays a desktop build by a plan and captures its own window, and `frame_log.mjs` reads RT64's
   frame log beside those captures (docs/playing.md); `frame_check.mjs` checks every frame RT64 dumps with
   `RT64_FRAME_DUMP` for frames unlike both neighbours, a part of the picture off the rest's pace between the game's
-  own frames (`frame_pace.mjs`) and a world culled at the 4:3 view's sides.
+  own frames (`frame_pace.mjs`), and a world, a HUD or black left at the 4:3 view's sides.
   `frame_lengths.js`, a preload too, logs how long the game's frames are against the page's presents, and
   `frame_lengths.mjs` counts from that what each guess at a frame's length would hold and cut. `wait_probe.js` logs
   whether a timed wait off the page's thread ends on time, each second of a play, and `heap_probe.js` how much of its
@@ -468,7 +468,9 @@ take the web support without moving its submodules to the forks (Using it in a r
   short in, with the ring's fill and the loudest sample played before it, so a loss in the game's own silence shows.
   `page_driver.mjs` drives both browsers for them (each header says how), and in Chrome reports an exception on any
   of the page's threads with its stack, which the page itself gets only as an ErrorEvent without one. `wasm_offset.mjs`
-  names the function of a page's wasm at the offset a trap gives.
+  names the function of a page's wasm at the offset a trap gives. `pad_db_refresh.mjs` refreshes a recomp's
+  `recompcontrollerdb.txt`, the pad mappings its desktop build ships beside the program, from SDL's community
+  controller database: its N64, GameCube and Switch Online pads, keeping every pad the file already maps.
 - `tests/`: the plume device thread test, hlslpp's wasm SIMD backend against plain C++, the WGSL checker, and
   `build/`, every library of a page built with Emscripten from the forks. CI (`.github/workflows/ci.yml`) runs all
   four.
