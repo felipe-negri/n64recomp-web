@@ -16,7 +16,9 @@
 #
 # Plan lines, each at seconds since the exe started:
 #   <s> key <name> [ms]       press and release a key in the window (a letter, a digit, Enter, Space, Shift, Escape,
-#                             Tab, Up, Down, Left, Right), held ms (120)
+#                             Tab, Up, Down, Left, Right), held ms (120). Shift never reaches an SDL2 game: SDL
+#                             releases Shift on each pump of its events while Windows' own key state, which a
+#                             posted key leaves as it is, says Shift is up (RecompFrontend's default for B)
 #   <s> down <name>           press a key and keep it held, and
 #   <s> up <name>             release it: a key held while a record goes on (key's hold stops the captures meanwhile)
 #   <s> shot <name>           one capture, <name>.png
