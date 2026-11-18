@@ -467,7 +467,9 @@ take the web support without moving its submodules to the forks (Using it in a r
   short in, with the ring's fill and the loudest sample played before it, so a loss in the game's own silence shows.
   `page_driver.mjs` drives both browsers for them (each header says how), and in Chrome reports an exception on any
   of the page's threads with its stack, which the page itself gets only as an ErrorEvent without one. `wasm_offset.mjs`
-  names the function of a page's wasm at the offset a trap gives.
+  names the function of a page's wasm at the offset a trap gives. `pad_db_refresh.mjs` refreshes a recomp's
+  `recompcontrollerdb.txt`, the pad mappings its desktop build ships beside the program, from SDL's community
+  controller database: its N64, GameCube and Switch Online pads, keeping every pad the file already maps.
 - `tests/`: the plume device thread test, hlslpp's wasm SIMD backend against plain C++, the WGSL checker, and
   `build/`, every library of a page built with Emscripten from the forks. CI (`.github/workflows/ci.yml`) runs all
   four.
