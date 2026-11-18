@@ -171,9 +171,9 @@ const CUT = 8; // the mean difference of two of the game's frames in a row, of 2
 const CUT_JUMP = 2; // ... and how many times the game's frames either side of them differ, at the least
 const CUT_PARTWAY = 0.3; // a frame between a cut's two as unlike both, against how unlike they are: the camera partway
 const CUT_WHOLE = 0.5; // ... and the share of the new frame's blocks the old one has nothing like: a new shot
-const CUT_LONE = 10; // ... or, where the game's frames either side of them differ this many times less, at the least,
+const CUT_LONE = 3; // ... or, where the game's frames either side of them differ this many times less, at the least,
 const CUT_PART = 0.1; // ... this share of the new frame's blocks: a new shot much like the old one
-const CUT_STILL = 2; // ... unless this share of the rest of it, where something is drawn (FLAT), is where it was: no cut
+const CUT_STILL = 0.8; // ... unless this share of the rest of it, where something is drawn (FLAT), is where it was
 const FLAT = 4; // a block's mean difference from its own mean, of 255, under which nothing is drawn in it
 const STIR = 0.1; // a frame of fewer than MIN_BLOCKS counts only where its neighbours match each other in place around
                   // it (within NEAR_BLOCKS) in all but this share of the blocks: no redrawn sparkle field
@@ -783,7 +783,7 @@ function checkCut([before, p, after]) {
         return;
     }
     // Something opening over a scene that stays where it was (a dialog box) changes part of the picture as alone.
-    if (p.still >= CUT_STILL) {
+    if ((p.whole < CUT_WHOLE) && (p.still >= CUT_STILL)) {
         return;
     }
     cuts.push(p);
@@ -894,7 +894,7 @@ for (const f of readFrames()) {
     first ??= f;
     last = f;
     dropped += f.dropped;
-    between += (f.index > 0) ? 1 : 0;
+    between += (f.index < f.count - 1) ? 1 : 0;
     sizes.add(`${f.w}x${f.h}`);
     if (!run || (run.w !== f.w) || (run.h !== f.h)) {
         run = { w: f.w, h: f.h, gw: Math.floor(W / B) * B, gh: Math.floor(W * f.h / f.w / B) * B, kept: [], game: null,
@@ -974,7 +974,7 @@ if (presented >= 3) {
     const fail = (counted.length * 100 > checked) || (burst >= 3) || (lone.length > 0);
     failed ||= fail;
     console.log(`frames: ${presented} presented over ${(last.t - first.t).toFixed(1)} s, ${between} of them between the` +
-        ` game's own (${repeats} repeats, ${dropped} dropped by the dump; ${drawn} drawn unlike the game's own), ${[...sizes].join(', ')}`);
+        ` game's own (${repeats} repeats, ${dropped} dropped by the dump, ${drawn} of them kept that aren't the game's picture repeated), ${[...sizes].join(', ')}`);
     if (few) {
         untested = true;
         console.log(`frames: ${drawn ? `only ${drawn} of ${checked}` : 'none'} drawn between the game's own, so too few test how` +
