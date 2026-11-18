@@ -1237,8 +1237,8 @@ if (presented >= 3) {
         untested = true;
         console.log(`frames: ${shownIds.size} of the ${queued} presents the game queued showed a frame, under ` +
             `${Math.round(SHOWN * 100)}%: the presents fell behind the rate asked of them and RT64 skipped the rest, so ` +
-            `the game's frames come ${((last.t - first.t) / shownIds.size).toFixed(2)} s apart here and nothing is tested ` +
-            'at its own pace (a lower Manual rate, a smaller window, or a host whose GPU nothing else holds)');
+            `${Math.round(100 - shownIds.size * 100 / queued)}% of the game's frames are missing and nothing is tested ` +
+            'at its own pace (a lower Manual rate, a smaller window, or a host whose presents keep up)');
     }
     console.log(`unlike both neighbours: ${counted.length} of ${checked} frames, at most ${burst} within a second, ` +
         `${place} between the game's own in one place within ${PLACE_SECONDS} s` +
