@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web f0da42b733c53982a6719216d738d9e3f39a318a
+rt64: https://github.com/n64hub/rt64-web ffc14470b786f99245fa49e01b67c91646309580
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -1405,7 +1405,7 @@ index 558f1ee..40a2e09 100644
      };
  };
 diff --git a/src/hle/rt64_application.cpp b/src/hle/rt64_application.cpp
-index 785de27..da8e5f0 100644
+index 785de27..93ea09d 100644
 --- a/src/hle/rt64_application.cpp
 +++ b/src/hle/rt64_application.cpp
 @@ -16,12 +16,18 @@
@@ -1550,7 +1550,15 @@ index 785de27..da8e5f0 100644
          swapChainDesc.textureCount = (userConfig.displayBuffering == UserConfiguration::DisplayBuffering::Triple) ? 3 : 2;
  
          // Enable present wait if supported by the device. We specify a max latency of 1 as we use it to wait right before the next
-@@ -350,7 +406,14 @@ namespace RT64 {
+@@ -332,6 +388,7 @@ namespace RT64 {
+         }
+ 
+         swapChain = presentGraphicsWorker->commandQueue->createSwapChain(swapChainDesc);
++        FrameDump::swapChainCreated(swapChain.get());
+ 
+         // Before configuring multisampling, make sure the device actually supports it for the formats we'll use. If it doesn't, turn off antialiasing in the configuration.
+         const RenderSampleCounts colorSampleCounts = device->getSampleCountsSupported(RenderTarget::colorBufferFormat(usesHDR));
+@@ -350,7 +407,14 @@ namespace RT64 {
          // Create the shader caches.
          // Estimate the amount of shader compiler threads by trying to use about half of the system's available threads.
          // We need the ubershader pipelines done as soon as possible, so we use a different thread count that demands more of the system.
@@ -1565,7 +1573,7 @@ index 785de27..da8e5f0 100644
          const uint32_t ubershaderThreads = uint32_t(std::max(int(threadsAvailable) - 2, 1));
          rasterShaderCache = std::make_unique<RasterShaderCache>(rasterShaderThreads, ubershaderThreads);
          rasterShaderCache->setup(device.get(), renderInterface->getCapabilities().shaderFormat, shaderLibrary.get(), multisampling);
-@@ -391,7 +454,12 @@ namespace RT64 {
+@@ -391,7 +455,12 @@ namespace RT64 {
          sharedQueueResources->setEmulatorConfig(emulatorConfig);
          sharedQueueResources->setEnhancementConfig(enhancementConfig);
          sharedQueueResources->setSwapChainSize(swapChain->getWidth(), swapChain->getHeight());
@@ -1578,7 +1586,7 @@ index 785de27..da8e5f0 100644
          sharedQueueResources->renderTargetManager.setMultisampling(multisampling);
          sharedQueueResources->renderTargetManager.setUsesHDR(usesHDR);
  
-@@ -455,6 +523,20 @@ namespace RT64 {
+@@ -455,6 +524,20 @@ namespace RT64 {
          // Set up the RDP
          state->rdp->setGBI();
  
@@ -1599,7 +1607,7 @@ index 785de27..da8e5f0 100644
          return SetupResult::Success;
      }
  
-@@ -509,7 +591,35 @@ namespace RT64 {
+@@ -509,7 +592,35 @@ namespace RT64 {
          }
      }
  
@@ -1635,7 +1643,7 @@ index 785de27..da8e5f0 100644
          appWindow->sdlCheckFilterInstallation();
          screenApiProfiler.logAndRestart();
          state->updateScreen(core.decodeVI(), false);
-@@ -674,9 +784,17 @@ namespace RT64 {
+@@ -674,9 +785,17 @@ namespace RT64 {
          presentQueue.reset();
  
          // Call the deinit hook if one was attached.
@@ -1656,7 +1664,7 @@ index 785de27..da8e5f0 100644
          }
  
          drawDataUploader.reset();
-@@ -702,7 +820,75 @@ namespace RT64 {
+@@ -702,7 +821,75 @@ namespace RT64 {
          device.reset();
          renderInterface.reset();
  
@@ -1858,10 +1866,10 @@ index 0e62be1..03dd071 100644
          bool reinterpretTile;
 diff --git a/src/hle/rt64_frame_dump.h b/src/hle/rt64_frame_dump.h
 new file mode 100644
-index 0000000..dfafbe9
+index 0000000..5fd70c0
 --- /dev/null
 +++ b/src/hle/rt64_frame_dump.h
-@@ -0,0 +1,347 @@
+@@ -0,0 +1,376 @@
 +//
 +// RT64
 +//
@@ -1899,14 +1907,22 @@ index 0000000..dfafbe9
 +// With RT64_FRAME_DUMP_SECONDS, only what comes between those seconds after the first present is written, a scene's
 +// worth rather than gigabytes of the boot: about 40 MB a second of frames at 640 wide and 60 a second.
 +//
++// With RT64_FRAME_DUMP_RATE=<Hz> too, RT64 presents at that rate whatever the display's is: the swap chain's vsync is
++// turned off (swapChainCreated()) and its rate taken as that one (swapChainRate()), so Framerate Display interpolates
++// to it. A desktop build presents frames between the game's only where the display is faster than the game, so a game
++// of 60 on a 59-60 Hz display presents none, and a dump of it tests nothing of how they pair: at 120 every other
++// frame is one of them. Where the device can't turn vsync off (Vulkan without its immediate present mode), the
++// presents stay held to the display's.
++//
 +// The present thread copies each frame's picture into a buffer in that frame's own commands (plume's
 +// copyTextureRegion into a placed footprint: D3D12, and Vulkan from the plume-web commit that adds it; Metal's reads
 +// none back, so a desktop build's dump is for Windows and Linux), and box-filters it as the next frame is presented,
 +// once those commands were waited for, which costs a present a few milliseconds: the dump is a test's, not a
 +// player's. A frame's header is timed then, so a frame's time lags its own by one frame's.
 +//
-+// RT64 calls it from two places only, the present queue's readback() and the RSP's addTriangle(), and everything else
-+// is here: a game's own changes to RT64 meet its lines in as few places as can be.
++// RT64 calls it from four places only, the present queue's readback(), the RSP's addTriangle(), the application's
++// swapChainCreated() and the shared resources' swapChainRate(), and everything else is here: a game's own changes to
++// RT64 meet its lines in as few places as can be.
 +//
 +// Frames go to a thread of their own, a few in hand at most: one that finds the queue full is dropped and counted in
 +// the next header's dropped field, so a slow disk shows as a gap the tool knows, never as a slower game.
@@ -1958,6 +1974,7 @@ index 0000000..dfafbe9
 +        std::string dir;
 +        double fromSeconds = 0.0;
 +        double toSeconds = 1e30;
++        uint32_t rate = 0;
 +        std::chrono::steady_clock::time_point start;
 +        std::atomic<bool> started = false;
 +        FILE *framesFile = nullptr;
@@ -2002,6 +2019,11 @@ index 0000000..dfafbe9
 +                    sscanf(seconds, "%lf-%lf", &d->fromSeconds, &d->toSeconds);
 +                }
 +
++                const char *rate = getenv("RT64_FRAME_DUMP_RATE");
++                if (rate != nullptr) {
++                    d->rate = uint32_t(std::max(atoi(rate), 0));
++                }
++
 +                d->framesFile = fopen((d->dir + "/frames.bin").c_str(), "wb");
 +                d->sidesFile = fopen((d->dir + "/sides.tsv").c_str(), "w");
 +                if ((d->framesFile == nullptr) || (d->sidesFile == nullptr)) {
@@ -2015,6 +2037,21 @@ index 0000000..dfafbe9
 +            }();
 +
 +            return dump;
++        }
++
++        // RT64_FRAME_DUMP_RATE: the rate the swap chain is taken to present at, in place of the display's rate.
++        static uint32_t swapChainRate(uint32_t displayRate) {
++            const FrameDump *dump = get();
++            return ((dump != nullptr) && (dump->rate > 0)) ? dump->rate : displayRate;
++        }
++
++        // RT64_FRAME_DUMP_RATE: the swap chain's presents aren't held to the display's. Vulkan's present mode changes
++        // at its next resize(), which the present queue makes as soon as needsResize() says so.
++        static void swapChainCreated(RenderSwapChain *swapChain) {
++            const FrameDump *dump = get();
++            if ((dump != nullptr) && (dump->rate > 0)) {
++                swapChain->setVsyncEnabled(false);
++            }
 +        }
 +
 +        static uint64_t nowMs() {
@@ -5474,21 +5511,21 @@ index 1da2550..e066e86 100644
  
              const interop::RSPViewport &viewport = viewportStack[viewportStackSize - 1];
 diff --git a/src/hle/rt64_shared_queue_resources.h b/src/hle/rt64_shared_queue_resources.h
-index 8858dac..ee7f18e 100644
+index 8858dac..4bd6d21 100644
 --- a/src/hle/rt64_shared_queue_resources.h
 +++ b/src/hle/rt64_shared_queue_resources.h
-@@ -23,6 +23,24 @@ namespace RT64 {
+@@ -12,6 +12,7 @@
+ #include "render/rt64_render_target_manager.h"
+ 
+ #include "rt64_framebuffer_manager.h"
++#include "rt64_frame_dump.h"
+ 
+ #if RT_ENABLED
+ #   include "render/rt64_raytracing_resources.h"
+@@ -23,6 +24,24 @@ namespace RT64 {
          uint32_t available = 0;
          uint32_t count = 0;
          bool skipped = false;
-+        // Whether a present has shown these counters' last frame (PresentQueue::threadPresent()). A present that takes them
-+        // after one has, the game's VI showing the frame again before its next was drawn, shows nothing: the screen holds
-+        // that last frame. It showed every frame of the set again, the frame between the game's first, so the picture went
-+        // back half a frame, and the targets those frames were in were already free: once a present has shown a frame, the
-+        // next game frame draws into its target, so the frame shown again was half of the next one drawn, or all of it.
-+        // Mario Golf's menus, now and then as a frame ran late, showed a character with a forearm gone for one frame, or
-+        // an arm where the next pose put it. Unlike presented, which a dropped present sets too (skipInterpolation()).
-+        bool shown = false;
 +#   if RT64_GAME_FRAME_WORKLOADS
 +        // Whether a present is showing these counters' targets (PresentQueue::threadPresent()). A present waits for the
 +        // last workload that drew what it shows (State::advancePresent()), not the newest, so it can start after the next
@@ -5499,10 +5536,18 @@ index 8858dac..ee7f18e 100644
 +        // good before, Mario Party 2's page 3 s into its boot, its present waiting for frames of a set reset under it.
 +        bool inUse = false;
 +#   endif
++        // Whether a present has shown these counters' last frame (PresentQueue::threadPresent()). A present that takes them
++        // after one has, the game's VI showing the frame again before its next was drawn, shows nothing: the screen holds
++        // that last frame. It showed every frame of the set again, the frame between the game's first, so the picture went
++        // back half a frame, and the targets those frames were in were already free: once a present has shown a frame, the
++        // next game frame draws into its target, so the frame shown again was half of the next one drawn, or all of it.
++        // Mario Golf's menus, now and then as a frame ran late, showed a character with a forearm gone for one frame, or
++        // an arm where the next pose put it. Unlike presented, which a dropped present sets too (skipInterpolation()).
++        bool shown = false;
      };
  
      struct SharedQueueResources {
-@@ -32,6 +50,8 @@ namespace RT64 {
+@@ -32,6 +51,8 @@ namespace RT64 {
          uint32_t swapChainRate = 0;
          hlslpp::float2 resolutionScale = 1.0f;
          uint32_t targetRate = 0;
@@ -5511,7 +5556,7 @@ index 8858dac..ee7f18e 100644
          UserConfiguration userConfig;
          EnhancementConfiguration enhancementConfig;
          EmulatorConfiguration emulatorConfig;
-@@ -57,6 +77,57 @@ namespace RT64 {
+@@ -57,6 +78,57 @@ namespace RT64 {
          std::mutex interpolatedMutex;
          std::condition_variable interpolatedCondition;
          std::mutex workloadMutex;
@@ -5569,6 +5614,15 @@ index 8858dac..ee7f18e 100644
  
          void setSwapChainSize(uint32_t width, uint32_t height) {
              std::scoped_lock<std::mutex> configurationLock(configurationMutex);
+@@ -69,7 +141,7 @@ namespace RT64 {
+ 
+         void setSwapChainRate(uint32_t rate) {
+             std::scoped_lock<std::mutex> configurationLock(configurationMutex);
+-            swapChainRate = rate;
++            swapChainRate = FrameDump::swapChainRate(rate);
+         }
+ 
+         void setUserConfig(const UserConfiguration &newUserConfig, bool discardFBs) {
 diff --git a/src/hle/rt64_state.cpp b/src/hle/rt64_state.cpp
 index 2970e71..7900ee1 100644
 --- a/src/hle/rt64_state.cpp

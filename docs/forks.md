@@ -1218,4 +1218,6 @@ rt64 f0da42b           a present that takes a game frame whose frames a present 
                        screen holds its last frame: the VI showing a frame again showed them all again, the frame
                        between the game's first, from targets the next game frame was already drawn into, so
                        Mario Golf's menus now and then showed a character with a forearm gone for one frame
+rt64 ffc1447           f0da42b's shown at InterpolatedFrameCounters' end, past inUse, where Jet Force Gemini's own
+                       field after skipped doesn't meet it
 ```
