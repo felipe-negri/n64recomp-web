@@ -90,12 +90,12 @@
 //   13-21 of its own. A game of 60 is dumped with RT64_FRAME_DUMP_RATE=120 set beside RT64_FRAME_DUMP, which presents
 //   at 120 with vsync off whatever the display's rate (rt64-web's rt64_frame_dump.h).
 //   A dump that lacks more than a tenth of the presents the game queued (its present ids, one a screen update) leaves
-//   the whole check untested too, and exits 2 unless it fails: RT64 skips a present whose next one is already queued,
-//   so a present thread slower than the rate asked of it shows only some of the game's frames, each at its pace, and the
-//   pairing reads frames between the game's 0.1-0.5 s apart, not 33 ms. Mario Golf's MAIN MENU dumped at Manual 240 in
-//   a 1280x960 window on a Linux host whose GPU a training job held kept 12 of the 25 presents a second its game queued
-//   and 3.3 of its own frames a second, each shown 7 times; at Manual 60, 22 of 30; at Manual 30, all 30 (and no frame
-//   between). Its dumps on Windows, at a 60 Hz display's rate, kept 94-100%.
+//   the whole check untested too, and exits 2 unless it fails: RT64 skips a present whose next one is already queued, so
+//   a present thread slower than the rate asked of it shows only some of the game's frames, each at its pace, and the
+//   pairing reads frames between the game's 0.1-0.5 s apart, not 33 ms. Mario Golf's 35 s of a plan dumped at Manual 240
+//   in a 1280x960 window on a Linux host whose GPU a training job held kept 12 of the 25 presents a second its game
+//   queued and 3.3 of its own frames a second, each shown 7 times; at Manual 60, 22 of 30; at Manual 30, all 30 (and no
+//   frame between). Its dumps on Windows, at a 60 Hz display's rate, kept 94-100%.
 // - Camera cuts drawn partway. A cut is two of the game's frames in a row far apart (a mean difference of 8 of 255
 //   after the best shift of one against the other) where the game's frames before and after them are at least twice as
 //   near: the camera jumps in one frame. RT64 interpolates a camera unless the game says it cut, so a cut the game

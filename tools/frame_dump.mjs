@@ -19,10 +19,17 @@
 // tools/sound_check.mjs checks the first run's after frame_check, against --sound-reference's if given (a run's folder
 // of an earlier dump, by the same plan, of a build whose sound is right), its text in sound_check.txt. The recording
 // stays (about 23 MB a minute) for a later check against another.
-// RT64's refresh rate is set to Manual at --rate (240) in its graphics.json, made by a first start of the program
+// RT64's refresh rate is set to Manual at --rate (60) in its graphics.json, made by a first start of the program
 // when --config has none: Xvfb has no refresh rate of its own, and at Display the program presents only the game's own
-// frames, which test nothing of the frames between. It presents as fast as it draws below that rate (Mario Golf's
-// title at 1280x720: ~69 a second with the dump on, on an RTX 5090).
+// frames, which test nothing of the frames between. 60 is a 60 Hz display's, where a game of 30 shows each frame twice,
+// once between, as on Windows, where the checks were measured; a game of 60 needs 120. A rate the presents can't keep
+// up with doesn't slow the game: RT64 skips a present whose next one is already queued, so the dump keeps only some of
+// the game's frames, each at its pace, and the checks read its motion 0.1-0.5 s apart. Mario Golf's at Manual 240 in a
+// 1280x960 window, under Xvfb on an RTX 5090 a training job held, presented 31 a second (157 at 320x240), so 12 of the
+// 25 presents a second its game queued and 3.3 of its own frames a second, each shown 7 times, came out, against 22 of
+// 30 at Manual 60 and all 30 at Manual 30 (none between). Each run's line says how fast its dump came: presents and the
+// game's own frames a second, and the presents the game queued against those in the dump, and frame_check leaves a
+// dump that lacks over a tenth of them untested (exit 2).
 //
 // --window gives each run's window: one size is one run, frame_check reading its dump alone; three are three runs of
 // the plan, the first checked with the second as --narrower (a 4:3 window) and the third as --wider (32:9), the check
@@ -64,7 +71,7 @@ const need = (name) => opt(name) ?? (console.error(`frame_dump: ${name} is requi
 const game = path.resolve(need('--game')), exe = need('--exe'), gameId = need('--game-id');
 const rom = path.resolve(need('--rom')), planFile = path.resolve(need('--plan')), out = path.resolve(need('--out'));
 const windows = opt('--window') ? opt('--window').split(',').map((s) => s.split('x').map(Number)) : null;
-const rate = Number(opt('--rate', 240));
+const rate = Number(opt('--rate', 60));
 const here = path.dirname(new URL(import.meta.url).pathname);
 const runNames = windows?.length === 2 ? ['main', 'low'] : ['main', 'narrower', 'wider'];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
