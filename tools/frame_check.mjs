@@ -135,6 +135,8 @@ const MIN_BLOCKS = 4; // blocks a flagged frame has
 const NEAR_BLOCKS = 4; // ... or, drawn between the game's own, fewer within this many blocks of where
 const NEAR_FRAMES = 4; // ... this many other frames drawn between had theirs
 const NEAR_SECONDS = 0.25; // ... within this many seconds either side
+const PLACE_FRAMES = 4; // flagged frames between, within NEAR_BLOCKS of the first's blocks, that fail together
+const PLACE_SECONDS = 5; // ... within this many seconds of it
 const CUT = 8; // the mean difference of two of the game's frames in a row, of 255, at the least, that is a cut
 const CUT_JUMP = 2; // ... and how many times the game's frames either side of them differ, at the least
 const CUT_PARTWAY = 0.3; // a frame between a cut's two as unlike both, against how unlike they are: the camera partway
@@ -916,8 +918,15 @@ if (presented >= 3) {
         }
         burst = Math.max(burst, i - j + 1);
     }
+    // PLACE_FRAMES or more drawn between the game's own within PLACE_SECONDS, in one place.
+    const drawn = counted.filter(({ c }) => c.f.index < c.f.count - 1);
+    let place = 0;
+    drawn.forEach((u, i) => {
+        const at = drawn.slice(i).filter((v) => (v.c.f.t - u.c.f.t <= PLACE_SECONDS) && ((v === u) || near(u, v)));
+        place = Math.max(place, at.length);
+    });
     checked = Math.max(checked, 1);
-    const fail = (counted.length * 100 > checked) || (burst >= 3);
+    const fail = (counted.length * 100 > checked) || (burst >= 3) || (place >= PLACE_FRAMES);
     failed ||= fail;
     console.log(`frames: ${presented} presented over ${(last.t - first.t).toFixed(1)} s, ${between} of them between the` +
         ` game's own (${repeats} repeats, ${dropped} dropped by the dump), ${[...sizes].join(', ')}`);
@@ -926,7 +935,8 @@ if (presented >= 3) {
         console.log('frames: none presented between the game\'s own, so nothing tests how they are paired: dump at' +
             ' Framerate Display on a display faster than the game');
     }
-    console.log(`unlike both neighbours: ${counted.length} of ${checked} frames, at most ${burst} within a second: ` +
+    console.log(`unlike both neighbours: ${counted.length} of ${checked} frames, at most ${burst} within a second, ` +
+        `${place} between the game's own in one place within ${PLACE_SECONDS} s: ` +
         (fail ? 'FAILS' : 'passes') + (passing.length ? ` (${passing.length} more, not counted, where something passes` +
         ` close to the camera: the game's frames ${NEAR}-${CUT_WHOLE} of the picture apart, two presents running)` : '') +
         (gameAlone ? ` (${gameAlone} of the game's own, not counted, with no frame between beside them flagged)` : ''));
