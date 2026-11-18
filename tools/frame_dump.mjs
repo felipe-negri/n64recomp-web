@@ -22,7 +22,9 @@
 //
 // --window gives each run's window: one size is one run, frame_check reading its dump alone; three are three runs of
 // the plan, the first checked with the second as --narrower (a 4:3 window) and the third as --wider (32:9), the check
-// of the frames between the game's and the sides asks for. With --window the plan's size steps are skipped. Without it each run is the plan's own size steps
+// of the frames between the game's and the sides asks for. Two are tools/seam_check.mjs's: the first at 4 times the
+// console's resolution or more (1280x960) and the second at its own (320x240), the first checked for seams thinner
+// than a console pixel that the second lacks (its header says how), and --check's arguments are seam_check's. With --window the plan's size steps are skipped. Without it each run is the plan's own size steps
 // from a 1280x720 window.
 //
 // The plan is tools/capture_window.ps1's (its header has every step), its times in seconds since the program started:
@@ -47,20 +49,19 @@
 // crashed, an until or find unmet, no window), 75 when the queue asked it to stop.
 //
 // --soak plays the game for <seconds> instead, the program's own settings (--config's if given), no dump and no
-// frame_check: a long run through its modes and menus that fails on what a 90 s boot misses, players' crashes and hangs
-// minutes in or in one scene. One run, in --window's first size (1280x720). It fails, at once, when the program's
-// stderr gets a "Crash:" line (the recomps' crash trace), the program exits (the one the kernel kills first when the
-// container runs out of memory, which it then says), or the window's picture stays exactly the
-// same for --still seconds (10), from the first time it changed: a hang, or a picture frozen while the game goes on.
-// Which one is told by the game's memory (its first 8 MB of RDRAM, read each second), still changing or not, since the
-// runs' sound goes to SDL's dummy driver. The frozen picture is kept as frozen.png, and a shot of the window every 5
-// minutes as soak-<s>.png. Two plan steps are for soaks: `<t> again <t0>` goes back to the plan's step at <t0>, its
-// clock moved on, so a plan of one round of menus, a race and back plays it until the time is up; `<t> random
-// <key>,<key>,...` presses one of those keys every 0.3-1.2 s (120 ms each) while no plan step is due within a second,
-// until `<t> random off`, from a generator seeded by --seed (1), each press in input.log. A plan's own steps keep a
-// still screen from standing 10 s (a title waiting for Start, a static menu): press past it, or give random input.
-// Exit: 0 when the time is up with none of those, 1 when one came (the line saying which starts "soak FAILED"), 3 and
-// 75 as above. Its queue job is a `soak` (a frame-dump's run time is minutes, a soak's most of an hour).
+// frame_check: a play by the game's plan through each of its modes and scenes once, a few minutes, that fails on what a
+// 90 s boot misses, players' crashes and hangs in one scene. Both such faults it was tried on failed within seconds of
+// the plan reaching their scene, so its plan covers scenes, not time. One run, in --window's first size (1280x720). It
+// fails, at once, when the program's stderr gets a "Crash:" line (the recomps' crash trace), the program exits (the one
+// the kernel kills first when the container runs out of memory, which it then says), or the window's picture stays
+// exactly the same for --still seconds (10), from the first time it changed: a hang, or a picture frozen while the
+// game goes on. Which one is told by the game's memory (its first 8 MB of RDRAM, read each second), still changing or
+// not, since the runs' sound goes to SDL's dummy driver. The frozen picture is kept as frozen.png, the last as end.png.
+// One plan step is for soaks: `<t> random <key>,<key>,...` presses one of those keys every 0.3-1.2 s (120 ms each)
+// while no plan step is due within a second, until `<t> random off`, from a generator seeded by --seed (1), each
+// press in input.log. A plan's own steps keep a still screen from standing 10 s (a title waiting for Start, a static
+// menu): press past it, or give random input. Exit: 0 when the time is up with none of those, 1 when one came (the
+// line saying which starts "soak FAILED"), 3 and 75 as above. Its queue job is a `soak`, which runs no frame_check.
 import { spawn, execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -76,7 +77,7 @@ const rom = path.resolve(need('--rom')), planFile = path.resolve(need('--plan'))
 const windows = opt('--window') ? opt('--window').split(',').map((s) => s.split('x').map(Number)) : null;
 const rate = Number(opt('--rate', 240));
 const here = path.dirname(new URL(import.meta.url).pathname);
-const runNames = ['main', 'narrower', 'wider'];
+const runNames = windows?.length === 2 ? ['main', 'low'] : ['main', 'narrower', 'wider'];
 const soak = opt('--soak') ? Number(opt('--soak')) : null;
 const still = Number(opt('--still', 10));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -168,7 +169,7 @@ async function playRun(i, size, signal, config) {
   const png = (buf, file) => execFileSync('convert', ['xwd:-', path.join(dir, file)], { input: buf, env: xenv });
   const sha = (b) => crypto.createHash('sha1').update(b).digest('hex');
   const watch = async () => {
-    let errAt = 0, carry = '', lastPic = null, stillFrom = null, lastMem = null, memMoves = 0, memReads = 0, nextShot = 300;
+    let errAt = 0, carry = '', lastPic = null, stillFrom = null, lastMem = null, memMoves = 0, memReads = 0;
     while (failed === null && exited === null) {
       await sleep(1000);
       if (failed !== null || exited !== null) break;
@@ -184,7 +185,6 @@ async function playRun(i, size, signal, config) {
           if (crash) { failed = new SoakFailed(`the program crashed at ${t().toFixed(1)}s: ${crash}`); break; }
         }
         const buf = picture(), h = sha(buf);
-        if (t() >= nextShot) { png(buf, `soak-${Math.round(t())}.png`); nextShot += 300; }
         if (h !== lastPic) {
           if (lastPic !== null) stillFrom = t();
           lastPic = h; lastMem = null; memMoves = 0; memReads = 0;
@@ -258,8 +258,7 @@ async function playRun(i, size, signal, config) {
     await findWindow();
     if (size) xdo('windowsize', win, String(w), String(h));
     const watching = soak ? watch() : null;
-    plan: for (let n = 0; n < plan.length; n++) {
-      const p = plan[n];
+    plan: for (const p of plan) {
       await idle(soak ? Math.min(Number(p[0]) + shift, soak) : Number(p[0]) + shift);
       if (soak && t() >= soak) break plan;
       live();
@@ -304,15 +303,6 @@ async function playRun(i, size, signal, config) {
         case 'or': { const a = num(p[2]); write(a, read(a).readUInt32LE() | num(p[3])); say(`or ${p[2]} ${p[3]}`); break; }
         case 'peek': say('peek ' + p[2].split(',').map((a) => `${a}=0x${read(num(a)).readUInt32LE().toString(16).toUpperCase().padStart(8, '0')}`).join(' ')); break;
         case 'dump': fs.writeFileSync(path.join(dir, p[4] + '.bin'), read(num(p[2]), num(p[3]))); say(`dump ${p[2]} ${p[3]} ${p[4]}.bin`); break;
-        case 'again': {
-          if (!soak) throw new RunFailed('again loops the plan, which only --soak ends');
-          const j = plan.findIndex((q) => Number(q[0]) >= Number(p[2]));
-          if (j < 0 || j >= n) throw new RunFailed(`again ${p[2]}: no step before it at or after ${p[2]}`);
-          shift += Number(p[0]) - Number(plan[j][0]);
-          n = j - 1;
-          say(`again ${p[2]}`);
-          break;
-        }
         case 'random':
           rand = p[2] === 'off' ? null : p[2].split(',');
           rand?.forEach(keysym);
@@ -387,17 +377,18 @@ async function soakRun(signal) {
 }
 
 function check(made) {
-  const a = [path.join(here, 'frame_check.mjs'), made[0]];
+  const a = [path.join(here, made.length === 2 ? 'seam_check.mjs' : 'frame_check.mjs'), made[0]];
+  if (made.length === 2) a.push('--low', made[1]);
   if (made.length === 3) a.push('--narrower', made[1], '--wider', made[2]);
-  if (opt('--workers')) a.push('--workers', opt('--workers'));
+  if (opt('--workers') && (made.length !== 2)) a.push('--workers', opt('--workers'));
   a.push('--save', path.join(out, 'flagged'), ...(opt('--check') ?? '').split(/\s+/).filter(Boolean));
-  log(`frame_check ${a.slice(1).join(' ')}`);
+  log(`${path.basename(a[0], '.mjs')} ${a.slice(1).join(' ')}`);
   let code = 0, text;
   try { text = execFileSync(process.execPath, a, { maxBuffer: 1 << 28 }).toString(); }
   catch (e) { code = e.status ?? 1; text = (e.stdout ?? '').toString() + (e.stderr ?? '').toString(); }
-  fs.writeFileSync(path.join(out, 'frame_check.txt'), text);
+  fs.writeFileSync(path.join(out, `${path.basename(a[0], '.mjs')}.txt`), text);
   process.stdout.write(text);
-  log(`frame_check exited ${code}`);
+  log(`${path.basename(a[0], '.mjs')} exited ${code}`);
   return code;
 }
 
@@ -418,7 +409,7 @@ try {
     const spec = (type, label, vramMiB) => ({ type, label, vramMiB, model: gameId, priority: opt('--priority', 'low'),
       ...(vramMiB === 'auto' ? { guessMiB: 1024 } : {}), ramMiB: capMiB(),
       url: opt('--url') || undefined, ref: process.env.HOSTNAME,
-      onUpdate: (j) => j.state === 'waiting' && log(`queue: ${type} waiting, ${j.ahead} ahead: ${j.why?.text ?? 'going next'}`) });
+      onUpdate: (j) => j.state === 'waiting' && log(`queue: ${type} waiting, ${j.ahead} ahead${j.waitMs != null ? `, ~${Math.ceil(j.waitMs / 60000)} min` : ''}: ${j.why?.text ?? 'going next'}`) });
     const vram = opt('--vram', 'auto') === 'auto' ? 'auto' : Number(opt('--vram'));
     if (soak) code = await gpuRun(spec('soak', `Soak: ${gameId}, ${soak} s`, vram), (signal) => soakRun(signal));
     else {

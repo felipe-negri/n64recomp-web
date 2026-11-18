@@ -41,23 +41,32 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   one that looks plausible. With `RT64_FRAME_DUMP=<dir>` (and `RT64_FRAME_DUMP_SECONDS=<from>-<to>` for a scene's
   worth), RT64 writes into that folder, made if it isn't there, every frame presented and where the 3D's triangles
   lay across the view (rt64-web's `src/hle/rt64_frame_dump.h`); `capture_window.ps1 -Env` passes the variables to
-  the build it starts. frame_check reads one dump for frames drawn for themselves alone between two that agree and for
-  a picture cut short at the 4:3 view's sides, and a
-  dump of the same plan in a 4:3 window with one at 32:9 (`--narrower`, `--wider`) for a world culled at the 4:3
-  view's sides. Where a Linux host with an NVIDIA GPU is at hand, the dumps and the check are made there and not on
-  the machine that works on the game: `tools/remote_frame_dump.sh` plays the game's Linux build by the same plan in
-  all three windows, runs frame_check there and brings back only its text, the logs, the plan's shots and the flagged
-  frames (its header and `tools/frame_dump.mjs`'s say how), since a dump is too big to move and the check holds a
-  third of a machine's cores for minutes. Its verdicts match a dump made on Windows by `capture_window.ps1`.
-- Soak a desktop build for the crashes and hangs a short boot misses, those that come minutes in or in one scene:
-  `tools/frame_dump.mjs --soak <seconds>` (through `tools/remote_frame_dump.sh` like a dump) plays its Linux build by
-  a plan for half an hour or more, looping a round of modes and menus with the plan's `again` step and pressing
-  random keys where its `random` step says, and fails at once on a `Crash:` line, the program exiting, or a picture
-  that stands still for 10 s, saying whether the game's memory went on changing behind it (a frozen picture) or not
-  (a hang). Its header has the steps and what it keeps. It failed Rush 2049 v0.1.51 at the start of a two-player
-  race on track 2 (black for good, the game's memory still changing) and Mario Golf v0.1.6 as Training's hole changes
-  (a hang), and passed the releases that fixed them, v0.1.52 racing on for 4 minutes and v0.1.7 taking 2 minutes of
-  random input on Training's course screen.
+  the build it starts. frame_check reads one dump for frames drawn for themselves alone between two that agree, for
+  a part of the picture moving at another pace than the rest through the frames drawn between the game's own
+  (`tools/frame_pace.mjs`) and for a picture cut short at the 4:3 view's sides or black stopping short of the
+  window's, and a dump of the same plan in a 4:3 window with one at 32:9 (`--narrower`, `--wider`) for a world
+  culled at the 4:3 view's sides and a HUD left at them. Where a Linux host with an NVIDIA GPU is at hand, the dumps
+  and the check are made there and not on the machine that works on the game: `tools/remote_frame_dump.sh` plays the
+  game's Linux build by the same plan in all three windows, runs frame_check there and brings back only its text, the
+  logs, the plan's shots and the flagged frames (its header and `tools/frame_dump.mjs`'s say how), since a dump is too
+  big to move and the check holds a third of a machine's cores for minutes. Its verdicts match a dump made on Windows
+  by `capture_window.ps1`.
+- Check a high resolution for seams with `tools/seam_check.mjs`: a line thinner than one of the console's pixels, a
+  gap between two of the game's pieces showing what lies behind (terrain blocks a level of detail apart, a sliced
+  sprite's strips a pixel apart), which frame_check can't see. It reads a dump of a plan at 4 times the console's
+  resolution or more against one of the same plan at the console's own, and counts only the lines the second lacks;
+  `remote_frame_dump.sh` given two window sizes (`--window 1280x960,320x240`) makes both and runs it. A dump whose game
+  ran slower than 10 of its own frames a second (a host whose GPU something else holds) can't pass. Its header says
+  what it measured.
+- Play a desktop build for the crashes and hangs a short boot misses, those that come in one scene: `tools/frame_dump.mjs
+  --soak <seconds>` (through `tools/remote_frame_dump.sh` like a dump) plays its Linux build by a plan through each of
+  its modes and scenes once, a few minutes, pressing random keys where its `random` step says, and fails at once on
+  a `Crash:` line, the program exiting, or a picture that stands still for 10 s, saying whether the game's memory went
+  on changing behind it (a frozen picture) or not (a hang). Its header has the steps and what it keeps. It failed Rush
+  2049 v0.1.51 at the start of a two-player race on track 2 (black for good, the game's memory still changing) and
+  Mario Golf v0.1.6 as Training's hole changes (a hang), each within seconds of reaching the scene, and passed the
+  releases that fixed them, v0.1.52 racing on for 4 minutes and v0.1.7 taking 2 minutes of random input on
+  Training's course screen.
 
 ## Plans
 
