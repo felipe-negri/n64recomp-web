@@ -168,6 +168,12 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   page stand-in pads, plugged in by a plan's `plugPads()` once SDL runs (before Start Game), pulled out and plugged
   in again by `unplugPad()` and `replugPad()`, and says what reached each pad's vibrationActuator (`padRumbles()`)
   and which pad the page looked for (its header).
+- The same on a desktop build, as it was released: a plan of `tools/frame_dump.mjs` with `pad`, `unplug` and `replug`
+  steps plugs a stand-in pad (`tools/stand_in_pad.c`, preloaded into the program, an SDL virtual gamepad) into its Linux
+  build, and its `answer` step times how long the picture takes to move after a press and to settle after the release,
+  from the window's pixels, so a build without `RT64_FRAME_DUMP` is timed too: a view that eases towards the stick
+  instead of following it fails, and so does a pad plugged in again that no longer moves a menu's cursor. Run it
+  through `tools/remote_frame_dump.sh` with `--no-dump`; frame_dump's header says how.
 - Video memory: read the adapter's `\GPU Adapter Memory(*)\Dedicated Usage` and nvidia-smi, never
   `\GPU Process Memory(*)\Dedicated Usage`, which climbs by a canvas a frame in Firefox (Windows 10 counts every reopen
   of its shared canvas texture, KB4490156). nvidia-smi's is the whole GPU's, so a page filling video memory beside
