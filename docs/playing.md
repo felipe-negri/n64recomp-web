@@ -49,6 +49,13 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   all three windows, runs frame_check there and brings back only its text, the logs, the plan's shots and the flagged
   frames (its header and `tools/frame_dump.mjs`'s say how), since a dump is too big to move and the check holds a
   third of a machine's cores for minutes. Its verdicts match a dump made on Windows by `capture_window.ps1`.
+- Check that a desktop build finds its save again with `tools/frame_dump.mjs --saves` (or `remote_frame_dump.sh` with
+  `--saves`), by two plans of the game's: one makes a save the game's own way and waits for the file (`saves
+  changed`), the other, after a restart in the same folder, has the game read it back and checks it did (a find of
+  what only the save holds, an until on the game's state) and that the bytes stayed as they were (`saves same`), then
+  saves again. Between the two, `saves/` and each file in it are put behind symlinks, as a player shares saves through
+  a synced folder, and a write that replaces a link fails the check. The page's own check of its saves is
+  `play_page.mjs --backcheck`.
 
 ## Plans
 
