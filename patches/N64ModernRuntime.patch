@@ -1,4 +1,4 @@
-N64ModernRuntime: https://github.com/n64hub/N64ModernRuntime-web e3e2d0641a5bee0c5d2fad9bf3726b0033ef2fe8
+N64ModernRuntime: https://github.com/n64hub/N64ModernRuntime-web d6eacdac3452dd2cbae47bf59b82c80e0038c9e4
 on upstream cdf5abbd5026fef5c364c676e4667c45e42b6863 (tools/export_patches.sh)
 
 diff --git a/librecomp/CMakeLists.txt b/librecomp/CMakeLists.txt
@@ -1658,7 +1658,7 @@ index 17d7a47..7fa71dd 100644
      }
  
 diff --git a/ultramodern/src/mesgqueue.cpp b/ultramodern/src/mesgqueue.cpp
-index 9944a02..b7a1a2a 100644
+index 9944a02..95af3cc 100644
 --- a/ultramodern/src/mesgqueue.cpp
 +++ b/ultramodern/src/mesgqueue.cpp
 @@ -11,6 +11,14 @@ struct QueuedMessage {
@@ -1676,7 +1676,20 @@ index 9944a02..b7a1a2a 100644
  };
  
  static moodycamel::BlockingConcurrentQueue<QueuedMessage> external_messages {};
-@@ -40,32 +48,71 @@ bool do_send(RDRAM_ARG PTR(OSMesgQueue) mq_, OSMesg msg, bool jam, bool block);
+@@ -28,6 +36,12 @@ void ultramodern::set_message_queue_control(const ultramodern::MessageQueueContr
+ }
+ 
+ void ultramodern::enqueue_external_message_src(PTR(OSMesgQueue) mq, OSMesg msg, bool jam, EventMessageSource src) {
++    // An event no queue was set for sends nothing, as libultra's event dispatch does: a game that never calls
++    // osSetEventMesg for an event (Excitebike 64's scheduler sets none for OS_EVENT_SP and waits for the DP alone)
++    // would otherwise have its message sent to a null queue, which crashes the thread that receives it.
++    if (mq == NULLPTR) {
++        return;
++    }
+     external_messages.enqueue({mq, msg, jam, requeue_enabled[static_cast<int>(src)]});
+ }
+ 
+@@ -40,32 +54,71 @@ bool do_send(RDRAM_ARG PTR(OSMesgQueue) mq_, OSMesg msg, bool jam, bool block);
  void dequeue_external_messages(RDRAM_ARG1) {
      QueuedMessage to_send;
      std::vector<QueuedMessage> requeued_messages{};

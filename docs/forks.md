@@ -1225,4 +1225,12 @@ rt64 21ed4b9           RT64_SKIP_PLACE_SWAPS: nor a pair of a transform whose ve
                        a frame
 rt64 3c875ec           TransformMap's verticesStill moved after its rigidBody: WWF No Mercy's rt64 adds fields after
                        mapped, and a field there too was its three-way merge's conflict (wwf-patches). It does the same
+rt64 9ed78c7           a framebuffer's pixels are shaped as the TV shows them (VI::pixelAspect(), from the VI's x and y
+                       scales): the ratios the TV shows (the window's under Expand, Manual's targets) are divided by it,
+                       and without black borders SD space is the framebuffer's width times it. Excitebike 64 draws at
+                       512x240 (x scale 0x333), shown at 2.13:1 and widened from there; it is 4:3 now. A square
+                       framebuffer's is 1, so every other game draws as before
+N64ModernRuntime       an event no queue was set for (osSetEventMesg never called for it) sends nothing, as libultra's
+d6eacda                dispatch skips it: the thread that took a message with a null queue crashed reading its count.
+                       Excitebike 64's scheduler sets no queue for OS_EVENT_SP, and its first RSP task crashed the game
 ```
