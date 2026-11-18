@@ -87,7 +87,8 @@
 //   picture repeated (Framerate Original, a 60 Hz display under a game of 60), leaves pairing untested and exits 2,
 //   whatever else passes, and the game's own frames it flags aren't counted: their neighbours are the game's own too,
 //   and what they read is the game's own motion. Perfect Dark's at 120 Hz, 0-1 frames between in 2800-2900, flagged
-//   13-21 of its own.
+//   13-21 of its own. A game of 60 is dumped with RT64_FRAME_DUMP_RATE=120 set beside RT64_FRAME_DUMP, which presents
+//   at 120 with vsync off whatever the display's rate (rt64-web's rt64_frame_dump.h).
 // - Camera cuts drawn partway. A cut is two of the game's frames in a row far apart (a mean difference of 8 of 255
 //   after the best shift of one against the other) where the game's frames before and after them are at least twice as
 //   near: the camera jumps in one frame. RT64 interpolates a camera unless the game says it cut, so a cut the game
@@ -1166,7 +1167,8 @@ if (presented >= 3) {
         untested = true;
         console.log(`frames: ${drawn ? `only ${drawn} of ${checked}` : 'none'} drawn between the game's own, so too few test how` +
             ' they are paired (the game\'s own frames flagged are left out): dump at Framerate Display on a display faster' +
-            ' than the game');
+            ' than the game, or with RT64_FRAME_DUMP_RATE=120 set too, which presents at 120 whatever the display\'s' +
+            ' rate (a game of 60 on a 60 Hz display)');
     }
     console.log(`unlike both neighbours: ${counted.length} of ${checked} frames, at most ${burst} within a second, ` +
         `${place} between the game's own in one place within ${PLACE_SECONDS} s` +

@@ -34,7 +34,9 @@
 // runs then go as one job of type frame-dump and frame_check as a second, frame-check, asking no GPU memory (its
 // work is the CPU's), both at --priority (low), linked to --url and naming --game-id as their model, so the queue sizes
 // each game's jobs from that game's own runs: the dumps ask --vram MiB, or by default what the queue reads off them
-// (2048 before it has any; Mario Golf's three windows held 662), so many runs fit on one GPU side by side. A stop the queue asks for ends
+// (1024 before it has any; Mario Golf's three windows held 662), so many runs fit on one GPU side by side. Each asks
+// the host memory of the container's cap (its docker run's --memory, read from its cgroup; a game's dumps held
+// 0.3-0.6 GB, frame_check 0.6), never the queue's 8 GiB for a game it hasn't measured. A stop the queue asks for ends
 // the run in progress, and the tool, with 75. Without --queue it runs at once.
 //
 // --workers is frame_check's (a third of the cores it sees unless given), for a container held to fewer cores than
@@ -80,13 +82,19 @@ const keysym = (name) => {
   throw new RunFailed(`unknown key ${name}`);
 };
 
-// The runtime's RDRAM in pid: its one anonymous read-write mapping of 512 MB.
+// The runtime's RDRAM in pid: its anonymous read-write mapping of 512 MB, or the last 512 MB of a larger one that ends
+// where the inaccessible rest of the runtime's reservation (its kuseg window, ---p) begins. The kernel merges the region
+// with an anonymous read-write mapping just below it whenever their flags agree, so it isn't always 512 MB on its own.
 function rdramOf(pid) {
-  for (const line of fs.readFileSync(`/proc/${pid}/maps`, 'utf8').split('\n')) {
-    const m = line.match(/^([0-9a-f]+)-([0-9a-f]+) rw-p \S+ \S+ 0\s*$/);
-    if (m && BigInt('0x' + m[2]) - BigInt('0x' + m[1]) === 512n << 20n) return BigInt('0x' + m[1]);
-  }
-  return null;
+  const maps = fs.readFileSync(`/proc/${pid}/maps`, 'utf8').split('\n')
+    .map((line) => line.match(/^([0-9a-f]+)-([0-9a-f]+) (\S+) \S+ \S+ 0\s*$/)).filter(Boolean)
+    .map((m) => ({ start: BigInt('0x' + m[1]), end: BigInt('0x' + m[2]), perms: m[3] }));
+  const size = 512n << 20n;
+  const exact = maps.find((m) => m.perms === 'rw-p' && m.end - m.start === size);
+  if (exact) return exact.start;
+  const merged = maps.find((m, i) => m.perms === 'rw-p' && m.end - m.start > size && maps[i + 1]?.start === m.end &&
+    maps[i + 1].perms === '---p');
+  return merged ? merged.end - size : null;
 }
 
 async function playRun(i, size, signal, config) {
@@ -257,13 +265,22 @@ function check(made) {
   return code;
 }
 
+// The container's memory cap in MiB (cgroup v2's memory.max), null when it has none (the queue then reads the game's
+// last runs).
+function capMiB() {
+  try {
+    const max = fs.readFileSync('/sys/fs/cgroup/memory.max', 'utf8').trim();
+    return /^\d+$/.test(max) ? Math.ceil(Number(max) / 1048576) : null;
+  } catch { return null; }
+}
+
 let code;
 try {
   await sleep(500);
   if (opt('--queue')) {
     const { gpuRun } = await import(pathToFileURL(path.resolve(opt('--queue'))).href);
     const spec = (type, label, vramMiB) => ({ type, label, vramMiB, model: gameId, priority: opt('--priority', 'low'),
-      ...(vramMiB === 'auto' ? { guessMiB: 2048 } : {}),
+      ...(vramMiB === 'auto' ? { guessMiB: 1024 } : {}), ramMiB: capMiB(),
       url: opt('--url') || undefined, ref: process.env.HOSTNAME,
       onUpdate: (j) => j.state === 'waiting' && log(`queue: ${type} waiting, ${j.ahead} ahead: ${j.why?.text ?? 'going next'}`) });
     const made = await gpuRun(spec('frame-dump', `Frame dump: ${gameId}`, opt('--vram', 'auto') === 'auto' ? 'auto' : Number(opt('--vram'))), (signal) => dumps(signal));
