@@ -362,7 +362,8 @@ What it looks for:
   San Francisco Rush 2049's dumps brought two more holes in the tools to light. Its frames come back in two sizes by
   turns, the picture the same in both with black past it (RT64's targets are larger than the picture), and
   frame_check, which started over at each change of size, matched 422 of 2150 frames; it now cuts every frame to the
-  picture's box first and matches them all. And capture_window left the game's window behind the one it was started
+  picture's box first and matches them all. Dinosaur Planet's held its boot logos' text past the picture, which no
+  box cuts (6 of 2027 frames failed), and from rt64 a00fdff the dump reads back only the picture, one size a dump. And capture_window left the game's window behind the one it was started
   from, where it was held to 60 presents a second: at Framerate Display on a 240 Hz display its four frames a game
   frame were presented, and dumped, 16.7 ms apart instead of 4, a quarter of the frames 2a means to test; it now
   brings the window to the front, 237 a second. Rush 2049's own build fails 2a so played: its attract race's camera

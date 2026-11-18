@@ -1214,4 +1214,8 @@ rt64 b24056f           RT64_SKIP_CAMERA_CUTS: the turn is the whole rotation bet
                        the trace, the three axes' cosines less 1, halved), so a roll about the way the camera looks
                        counts: Rush 2049's attract race cuts between overhead cameras by rolling the picture 86-180
                        degrees, and the frames between swung it round. Rush 2049 carried it as runtime-patches/rt64-0017
+rt64 a00fdff           RT64_FRAME_DUMP reads back only the box of a present's color target the VI draws from, not the
+                       whole target: the targets of the frames drawn between the game's are kept at the largest size
+                       drawn, so Dinosaur Planet's at 1280x720 read 1692x960 and came out 564x320 beside the game's
+                       640x360, with the boot logos' text past the picture, and frame_check failed 6 of 2027
 ```

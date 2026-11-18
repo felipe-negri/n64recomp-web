@@ -175,9 +175,12 @@ let dumpStartMs = null; // the first frame's time, ms since 1970: the dump's sec
 
 // The picture's box in a dump's frames between --from and --to, from their top left corner. RT64 draws a frame into a
 // color target that can be larger than the picture (one kept from a larger frame before, the targets of the frames
-// drawn between the game's), and the dump reads back the whole target, so one dump's frames can come in several sizes
-// with the picture the same size in each and black past it: Rush 2049's at 16:9, 533x301 and 533x275 every two
-// frames, a 489x275 picture in both. Matched whole, a frame of another size than the one before starts the matching
+// drawn between the game's), and a dump from a build before rt64 a00fdff reads back the whole target, so its frames
+// can come in several sizes with the picture the same size in each and black past it: Rush 2049's at 16:9, 533x301 and
+// 533x275 every two frames, a 489x275 picture in both. Past it can be an old picture too, which no box cuts: Dinosaur
+// Planet's frames between the game's at 1280x720 came out 564x320 beside the game's 640x360, the boot logos' text past
+// a 427x240 picture, and 6 of 2027 frames failed. From a00fdff on, the dump reads back only the picture, so a dump
+// comes in one size while the picture keeps one, and is its own box. Matched whole, a frame of another size than the one before starts the matching
 // again, and with sizes taking turns every two frames no three in a row are compared: 422 of Rush 2049's 2150 were.
 // So every frame is cut to the box before it is matched. The box is the smallest of the sizes at least half as many of
 // those frames have as the commonest size does, so a dump that starts before its plan sizes the window (Rayman 2's
