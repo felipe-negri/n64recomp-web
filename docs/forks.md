@@ -15,7 +15,7 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_PARTIAL_SCREEN_PAIRS` (rt64 89abe33), `RT64_STRETCH_SCREEN_COVERS` (rt64 4550e10), `RT64_KEEP_THIN_RECTS` (rt64
 04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7, c0d27e5),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
-eda3964, 8314128, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
+eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
 2d2db0c, d798d28, a17b46a, 952d327, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4,
 1682468, which it turns on too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
@@ -1214,8 +1214,22 @@ rt64 b24056f           RT64_SKIP_CAMERA_CUTS: the turn is the whole rotation bet
                        the trace, the three axes' cosines less 1, halved), so a roll about the way the camera looks
                        counts: Rush 2049's attract race cuts between overhead cameras by rolling the picture 86-180
                        degrees, and the frames between swung it round. Rush 2049 carried it as runtime-patches/rt64-0017
+rt64 21ed4b9           RT64_SKIP_PLACE_SWAPS: nor a pair of a transform whose vertices are other than its candidate's of
+                       the frame before, unless that one's were changing then (TransformMap's verticesStill, set in
+                       matchTransform): a mesh that held still or had just come and has other vertices now is another
+                       mesh drawn with the same call. Turok's levels are blocks, each a mesh that never changes, and one
+                       that came into view or took another level of detail was drawn partway from the place of one that
+                       left: slabs of cliff over the sky in Turok 1, the background through holes at the picture's edge
+                       in Turok 2's Port of Adia. Turok puts its camera in the world matrices in places, so only the
+                       meshes tell the blocks apart. A mesh that held still or had just come and then changes steps for
+                       a frame
+rt64 3c875ec           TransformMap's verticesStill moved after its rigidBody: WWF No Mercy's rt64 adds fields after
+                       mapped, and a field there too was its three-way merge's conflict (wwf-patches). It does the same
 rt64 3f0181c           RT64_FRAME_DUMP_RATE=<Hz>, beside RT64_FRAME_DUMP: the swap chain's vsync off and its rate taken
                        as that one wherever RT64 sets it, so Framerate Display presents and interpolates at it whatever
                        the display's: a game of 60 on a 59-60 Hz display presented no frame between the game's, and
                        Perfect Dark's Defection dumped 0 of 2879, at Framerate Display and at Manual 120 alike
+rt64 696a70d           RT64_FRAME_DUMP_RATE's swapChainCreated() after the swap chain's rate is first set, away from
+                       createSwapChain(): Diddy Kong Racing's own RT64 change adds a check right after it, and didn't
+                       apply over 3f0181c
 ```
