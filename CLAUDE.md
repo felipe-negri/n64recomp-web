@@ -210,8 +210,10 @@ scheduled run cost and found).
   its game's own rate that reaches it, hitches gone). One they wouldn't (a few presents on a page already at 60, a
   refactor, a tool, an option that is off) updates nothing, and rides with each game's next update. Common sense
   decides which, and the PR's line says it.
-- A game updated for any reason (a change to its own repo, its shader list, an update here) moves onto main's newest
-  tag first, in the same work, and is built and played on it.
+- A game updated for a change a player gets (a change to its own repo's code, an update here) moves onto main's newest
+  tag first, in the same work, and is built and played on it. A change to only its page's shader list or play plan is
+  built, played and published on its pin as it is: moving the pin would make one list line a whole update and a desktop
+  release, which the list never reaches.
 - An update moves a game fork's N64Recomp-browser by a commit to the fork's `main`, and Rush 2049's, Perfect Dark's,
   Super Mario 64's, F-Zero X's, Mario Party 1, 2 and 3's, Super Smash Bros.', Paper Mario's, Mario Golf's, Rayman 2's, Donald Duck:
   Goin' Quackers', Dinosaur Planet's, Turok: Dinosaur Hunter's, Turok 2's and Turok 3's by a PR on its repo that the
