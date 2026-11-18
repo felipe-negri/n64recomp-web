@@ -26,7 +26,7 @@
 // from a 1280x720 window.
 //
 // The plan is tools/capture_window.ps1's (its header has every step), its times in seconds since the program started:
-// key, down, up, size, shot (a PNG of the window, <out>/<run>/<name>.png), until, poke, or, peek, dump, find and end
+// key, down, up, size, shot (a PNG of the window, <out>/<run>/<name>.png), until, frames, poke, or, peek, dump, find and end
 // do what they do there, keys through XTEST into the window and RDRAM through /proc/<pid>/mem (the runtime maps it as
 // one 512 MB region, 0x80000000 at its first byte, each 32-bit word in the host's order). burst, record and stop are
 // captures, which the dump replaces: they are skipped. drag, Windows' move loop, has no counterpart and fails the run.
@@ -204,12 +204,25 @@ async function playRun(i, size, signal, config) {
             } catch (e) { if (e instanceof RunFailed && /no RDRAM/.test(e.message)) rdram = null; else throw e; }
             if (met) break;
             if (key && t() - pressed >= 1.5) { pressed = t(); await press(key); }
-            await sleep(p[1] === 'until' ? 20 : 500);
+            await sleep(p[1] === 'until' ? 2 : 500); // a key after an until lands within a game frame of it
           }
           shift += t() - began;
           if (p[1] === 'until') say(`until ${p[2]} ${met ? 'met' : 'NOT met'} after ${(t() - began).toFixed(1)}s`);
           else say(met ? `find ${p[2]} at 0x${names[p[2]].toString(16).toUpperCase()}` : `find ${p[2]} NOT found`);
           if (!met) throw new RunFailed(`${p[1]} ${p[2]} unmet`);
+          break;
+        }
+        case 'frames': {
+          const began = t(), a = num(p[2]), start = read(a).readUInt32LE();
+          let met = false;
+          while (t() - began < Number(p[4])) {
+            live();
+            if (((read(a).readUInt32LE() - start) >>> 0) >= Number(p[3])) { met = true; break; }
+            await sleep(1);
+          }
+          shift += t() - began;
+          say(`frames ${p[2]} ${p[3]} ${met ? 'met' : 'NOT met'}`);
+          if (!met) throw new RunFailed(`frames ${p[2]} unmet`);
           break;
         }
         case 'poke': write(num(p[2]), num(p[3])); say(`poke ${p[2]} ${p[3]}`); break;

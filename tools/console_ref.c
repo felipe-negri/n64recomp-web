@@ -15,7 +15,7 @@
 // plan's shots, <name>.ppm; and log.txt, what the plan did.
 //
 // The plan is tools/capture_window.ps1's, as tools/frame_dump.mjs reads it, its times in seconds of the console's VIs
-// from power on: key <name> [ms], down, up, until, poke, or, peek, dump, find, shot and end do what they do there,
+// from power on: key <name> [ms], down, up, until, frames, poke, or, peek, dump, find, shot and end do what they do there,
 // an until's wait moving every later step by as long. A key is the recomp's default keyboard binding of an N64 button
 // (RecompFrontend's recompinput/src/input_mapping.cpp): Space A, Shift B, Q Z, Enter Start, E L, R R, the arrows the
 // C buttons, I J K L the D-pad, W A S D the stick (all the way). size, drag, burst, record and stop have nothing to
@@ -273,6 +273,7 @@ int main(int argc, char **argv) {
 
     int step = 0;
     double shift = 0, waitBegan = -1, lastPress = -10, keyUpAt = -1;
+    uint32_t framesFrom = 0;
     char keyHeld[32] = "";
     int code = 0;
     uint64_t written = 0;
@@ -310,6 +311,16 @@ int main(int argc, char **argv) {
                     break; // wait for the next VI
                 }
                 say("%.2f until %s met after %.1fs\n", now, st->f[2], now - waitBegan);
+                shift += now - waitBegan;
+                waitBegan = -1;
+            } else if (!strcmp(c, "frames") && st->n >= 5) {
+                uint32_t now32 = peek(strtoul(st->f[2], NULL, 0));
+                if (waitBegan < 0) waitBegan = now, framesFrom = now32;
+                if (now32 - framesFrom < strtoul(st->f[3], NULL, 0)) {
+                    if (now - waitBegan > atof(st->f[4])) { say("%.2f frames %s NOT met\n", now, st->f[2]); code = 3; ended = true; break; }
+                    break;
+                }
+                say("%.2f frames %s %s met\n", now, st->f[2], st->f[3]);
                 shift += now - waitBegan;
                 waitBegan = -1;
             } else if (!strcmp(c, "poke") && st->n >= 4) {

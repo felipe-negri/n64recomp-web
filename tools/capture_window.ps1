@@ -33,6 +33,11 @@
 #                             is value, pressing key every 1.5 s meanwhile if one is given, as a page plan's pressUntil
 #                             does; the plan's later times move on by however long it waited. Unmet by timeout, the
 #                             run ends there as failed (exit 1)
+#   <s> frames <addr> <n> <timeout s>
+#                             waits until the 32-bit word at addr (the game's frame counter) has moved on n from what
+#                             it held when the step began, read every millisecond, so a key after it lands on the
+#                             same game frame in every run (a swing's power, which a key a frame later changes), where
+#                             a time in seconds lands anywhere in one; the later times move on as an until's do
 #   <s> poke <addr> <value>   writes the 32-bit word value at addr, and
 #   <s> or <addr> <bits>      ors bits into it: a cheat that reaches a later level, the way a page plan's n64w does
 #   <s> peek <addr>[,<addr>]  prints the 32-bit words at those addresses, in hex: a saved setting before and after a
@@ -505,6 +510,16 @@ try {
                 $shift += $clock.Elapsed.TotalSeconds - $began
                 Write-Output ("{0,6:N1}s until {1} {2} after {3:N1}s" -f $clock.Elapsed.TotalSeconds, $p[2],
                     $(if ($met) { 'met' } else { 'NOT met' }), ($clock.Elapsed.TotalSeconds - $began))
+                if (-not $met) { $failed = $true; break plan } }
+            'frames' { $addr = Num $p[2]; $began = $clock.Elapsed.TotalSeconds; $met = $false
+                $start = [CaptureWindow]::Read($handle, (Rdram), $addr)
+                while (-not $proc.HasExited -and $clock.Elapsed.TotalSeconds - $began -lt [double]$p[4]) {
+                    $now = [CaptureWindow]::Read($handle, (Rdram), $addr)
+                    if ((([int64]$now - [int64]$start + 4294967296) % 4294967296) -ge [int64]$p[3]) { $met = $true; break }
+                    Start-Sleep -Milliseconds 1
+                }
+                $shift += $clock.Elapsed.TotalSeconds - $began
+                Write-Output ("{0,6:N1}s frames {1} {2} {3}" -f $clock.Elapsed.TotalSeconds, $p[2], $p[3], $(if ($met) { 'met' } else { 'NOT met' }))
                 if (-not $met) { $failed = $true; break plan } }
             'poke' { [CaptureWindow]::Write($handle, (Rdram), (Num $p[2]), (Num $p[3]))
                 Write-Output ("{0,6:N1}s poke {1} {2}" -f $clock.Elapsed.TotalSeconds, $p[2], $p[3]) }
