@@ -72,7 +72,8 @@ jobs:
           fi
           echo "$files"
           code=false
-          if grep -qvE '\.md$|^tools/(page_driver\.mjs|play_page\.mjs|play_phone\.mjs|phone_turn\.mjs|record_shaders\.mjs|publish_(pages?|site)\.sh|serve_site\.mjs|wasm_offset\.mjs|[a-z_]+_probe\.js)$|^plays\.jsonl$|^site/' <<< "$files"
+          # frame_check.mjs and capture_window.ps1 play a desktop build and read its frames: nothing here builds or runs them.
+          if grep -qvE '\.md$|^tools/(page_driver\.mjs|play_page\.mjs|play_phone\.mjs|phone_turn\.mjs|record_shaders\.mjs|publish_(pages?|site)\.sh|serve_site\.mjs|wasm_offset\.mjs|frame_check\.mjs|capture_window\.ps1|[a-z_]+_probe\.js)$|^plays\.jsonl$|^site/' <<< "$files"
           then code=true
           elif [[ "$GITHUB_EVENT_NAME" == push ]]; then
             # The same newest tag as the tag job's, and a tag that can't be found or fetched builds everything.
@@ -383,21 +384,9 @@ jobs:
           rmdir "$jfg/lib/N64Recomp-browser"
           ln -s "$GITHUB_WORKSPACE" "$jfg/lib/N64Recomp-browser"
           bash "$jfg/tools/build_web.sh" --patches
-      - uses: emscripten-core/setup-emsdk@v16
+      - uses: ./.github/actions/emsdk
         with:
           version: ${{ env.EMSDK_VERSION }}
-          actions-cache-folder: emsdk-cache
-      # emdawnwebgpu (--use-port) is a zip em++ downloads from Dawn's GitHub releases into Emscripten's cache at the
-      # first compile that uses it, and emsdk's cache above is saved before that: fetched here, retried, so a 504 from
-      # GitHub's releases doesn't turn the compiles red.
-      - name: emdawnwebgpu
-        run: |
-          touch "$RUNNER_TEMP/empty.cpp"
-          for wait in 15 30 60 120 0; do
-            em++ --use-port=emdawnwebgpu -fsyntax-only "$RUNNER_TEMP/empty.cpp" && exit 0
-            sleep "$wait"
-          done
-          exit 1
       # The port's rt64 pins a newer ImGui than upstream's (1.93 against 1.90), and the web support's code in rt64 is
       # otherwise compiled only against upstream's: each of its files that includes ImGui is compiled here, as a page
       # compiles it (syntax only: no shaders are built), against the port's patched rt64 and its ImGui.
@@ -494,19 +483,9 @@ jobs:
           rmdir "$snap/lib/N64Recomp-browser"
           ln -s "$GITHUB_WORKSPACE" "$snap/lib/N64Recomp-browser"
           bash "$snap/tools/build_web.sh" --patches
-      - uses: emscripten-core/setup-emsdk@v16
+      - uses: ./.github/actions/emsdk
         with:
           version: ${{ env.EMSDK_VERSION }}
-          actions-cache-folder: emsdk-cache
-      # emdawnwebgpu's download, retried (jfg-patches says why).
-      - name: emdawnwebgpu
-        run: |
-          touch "$RUNNER_TEMP/empty.cpp"
-          for wait in 15 30 60 120 0; do
-            em++ --use-port=emdawnwebgpu -fsyntax-only "$RUNNER_TEMP/empty.cpp" && exit 0
-            sleep "$wait"
-          done
-          exit 1
       # Each C++ file of patches/web/files.txt, as the step above left it, compiled as a page compiles it, with rt64's and
       # ultramodern's options on as they are with Emscripten (their CMakeLists.txt), syntax only: no shaders are built, so
       # rt64's generated shader headers are stand-ins declaring their blobs, and miniz's generated export header is too.
@@ -625,10 +604,9 @@ jobs:
           rmdir "$game/lib/N64Recomp-browser"
           ln -s "$GITHUB_WORKSPACE" "$game/lib/N64Recomp-browser"
           bash "$game/tools/build_web.sh" --patches
-      - uses: emscripten-core/setup-emsdk@v16
+      - uses: ./.github/actions/emsdk
         with:
           version: ${{ env.EMSDK_VERSION }}
-          actions-cache-folder: emsdk-cache
       # Each recompinput/src/*.cpp of patches/RecompFrontend.patch, as the step above left it, compiled as a page compiles
       # it (recompinput/CMakeLists.txt's includes and options with Emscripten), syntax only.
       - name: 1080-Snowboarding-recomp-web's recompinput compiles
@@ -691,19 +669,9 @@ jobs:
           rmdir "$game/lib/N64Recomp-browser"
           ln -s "$GITHUB_WORKSPACE" "$game/lib/N64Recomp-browser"
           bash "$game/tools/build_web.sh" --patches
-      - uses: emscripten-core/setup-emsdk@v16
+      - uses: ./.github/actions/emsdk
         with:
           version: ${{ env.EMSDK_VERSION }}
-          actions-cache-folder: emsdk-cache
-      # emdawnwebgpu's download, retried (jfg-patches says why).
-      - name: emdawnwebgpu
-        run: |
-          touch "$RUNNER_TEMP/empty.cpp"
-          for wait in 15 30 60 120 0; do
-            em++ --use-port=emdawnwebgpu -fsyntax-only "$RUNNER_TEMP/empty.cpp" && exit 0
-            sleep "$wait"
-          done
-          exit 1
       # Each rt64 and N64ModernRuntime C++ file of web/patches/files.txt, as the step above left it, compiled as
       # snap-patches compiles Snap64Recomp-web's.
       - name: RogueSquadron64Recomp-web's merged files compile
@@ -854,10 +822,9 @@ jobs:
           rmdir "$game/lib/N64Recomp-browser"
           ln -s "$GITHUB_WORKSPACE" "$game/lib/N64Recomp-browser"
           bash "$game/tools/build_web.sh" --patches
-      - uses: emscripten-core/setup-emsdk@v16
+      - uses: ./.github/actions/emsdk
         with:
           version: ${{ env.EMSDK_VERSION }}
-          actions-cache-folder: emsdk-cache
       # Each recompinput/src/*.cpp of patches/RecompFrontend.patch, as the step above left it, compiled as a page compiles
       # it, syntax only.
       - name: BeetleRecomp-web's recompinput compiles
@@ -1209,19 +1176,9 @@ jobs:
           rmdir "$wwf/lib/N64Recomp-browser"
           ln -s "$GITHUB_WORKSPACE" "$wwf/lib/N64Recomp-browser"
           bash "$wwf/tools/build_web.sh" --patches
-      - uses: emscripten-core/setup-emsdk@v16
+      - uses: ./.github/actions/emsdk
         with:
           version: ${{ env.EMSDK_VERSION }}
-          actions-cache-folder: emsdk-cache
-      # emdawnwebgpu's download, retried (jfg-patches says why).
-      - name: emdawnwebgpu
-        run: |
-          touch "$RUNNER_TEMP/empty.cpp"
-          for wait in 15 30 60 120 0; do
-            em++ --use-port=emdawnwebgpu -fsyntax-only "$RUNNER_TEMP/empty.cpp" && exit 0
-            sleep "$wait"
-          done
-          exit 1
       # Each C++ file of web/patches/files.txt but the ones left to the port, as the step above left it, compiled as a
       # page compiles it, with its project's options as they are with Emscripten, syntax only: rt64's without
       # RT64_GAME_FRAME_WORKLOADS, which the port's frame pairing refuses. The generated shader headers are stand-ins
@@ -1352,10 +1309,9 @@ jobs:
         with:
           cmakeVersion: "~3.31.0"
           ninjaVersion: "^1.13.0"
-      - uses: emscripten-core/setup-emsdk@v16
+      - uses: ./.github/actions/emsdk
         with:
           version: ${{ env.EMSDK_VERSION }}
-          actions-cache-folder: emsdk-cache
       # spirv-opt, which rt64 runs on the prebuilt shaders (tests/build/shaders.txt) before naga.
       - uses: ./.github/actions/spirv-opt
       # Emscripten's cache, where embuilder puts its ports, is in emsdk's folder, cached before they are built. One a leg:
@@ -1366,15 +1322,6 @@ jobs:
         with:
           path: ${{ steps.em-cache.outputs.dir }}
           key: em-cache-${{ env.EMSDK_VERSION }}-${{ matrix.source }}-sdl2-mt-freetype-legacysjlj-${{ runner.os }}
-      # emdawnwebgpu's download, retried (jfg-patches says why), nothing to do once the cache above holds it.
-      - name: emdawnwebgpu
-        run: |
-          touch "$RUNNER_TEMP/empty.cpp"
-          for wait in 15 30 60 120 0; do
-            em++ --use-port=emdawnwebgpu -fsyntax-only "$RUNNER_TEMP/empty.cpp" && exit 0
-            sleep "$wait"
-          done
-          exit 1
       - name: Emscripten's SDL2 and FreeType
         run: embuilder build sdl2-mt freetype-legacysjlj
       # frontend/build_speed.cmake puts ccache in front of every compile once it is on PATH.
