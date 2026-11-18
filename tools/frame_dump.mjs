@@ -61,9 +61,12 @@
 // <control> to <value> (a pad's control, or key:<key> for a key through XTEST), holds it <hold s>, lets go and reads
 // on for 2.5 s. The picture has answered at the first read after the press that differs from the picture at the press
 // by more than the scene drifted by itself in the second before (judge() says how), and has settled once no later read
-// differs from it by that much. It fails when the answer comes later than <press ms> (250) after the press, or none
-// comes, or the picture settles later than <still ms> (250) after the release, '-' leaving settling out: a game whose
-// view eases towards the stick and springs back when it is let go (Turok 2's look before v0.2.8) fails the second.
+// differs from it by that much. It fails when the answer comes later than <press ms> (500) after the press, or none
+// comes, or the picture settles later than <still ms> (1000) after the release, '-' leaving settling out. Both count
+// the way to the screen: a game at 30 frames a second showed its first move 240-380 ms after the press and settled
+// 0-650 ms after the release (Turok 2's v0.2.8 and v0.2.9, the view turned up from level), so a game whose view eases
+// towards the stick and springs back when it is let go (Turok 2's look before v0.2.8, settled 1.5-2.0 s after the
+// release) fails, and one that answers a press a few game frames late passes.
 // An until's or find's key may be pad:<button>, the stand-in pad's button pressed instead of a key.
 // Each answer is a line in <out>/<run>/answers.txt and in the output, the press and release timed by when the pad
 // applied them (the shim's log, <run>/pad.log), its reads in <run>/answer-<name>.json to judge again. Pick a still scene and a control that moves the picture at once: a
@@ -348,7 +351,7 @@ async function playRun(i, size, signal, config) {
         case 'pad': await pad(`${p[2]} ${p[3]}`); say(`pad ${p[2]} ${p[3]}`); break;
         case 'unplug': case 'replug': await pad(p[1]); say(p[1]); break;
         case 'answer': {
-          const [, , label, control, value, hold, maxPress = 250, maxStill = 250] = p;
+          const [, , label, control, value, hold, maxPress = 500, maxStill = 1000] = p;
           const scr = openScreen();
           const geo = Object.fromEntries(xdo('getwindowgeometry', '--shell', win).split('\n').map((l) => l.split('=')));
           const g = { x: Number(geo.X), y: Number(geo.Y), w: Number(geo.WIDTH), h: Number(geo.HEIGHT) };
