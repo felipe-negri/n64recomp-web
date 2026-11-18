@@ -89,6 +89,13 @@
 //   and what they read is the game's own motion. Perfect Dark's at 120 Hz, 0-1 frames between in 2800-2900, flagged
 //   13-21 of its own. A game of 60 is dumped with RT64_FRAME_DUMP_RATE=120 set beside RT64_FRAME_DUMP, which presents
 //   at 120 with vsync off whatever the display's rate (rt64-web's rt64_frame_dump.h).
+//   A dump that lacks more than a tenth of the presents the game queued (its present ids, one a screen update) leaves
+//   the whole check untested too, and exits 2 unless it fails: RT64 skips a present whose next one is already queued,
+//   so a present thread slower than the rate asked of it shows only some of the game's frames, each at its pace, and the
+//   pairing reads frames between the game's 0.1-0.5 s apart, not 33 ms. Mario Golf's MAIN MENU dumped at Manual 240 in
+//   a 1280x960 window on a Linux host whose GPU a training job held kept 12 of the 25 presents a second its game queued
+//   and 3.3 of its own frames a second, each shown 7 times; at Manual 60, 22 of 30; at Manual 30, all 30 (and no frame
+//   between). Its dumps on Windows, at a 60 Hz display's rate, kept 94-100%.
 // - Camera cuts drawn partway. A cut is two of the game's frames in a row far apart (a mean difference of 8 of 255
 //   after the best shift of one against the other) where the game's frames before and after them are at least twice as
 //   near: the camera jumps in one frame. RT64 interpolates a camera unless the game says it cut, so a cut the game
@@ -279,6 +286,7 @@ const MIN_BLOCKS = 4; // blocks a flagged frame has
 const NEAR_BLOCKS = 4; // ... or, drawn between the game's own, fewer within this many blocks of where
 const NEAR_FRAMES = 4; // ... this many other frames drawn between had theirs
 const NEAR_SECONDS = 0.25; // ... within this many seconds either side
+const SHOWN = 0.9; // the share of the game's presents a dump shows at the least, to test anything
 const PLACE_FRAMES = 4; // flagged frames between, within NEAR_BLOCKS of the first's blocks, that fail together
 const PLACE_SECONDS = 5; // ... within this many seconds of it
 const LONE = 10; // a frame between the game's own as unlike each neighbour, of 255 over the whole picture, at the least,
@@ -840,6 +848,7 @@ const middles = [];
 const owns = []; // each kept frame's own.game: whether it is the game's own picture
 const flagged = [];
 let checked = 0, repeats = 0, dropped = 0, presented = 0, between = 0, first = null, last = null, run = null;
+const shownIds = new Set(); // the present ids the dump has: the presents that showed a frame
 let untested = false, gameAlone = 0;
 const sizes = new Set();
 // The game's frames, each against the one before it, and the frames RT64 drew between the two (a present's frames
@@ -1090,6 +1099,7 @@ const own = (f) => (f.index === f.count - 1) || (f.cut === true);
 let lastRead = null; // the frame read before, its entry and the kept entry it repeats
 for (const f of (sidesOnly ? [] : readFrames())) {
     presented++;
+    shownIds.add(f.presentId);
     first ??= f;
     last = f;
     dropped += f.dropped;
@@ -1221,6 +1231,14 @@ if (presented >= 3) {
             ' they are paired (the game\'s own frames flagged are left out): dump at Framerate Display on a display faster' +
             ' than the game, or with RT64_FRAME_DUMP_RATE=120 set too, which presents at 120 whatever the display\'s' +
             ' rate (a game of 60 on a 60 Hz display)');
+    }
+    const queued = last.presentId - first.presentId + 1;
+    if (shownIds.size < queued * SHOWN) {
+        untested = true;
+        console.log(`frames: ${shownIds.size} of the ${queued} presents the game queued showed a frame, under ` +
+            `${Math.round(SHOWN * 100)}%: the presents fell behind the rate asked of them and RT64 skipped the rest, so ` +
+            `the game's frames come ${((last.t - first.t) / shownIds.size).toFixed(2)} s apart here and nothing is tested ` +
+            'at its own pace (a lower Manual rate, a smaller window, or a host whose GPU nothing else holds)');
     }
     console.log(`unlike both neighbours: ${counted.length} of ${checked} frames, at most ${burst} within a second, ` +
         `${place} between the game's own in one place within ${PLACE_SECONDS} s` +
