@@ -14,6 +14,7 @@ const Q = 4; // the coarse copy's scale
 const CR = 8; // the coarse search, in coarse pixels either way
 const TEX = 6; // a block's mean difference from its own mean under which it has too little drawn to place
 const BAD = 10; // a block's mean difference to its best place, of 255, over which it isn't placed
+const CORNER = 2; // how much worse, of 255, a block matches 2 pixels off its place any way, at least
 const MOVE = 2; // grey pixels a block moves between the game's frames, at least, to be measured
 const MIN_MOVING = 12; // moving blocks placed in a frame between, at least, for its common weight
 const OFF = 0.3; // a block's fraction off the frame's common one, at least
@@ -125,6 +126,15 @@ function placeBefore(g1, q1, g0, q0, gw, gh, bx, by) {
         return null;
     }
     const c = (dx, dy) => cost.get(`${dx},${dy}`) ?? sad(g1, g0, gw, gh, bx, by, dx, dy, B, SUB);
+    // Placed only where 2 pixels off its place any way matches clearly worse: a line or an edge, which matches as well
+    // anywhere along itself, isn't placed.
+    let corner = Infinity;
+    for (const [ex, ey] of [[2, 0], [-2, 0], [0, 2], [0, -2], [2, 2], [-2, -2], [2, -2], [-2, 2]]) {
+        corner = Math.min(corner, c(fx + ex, fy + ey) - fb);
+    }
+    if (!(corner >= CORNER)) {
+        return null;
+    }
     const para = (l, m, r) => {
         const den = l - 2 * m + r;
         return (den > 0 && Number.isFinite(den)) ? Math.max(-0.5, Math.min(0.5, (l - r) / (2 * den))) : 0;
@@ -156,9 +166,15 @@ function placeBetween(g1, gk, gw, gh, bx, by, o) {
             s += Math.max(-0.5, Math.min(0.5, (cs[k - 1] - cs[k + 1]) / (2 * den))) / steps;
         }
     }
-    // How clearly it is there: the worst of a pixel either way along the line against the best.
-    const near = [cs[Math.max(k - 2, 0)], cs[Math.min(k + 2, cs.length - 1)]].filter(Number.isFinite);
-    return { s, err: cs[k], sharp: near.length ? Math.min(...near) - cs[k] : 0 };
+    // How clearly it is there: the best match 2 pixels or more from it along the way against it, so a block that
+    // matches as well elsewhere along the way (a row of like marks, a line along the way it moves) isn't placed.
+    let other = Infinity;
+    cs.forEach((v, i) => {
+        if ((Math.abs(i - k) >= 4) && Number.isFinite(v)) {
+            other = Math.min(other, v);
+        }
+    });
+    return { s, err: cs[k], sharp: other - cs[k] };
 }
 
 function median(v) {
@@ -190,21 +206,22 @@ function checkPresent(prev, frames, gw, gh) {
         for (const b of blocks) {
             const p = placeBetween(g1, f.g, gw, gh, b.bx, b.by, b.o);
             b.at.push(p);
-            if ((p.err <= BAD) && (p.sharp > 1)) {
+            if ((p.err <= BAD) && (p.sharp >= CORNER)) {
                 ss.push(p.s);
             }
         }
         weights.push(ss.length >= MIN_MOVING ? median(ss) : NaN);
     }
-    const off = [];
+    const off = [], measured = [];
     for (const b of blocks) {
         const len = Math.hypot(b.o.dx, b.o.dy);
-        let worst = null;
+        let worst = null, seen = false;
         b.at.forEach((p, i) => {
             const w = weights[i];
-            if (!Number.isFinite(w) || (p.err > BAD) || (p.sharp <= 1)) {
+            if (!Number.isFinite(w) || (p.err > BAD) || (p.sharp < CORNER)) {
                 return;
             }
+            seen = true;
             const d = p.s - w;
             if ((Math.abs(d) >= OFF) && (Math.abs(d) * len >= OFF_PX) && (!worst || Math.abs(d) > Math.abs(worst.d))) {
                 worst = { d, s: p.s, w, i };
@@ -215,8 +232,11 @@ function checkPresent(prev, frames, gw, gh) {
                 ((Math.abs(worst.s) < 0.15) || (Math.abs(worst.s - 1) < 0.15)) ? 'step' : 'off';
             off.push({ bx: b.bx, by: b.by, len, kind, ...worst });
         }
+        if (seen) {
+            measured.push({ bx: b.bx, by: b.by, off: !!worst });
+        }
     }
-    return { moving: blocks.length, weights, off };
+    return { moving: blocks.length, weights, off, measured };
 }
 
 function png(width, height, rgb) {
@@ -392,4 +412,36 @@ for (const r of results) {
 for (const [s, e] of bySecond) {
     console.log(`${s}s: ${e.n} presents, ${(e.moving / e.n).toFixed(0)} moving blocks each, off step ${e.step} far ` +
         `${e.far} other ${e.off}, ${e.with4} presents with 4+`);
+}
+
+// Per place: in 2 s windows, how often a block measured there was off.
+const cells = new Map();
+for (const r of results) {
+    for (const m of r.measured) {
+        const k = `${m.bx},${m.by}`;
+        if (!cells.has(k)) {
+            cells.set(k, []);
+        }
+        cells.get(k).push({ t: r.t, off: m.off });
+    }
+}
+const worst = [];
+for (const [k, v] of cells) {
+    let best = null;
+    for (let i = 0, j = 0; i < v.length; i++) {
+        while (v[i].t - v[j].t > 2) {
+            j++;
+        }
+        const n = i - j + 1, o = v.slice(j, i + 1).filter((x) => x.off).length;
+        if ((n >= 6) && (!best || o / n > best.share)) {
+            best = { share: o / n, n, o, t0: v[j].t, t1: v[i].t };
+        }
+    }
+    if (best) {
+        worst.push({ k, ...best });
+    }
+}
+worst.sort((a, b) => b.share - a.share);
+for (const w of worst.slice(0, 25)) {
+    console.log(`cell ${w.k}: ${w.o} of ${w.n} off from ${w.t0.toFixed(2)} to ${w.t1.toFixed(2)} s`);
 }
