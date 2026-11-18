@@ -49,7 +49,8 @@
 // --soak plays the game for <seconds> instead, the program's own settings (--config's if given), no dump and no
 // frame_check: a long run through its modes and menus that fails on what a 90 s boot misses, players' crashes and hangs
 // minutes in or in one scene. One run, in --window's first size (1280x720). It fails, at once, when the program's
-// stderr gets a "Crash:" line (the recomps' crash trace), the program exits, or the window's picture stays exactly the
+// stderr gets a "Crash:" line (the recomps' crash trace), the program exits (the one the kernel kills first when the
+// container runs out of memory, which it then says), or the window's picture stays exactly the
 // same for --still seconds (10), from the first time it changed: a hang, or a picture frozen while the game goes on.
 // Which one is told by the game's memory (its first 8 MB of RDRAM, read each second), still changing or not, since the
 // runs' sound goes to SDL's dummy driver. The frozen picture is kept as frozen.png, and a shot of the window every 5
@@ -136,6 +137,13 @@ async function playRun(i, size, signal, config) {
     stdio: ['ignore', fs.openSync(path.join(dir, 'stdout.log'), 'w'), fs.openSync(path.join(dir, 'stderr.log'), 'w')] });
   let exited = null;
   proc.on('exit', (code, sig) => { exited = sig ?? code; });
+  // The program is the one the kernel kills when the container runs out of memory, not this tool: a game's memory
+  // running away then ends in a verdict, not in a container gone with nothing said.
+  try { fs.writeFileSync(`/proc/${proc.pid}/oom_score_adj`, '1000'); } catch { /* not Linux, or gone already */ }
+  const oomKills = () => { try { return Number(fs.readFileSync('/sys/fs/cgroup/memory.events', 'utf8').match(/^oom_kill (\d+)/m)?.[1] ?? 0); } catch { return 0; } };
+  const oomBefore = oomKills();
+  const exitedWith = () => `the program exited with ${exited} at ${t().toFixed(1)}s` +
+    (exited === 'SIGKILL' && oomKills() > oomBefore ? `, killed when the container ran out of memory (${capMiB()} MiB)` : '');
   const t = () => (Date.now() - started) / 1000;
   const say = (s) => log(`${name} ${t().toFixed(1).padStart(6)}s ${s}`);
   say(`started ${exe} ${progArgs.join(' ')}`);
@@ -148,9 +156,9 @@ async function playRun(i, size, signal, config) {
     if (signal?.aborted) { stopped = true; throw new RunFailed(`the queue asked it to stop: ${signal.reason?.message ?? signal.reason}`); }
     if (failed) throw failed;
     if (exited !== null) {
-      if (!soak) throw new RunFailed(`the program exited with ${exited} at ${t().toFixed(1)}s`);
+      if (!soak) throw new RunFailed(exitedWith());
       const crash = crashLine();
-      throw new SoakFailed(crash ? `the program crashed at ${t().toFixed(1)}s: ${crash}` : `the program exited with ${exited} at ${t().toFixed(1)}s`);
+      throw new SoakFailed(crash ? `the program crashed at ${t().toFixed(1)}s: ${crash}` : exitedWith());
     }
   };
   // The soak's watcher, once a second: a Crash: line in stderr, and the window's picture (xwd's bytes) and the game's
