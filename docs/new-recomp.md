@@ -48,7 +48,7 @@ items by almost no game when the record began.
 | Perfect Dark | 2a, 4c, 8a fails | W5 fails, W6's Drive |
 | Super Mario 64 | 2a | W5 fails, W6's Drive |
 | F-Zero X | 2a | W6's Drive |
-| Mario Party | 2a fails, 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
+| Mario Party | 2a, 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Mario Party 2 | 2a fails, 4c, 5b, 6a, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
 | Mario Party 3 | 2a fails, 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Super Smash Bros. | 2a | W6's Drive |
@@ -379,9 +379,10 @@ What it looks for:
   board's letterbox wipe between turns, a strip grown from the middle whose edge pixels blend black and board, a
   menu's cursor stepped from option to option and held on each, and the game's own frames changing in a step faster
   than a block's match follows (Mario Party 2's warp pipes, Mario Party's turn order dice). frame_check now reads
-  those rightly (its header), and Mario Party passes them; Mario Party 2 fails on its opening's two camera cuts, drawn
-  with the camera partway from one shot to the next (filed), and Mario Party 3 on its party setup's spinning star,
-  whose frames between draw its BONUS sign face-on and a second outline neither game frame has
+  those rightly (its header), and Mario Party passes them (its sides left to a 32:9 play); Mario Party 2 fails on
+  its opening's two camera cuts, drawn with the camera partway from one shot to the next (filed), and Mario Party 3
+  on its party setup's spinning star, whose frames between draw its BONUS sign face-on and a second outline neither
+  game frame has
   (filed). Their triangles test nothing at the sides: a board's picture past the 4:3 view is its 2D background,
   5-12 triangles a workload. frame_check reads each dump's frames there too (its header, the picture at the 4:3
   view's sides), which needs no second run to agree: Mario Party 3's Chilly Waters at 32:9 passes, and fails with
