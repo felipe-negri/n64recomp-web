@@ -172,7 +172,7 @@
 //   side, so neither counts. Mario Party 3's Chilly Waters at 32:9 with its board's tiles picked under 4:3 alone
 //   (lib/mario-party-engine's board_back_area() with no side) is cut short in 339 of 544 frames, 14.5 s in a row, and
 //   the game as released in none of 381, though its map ends short of the window in much of them. A straight line: a
-//   column within a twentieth of the view's width of its side that steps sharply in 0.3 more of its rows than the
+//   column at the view's side or within a twentieth of its width inside it that steps sharply in 0.3 more of its rows than the
 //   columns around it (only rows drawn either side of it, so a picture's own end isn't one), in the same column in a
 //   quarter or more of the frames where the scene moves, looked at four a second: something the game cuts a few
 //   pixels short of the side, the picture behind it showing. Mario Party 3's opening without mario-party-engine
@@ -182,6 +182,11 @@
 //   pixels 3 either side, as much as a moving scene does): a cut lies across what moves, where the scene's own straight
 //   edge that stands still isn't one. Paper Mario's opening at 32:9 has its stage's pillars at the view's sides while only
 //   the curtain above them moves: a line 2 pixels out in 6 of 23 moving frames, 2 counting the picture beside it.
+//   Past the view's side no line counts: what a game cuts short is its own screen (a scissor, a viewport), so its line
+//   lies at the view's side or inside it, where past it the picture is the widening's, its straight lines the HUD
+//   placed out at the window's side or the scene's own. F-Zero X's race in a 16:9 window has its racers' portraits'
+//   edge 9 pixels out from the view's side, over the race moving beside it: a line in 30 of 75 moving frames, 17
+//   even counting only those where both sides of it move, and not one inside the view.
 //   Turok 1's and 2's 16:9 sweeps and Mario Golf's iris wipes have neither. Neither
 //   needs two runs to agree, so a board the computer players play differently each time is checked too.
 //
@@ -1341,7 +1346,7 @@ const SEAM_MOVES = 2; // a frame's mean difference to the last one looked at, of
 const SEAM_BESIDE = 3; // ... where the pixels this many columns either side of a line, in the rows it steps, move as much
 const SEAM_STEP = 10; // a step between two pixels, of 255, that counts in a column
 const SEAM_OVER = 0.3; // the share of a column's rows stepping, over its neighbours', that is a straight line
-const SEAM_NEAR = 0.05; // ... within this much of the view's width of its sides
+const SEAM_NEAR = 0.05; // ... at the view's sides or within this much of its width inside them
 const SEAM_SHARE = 0.25; // ... in this share of the frames where the scene moves: fails
 
 // A dump's frames between --from and --to, one every <every> seconds, cut to its picture's box.
@@ -1476,8 +1481,9 @@ function pictureAtSides(d) {
             return n ? sum / n : 0;
         };
         const near = Math.ceil(SEAM_NEAR * vw);
-        for (const side of [v0, v1 - 1]) {
-            for (let x = Math.max(side - near, 7); x <= Math.min(side + near, w - 9); x++) {
+        // At the view's side or inside it, a step between columns x and x + 1: v0 - 1 and v1 - 1 are the side itself.
+        for (const [x0, x1] of [[v0 - 1, v0 - 1 + near], [v1 - 1 - near, v1 - 1]]) {
+            for (let x = Math.max(x0, 7); x <= Math.min(x1, w - 9); x++) {
                 const around = [];
                 for (let k = 2; k <= 6; k++) {
                     around.push(share[x - k], share[x + k]);
