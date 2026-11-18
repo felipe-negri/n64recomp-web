@@ -192,6 +192,21 @@
 //   even counting only those where both sides of it move, and not one inside the view.
 //   Turok 1's and 2's 16:9 sweeps and Mario Golf's iris wipes have neither. Neither
 //   needs two runs to agree, so a board the computer players play differently each time is checked too.
+// - Black stopping short of the window, from each wide dump's frames alone (blackShort()), every frame at 60 a second:
+//   black that the game draws across its 4:3 picture (letterbox bars, a wipe closing about the middle, a black screen
+//   between scenes, the credits' black) reaches the wide window's edges when it is widened, and stops at a straight
+//   edge with the scene drawn past it when it is drawn to 4:3 or to a HUD ratio narrower than the window. A frame has
+//   it where a twelfth of its rows or more are black from inside the view's side out to one column (a pixel either
+//   way), past which out to the window's edge half the pixels or more are drawn, and it fails where that holds 0.1 s
+//   in a row with the edge in one column. Mario Golf's iris wipe in v0.1.16 at 32:9 draws its black to 16:9 only, the
+//   course showing past it for 0.2 s as the iris opens on hole 1 (159 of 180 rows black to 41 pixels out from the
+//   view's side), and v0.1.28's reaches the window; its credits in v0.1.21 at 32:9 have the sun's glow past the
+//   black beside the character preview, 0.8 s in a row (17 rows, 19 pixels out), and v0.1.22's none. Neither fails at
+//   16:9, where both draw out to the window. Two halves of an old screen sliding apart over black (Golf's menus opening
+//   the next) leave a band between the 4:3 picture and the halves, but it moves every frame, so no run holds. Faults
+//   only some scenes have are found only where a plan plays them: Golf's closed iris between holes (v0.1.19, a line of
+//   the course down each side) and Lakitu Mode's bars (v0.1.9) weren't in the plans these were measured with.
+// - Where the HUD sits, from a wide dump against the 4:3 one (hudPlacement()): HUDPLACEMENT
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
 // the pairing or the sides. frames.bin is read a frame at a time, those the workers have yet to match kept (a few a
@@ -1540,9 +1555,12 @@ const HUD_H = 180; // the grey copy's height it is looked for at
 const HUD_STILL = 2; // a pixel this near its last value, of 255, stood still
 const HUD_EDGE = 24; // ... and with a step this large to the pixel right of or below it is part of something drawn
 const HUD_CHANGE = 6; // a pixel moving more than this, of 255, is the scene moving
+const HUD_SCENE = 0.3; // ... in this share of the picture at least, in a frame looked at: the world moves
 const HUD_AROUND = 12; // ... looked at this many grey pixels around a still one
 const HUD_MOVES = 0.3; // ... where this share of them moving makes it fixed on the screen over a moving scene
 const HUD_FIXED = 0.2; // the share of the frames looked at in which a pixel is so: the HUD's
+const HUD_CHUNK = 10; // ... in the seconds of a dump that share is counted over at a time
+const HUD_CHUNK_MIN = 8; // ... of which this many frames looked at, at least, with the scene moving
 const HUD_FOUND = 0.3; // the share of the 4:3 dump's HUD at a side the wide dump has at one place, at least: found
 const HUD_OUT = 3; // grey pixels out from the 4:3 place from which the HUD is placed out
 const HUD_MIDDLE = 0.15; // the view's middle, this much of its width either side of its centre, left out
@@ -1555,12 +1573,28 @@ const BLACK_RUN = 0.1; // seconds in a row a frame does so, its edge in one colu
 // Each pixel's share of the frames looked at in which it is fixed on the screen: it stands still with something
 // drawn in it (a step to a neighbour) while the scene around it moves. A HUD's figures, frame and icons, which stay
 // where the screen has them while the world moves under them; a menu that stands still has nothing moving around it.
+// The share is each HUD_CHUNK seconds', the most of them kept: a HUD shown a few seconds of a long dump (Mario Golf's
+// tee before its credits) is as much the HUD as one shown throughout.
 function fixedOf(d) {
-    let prev = null, moving = 0, gw = 0, fixed = null;
+    let prev = null, moving = 0, gw = 0, fixed = null, best = null, chunkFrom = null;
+    const flush = () => {
+        if (moving >= HUD_CHUNK_MIN) {
+            fixed.forEach((n, i) => {
+                best[i] = Math.max(best[i], n / moving);
+            });
+        }
+        fixed?.fill(0);
+        moving = 0;
+    };
     for (const f of sampledFrames(d, HUD_EVERY)) {
         gw = Math.round(f.w * HUD_H / f.h);
         const g = grey(f, gw, HUD_H);
         fixed ??= new Float32Array(gw * HUD_H);
+        best ??= new Float32Array(gw * HUD_H);
+        if ((chunkFrom === null) || (f.t - chunkFrom >= HUD_CHUNK)) {
+            flush();
+            chunkFrom = f.t;
+        }
         const last = (prev && (prev.length === g.length)) ? prev : null;
         prev = g;
         if (!last) {
@@ -1577,8 +1611,10 @@ function fixedOf(d) {
                 sum[(y + 1) * (gw + 1) + x + 1] = sum[y * (gw + 1) + x + 1] + row;
             }
         }
-        if (any < 0.05 * gw * HUD_H) {
-            continue; // the scene stands still: nothing tells what is fixed on the screen
+        if (any < HUD_SCENE * gw * HUD_H) {
+            // Too little of the picture moves to tell what is fixed on the screen from the scene: a menu or the credits
+            // with a small part animated, which a game keeps at 4:3 by design, or a shot held still.
+            continue;
         }
         moving++;
         for (let y = 1; y < HUD_H - 1; y++) {
@@ -1598,7 +1634,10 @@ function fixedOf(d) {
             }
         }
     }
-    return moving ? { gw, gh: HUD_H, moving, fixed: fixed.map((n) => n / moving) } : null;
+    if (best) {
+        flush();
+    }
+    return (best && best.some((v) => v > 0)) ? { gw, gh: HUD_H, fixed: best } : null;
 }
 
 // Where a wide dump has the HUD the 4:3 dump has at its sides: the share of the 4:3 dump's fixed pixels in each side of
@@ -1647,14 +1686,18 @@ function hudPlacement(narrow, wide) {
             }
             share.push(at.length ? hit / at.length : 0);
         }
-        // The best place out from 4:3 is past HUD_OUT and a peak of its own, not the slope down from 0.
-        let out = HUD_OUT;
-        for (let s = HUD_OUT; s <= ext; s++) {
-            out = (share[s] > share[out]) ? s : out;
+        // The best place out from 4:3: a peak of its own past HUD_OUT, higher than the share on either side of it, not
+        // the slope down from 0 (a line along the HUD, a row of text, matches nearly as well a few pixels along).
+        let out = null;
+        for (let s = HUD_OUT + 1; s <= ext; s++) {
+            if ((share[s] > share[s - 1]) && (share[s] >= (share[s + 1] ?? 0)) && ((out === null) || (share[s] > share[out]))) {
+                out = s;
+            }
         }
-        const found = (at.length >= 20) && (Math.max(share[0], share[out] ?? 0) >= HUD_FOUND);
-        sides.push({ side, pixels: at.length, at43: share[0], out, atOut: share[out] ?? 0, found, ext,
-            left: found && (share[0] >= HUD_FOUND) && !((share[out] ?? 0) >= 0.5 * share[0]) });
+        const atOut = (out === null) ? 0 : share[out];
+        const found = (at.length >= 20) && (Math.max(share[0], atOut) >= HUD_FOUND);
+        sides.push({ side, pixels: at.length, at43: share[0], out, atOut, found, ext,
+            left: found && (share[0] >= HUD_FOUND) && (atOut < 0.5 * share[0]) });
     }
     return sides;
 }
@@ -1770,7 +1813,8 @@ function blackShort(d) {
         failed ||= left;
         console.log(`HUD placement (${d} against ${narrowerDir}): ` + sides.map((s) =>
             `${(s.side < 0) ? 'left' : 'right'}: ${s.pixels} fixed pixels in the 4:3 dump, ` +
-            `${Math.round(s.at43 * 100)}% where they were, ${Math.round(s.atOut * 100)}% ${s.out} of ${s.ext} out` +
+            `${Math.round(s.at43 * 100)}% where they were, ` +
+            ((s.out === null) ? 'no other place they gather' : `${Math.round(s.atOut * 100)}% ${s.out} of ${s.ext} pixels out`) +
             (s.found ? '' : ' (no HUD found)')).join('; ') +
             (left ? ': FAILS, the HUD left at the 4:3 view\'s sides' : ''));
     }
