@@ -102,7 +102,7 @@ if (recordFile && job?.run && fs.existsSync(recordFile)) {
   const beside = (job.run.beside ?? []).filter((b) => !b.warm);
   const hostReading = { gpuOthers: beside.filter((b) => b.vramMiB !== 0).length, building: beside.some((b) => b.vramMiB === 0) };
   console.log(`play_job: ran ${Math.round(job.run.ranMs / 1000)} s, ${Math.round(job.run.aloneMs / 1000)} s of it alone on the GPU; ` +
-    `beside it: ${beside.map((b) => `${b.app} ${b.type}`).join(', ') || 'nothing'}`);
+    `beside it: ${Object.entries(Object.groupBy(beside, (b) => b.type)).map(([t, l]) => `${l.length} ${t}`).join(', ') || 'nothing'}`);
   for (let i = linesBefore; i < lines.length; i++) {
     try { lines[i] = JSON.stringify({ ...JSON.parse(lines[i]), hostReading }); } catch { /* not a run */ }
   }
