@@ -45,7 +45,7 @@
 // the plan's shots are of moments that hold still at the same game state in every launch (a race's countdown, reached
 // by until steps), where an option a player sees shows: Rush 2049's countdown on its first track tells Draw Distance,
 // Level of Detail and Scenery Culling at Original from their defaults. On v0.1.26, whose first launch ran them at
-// Original, 6 of 15 launches drew so (3 of 5 first launches, and some starts after them too), and 4 of 5 checks failed;
+// Original, 7 of 18 launches drew so (3 of 6 first launches, and some starts after them too), and 5 of 6 checks failed;
 // on v0.1.78, 2 of 15 launches (each a third start, whose files said the defaults), and 2 of 5 checks: the fault strikes at
 // some starts and not others, so one pass says little and a game's check is played two or three times. It writes <out>/restart.txt, each run's shots and its settings files (<out>/<run>/settings), and
 // passes RT64_FRAME_DUMP_RATE=--rate in place of graphics.json's Manual, which a first launch doesn't have yet. Exit 0
