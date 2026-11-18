@@ -4,11 +4,13 @@
 // drawn between the game's, and its ground culled at the 4:3 view's sides), and which these find without anyone
 // looking.
 //
-//   node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--from <s>] [--to <s>] [--save <dir>]
+//   node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--sides] [--from <s>] [--to <s>] [--save <dir>]
 //       [--workers <n>] [--quiet]
 //
 // <dir> is a dump's: frames.bin, every frame presented, and sides.tsv, where across the view the 3D's triangles lay.
-// --narrower and --wider name two dumps of the same plan for the sides, one in a 4:3 window and one at 32:9. --from and
+// --narrower and --wider name two dumps of the same plan for the sides, one in a 4:3 window and one at 32:9; --sides checks
+// only those and the picture at their sides, not <dir>'s frames between the game's or its cuts: a few seconds and no
+// workers where the pairing takes minutes of every core (Turok 1's 122 s at 4:3, 3.5 GB). --from and
 // --to keep what came between those seconds of the dumps, counted from each one's first frame; --save writes each
 // flagged frame with the frames either side of it as one PNG, its flagged blocks outlined, for whoever wants to see
 // one. It matches the frames on --workers threads, a third of the host's cores unless told (4 of 12): 20 s of Turok's
@@ -85,7 +87,8 @@
 //   picture repeated (Framerate Original, a 60 Hz display under a game of 60), leaves pairing untested and exits 2,
 //   whatever else passes, and the game's own frames it flags aren't counted: their neighbours are the game's own too,
 //   and what they read is the game's own motion. Perfect Dark's at 120 Hz, 0-1 frames between in 2800-2900, flagged
-//   13-21 of its own.
+//   13-21 of its own. A game of 60 is dumped with RT64_FRAME_DUMP_RATE=120 set beside RT64_FRAME_DUMP, which presents
+//   at 120 with vsync off whatever the display's rate (rt64-web's rt64_frame_dump.h).
 // - Camera cuts drawn partway. A cut is two of the game's frames in a row far apart (a mean difference of 8 of 255
 //   after the best shift of one against the other) where the game's frames before and after them are at least twice as
 //   near: the camera jumps in one frame. RT64 interpolates a camera unless the game says it cut, so a cut the game
@@ -215,7 +218,7 @@ const opt = (name, fallback) => {
 };
 const dir = args[0];
 if (isMainThread && (!dir || dir.startsWith('--'))) {
-    console.error('usage: node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--workers <n>] [--quiet]');
+    console.error('usage: node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--sides] [--from <s>] [--to <s>] [--save <dir>] [--workers <n>] [--quiet]');
     process.exit(2);
 }
 const from = Number(opt('--from', 0));
@@ -225,6 +228,11 @@ const widerDir = opt('--wider', null);
 const narrowerDir = opt('--narrower', null);
 const quiet = args.includes('--quiet');
 const workers = Math.max(Math.round(Number(opt('--workers', os.availableParallelism() / 3))) || 1, 1);
+const sidesOnly = args.includes('--sides');
+if (isMainThread && sidesOnly && !(narrowerDir && widerDir)) {
+    console.error('--sides checks only the sides: give it --narrower <a dump in a 4:3 window> --wider <one at 32:9>');
+    process.exit(2);
+}
 
 const MAGIC = 0x44465452; // rt64_frame_dump.h's FrameDump::Magic
 const HEADER = 40;
@@ -1040,7 +1048,7 @@ function checkMiddle({ gw, gh, kept }) {
 // A kept frame is the game's own picture where it is the last of its present, or where that last frame repeats it: a
 // frame between drawn as the game's frame after it, nothing moved between.
 const own = (f) => f.index === f.count - 1;
-for (const f of readFrames()) {
+for (const f of (sidesOnly ? [] : readFrames())) {
     presented++;
     first ??= f;
     last = f;
@@ -1159,7 +1167,8 @@ if (presented >= 3) {
         untested = true;
         console.log(`frames: ${drawn ? `only ${drawn} of ${checked}` : 'none'} drawn between the game's own, so too few test how` +
             ' they are paired (the game\'s own frames flagged are left out): dump at Framerate Display on a display faster' +
-            ' than the game');
+            ' than the game, or with RT64_FRAME_DUMP_RATE=120 set too, which presents at 120 whatever the display\'s' +
+            ' rate (a game of 60 on a 60 Hz display)');
     }
     console.log(`unlike both neighbours: ${counted.length} of ${checked} frames, at most ${burst} within a second, ` +
         `${place} between the game's own in one place within ${PLACE_SECONDS} s` +
@@ -1193,7 +1202,7 @@ if (presented >= 3) {
         }
     }
 }
-else {
+else if (!sidesOnly) {
     console.log('frames: fewer than 3 in frames.bin, nothing to match');
 }
 
@@ -1499,7 +1508,7 @@ function pictureAtSides(d) {
     const seam = [...seams].sort((a, b) => b[1] - a[1])[0];
     return { looked, cutShort, longest, moving, seam, vw, v0, v1, aspect };
 }
-for (const d of [dir, narrowerDir, widerDir].filter(Boolean)) {
+for (const d of new Set([sidesOnly ? null : dir, narrowerDir, widerDir].filter(Boolean))) {
     const p = pictureAtSides(d);
     if (!p.looked) {
         continue;
