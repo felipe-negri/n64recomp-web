@@ -5,7 +5,7 @@
 // between them. tools/console_ref.mjs builds the core and this, and runs them (in tools/console_ref.Dockerfile's image).
 //
 //   console_ref <core.so> <rom> <plan> <out dir> [--seconds <from>-<to>] [--watch <addr>[,<addr>...]]
-//       [--rsp parallel|cxd4] [--max-seconds <s>]
+//       [--rsp parallel|cxd4] [--max-seconds <s>] [--option <core option>=<value>[,...]]
 //
 // <out dir> gets frames.bin, in RT64's frame dump format (rt64-web's src/hle/rt64_frame_dump.h: a 40-byte header and
 // 8-bit RGB, rows top down), every VI's picture at the game's own size (Angrylion's, with the VI's filters applied, is 640 wide and
@@ -51,7 +51,11 @@ static void say(const char *fmt, ...) {
 
 // The core's options: Angrylion, an LLE RSP, and the C buttons on their own libretro buttons (the alternate map).
 static const char *rspPlugin = "parallel";
+static char *given[16][2];
+static int givens;
 static const char *option(const char *key) {
+    for (int i = 0; i < givens; i++)
+        if (!strcmp(given[i][0], key)) return given[i][1];
     static const char *pairs[][2] = {
         {"mupen64plus-rdp-plugin", "angrylion"},
         {"mupen64plus-rsp-plugin", NULL},
@@ -158,7 +162,54 @@ static int keyButton(const char *k) {
         if (!strcasecmp(keys[i].name, k)) return keys[i].id;
     return -1;
 }
+// --replay: the buttons and stick a recomp's game read at each count of its frame counter (the --pad word of the
+// recomp's watch.tsv, the game's own copy of the controller as osContGetReadData left it: buttons in the top 16 bits,
+// the stick's x and y in the bytes below), given to the core at the same counts, so the console's game reads what the
+// recomp's did on the same frames, whatever the keys' latency through a desktop build's window was.
+static bool replaying;
+static uint32_t *replayPad;
+static uint32_t replayCounts, *replayWord;
+static int wordCol = -1;
+static void setPad(uint32_t p) {
+    static const int ids[16] = {RETRO_DEVICE_ID_JOYPAD_R, RETRO_DEVICE_ID_JOYPAD_L, RETRO_DEVICE_ID_JOYPAD_A,
+        RETRO_DEVICE_ID_JOYPAD_X, RETRO_DEVICE_ID_JOYPAD_R2, RETRO_DEVICE_ID_JOYPAD_SELECT, -1, -1,
+        RETRO_DEVICE_ID_JOYPAD_RIGHT, RETRO_DEVICE_ID_JOYPAD_LEFT, RETRO_DEVICE_ID_JOYPAD_DOWN, RETRO_DEVICE_ID_JOYPAD_UP,
+        RETRO_DEVICE_ID_JOYPAD_START, RETRO_DEVICE_ID_JOYPAD_L2, RETRO_DEVICE_ID_JOYPAD_Y, RETRO_DEVICE_ID_JOYPAD_B};
+    held = 0;
+    for (int i = 0; i < 16; i++) if (ids[i] >= 0 && (p >> (16 + i)) & 1) held |= 1u << ids[i];
+    int x = (int8_t)(p >> 8), y = (int8_t)p;
+    stickX = x * 32767 / 80;
+    stickY = -y * 32767 / 80;
+    if (stickX > 32767) stickX = 32767; else if (stickX < -32767) stickX = -32767;
+    if (stickY > 32767) stickY = 32767; else if (stickY < -32767) stickY = -32767;
+}
+static bool readReplay(const char *file, int col) {
+    FILE *f = fopen(file, "r");
+    if (!f) return false;
+    char line[512];
+    uint32_t cap = 1 << 16, last = 0, lastCount = 0;
+    replayPad = calloc(cap, 4);
+    replayWord = calloc(cap, 4);
+    uint32_t seen = 0xFFFFFFFF;
+    while (fgets(line, sizeof(line), f)) {
+        uint32_t w[16];
+        int n = 0;
+        for (char *s = strtok(line, "\t\r\n"); s; s = strtok(NULL, "\t\r\n"))
+            if (n++ > 0 && n - 2 < 16) w[n - 2] = strtoul(s, NULL, 16);
+        if (n - 1 <= col) continue;
+        uint32_t c = w[0];
+        if (c >= cap) continue;
+        for (uint32_t k = lastCount + 1; k < c && k < cap; k++) replayPad[k] = last;
+        replayPad[c] = last = w[col];
+        if (wordCol > 0 && wordCol < n - 1 && c != seen) replayWord[c] = w[wordCol], seen = c;
+        if (c >= lastCount) lastCount = c;
+        if (c + 1 > replayCounts) replayCounts = c + 1;
+    }
+    fclose(f);
+    return replayCounts > 0;
+}
 static bool setKey(const char *k, bool down) {
+    if (replaying) return keyButton(k) >= 0 || strchr("AaDdWwSs", k[0]);
     int b = keyButton(k);
     if (b >= 0) { held = down ? held | (1u << b) : held & ~(1u << b); return true; }
     int v = down ? 0x7FFF : 0;
@@ -194,12 +245,22 @@ int main(int argc, char **argv) {
     const char *corePath = argv[1], *romPath = argv[2], *planPath = argv[3];
     snprintf(outDir, sizeof(outDir), "%s", argv[4]);
     double from = 0, to = 1e30, maxSeconds = 600;
-    uint32_t watch[16];
-    int watches = 0;
+    uint32_t watch[16], padAddr = 0, pokeAddr = 0;
+    int watches = 0, padShift = 0;
+    const char *replayFile = NULL;
     for (int i = 5; i + 1 < argc; i += 2) {
         if (!strcmp(argv[i], "--seconds")) sscanf(argv[i + 1], "%lf-%lf", &from, &to);
         else if (!strcmp(argv[i], "--rsp")) rspPlugin = argv[i + 1];
         else if (!strcmp(argv[i], "--max-seconds")) maxSeconds = atof(argv[i + 1]);
+        else if (!strcmp(argv[i], "--replay")) replayFile = argv[i + 1];
+        else if (!strcmp(argv[i], "--pad")) padAddr = strtoul(argv[i + 1], NULL, 0);
+        else if (!strcmp(argv[i], "--pad-shift")) padShift = atoi(argv[i + 1]);
+        else if (!strcmp(argv[i], "--replay-word")) pokeAddr = strtoul(argv[i + 1], NULL, 0);
+        else if (!strcmp(argv[i], "--option"))
+            for (char *s = strtok(argv[i + 1], ","); s && givens < 16; s = strtok(NULL, ",")) {
+                char *eq = strchr(s, '=');
+                if (eq) *eq = 0, given[givens][0] = s, given[givens++][1] = eq + 1;
+            }
         else if (!strcmp(argv[i], "--watch"))
             for (char *s = strtok(argv[i + 1], ","); s && watches < 16; s = strtok(NULL, ",")) watch[watches++] = strtoul(s, NULL, 0);
     }
@@ -212,6 +273,13 @@ int main(int argc, char **argv) {
     snprintf(path, sizeof(path), "%s/log.txt", outDir);
     logFile = fopen(path, "w");
 
+    if (replayFile) {
+        int col = -1;
+        for (int i = 0; i < watches; i++) if (watch[i] == padAddr) col = i;
+        for (int i = 0; i < watches; i++) if (pokeAddr && watch[i] == pokeAddr) wordCol = i;
+        if (col <= 0 || !readReplay(replayFile, col)) { say("--replay needs --watch <counter>,...,<pad> and --pad <pad>, as the recomp watched them\n"); return 3; }
+        replaying = true;
+    }
     // The plan.
     struct Step steps[1024];
     int stepCount = 0;
@@ -369,9 +437,18 @@ int main(int argc, char **argv) {
         if (ended) break;
         if (step >= stepCount && keyUpAt < 0) { say("%.2f the plan ran out\n", now); break; }
 
+        if (replaying && ram) {
+            int64_t c = (int64_t)peek(watch[0]) + padShift;
+            setPad(c >= 0 && c < replayCounts ? replayPad[c] : 0);
+        }
         newPicture = false;
         p_retro_run();
         ram = p_retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM); // set once the core's thread has started
+        if (wordCol > 0 && ram) {
+            static uint32_t pokedAt = 0xFFFFFFFF;
+            uint32_t c = peek(watch[0]), *w = word(pokeAddr);
+            if (c != pokedAt && c < replayCounts && replayWord[c] && w) *w = replayWord[c], pokedAt = c;
+        }
         double t = (vi + 1) / fps;
         // What the game holds after this VI, and its picture.
         if (watches) {

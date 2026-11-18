@@ -2,12 +2,12 @@
 // tools/remote_console_ref.sh starts on a Linux host: the console's picture of the plan, for tools/console_check.mjs.
 //
 //   node tools/console_ref.mjs --rom <file> --plan <file> --out <dir> --cache <dir> [--game-id <id>]
-//       [--seconds <from>-<to>] [--watch <addr>,...] [--rsp parallel|cxd4] [--max-seconds <s>]
+//       [--seconds <from>-<to>] [--watch <addr>,...] [--rsp parallel|cxd4] [--max-seconds <s>] [--option <k>=<v>,...]
 //       [--against <dump dir> [--check "<console_check args>"] [--again]]
 //       [--queue <module>] [--priority low] [--url <url>]
 //
 // The core, mupen64plus-next at the commit below, is built once into --cache (mupen64plus_next-<commit>.so and the
-// libretro.h it was built with) and console_ref.c on every run (a second). --seconds, --watch, --rsp and --max-seconds
+// libretro.h it was built with) and console_ref.c on every run (a second). --seconds, --watch, --rsp, --max-seconds and --option
 // are console_ref.c's (its header says what it writes into --out).
 //
 // --against names a recomp's frame dump of the same plan (frame_dump.mjs --keep --watch, its run's dump folder), which
@@ -64,7 +64,7 @@ function run(signal) {
   const exe = path.join(inc, 'console_ref');
   execFileSync('cc', ['-O2', '-g', '-rdynamic', '-I', inc, path.join(here, 'console_ref.c'), '-o', exe, '-ldl'], { stdio: 'inherit' });
   const a = [core, rom, plan, out];
-  for (const o of ['--seconds', '--watch', '--rsp', '--max-seconds']) if (opt(o)) a.push(o, opt(o));
+  for (const o of ['--seconds', '--watch', '--rsp', '--max-seconds', '--option', '--replay', '--pad', '--pad-shift', '--replay-word']) if (opt(o)) a.push(o, opt(o));
   return new Promise((resolve) => {
     const p = spawn(exe, a, { stdio: 'inherit' });
     signal?.addEventListener('abort', () => { p.kill('SIGKILL'); resolve(75); });

@@ -107,6 +107,7 @@ using System.Threading.Tasks;
 public static class CaptureWindow {
     public delegate bool EnumProc(IntPtr h, IntPtr l);
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+    [DllImport("winmm.dll")] public static extern uint timeBeginPeriod(uint ms);
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb, IntPtr l);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
@@ -380,6 +381,8 @@ public sealed class CaptureWriter {
 }
 "@
 [void][CaptureWindow]::SetProcessDPIAware()
+# Windows' timer at 1 ms while this runs, so a millisecond's sleep (-Watch, a frames step) is one, not a 15.6 ms tick.
+[void][CaptureWindow]::timeBeginPeriod(1)
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $OutDir = (Resolve-Path $OutDir).Path
 

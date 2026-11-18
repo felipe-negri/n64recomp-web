@@ -45,6 +45,13 @@ stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 cp "$here/console_ref.mjs" "$here/console_ref.c" "$here/console_check.mjs" "$stage/"
 cp "$plan" "$stage/plan.txt"
+# --replay's file (a recomp's watch.tsv here) goes with the plan, and the container reads it there.
+args=()
+while [[ $# -gt 0 ]]; do
+    if [[ "$1" == --replay ]]; then cp "$2" "$stage/replay.tsv"; args+=(--replay /work/replay.tsv); shift 2
+    else args+=("$1"); shift; fi
+done
+set -- "${args[@]}"
 queue=()
 if [[ -n "${FRAME_DUMP_QUEUE_CLIENT:-}" ]]; then
     cp "$FRAME_DUMP_QUEUE_CLIENT" "$stage/queue.mjs"
