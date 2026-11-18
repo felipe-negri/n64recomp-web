@@ -38,23 +38,39 @@ const measure = own.includes('--measure');
 const queue = opt('--queue'), model = opt('--model');
 if (queue && !model) { console.error('play_job: --model <game> is required with --queue'); process.exit(3); }
 
-// The X server Firefox's window goes to, larger than any size a play asks for, and the sound device that plays
-// nowhere. Each is ended when this ends.
+// The X server the browsers' windows go to, larger than any size a play asks for: Xorg on NVIDIA's own X driver with
+// no display (tools/page_play.Dockerfile's /etc/X11/page-play.conf), started for the play once its turn comes, since
+// it holds a little of the GPU's memory. Into an X server without NVIDIA's driver (Xvfb) every present goes down the X
+// socket and is copied on the CPU, which paced every page there (docs/playing.md); into this one it stays on the GPU.
+// A server not run as root takes -config only as a name under /etc/X11, and -novtswitch -sharevts keep it off the
+// host's consoles. Its log is xorg.log in the play's own folder, printed when it doesn't come up. And the sound device
+// that plays nowhere. Each is ended when this ends.
 const display = ':99';
-const xvfb = spawn('Xvfb', [display, '-screen', '0', '3840x2160x24', '-nolisten', 'tcp'], { stdio: 'ignore' });
 const runtime = fs.mkdtempSync('/tmp/play-job-');
 const env = { ...process.env, DISPLAY: display, XDG_RUNTIME_DIR: runtime };
+let xorg = null;
+async function startX() {
+  const log = `${runtime}/xorg.log`;
+  xorg = spawn('/usr/lib/xorg/Xorg', [display, '-config', 'page-play.conf', '-logfile', log, '-noreset', '-nolisten', 'tcp',
+    '-novtswitch', '-sharevts'], { stdio: 'ignore' });
+  for (const end = Date.now() + 20000; Date.now() < end && xorg.exitCode == null;) {
+    try { execFileSync('xdpyinfo', ['-display', display], { stdio: 'ignore' }); return; } catch { /* not up yet */ }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  console.log(`play_job: Xorg on NVIDIA's X driver didn't come up${fs.existsSync(log) ? `; its log:\n${fs.readFileSync(log, 'utf8').split('\n').filter((l) => /\(EE\)|\(WW\)/.test(l)).join('\n')}` : ''}`);
+  process.exit(1);
+}
 try {
   execFileSync('pulseaudio', ['--start', '--exit-idle-time=-1', '--load=module-null-sink sink_name=null'], { env, stdio: 'ignore' });
 } catch { console.log('play_job: no PulseAudio, the browsers play their sound to no device'); }
-process.on('exit', () => { xvfb.kill(); try { execFileSync('pulseaudio', ['--kill'], { env, stdio: 'ignore' }); } catch { /* gone */ } });
+process.on('exit', () => { xorg?.kill(); try { execFileSync('pulseaudio', ['--kill'], { env, stdio: 'ignore' }); } catch { /* gone */ } });
 
 const recordAt = command.indexOf('--record');
 const recordFile = recordAt >= 0 && !command.includes('--host-reading') ? command[recordAt + 1] : null;
 const linesBefore = recordFile && fs.existsSync(recordFile) ? fs.readFileSync(recordFile, 'utf8').split('\n').filter(Boolean).length : 0;
 
 // The command, in a process group of its own so a stop ends the browser it started too.
-const play = (signal) => new Promise((resolve) => {
+const play = async (signal) => { await startX(); return new Promise((resolve) => {
   const proc = spawn(command[0], command.slice(1), { env, stdio: 'inherit', detached: true });
   const stop = () => { try { process.kill(-proc.pid, 'SIGTERM'); } catch { /* gone */ } };
   signal?.addEventListener('abort', () => {
@@ -63,7 +79,7 @@ const play = (signal) => new Promise((resolve) => {
     setTimeout(() => { try { process.kill(-proc.pid, 'SIGKILL'); } catch { /* gone */ } }, 10000).unref();
   }, { once: true });
   proc.on('exit', (code, sig) => resolve(signal?.aborted ? 75 : code ?? (sig ? 128 + os.constants.signals[sig] : 1)));
-});
+}); };
 
 // The container's memory cap in MiB (cgroup v2's memory.max), null when it has none.
 function capMiB() {
