@@ -1,5 +1,5 @@
 // The game's speed against real time, from a counter the game keeps in RDRAM read every so often: what a plan's clock
-// step names, in tools/frame_dump.mjs (the desktop build) and tools/page_driver.mjs (the page). A console runs a game's
+// step names, in tools/page_driver.mjs (the page) and a desktop build's plans alike. A console runs a game's
 // frames at its own pace, and a recomp that runs them faster than that (a clock that counts the launcher's time,
 // interpolated frames counted as the game's, a VI that comes too often) plays its demos, timers and music too fast;
 // one that runs them slower, on a machine fast enough to draw them, plays in slow motion.
@@ -9,7 +9,7 @@
 //   counter 60, 30 or 20, a clock in VIs 60).
 //
 //   node tools/game_speed.mjs <speed.tsv> <per second> [--slow]
-//   judges a file of reads, a line each of ms and the value by a tab (tools/capture_window.ps1's): it prints the lines
+//   judges a file of reads, a line each of ms and the value by a tab (a desktop plan's speed.tsv): it prints the lines
 //   and exits 1 where they fail.
 //
 // The samples are cut into windows of 5 s of real time, each read as ticks a second. One the counter stood still
