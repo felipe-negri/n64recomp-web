@@ -26,8 +26,8 @@
 #   <s> size <w> <h>          the window's client area resized to w x h pixels, where it is: an aspect ratio of the
 #                             desktop's own (16:9, 21:9) for a game whose window opens at another
 #   <s> drag <ms>             the window's thread held in Windows' move loop for ms, as a drag by the title bar holds
-#                             it, without the mouse: item 6b's check, with -Env SDL_AUDIODRIVER=disk,SDL_DISKAUDIOFILE=<f>
-#                             recording what the game played, a gap a run of zeros (docs/new-recomp.md)
+#                             it, without the mouse: a sound check, with -Env SDL_AUDIODRIVER=disk,SDL_DISKAUDIOFILE=<f>
+#                             recording what the game played, a gap a run of zeros
 #   <s> until <addr> <mask> <value> <timeout s> [key]
 #                             waits until the game's 32-bit word at RDRAM address addr (0x800DCE44), anded with mask,
 #                             is value, pressing key every 1.5 s meanwhile if one is given, as a page plan's pressUntil

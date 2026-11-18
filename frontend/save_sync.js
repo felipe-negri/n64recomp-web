@@ -1,8 +1,8 @@
 // Keeps a player's saves in their own Google Drive, in the app's hidden folder there (the drive.appdata scope, which
 // sees nothing else of the Drive), so they follow the player to another browser or device. Optional: nothing happens
-// until the player signs in on the hub (site/site.js), which keeps the access token in localStorage, the origin's, so
+// until the player signs in on the hub (its site.js), which keeps the access token in localStorage, the origin's, so
 // every game's page on the hub finds it. A page linked with n64recomp_browser_frontend (--pre-js, after
-// persistent_home.js) syncs; the hub loads this file too (tools/publish_site.sh copies it) and uploads the saves a
+// persistent_home.js) syncs; the hub loads this file too and uploads the saves a
 // browser already has when the player signs in, and those changed since each time it loads or a game closes.
 //
 // What syncs: the runtime's save files, HOME/.config/<program id>/saves/... (N64ModernRuntime's pi.cpp), named in the
@@ -23,7 +23,7 @@
 //
 // A browser that never synced a game's saves and holds others than the Drive's (a second device signing in) can't be
 // settled by the times: a game may write a fresh save on its first start (GoldenEye does), newer than the player's
-// progress elsewhere. So a sign-in ends in a popup on the hub (site/site.js) asking whose saves to keep of each such game,
+// progress elsewhere. So a sign-in ends in a popup on the hub (its site.js) asking whose saves to keep of each such game,
 // and until the player has chosen the hub keeps the token to itself: nothing goes up or comes down, and closing the tab
 // or Cancel leaves them signed out. A game the Drive holds no saves of goes up without asking. Once signed in it never
 // asks again: one the hub didn't see (written since, or in a database it couldn't read) loses to the Drive at its page's

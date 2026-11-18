@@ -123,7 +123,7 @@ function(n64recomp_browser_apply_patch name dir)
             return()
         elseif (from STREQUAL patch_hash)
             # It doesn't come out. A copy that goes in again is one the checkout lost: it was put back to its commit (a
-            # game's build script or tools/publish_pages.sh resets it when this repository moves), which leaves the git
+            # game's build script resets it when this repository moves), which leaves the git
             # dir behind, so it is patched again below. One that goes neither way has edits on top.
             execute_process(COMMAND git apply --whitespace=nowarn --check "${stamp}.patch" WORKING_DIRECTORY "${top}"
                 RESULT_VARIABLE in OUTPUT_QUIET ERROR_QUIET)
