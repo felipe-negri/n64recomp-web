@@ -16,7 +16,7 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7, c0d27e5),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
-2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, which it turns on too),
+2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, 8868f0d, which it turns on too),
 `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES`
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
@@ -1290,4 +1290,10 @@ rt64 0571b69           RT64_INTERPOLATE_RECT_SCROLLS: a resized rect whose edges
 rt64 55cb360, c8742c7  1ac724a's gameRect declared after the scissor's fields, with no reset, and set where drawRect()
                        takes the draw call: Jet Force Gemini's, SSSV's and Beetle Adventure Racing's own RT64 changes
                        touch the lines beside rect where it was, and the lines after loadDrawState()
+rt64 8868f0d           RT64_INTERPOLATE_RECT_SCROLLS: a strip cut at an edge it holds (one edge stayed, the other moved
+                       less than its longer side, and its texels moved with that edge) pairs, its texture sliding by
+                       its step: Mario Golf's hills that cross the top of the picture are cut there, the strip a few
+                       rows high and its texcoord stepping a row as its bottom moves a pixel, and unpaired it showed a
+                       line of sky under it and its hills aside of those below in the frames between as the camera
+                       panned the Mini-Golf flyover (a sky seam across up to 29% of the width, then none)
 ```
