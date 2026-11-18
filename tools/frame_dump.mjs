@@ -75,7 +75,18 @@ process.on('exit', () => xvfb.kill());
 const xdo = (...a) => execFileSync('xdotool', a, { env: { ...process.env, DISPLAY: display } }).toString().trim();
 
 const keyNames = { Enter: 'Return', Space: 'space', Shift: 'Shift_L', Escape: 'Escape', Tab: 'Tab', Up: 'Up',
-  Down: 'Down', Left: 'Left', Right: 'Right' };
+  Down: 'Down', Left: 'Left', Right: 'Right', Backspace: 'BackSpace' };
+
+// tools/sdl_audio_record.c, built once for every run: each run's sound is recorded beside its dump.
+let recorder = null;
+try {
+  recorder = path.join(out, 'sdl_audio_record.so');
+  fs.mkdirSync(out, { recursive: true });
+  execFileSync('cc', ['-shared', '-fPIC', '-O2', '-o', recorder, path.join(here, 'sdl_audio_record.c'), '-ldl'], { stdio: 'pipe' });
+} catch (e) {
+  log(`frame_dump: no sound recorded: building sdl_audio_record.c failed: ${(e.stderr ?? e.message).toString().trim()}`);
+  recorder = null;
+}
 const keysym = (name) => {
   if (keyNames[name]) return keyNames[name];
   if (/^[A-Za-z0-9]$/.test(name)) return name.toLowerCase();
@@ -106,6 +117,7 @@ async function playRun(i, size, signal, config) {
   fs.copyFileSync(rom, path.join(work, `${gameId}.z64`));
   for (const f of fs.readdirSync(config)) fs.copyFileSync(path.join(config, f), path.join(work, f));
   const env = { ...process.env, DISPLAY: display, SDL_AUDIODRIVER: 'dummy', RT64_FRAME_DUMP: path.join(dir, 'dump') };
+  if (recorder) Object.assign(env, { LD_PRELOAD: recorder, SDL_AUDIO_RECORD: path.join(dir, 'sound') });
   if (opt('--seconds')) env.RT64_FRAME_DUMP_SECONDS = opt('--seconds');
   for (const kv of (opt('--env') ?? '').split(',').filter(Boolean)) { const k = kv.indexOf('='); env[kv.slice(0, k)] = kv.slice(k + 1); }
   const [w, h] = size ?? [1280, 720];
@@ -116,7 +128,8 @@ async function playRun(i, size, signal, config) {
   let exited = null;
   proc.on('exit', (code, sig) => { exited = sig ?? code; });
   const t = () => (Date.now() - started) / 1000;
-  const say = (s) => log(`${name} ${t().toFixed(1).padStart(6)}s ${s}`);
+  const steps = fs.openSync(path.join(dir, 'steps.tsv'), 'w');
+  const say = (s) => { log(`${name} ${t().toFixed(1).padStart(6)}s ${s}`); fs.writeSync(steps, `${Date.now()}\t${s}\n`); };
   say(`started ${exe} ${progArgs.join(' ')}`);
   let win = null, mem = null, rdram = null, shift = 0;
   const names = {};

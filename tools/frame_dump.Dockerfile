@@ -8,7 +8,7 @@
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends xvfb xdotool x11-utils x11-apps imagemagick \
-      libgtk-3-0t64 libfreetype6 libvulkan1 ca-certificates procps && \
+      libgtk-3-0t64 libfreetype6 libvulkan1 ca-certificates procps gcc libc6-dev && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=node:24-slim /usr/local/bin/node /usr/local/bin/node
 ENV NVIDIA_DRIVER_CAPABILITIES=all
