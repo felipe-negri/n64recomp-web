@@ -422,8 +422,8 @@ N64ModernRuntime       on a page the timer thread orders its timers by a copy of
 ba2551b,               added, not by the OSTimer's own, which osSetTimer rewrites on the game's thread: a timer
 a25ea81                restarted while still pending moved inside the set, its erase missed, and it fired at every
                        pass with no wait, so Banjo-Tooie's page on a phone hung at a level change and ended in
-                       Aborted(OOM) (docs/phones.md); a25ea81 keeps the timers in a TimerSet with a std::set's calls,
-                       so the loop stays each pinned runtime's own (ba2551b's copy of it didn't compile on ca568b6)
+                       Aborted(OOM); a25ea81 keeps the timers in a TimerSet with a std::set's calls, so the loop stays
+                       each pinned runtime's own (ba2551b's copy of it didn't compile on ca568b6)
 rt64 dd2fd23,          a triangle covers its scissor only where it crosses the camera plane, on every build: one wholly
 baa3753                behind it draws nothing, and one wholly in front has its box from its vertices held to 8192
                        pixels. a8bfc93 made a pass of triangles behind the camera or off one side a write of its whole
@@ -448,7 +448,7 @@ rt64 30df1f5           one just queued, and an upload buffer is mapped at memory
                        writes copied for the backend's at unmap(): RT64 waits after each list, each wait a trip to
                        the page's thread behind everything queued there, 5.5-6.7 ms of each interpolated frame on a
                        phone, so RT64 skipped the second frame of 35-45% of Rush 2049's game frames; 1-5% with this,
-                       and 44.8 presents a second against 39.7 (docs/phones.md)
+                       and 44.8 presents a second against 39.7
 rt64 63703df           a TMEM hash takes a CI4 texture's palette indices from 16 pieces of its byte set, not a loop
                        over 256 values, and each run of used palette indices in one update, not 8 bytes an index:
                        the same bytes and hashes (2,000,000 random tiles compared), on every build; Rush 2049's race
@@ -473,14 +473,14 @@ rt64 e74c09d           5aa2cbe, without a copy of its own on the calling side: t
 rt64 9c88af0           7844c07's slowest of the last three only where the fastest took one VI: a game at 30 mixing
                        frames of 2 and 3 VIs or more is timed at the fastest again, as RT64 skipped the third frame it
                        set each; on a phone, with State's layout right (rt64 43ef41c) both ways, Diddy Kong Racing
-                       presented 58.3 and 58.7 a second against 57.0 and 54.7 (docs/phones.md)
+                       presented 58.3 and 58.7 a second against 57.0 and 54.7
 rt64 b173eb3,          on the web a present is dropped for a newer one only once its own workload is done and the
 rt64 01d734b,          newer one's is too, not as it is taken from the queue: where workloads end after the game's
 rt64 2f9290c           next present comes, every present found a newer one queued and was dropped, and Banjo-Tooie's
                        page on a phone showed nothing from its attract's second level change on, its game still
-                       running (docs/phones.md); 01d734b moves the function it adds out of the lines Jet Force
-                       Gemini's own RT64 patch changes, and 2f9290c out of where Pokémon Snap's port adds one, where
-                       its web fork's three-way merge put it inside that function without a conflict
+                       running; 01d734b moves the function it adds out of the lines Jet Force Gemini's own RT64
+                       patch changes, and 2f9290c out of where Pokémon Snap's port adds one, where its web fork's
+                       three-way merge put it inside that function without a conflict
 rt64 43ef41c           RT64_UNEVEN_FRAME_RATES is a PUBLIC definition, as RT64_GAME_FRAME_WORKLOADS is: 7844c07 put
                        fields of VIHistory under it in rt64_vi.h, so a recomp's own code that includes rt64_state.h
                        (Diddy Kong Racing's F3DDKR and scenery code, Pokémon Snap's render context) saw every State
@@ -509,8 +509,7 @@ rt64 1c9e639           with render to RAM's late copy and a frontend's Applicati
                        its full sync tells the game its RDP is done once its draws are interpreted and its tiles
                        loaded, before RT64 records and submits its last batch, that batch's framebuffers kept whole
                        for it to read; a pending copy still lands before the next list's RDP is done, at its start,
-                       and a desktop build (no rdpDone) is unchanged (docs/phones.md, Conker's Bad Fur Day on a
-                       Galaxy S21)
+                       and a desktop build (no rdpDone) is unchanged (docs/phones.md, What holds a page back)
 N64ModernRuntime       Emscripten: ultramodern::renderer::rdp_done() sends a graphics task's DP message from inside
 51dd220                send_dl, and dp_complete() doesn't send it again (take_rdp_done()); nothing calls it on a
                        desktop build
@@ -931,8 +930,8 @@ N64ModernRuntime       ULTRAMODERN_YIELDS_END_QUEUED_GRAPHICS: a yield the game 
                        loaded since until the page ran out of memory, or the scheduler's thread queues broke. With
                        render to RAM's late copy it came 33 times in a play, and the page never reached a race. A
                        game that reuses a list's buffer once the RSP is done can't take the early done, and its page
-                       takes the define out: Rage Wars' (docs/game-forks.md), and Turok 2's and Turok 3's (their
-                       CMakeLists.txt), which ran out of memory or stopped drawing in their first level from v0.192.0
+                       takes the define out: Rage Wars', and Turok 2's and Turok 3's (their CMakeLists.txt), which
+                       ran out of memory or stopped drawing in their first level from v0.192.0
 rt64 32e204c           the RAM of the framebuffer a VI shows changed to what render to RAM copied into it is no present
                        and no frame of its own (VIHistory::pushFactor), as with render to RAM off: Turok 2's second list
                        a frame draws into the framebuffer already shown, and its exact copy, landing a VI after the

@@ -1,8 +1,7 @@
 # Playing and measuring a page
 
-How a page is played and measured, how its numbers are kept, and the games page in `site/`.
-CLAUDE.md (The games table) has the rules; `tools/play_page.mjs`'s and `tools/page_driver.mjs`'s headers have the
-options; `docs/findings.md` has what was measured this way.
+How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_driver.mjs`'s headers have the options;
+`docs/findings.md` has what was measured this way.
 
 ## The tools
 
@@ -26,7 +25,7 @@ options; `docs/findings.md` has what was measured this way.
   each game frame, why it ended and what each of its workloads drew, and each present and wait; `tools/frame_log.mjs`
   reads that beside the captures' times, to tell a frame drawn in parts from one matched wrongly. Their headers say
   how. A page opened with `?frame-log` prints the same log to its console.
-- Check a desktop build's frames by machine with `tools/frame_check.mjs` (docs/new-recomp.md, 2a): a capture comes
+- Check a desktop build's frames by machine with `tools/frame_check.mjs`: a capture comes
   tens of milliseconds after the last, so captures miss a fault in the frames between the game's, and an eye misses
   one that looks plausible. With `RT64_FRAME_DUMP=<dir>` (and `RT64_FRAME_DUMP_SECONDS=<from>-<to>` for a scene's
   worth), RT64 writes into that folder, made if it isn't there, every frame presented and where the 3D's triangles
@@ -43,30 +42,29 @@ options; `docs/findings.md` has what was measured this way.
 ## Plans
 
 - A game's `tools/play_plan.json` (DKR-R's, Snap's and Rush 2's in `web/`) is its regular play, 2-3 minutes with
-  every timeout counted, and every play of the game is by it unless a card needs more. A change that needs a longer
+  every timeout counted, and every play of the game is by it unless the work needs more. A change that needs a longer
   play (one to a level or screen only it reaches) is played by the game's `play_plan_extended.json` beside it, which
-  the card writes if the game has none: it starts the same and goes on to two or three more levels in 5 minutes or
+  the work writes if the game has none: it starts the same and goes on to two or three more levels in 5 minutes or
   less. The shaders an extended play misses go into the game's list, in the same work. Each plan's header says what it
   plays.
 - A plan reaches a level as a player does (the menus where quick, the survey's warp or stage start where not; its
-  header says which) and plays a minute or more in its levels, the whole run 2-5 minutes (Which browser, how long). A
-  walk sways out and back by as much each way about a spot it was played to and looked at: a blind walk in one
-  direction, or back the way it came, carries the character off a ledge, into water or out an exit. Its waits and holds
-  in the level are on the game's own clock (a `clock` step, page_driver's header): in ms of the browser's time,
-  uneven frames walked Firefox's runs of one plan to other places than Chrome's (docs/findings.md, Behind CLAUDE.md's
-  rules). So is the wait before a shot of the first screen that draws: Firefox builds the list's first section there,
-  the game waiting with its clock stopped, and Rayman 2's menu shot, 3 s of the browser's time after the menu came up,
-  caught that wait black in every Firefox run. A plan that ends on black is the plan's fault until a direct warp there draws black too (Banjo-Tooie's:
-  docs/findings.md, Behind CLAUDE.md's rules).
+  header says which) and plays a minute or more in its levels, the whole run 2-5 minutes. A walk sways out and back by
+  as much each way about a spot it was played to and looked at: a blind walk in one direction, or back the way it came,
+  carries the character off a ledge, into water or out an exit. Its waits and holds in the level are on the game's own
+  clock (a `clock` step, page_driver's header): in ms of the browser's time, uneven frames walked Firefox's runs of one
+  plan to other places than Chrome's. So is the wait before a shot of the first screen that draws: Firefox builds the
+  list's first section there, the game waiting with its clock stopped, and Rayman 2's menu shot, 3 s of the browser's
+  time after the menu came up, caught that wait black in every Firefox run. A plan that ends on black is the plan's
+  fault until a direct warp there draws black too: Banjo-Tooie's walks took Banjo off ledges and through exits, and its
+  plan ended black where the page draws the place in both browsers.
 - The step the rest of a plan stands on (a survey's `play()`, which loads a file) is a `need` (page_driver's header): a
   run that never gets there fails, rather than its warps and walks pressing keys at a menu for minutes, a path no player
   takes. A plan that goes on to more levels in one load makes each level's start one too, checking in RDRAM that the
   level it asked for is the one playing: Pilotwings 64's gyrocopter test didn't end when its results were pressed, so
   the next test's start found a vehicle flying, resolved at once, and the gyrocopter flew on for minutes.
-- Load ROM waits for the shader list Chrome builds behind the launcher: a click while it builds can be lost
-  (docs/findings.md, Behind CLAUDE.md's rules). `page_driver.mjs`'s rom step waits for `RT64: all <n> prebuilt shaders
-  built` itself before it presses, in every plan, so a plan's own `until` on it (or on Firefox's line that it builds
-  none there) only times its other steps.
+- Load ROM waits for the shader list Chrome builds behind the launcher: a click while it builds can be lost.
+  `page_driver.mjs`'s rom step waits for `RT64: all <n> prebuilt shaders built` itself before it presses, in every plan,
+  so a plan's own `until` on it (or on Firefox's line that it builds none there) only times its other steps.
 - A level the survey starts may crash when it ends: the screens after it read what the menus before it would have set
   up. So a plan that starts one keeps the player alive for as long as it plays (GoldenEye's `setInvincible()`): a
   GoldenEye play of Dam long enough for its guards to kill Bond stopped on the Mission Failed screen in Chrome and
@@ -92,71 +90,6 @@ options; `docs/findings.md` has what was measured this way.
   the process to end, or it loses what it wrote to its caches (page_driver.mjs's close() waits 30 s, then stops a browser
   still running, with its processes). A debugging port another browser on the machine holds is
   refused (`page_driver.mjs`).
-
-## What a change plays
-
-A change is played by what it can break, before it merges (CLAUDE.md, Changing it) and in an update
-(docs/publishing.md, Updating games). A change that could be two kinds is played as the one that risks more.
-
-- Can't change a page's bytes (`*.md`, `plays.jsonl`, `site/`, the tools that play, serve, read and publish pages):
-  nothing is played. `site/touch_pad.js` is the exception: every game's page runs it on a phone, so a change to it
-  is checked in Chrome's phone emulation (touch, a phone's size) on one game's page served with the branch's `site/`
-  (`tools/serve_site.mjs`), the controller driving the game. A new or changed plan is another: it is played as a
-  smoke play is, once in each browser, to show that it reaches its levels.
-- Changes a page but can't move its speed or timing (the launcher's or a notice's text, a patch merge that builds the
-  same code, an entry in a shader list): the smoke play. Its own game's build plays its plan once in Chrome and once in
-  Firefox, read for a page that boots and plays, WebGPU errors and exceptions (`failed`, `webgpuErrors` and
-  `exceptions` in play_page's `--json`), never for its presents. No second game, no Pages pair.
-- Can move speed or timing (a fork's renderer, its device thread, present or wait path, the runtime's threads and
-  messages, `frontend/`'s timing, a build option): the A/B, `tools/ab_pages.mjs` on its game and one other, and the
-  smoke play in Firefox of each (`ab_pages.mjs --smoke`). A renderer fix to what a frame shows rather than what it
-  costs (which of the game's frames one drawn between them pairs, a cut, how far past the view it draws) is the smoke
-  play's. An A/B whose first game came back no worse, on a change that costs every game alike, gives the second the
-  smoke play: its whole turn waits on a busy host and then measures the host.
-- Can crash or leak only over time (memory, a cache, a timing bug that takes minutes to show): a soak, played only for
-  a card that says why.
-
-A card that moves a game onto the newest tag first, beside work of its own (CLAUDE.md, The pins), gives it the smoke
-play: each change it takes was played by what it could break before it merged, the A/B among them.
-
-Each play takes its own turn in the machine's GPU queue (CLAUDE.md, Playing a page). A smoke play is a shared turn,
-beside others' shared turns, with a short limit (about 10 minutes); an A/B's play and a soak are each a whole turn, the
-GPU to themselves, with a limit that fits the plan. So a queue that serves the shortest limit first can put a smoke
-play ahead of a soak. A shared turn's presents a second aren't its page's: another card's page can be playing beside
-it (both of Snap's slow smoke plays in docs/findings.md, Pokémon Snap's timed waits in Firefox), so a smoke play is
-read for crashes, WebGPU errors and exceptions, and a page's number to compare comes from a whole turn.
-
-A card queues one series at a time (an `ab_pages.mjs` run, or a game's smoke plays) and stops a series at its first
-failed play: the cause is fixed, then the series is played again, rather than its other plays queued behind a failure.
-A series stands on its plan and the files its `evalFile` steps name, so they are checked before it is queued
-(`ab_pages.mjs` refuses a plan whose files aren't there before it queues a play, `play_page.mjs` as it starts).
-
-## Which browser, how long
-
-- Every automatic play (a test, an update's, an A/B, a smoke run) is 2-5 minutes from the launcher to the plan's last
-  step, in either browser: a game's regular plan is 2-3 minutes and its extended one 5 or less (Plans), more levels
-  fitting by playing each for less. A longer play (a plan of more, a run of 10 minutes or more) is for a card that
-  needs one and says why: a soak, a leak or OOM hunt, a timing bug that takes many minutes to show.
-- Chrome gives the performance numbers, as interleaved pairs of the page Pages serves and the build.
-- Firefox with its default prefs is played once a build for what Chrome doesn't turn up (a race in the game's loads, an
-  OOM), read for a crash, a trap, WebGPU errors and exceptions, not presents: on Windows on integrated graphics its
-  native compositor holds every page to 30-45 presents a second whatever the page does (docs/findings.md, A laptop,
-  measured), so its numbers re-measure that cap. Long Firefox plays are the soak's, when hunting a fault that takes
-  time.
-- Firefox with `--firefox-pref gfx.webrender.compositor=false` measures only a change that could move Firefox's own
-  WebGPU performance: without the compositor's cap its numbers show the page's. Default-prefs Firefox pairs are for a
-  change about Firefox itself.
-
-## Soaks
-
-A soak plays a page long, for what shows only after many minutes: a leak, a slow crash, Banjo-Kazooie's
-`Aborted(OOM)` 550 s into a Firefox play. It plays in Firefox, where those turn up; Chrome's soaks of ten pages found
-nothing Firefox's didn't (docs/findings.md, Memory). Each play is the game's plan with its `shot` steps left out and 20
-`wait`s of 60 s added, its last scene held 20 minutes (on the game's clock where the plan has one), played from Pages
-uncapped at 3840x2000 with `--interval 1 --preload tools/heap_probe.js`, one play a whole turn with `--max 35`. Read
-each run's heap break and length and its GPU process's private bytes by the minute: a leak climbs in its last 10
-minutes as in its first, the heap's high-water mark steps up and stops. A crash, an abort or steady growth is its own
-work, naming the game, the browser, the time and the curve.
 
 ## Uncapped, and the browsers' clocks
 
@@ -234,10 +167,10 @@ work, naming the game, the browser, the time and the curve.
   work grows it: `tools/gpu_growth.mjs` (its header) plays each kind of a page's calls alone, at the rates
   `--preload tools/webgpu_census.js` reads off the page; whose code made what it grows (D3D12's, a driver's, DXC's,
   Firefox's): `tools/memory_scan.ps1`, unelevated, from outside the process.
-- The web port list's W2, W5, W6 and W7 (docs/new-recomp.md): `--backcheck` (play_page's header), in Chrome at 2
-  device pixels a CSS pixel with a stand-in pad driving the plan, then a hidden tab, a reload and the browser closed
-  and opened again (`--fault reopen`) with the saves compared, and in Firefox the boot's sound and a hidden tab;
-  `play_pages.sh --backcheck` plays it on each page from Pages. `--pad` alone plays a plan with the pad.
+- Whether its canvas is in CSS pixels, its sound whole, its saves found again and a pad drives it: `--backcheck`
+  (play_page's header), in Chrome at 2 device pixels a CSS pixel with a stand-in pad driving the plan, then a hidden
+  tab, a reload and the browser closed and opened again (`--fault reopen`) with the saves compared, and in Firefox the
+  boot's sound and a hidden tab. `--pad` alone plays a plan with the pad.
 - How it comes through what a player's browser does to it: `--fault resize,hidden,audio,device,reload` (play_page's
   header) does each in turn once the play is in its level (a resized window, another tab in front for 30 s, its
   AudioContext suspended, its WebGPU device lost, then a reload over a warm cache and service worker), and records
@@ -255,8 +188,8 @@ work, naming the game, the browser, the time and the curve.
 ## Laptop-like limits on a desktop
 
 A laptop's integrated graphics finds most new flaws. Without one, a desktop takes these stand-ins, each recorded in
-the run, so plays.jsonl compares a run only with runs that set the same (numbers: docs/findings.md, The stand-in,
-measured, and Laptop-like limits on a desktop, measured):
+the run, so a run is compared only with runs that set the same (numbers: docs/findings.md, The stand-in, measured,
+and Laptop-like limits on a desktop, measured):
 
 - `--size 3840x2000 --uncapped`, the stand-in: about 7 times a laptop window's pixels, so a frame's GPU cost
   shows as presents a second. It finds a costly frame and clears none.
@@ -274,81 +207,3 @@ measured, and Laptop-like limits on a desktop, measured):
 None stands in for Windows composing a laptop's screen on the same GPU (what pacing Firefox to 30 on screen was) or
 for the GPU's own speed at a laptop's size; Firefox drawing a list's misses with the ubershader (GoldenEye's Dam
 collapse) shows on a desktop as `shader missed:` lines.
-
-## A page's numbers
-
-The README's Games table shows no frame rates and no dates: a page's numbers are its runs in `plays.jsonl`, and an
-update and every change are judged against them.
-
-- A page's number is from a run on integrated graphics (a laptop report or a hand test there), or else from the
-  stand-in: the page from Pages on a desktop GPU with a 3840x2000 canvas (about 7 times a laptop window's
-  pixels), one CSS pixel a pixel, uncapped (`play_page.mjs --uncapped --size 3840x2000 --play 25`). Uncapped, its
-  presents a second are what the page can make: higher is a cheaper frame, 342 or more is the ceiling, and an update
-  compares with earlier uncapped runs only. The stand-in is gentler than a laptop and sees cost only, so it finds a
-  problem but can't clear one, and a laptop result stays until a newer laptop run replaces it (docs/findings.md, The
-  stand-in, measured, and A laptop, measured).
-- The number is the median presents a second in Chrome after the waits. A page reading below 60 that isn't its game's
-  own rate (a page showing that, where RT64 paces presents to the game's frames (a GPU falling behind) or doesn't
-  interpolate) has work filed to make it 60. A laptop result a fix was made for stands until the laptop plays it again.
-- A page given only the smoke play (What a change plays) keeps its numbers, which a change that can't move speed
-  leaves standing.
-- A laptop's number comes from a run on screen (`--on-screen`: maximized at the laptop's own scale, as a player's window
-  is) as well as the usual one off the desktop, and gives the on-screen number: Windows never composites a window off
-  the desktop, which flattered Firefox on Intel UHD. Its Chrome run is played headless too, whose presents never wait
-  for a compositor or display. Chrome's CPU throttling (CDP `Emulation.setCPUThrottlingRate`, 3) stands in for a
-  laptop's slower CPU, but isn't what held Chrome at 51-55 there on v0.46.0 (docs/findings.md, A laptop, measured).
-- Every run, failed ones too, goes in `plays.jsonl`, committed with the work
-  (`play_page.mjs --record plays.jsonl --game <name> --build <tag>`, with `--note` for anything a player's visit
-  wouldn't have: a preload, a test build). What a script compares runs by goes in fields, not the note: `--set <id>`
-  for the runs of one interleaved set, `--role baseline` for the page Pages serves and `--role candidate` for the
-  build under test, `--host-reading '<json>'` for the host as read just before the play (`gpuBusy`, `cpuBusy`,
-  `gpuOthers`, `sessions`, `building`; play_page's header says what each is). A laptop report goes in by hand, its `note` saying so and its `gpu` the
-  laptop's adapter. A run without `--note` is compared with the last 5 like it (game, browser, size, play) and flagged
-  `regression:` when clearly worse (play_page's header says by how much). The first 216 lines, 2026-10-14 and 10-15,
-  were recovered from the runs' logs (`recovered`).
-- A new game's row has its Recomp cell naming the upstream recomp and its owner ("[name](url) by owner"), from the
-  fork's GitHub parent.
-
-## The games page
-
-`site/` is a page of every game in the Games table: a tile each with its recomp's art or a title card, which a
-click plays (the game's page in a frame, or the tab goes to the page where the page isn't cross-origin isolated or
-the game's page is on another origin; never a new tab; on a phone, fullscreen in landscape from that tap, and never
-upright: when the phone leaves landscape, at the ROM picker or Back, the game is covered until a tap locks it again),
-and under it its credit, a link to the game's repo ("Web port") and the
-recomp it is based on (the Recomp cell); the art names the game, so no line does. Over the art's corners are
-its game's critics' score (`SCORES` in `site.js`, the average of its N64 reviews on Wikipedia, as its tooltip says) and a
-floppy where this browser, or the signed-in player's Drive, holds a save of it, and above the grid the player sorts the
-tiles by name (the default), score or saves (the game saved last first), which the browser remembers. The header says what the page is
-and whose the recomps are, What's new under it the first three entries of `site/news.html`, which it links, and a line under the games that it is written with AI, with the link to this repo. It
-shows no frame rates: every game plays smoothly but in Firefox on a laptop's built-in graphics, so only there does
-the header warn (`site.js`); a play that finds otherwise changes that warning. Firefox on a phone plays no game, so
-there the header says so in red instead and a tile starts nothing. With its OAuth client (`GOOGLE_CLIENT_ID` in `site.js`, which says how the client is set up) the
-hub offers sign-in with Google, which keeps the player's saves in their own Google Drive (`frontend/save_sync.js` says
-how). Where this browser and the Drive hold a game's saves differently, a sign-in ends in a popup that asks which to
-keep. The top bar has the sign-in at its right, and once signed in the player's name, whose menu has Manage
-saves (each game's saves in the Drive and the earlier ones it kept, to restore) and Sign out; the footer links its
-privacy policy, `site/privacy.html`. It is the top of the hub, the n64hub org's GitHub Pages site (n64hub/n64hub.github.io), whose folders
-are every game's page, so they are one origin; `tools/publish_site.sh` publishes it (its header says how) after
-a change to `site/` merges, and a change to the Games table needs no publish. Its top also serves every game's page
-its on-screen controller on a phone, `site/touch_pad.js` (the header says why there), which it puts into the frame a
-game plays in, so that publish is what takes the controller and a change to it to every game. Served locally by `tools/serve_site.mjs`. Keep
-it current in the same work as what changes it:
-
-- A new feature or game on the hub (not a fix or a speedup) gets its entry at the top of `site/news.html`, a date and
-  one sentence, in the work that lands it, and a publish (`site.js` reads the entries from the published page). A
-  game's entry links the repo its Games row's Recomp or Repo cell does, and CI's changes job fails without one.
-- It reads the table from main's README.md each visit (served locally, the checkout's), finding the columns by header
-  (Game, Recomp, Repo, Page): a column renamed or a cell written another way needs
-  `site.js`'s parse to follow.
-- A new game gets its tile's art, `site/img/<repo>.webp` named as its Repo cell, from what its recomp ships and
-  nothing of the game's: the banner or logo its upstream README opens with or its repo's social preview, else its
-  app icon (`icons/512.png`), else its launcher, if that is a picture (not RecompFrontend's plain dark one or a
-  settings menu), captured in headless Chrome at 1280x720 without a ROM. A banner or launcher is a 640x360 WebP, a
-  logo 640 wide with its transparency, an icon 256. `site.js`'s `ART` says how the tile shows it (cover, cover
-  unnamed, logo, icon); without one a tile shows a title card, which needs nothing. Clear `sessionStorage` between
-  two game pages in one tab, or the second can show the isolation notice (`coi_serviceworker.js`'s reload flag).
-  It gets its score in `site.js`'s `SCORES` too, from its Wikipedia article's review table as `SCORES` says.
-- `node tools/serve_site.mjs` serves it at `http://localhost:8742/` and passes every other path to
-  GitHub Pages. `site.js` says how the frame stays cross-origin isolated, why it is navigated by `location.replace`
-  (Back returns to the grid) and why fullscreen is the game page's own document.

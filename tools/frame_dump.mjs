@@ -1,5 +1,5 @@
 // Dumps a recomp's frames by a plan on Linux and checks them, in the container of tools/frame_dump.Dockerfile, which
-// tools/remote_frame_dump.sh starts on a Linux host with an NVIDIA GPU: docs/new-recomp.md item 2a's dumps and
+// tools/remote_frame_dump.sh starts on a Linux host with an NVIDIA GPU: the dumps and
 // tools/frame_check.mjs on them, made on that host's GPU and CPU instead of the machine a person or an agent works on.
 // A dump is ~20 MB a second of frames, too much to bring back over a slow link, so only the check's text, the
 // program's logs, the plan's shots and frame_check's flagged frames stay; the dumps are deleted unless --keep.
@@ -21,7 +21,7 @@
 //
 // --window gives each run's window: one size is one run, frame_check reading its dump alone; three are three runs of
 // the plan, the first checked with the second as --narrower (a 4:3 window) and the third as --wider (32:9), the check
-// item 2a asks for. With --window the plan's size steps are skipped. Without it each run is the plan's own size steps
+// of the frames between the game's and the sides asks for. With --window the plan's size steps are skipped. Without it each run is the plan's own size steps
 // from a 1280x720 window.
 //
 // The plan is tools/capture_window.ps1's (its header has every step), its times in seconds since the program started:
