@@ -46,8 +46,9 @@
 //   within 4 blocks of the first's: a one-frame flash a game draws is rare and alone, and a pairing fault shows in the
 //   frames drawn between the game's, again and again in one place, for as long as the scene lasts. Mario Party 3's
 //   party setup draws its spinning star's BONUS sign face-on and a second outline in frames between, where neither
-//   game frame either side has them: @STAR@. Mario Party's and 2's dumps of the same plan read 3 of 5367 and 3 of
-//   4419. A frame between two of the game's own that differ over a fifth to a half of the picture (the share of the
+//   game frame either side has them: from 80 to 110 s, 9 of 1023 flagged, at most 2 within a second,
+//   5 in one place within 5 s. Mario Party's and 2's dumps of the same plan read 3 of 5367 and 3 of 4419.
+//   A frame between two of the game's own that differ over a fifth to a half of the picture (the share of the
 //   newer one's blocks with nothing like them near in the older, as the camera cuts' check reads it), where
 //   the game's frames before or after differ as much too, isn't counted, nor the game's frame at either end, and they are
 //   listed apart: something passing close to the camera, game frame after game frame, moves further from frame to
@@ -68,7 +69,8 @@
 //   64's title, sparkles over a still picture, flagged 58 of 1168 frames where it flags 22 with this and the rest
 //   below. Mario Party 3's opening without its models' tags (lib/mario-party-engine's model_ids.cpp) draws a small
 //   star for a frame where neither neighbour has it, at one place in every frame between for 0.3 s, 1-2 blocks each:
-//   @OFF@; with the tags, @ON@. Its board with mario-party-engine 199db65's board zoom fix reverted reads @ZOOM@.
+//   11 of 341 frames flagged, 10 within a second, 10 in one place; with the tags, 0 of 282. Its board with
+//   mario-party-engine 199db65's board zoom fix reverted reads 6 of 184 frames from 205 to 232 s, 3 within a second.
 //   And a flagged frame between the game's own (not the game's own picture) that is unlike the whole picture either
 //   side of it, by 10 of 255 at the least and 3 times as much as those two differ from each other, fails alone: a pairing
 //   fault that comes once per event, not once per frame. Dinosaur Planet's map blocks paired with a look-alike across a
