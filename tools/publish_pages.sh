@@ -29,6 +29,9 @@
 #    front of each boot's play_page.mjs, as ab_pages.mjs's does, so the boot takes its turn in the machine's GPU queue
 #    (CLAUDE.md, Playing a page): a shared turn with a short limit, like a smoke play (docs/playing.md, What a change
 #    plays). Without one it plays at once, beside whatever else holds the GPU, and its presents a second read that.
+#    A boot that fails prints the plan's own lines (where it stopped) and keeps its log and its screen as it failed
+#    in a folder of its own: a boot that fails once and passes again is the page's to explain, and the summary alone
+#    can't (a game that never left its boot reads like a busy host there).
 # 6. Prints the pages it published, which are then played in Chrome and Firefox (CLAUDE.md,
 #    The games table): that needs Firefox in a window. A --played publish's were played before it.
 # --dry-run stops after 3, saying which pages differ.
@@ -773,14 +776,22 @@ for g in "${published[@]}"; do
     plan="$work/$g-tools/tools/shader_plan.json"
     [[ -f "$plan" ]] || plan="$work/$g-tools/web/shader_plan.json"
     "${queue[@]}" "$node" "$here/play_page.mjs" chrome "$url/index.html" "$rom" "$plan" --play 20 --uncapped \
-        --size 3840x2000 --profile "$work/$g-profile" --json "$work/$g.json" --record "$here/../plays.jsonl" --game $g \
+        --size 3840x2000 --profile "$work/$g-profile" --json "$work/$g.json" --shot "$work/$g.png" --record "$here/../plays.jsonl" --game $g \
         --build "Pages, main $(git -C "$clone" rev-parse --short ${main_of[$g]})" --note "publish_pages.sh's boot check" \
         > "$work/$g-play.log" 2>&1 || true
     result="$("$node" -e "const s = require(process.argv[1]); const p = s.presents ? s.presents.median : 0;
         console.log((p > 0 && !s.webgpuErrors.length ? 'ok' : 'FAILED') + ': ' + p + ' presents/s, ' + s.webgpuErrors.length +
         ' WebGPU errors, ' + s.exceptions + ' exceptions')" "$work/$g.json" 2> /dev/null || echo "FAILED: no summary")"
     echo "== $g from Pages in headless Chrome: $result"
-    [[ $result == ok* ]] && played+=("$g") || { tail -15 "$work/$g-play.log"; failed+=("$g"); }
+    if [[ $result == ok* ]]; then played+=("$g"); continue; fi
+    # Where the plan stopped is in its own lines (a survey's, a timed-out press, the step that failed), well above the
+    # summary: printed, and the log and the page's screen as it failed kept, since $work goes when this ends.
+    kept="$(mktemp -d "${TMPDIR:-/tmp}/publish_pages-$g-failed.XXXXXX")"
+    cp "$work/$g-play.log" "$kept/" 2> /dev/null || true; cp "$work/$g-failed.png" "$kept/" 2> /dev/null || true
+    grep -E '^\[[0-9.]+\] (\[|failed|timed out|need:|evalFile:|the game stopped|the page as it failed)' "$work/$g-play.log" | tail -25 || true
+    tail -10 "$work/$g-play.log"
+    echo "   its log and its screen as it failed (a $g-failed.png when it failed before the play): $kept"
+    failed+=("$g")
 done
 
 echo

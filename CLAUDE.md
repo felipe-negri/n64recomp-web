@@ -44,6 +44,12 @@ sentence. Keep that word on the line above.
 A change here is one PR on this repo. It merges once CI is green and what it changes has been played (Changing it).
 Work found while doing other work is filed and not started, unless it is a critical fix (The pins).
 
+A machine shared by many pieces of work does each thing once. Work whose cause turns out to be fixed elsewhere
+already (a commit or PR on the same code) moves onto that fix and keeps only what it adds, rather than landing a fix
+of its own beside it. A tool two pieces of work change at once (a checker, a play script) has one owner at a time,
+the other handing its change over: two rewriting `tools/frame_check.mjs` side by side re-checked the same dumps
+every round, an hour of a 12-core host's CPU each.
+
 A slow step the work repeats (a build, a generator or disassembler run, a recompile, a boot) is made fast before the
 work leans on it, unasked: incremental, cached by what it reads, run in parallel. A repo's own tool is fixed in that
 repo, in the same work (a game's tools/ by its PR); a script of the work's own, in the scratch.
@@ -308,6 +314,12 @@ of this in the same work, as docs/playing.md says:
 - A smoke play is a shared turn in the GPU queue with a short limit (about 10 minutes), an A/B's play or a soak a
   whole turn with a limit that fits its plan. A card queues one series at a time and stops it at its first failed
   play, and checks its plan's files are there before it queues (docs/playing.md, What a change plays).
+- A series runs what its question needs and no more. A checker's change re-checks the dumps it can change, not the
+  whole set each round; a dump the check can't test (it exits 2, as one with no frames between the game's own does
+  for pairing) leaves the series; a question about one part (the picture's sides) checks that part, the seconds that
+  show it (`--from`, `--to`). A cause already put down to a busy host is confirmed by one replay, not three.
+  `tools/frame_check.mjs` takes a third of the cores, so two run beside a play: don't raise `--workers` on a shared
+  host, and run it in the machine's queue like any other CPU work.
 - On a desktop GPU a page is measured uncapped (`--uncapped`): capped, every page and build reads about 60 there.
 - One page plays at a time on a machine, in any browser (docs/findings.md, Two pages at once). Where agents share a
   machine, each play (one `play_page.mjs` run, one `record_shaders.mjs` recording) takes its turn in that machine's GPU

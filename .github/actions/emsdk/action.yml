@@ -1,0 +1,44 @@
+# emsdk (setup-emsdk, cached as emsdk-cache) with the Emscripten ports a job's compiles use already fetched: em++
+# downloads a port (SDL2, FreeType and its zlib, emdawnwebgpu) from GitHub into Emscripten's cache at the first compile
+# that names it, uncached and unretried, and setup-emsdk saves emsdk-cache before any is there. So a 403 or a 504 from
+# GitHub failed every compile of a job whose change touched nothing they build. Here Emscripten's ports folder is
+# cached on its own, and the ports are fetched before any compile, retried. Every port is fetched for every job that
+# uses this, so all of them share one cache entry; a job that compiles with no port (hlslpp-wasm, kuseg-window) uses
+# setup-emsdk itself and fetches nothing.
+name: emsdk
+description: emsdk on PATH, with Emscripten's ports fetched, retried and cached
+inputs:
+  version:
+    description: the emsdk version (the workflow's EMSDK_VERSION)
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: emscripten-core/setup-emsdk@v16
+      with:
+        version: ${{ inputs.version }}
+        actions-cache-folder: emsdk-cache
+    - id: dir
+      shell: bash
+      run: echo "ports=$(em-config CACHE)/ports" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache/restore@v4
+      id: restore
+      with:
+        path: ${{ steps.dir.outputs.ports }}
+        key: emscripten-ports-${{ inputs.version }}-emdawnwebgpu-sdl2-freetype-${{ runner.os }}
+    # A compile that names them all, syntax only: with the cache above it downloads nothing.
+    - name: Emscripten's ports
+      shell: bash
+      run: |
+        touch "$RUNNER_TEMP/empty.cpp"
+        for wait in 15 30 60 120 0; do
+          em++ --use-port=emdawnwebgpu -sUSE_SDL=2 -sUSE_FREETYPE=1 -fsyntax-only "$RUNNER_TEMP/empty.cpp" && exit 0
+          [[ $wait == 0 ]] || { echo "::warning::fetching Emscripten's ports failed: again in $wait s"; sleep "$wait"; }
+        done
+        exit 1
+    # Saved at once, not when the job ends: a job whose checks fail still saves it.
+    - uses: actions/cache/save@v4
+      if: steps.restore.outputs.cache-hit != 'true'
+      with:
+        path: ${{ steps.dir.outputs.ports }}
+        key: ${{ steps.restore.outputs.cache-primary-key }}
