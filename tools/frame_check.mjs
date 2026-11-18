@@ -1044,6 +1044,7 @@ const PIC_ROOM = 0.1; // ... and is this much of the view's width at least
 const PIC_RUN = 1; // seconds in a row of frames cut short that fail
 const SEAM_EVERY = 0.25; // seconds between the frames a straight line is looked for in
 const SEAM_MOVES = 2; // a frame's mean difference to the last one looked at, of 255, from which the scene moves
+const SEAM_BESIDE = 3; // ... where the pixels this many columns either side of a line, in the rows it steps, move as much
 const SEAM_STEP = 10; // a step between two pixels, of 255, that counts in a column
 const SEAM_OVER = 0.3; // the share of a column's rows stepping, over its neighbours', that is a straight line
 const SEAM_NEAR = 0.05; // ... within this much of the view's width of its sides
@@ -1143,7 +1144,8 @@ function pictureAtSides(d) {
         }
         nextSeam = f.t + SEAM_EVERY;
         const g = grey(f, w, h);
-        const moved = (prev && (prev.length === g.length)) ? meanDiff(g, prev) : Infinity;
+        const last = (prev && (prev.length === g.length)) ? prev : null;
+        const moved = last ? meanDiff(g, last) : Infinity;
         prev = g;
         if (moved < SEAM_MOVES) {
             continue;
@@ -1161,6 +1163,24 @@ function pictureAtSides(d) {
             }
             share[x] = (rows >= h / 2) ? steps / rows : 0;
         }
+        // How much the picture beside column x moved since the last frame looked at: its pixels SEAM_BESIDE either side,
+        // in the rows where x steps. A line where the picture beside it stands still is the scene's own edge (Paper
+        // Mario's stage pillars at the view's sides, while only the curtain above them moves), not a cut.
+        const beside = (x) => {
+            if (!last) {
+                return Infinity;
+            }
+            let sum = 0, n = 0;
+            for (let i = x; i < w * h; i += w) {
+                if (drawn[i - 1] && drawn[i] && drawn[i + 1] && drawn[i + 2] && (Math.abs(g[i + 1] - g[i]) > SEAM_STEP)) {
+                    for (let k = -SEAM_BESIDE; k <= SEAM_BESIDE + 1; k++) {
+                        sum += Math.abs(g[i + k] - last[i + k]);
+                        n++;
+                    }
+                }
+            }
+            return n ? sum / n : 0;
+        };
         const near = Math.ceil(SEAM_NEAR * vw);
         for (const side of [v0, v1 - 1]) {
             for (let x = Math.max(side - near, 7); x <= Math.min(side + near, w - 9); x++) {
@@ -1170,7 +1190,7 @@ function pictureAtSides(d) {
                 }
                 around.sort((a, b) => a - b);
                 if ((share[x] - around[around.length >> 1] >= SEAM_OVER) && (share[x] >= share[x - 1]) &&
-                    (share[x] >= share[x + 1])) {
+                    (share[x] >= share[x + 1]) && (beside(x) >= SEAM_MOVES)) {
                     seams.set(x, (seams.get(x) ?? 0) + 1);
                 }
             }
