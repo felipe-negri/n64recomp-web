@@ -16,7 +16,8 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7, c0d27e5),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
-2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, 8868f0d, which it turns on too),
+2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, 8868f0d,
+55f42a3, which it turns on too),
 `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES`
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
@@ -1303,4 +1304,10 @@ plume 0f99478          WebGPU: after a READBACK map is cancelled (a threaded bui
                        into it failing. Super Smash Bros.' page hit it as a battle ended, under a busy GPU
 rt64 59781ef           plume-web 0f99478
 rt64 8fb97c6           rt64_frame_dump.h's header says what the dump is for and names no checker: a comment only
+rt64 55f42a3           RT64_INTERPOLATE_RECT_SCROLLS: a rect cut at an edge it holds that changed size keeps its
+                       texels a pixel in the frames between, its texture scaled and its corners placed so the texel at
+                       the moving edge is this frame's (shifts and corners interpolated): Mario Golf opens Course Select
+                       by moving Play Modes' halves out 12 pixels a side, each cut by the screen's edge, and a half was
+                       stretched toward that edge and past where the next game frame puts it (frame_check: 8 frames
+                       unlike both neighbours in the 0.4 s it takes)
 ```
