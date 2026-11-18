@@ -110,7 +110,11 @@
 //   pixels short of the side, the picture behind it showing. Mario Party 3's opening without mario-party-engine
 //   245ec52 draws its 3D grass under a scissor 8 of the console's pixels inside the screen, the background's grass in a
 //   band around it: a line 6 pixels in from the view's side (a 640x180 dump at 32:9) in 32 of 56 frames where the
-//   scene moves, and none with it. Turok 1's and 2's 16:9 sweeps and Mario Golf's iris wipes have neither. Neither
+//   scene moves, and none with it. A frame counts the line only where the picture beside it moves too (its rows'
+//   pixels 3 either side, as much as a moving scene does): a cut lies across what moves, where the scene's own straight
+//   edge that stands still isn't one. Paper Mario's opening at 32:9 has its stage's pillars at the view's sides while only
+//   the curtain above them moves: a line 2 pixels out in 6 of 23 moving frames, 2 counting the picture beside it.
+//   Turok 1's and 2's 16:9 sweeps and Mario Golf's iris wipes have neither. Neither
 //   needs two runs to agree, so a board the computer players play differently each time is checked too.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
