@@ -7,7 +7,7 @@
 //   node tools/frame_dump.mjs --game <dir> --exe <name> --game-id <id> --rom <file> --plan <file> --out <dir>
 //       [--window <w>x<h>[,<w>x<h>,<w>x<h>]] [--rate <hz>] [--seconds <from>-<to>] [--args "<program args>"]
 //       [--env K=V,...] [--config <dir>] [--check "<frame_check args>"] [--workers <n>] [--keep]
-//       [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>]
+//       [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>] [--launcher] [--no-dump] [--slow]
 //
 // --game is the folder of a recomp's Linux build (its release archive unpacked, or its build folder with assets/),
 // --exe the program in it, --game-id the name its runtime stores the ROM under (<game id>.z64, as Load ROM does). Each
@@ -29,6 +29,20 @@
 // do what they do there, keys through XTEST into the window and RDRAM through /proc/<pid>/mem (the runtime maps it as
 // one 512 MB region, 0x80000000 at its first byte, each 32-bit word in the host's order). burst, record and stop are
 // captures, which the dump replaces: they are skipped. drag, Windows' move loop, has no counterpart and fails the run.
+// Two steps are this tool's own:
+//   <s> clock <addr> <per second>  from here to the run's end, reads the game's 32-bit counter at addr every 100 ms
+//                                  against real time, a counter that counts that many a second on a console (Mario
+//                                  Golf's frame counter, 0x800B67F0, 30; Donald Duck's clock, 0x800C3D24, 60), and
+//                                  tools/game_speed.mjs judges the game's speed from it: each run's speed.tsv has the
+//                                  reads, the log what was judged. A game faster than its console fails the run (exit
+//                                  1), and one slower too with --slow, for a host known to draw the game at its pace
+//   <s> point <x> <y>              moves the pointer to x, y in the window: a launcher takes Enter for the option under
+//                                  the pointer, so with --launcher a plan starts the game with a point and a key Enter
+// --launcher starts the program without --boot, at its launcher, so a plan can wait there as a player who leaves it
+// open does before Start Game (a game whose clock counted the launcher's time played its demos with no title).
+// --no-dump plays the plan with RT64's frame dump off and no frame_check, for the clock alone: a dump writes every
+// frame, which slows a large window's game below its pace. Its exit is then the clock's: 0 passes, 1 fails, 3 a
+// run failed.
 //
 // --queue names a JavaScript module exporting gpuRun(spec, run) of a GPU queue the host's GPU work takes turns in: the
 // runs then go as one job of type frame-dump and frame_check as a second, frame-check, asking no GPU memory (its
@@ -42,12 +56,13 @@
 // --workers is frame_check's (a third of the cores it sees unless given), for a container held to fewer cores than
 // the host has.
 //
-// Exit: frame_check's own (0 passes, 1 fails, 2 has nothing to test), 3 when a run failed (the program exited or
+// Exit: frame_check's own (0 passes, 1 fails, 2 has nothing to test), 1 when a clock step's speed fails, 3 when a run failed (the program exited or
 // crashed, an until or find unmet, no window), 75 when the queue asked it to stop.
 import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { judge } from './game_speed.mjs';
 
 const args = process.argv.slice(2);
 const opt = (name, def) => { const i = args.indexOf(name); return i < 0 ? def : args[i + 1]; };
@@ -64,6 +79,8 @@ const log = (s) => console.log(s);
 
 class RunFailed extends Error {}
 let stopped = false; // the queue asked for a stop
+let speedFails = false; // a clock step's run judged the game's speed wrong
+const dumping = !flag('--no-dump');
 
 const plan = fs.readFileSync(planFile, 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
   .map((l) => l.split(/\s+/));
@@ -105,11 +122,12 @@ async function playRun(i, size, signal, config) {
   fs.writeFileSync(path.join(work, 'portable.txt'), '');
   fs.copyFileSync(rom, path.join(work, `${gameId}.z64`));
   for (const f of fs.readdirSync(config)) fs.copyFileSync(path.join(config, f), path.join(work, f));
-  const env = { ...process.env, DISPLAY: display, SDL_AUDIODRIVER: 'dummy', RT64_FRAME_DUMP: path.join(dir, 'dump') };
-  if (opt('--seconds')) env.RT64_FRAME_DUMP_SECONDS = opt('--seconds');
+  const env = { ...process.env, DISPLAY: display, SDL_AUDIODRIVER: 'dummy' };
+  if (dumping) env.RT64_FRAME_DUMP = path.join(dir, 'dump');
+  if (dumping && opt('--seconds')) env.RT64_FRAME_DUMP_SECONDS = opt('--seconds');
   for (const kv of (opt('--env') ?? '').split(',').filter(Boolean)) { const k = kv.indexOf('='); env[kv.slice(0, k)] = kv.slice(k + 1); }
   const [w, h] = size ?? [1280, 720];
-  const progArgs = ['--boot', '--window', `${w}x${h}`, ...(opt('--args') ?? '').split(/\s+/).filter(Boolean)];
+  const progArgs = [...(flag('--launcher') ? [] : ['--boot']), '--window', `${w}x${h}`, ...(opt('--args') ?? '').split(/\s+/).filter(Boolean)];
   const started = Date.now();
   const proc = spawn(path.join(work, exe), progArgs, { cwd: work, env,
     stdio: ['ignore', fs.openSync(path.join(dir, 'stdout.log'), 'w'), fs.openSync(path.join(dir, 'stderr.log'), 'w')] });
@@ -151,6 +169,11 @@ async function playRun(i, size, signal, config) {
     return Number(s) >>> 0;
   };
   const press = async (key, ms = 120) => { xdo('keydown', keysym(key)); await sleep(ms); xdo('keyup', keysym(key)); };
+  // The clock step's reads, [ms, value], every 100 ms on a timer of their own while the plan goes on.
+  let clock = null, clockTimer = null;
+  const clockRead = () => {
+    try { clock.reads.push([performance.now(), read(clock.addr).readUInt32LE()]); } catch { /* the game's RDRAM not mapped yet */ }
+  };
   try {
     await findWindow();
     if (size) xdo('windowsize', win, String(w), String(h));
@@ -198,11 +221,23 @@ async function playRun(i, size, signal, config) {
         case 'or': { const a = num(p[2]); write(a, read(a).readUInt32LE() | num(p[3])); say(`or ${p[2]} ${p[3]}`); break; }
         case 'peek': say('peek ' + p[2].split(',').map((a) => `${a}=0x${read(num(a)).readUInt32LE().toString(16).toUpperCase().padStart(8, '0')}`).join(' ')); break;
         case 'dump': fs.writeFileSync(path.join(dir, p[4] + '.bin'), read(num(p[2]), num(p[3]))); say(`dump ${p[2]} ${p[3]} ${p[4]}.bin`); break;
+        case 'clock':
+          clock = { addr: num(p[2]), perSecond: Number(p[3]), reads: [] };
+          clearInterval(clockTimer); clockTimer = setInterval(clockRead, 100); clockRead();
+          say(`clock ${p[2]} at ${p[3]} a second`); break;
+        case 'point': xdo('mousemove', '--window', win, p[2], p[3]); say(`point ${p[2]} ${p[3]}`); break;
         case 'end': break plan;
         default: throw new RunFailed(`unknown plan step: ${p.join(' ')}`);
       }
     }
   } finally {
+    clearInterval(clockTimer);
+    if (clock) {
+      fs.writeFileSync(path.join(dir, 'speed.tsv'), clock.reads.map(([ms, v]) => `${Math.round(ms)}\t${v}`).join('\n') + '\n');
+      const { lines, fails } = judge(clock.reads, clock.perSecond, { slow: flag('--slow') });
+      for (const line of lines) say(line);
+      speedFails ||= fails;
+    }
     if (mem !== null) fs.closeSync(mem);
     if (exited === null) {
       proc.kill('SIGTERM');
@@ -284,8 +319,9 @@ try {
       url: opt('--url') || undefined, ref: process.env.HOSTNAME,
       onUpdate: (j) => j.state === 'waiting' && log(`queue: ${type} waiting, ${j.ahead} ahead: ${j.why?.text ?? 'going next'}`) });
     const made = await gpuRun(spec('frame-dump', `Frame dump: ${gameId}`, opt('--vram', 'auto') === 'auto' ? 'auto' : Number(opt('--vram'))), (signal) => dumps(signal));
-    code = await gpuRun(spec('frame-check', `frame_check: ${gameId}`, 0), async () => check(made));
-  } else code = check(await dumps(null));
+    code = dumping ? await gpuRun(spec('frame-check', `frame_check: ${gameId}`, 0), async () => check(made)) : 0;
+  } else code = dumping ? check(await dumps(null)) : (await dumps(null), 0);
+  if (speedFails) { log('frame_dump: the game\'s speed fails (the clock step\'s lines above)'); code = 1; }
 } catch (e) {
   log(`frame_dump: ${e instanceof RunFailed ? e.message : e?.stack ?? e}`);
   code = stopped ? 75 : 3;
