@@ -103,8 +103,6 @@ so commit to a fork from a separate clone of it:
    and move its upstream commit in `patches/patches.txt`.
 3. Here, on the task's branch: bump `forks.txt`, run `tools/export_patches.sh`, commit `patches/` with it, and open the
    PR. A patch that stops applying to a commit in `patches/pins.txt` means the fork has to change.
-4. Before it merges, build pages on the branch and play them by what the change can break (docs/playing.md, What a
-   change plays): the smoke play of its own game where it can't move speed, the A/B on its game and one other where it
 4. Before it merges, build pages on the branch and play them by what the change can break (docs/playing.md): a game
    fork's checkout with its N64Recomp-browser at the branch's commit. After the merge, CI's `tag` job
    tags main `v0.<n+1>.0` when its jobs pass, for a merge that changes `forks.txt`, `patches/`, `frontend/` or
