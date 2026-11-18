@@ -16,7 +16,7 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7, c0d27e5),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
-2d2db0c, d798d28, a17b46a, 952d327, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4,
+2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4,
 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES` (rt64 9ef2024,
 a86c053, ff78e32, which it turns on too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
@@ -1263,4 +1263,9 @@ rt64 696a70d           RT64_FRAME_DUMP_RATE's swapChainCreated() after the swap 
                        apply over 3f0181c
 rt64 4de3122           9adecdf (sides.tsv's count of model matrices drawn wholly past the view's sides) reverted: the
                        pin carries both, so nothing changes
+rt64 1ac724a           RT64_INTERPOLATE_RECT_SCROLLS: rects pair by their places and sizes as the game drew them, before
+                       the enhancement that moves an edge within a pixel of the scissor's onto it (rect.fixRectLR):
+                       Mario Golf's credits draw each glyph and its shadow a pixel aside, and as a line came in at the
+                       bottom the two swapped sizes there, the glyph paired with the shadow, and every other present
+                       drew the line a pixel to the right
 ```
