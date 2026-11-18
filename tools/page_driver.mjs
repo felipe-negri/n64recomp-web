@@ -644,10 +644,17 @@ const asJson = (js) => `Promise.resolve((0, eval)(${JSON.stringify(js)})).then((
 const openChrome = async ({ profile, port, width, height, executable, rom, preload, headed, onScreen, uncapped, cpuThrottle, scale, chromeFlags = [], affinity, fallbackAdapter, line, stopPage }) => {
   // A window off the desktop counts as hidden, and Chrome stops drawing a hidden one unless told not to (on screen,
   // another window over it would hide it too).
-  const mode = headed || onScreen
+  // On Linux with an X display (an Xvfb will do) Chrome runs in a window on it, headed or not: headless, its Vulkan asks
+  // for VK_EXT_headless_surface, which NVIDIA's driver hasn't, so it fails and WebGPU gets only SwiftShader, while in an
+  // X window with ANGLE on Vulkan the page draws on the GPU. In a container (tools/remote_play_page.sh's) its sandbox
+  // can't start, so it runs without.
+  const onX = process.platform === 'linux' && !!process.env.DISPLAY;
+  const mode = headed || onScreen || onX
     ? ['--disable-features=CalculateNativeWinOcclusion', '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding', '--no-default-browser-check']
     : ['--headless=new'];
+  if (onX) mode.push('--ozone-platform=x11', '--use-angle=vulkan', '--enable-features=Vulkan');
+  if (process.platform === 'linux' && fs.existsSync('/.dockerenv')) mode.push('--no-sandbox');
   if (uncapped) mode.push('--disable-frame-rate-limit');
   if (fallbackAdapter) mode.push('--use-webgpu-adapter=swiftshader');
   const size = onScreen ? ['--start-maximized'] : [`--force-device-scale-factor=${scale}`, `--window-size=${width},${height}`];
