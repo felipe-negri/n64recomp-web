@@ -49,6 +49,12 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   all three windows, runs frame_check there and brings back only its text, the logs, the plan's shots and the flagged
   frames (its header and `tools/frame_dump.mjs`'s say how), since a dump is too big to move and the check holds a
   third of a machine's cores for minutes. Its verdicts match a dump made on Windows by `capture_window.ps1`.
+- Soak a desktop build for the crashes and hangs a short boot misses, those that come minutes in or in one scene:
+  `tools/frame_dump.mjs --soak <seconds>` (through `tools/remote_frame_dump.sh` like a dump) plays its Linux build by
+  a plan for half an hour or more, looping a round of modes and menus with the plan's `again` step and pressing
+  random keys where its `random` step says, and fails at once on a `Crash:` line, the program exiting, or a picture
+  that stands still for 10 s, saying whether the game's memory went on changing behind it (a frozen picture) or not
+  (a hang). Its header has the steps and what it keeps.
 
 ## Plans
 
