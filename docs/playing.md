@@ -49,6 +49,13 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   all three windows, runs frame_check there and brings back only its text, the logs, the plan's shots and the flagged
   frames (its header and `tools/frame_dump.mjs`'s say how), since a dump is too big to move and the check holds a
   third of a machine's cores for minutes. Its verdicts match a dump made on Windows by `capture_window.ps1`.
+- Check a high resolution for seams with `tools/seam_check.mjs`: a line thinner than one of the console's pixels, a
+  gap between two of the game's pieces showing what lies behind (terrain blocks a level of detail apart, a sliced
+  sprite's strips a pixel apart), which frame_check can't see. It reads a dump of a plan at 4 times the console's
+  resolution or more against one of the same plan at the console's own, and counts only the lines the second lacks;
+  `remote_frame_dump.sh` given two window sizes (`--window 1280x960,320x240`) makes both and runs it. A dump whose game
+  ran slower than 10 of its own frames a second (a host whose GPU something else holds) can't pass. Its header says
+  what it measured.
 - Check a desktop build's sound the same way, by `tools/sound_check.mjs`: each run frame_dump.mjs makes also records
   every buffer the game queues to SDL with its time (`tools/sdl_audio_record.c`, through LD_PRELOAD on a Linux build),
   and the times of the plan's steps. sound_check compares that with the recording of the same plan by a build whose
