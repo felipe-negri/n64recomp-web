@@ -128,7 +128,14 @@
 //   workloads, per band (6-8 a band past the edge culled, 24-25 fixed, as each draws there). Not how the drawing goes on
 //   across the view's edge (the next fifth of the view's width outside against inside: Mario 64 0.23 culled and 0.53
 //   fixed, Mario Golf's flyover 0.36 culled, F-Zero X's fixed 0.34, Dinosaur Planet 0.45, Smash 0.08-0.11, its stage
-//   ending at the 4:3 view by design). Nor triangles past the 32:9 picture, 0-6 a band in every one. A 4:3
+//   ending at the 4:3 view by design). Nor triangles past the 32:9 picture, 0-6 a band in every one. Nor, in the 4:3
+//   window's dump, the whole objects drawn past the view (model matrices whose every triangle lies past one side, a
+//   count a test build of rt64 dumped): Mario 64 reads 0.3-0.6 a workload and F-Zero X 2, but Mario Golf's flyover,
+//   its ground culled to 4:3, draws 42 (props and far scenery its game culls by distance only), among Dinosaur
+//   Planet's 54, Smash's 49 and Paper Mario's 15, and how far past the view they lie against their own size (a
+//   median of 2.1 times it in Mario Golf, 36 Dinosaur Planet, 1.5 Smash, 0.95 Paper Mario) or how many triangles each
+//   has (2 in most, up to 159 in Mario Golf) doesn't part them either: a game culling part of its world to 4:3 shows
+//   a 4:3 window only the rest, so a count of what it draws there would pass a culled build. A 4:3
 //   window's target can be a little off 4:3 (Rush 2049's is 640x440): a --narrower dump wider than 1.6:1, a --wider
 //   one narrower than 8:3, or a pair of which under 30 or a tenth of the 32:9 workloads find a match (not the same
 //   scene), exits 2. Without them it only counts the triangles. One dump's own strip against the view tells nothing:
