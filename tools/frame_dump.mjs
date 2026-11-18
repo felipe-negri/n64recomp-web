@@ -219,14 +219,16 @@ async function playRun(i, size, signal, config) {
 }
 
 // How fast a dump's frames came, from frames.bin's headers (rt64_frame_dump.h's FrameHeader, 40 bytes before each
-// frame's 8-bit RGB): presents a second, and the game's own frames a second, a game frame being the last of its
-// present's frames (its index the count less 1), the rest drawn between by RT64.
+// frame's 8-bit RGB): presents a second, the game's own frames a second (a game frame is the last of its present's
+// frames, its index the count less 1; the rest RT64 draws between), and the presents the game queued (State's
+// present ids, one a screen update) against those the dump has: RT64 skips a present whose next one is already queued,
+// and shows nothing for one whose game frame it has shown, so the ids the dump lacks are the presents that showed nothing.
 function paceOf(dump) {
   const file = path.join(dump, 'frames.bin');
   if (!fs.existsSync(file)) return null;
   const fd = fs.openSync(file, 'r'), size = fs.fstatSync(fd).size, h = Buffer.alloc(40);
-  let frames = 0, own = 0, dropped = 0, first = null, last = null;
-  const counts = [];
+  let frames = 0, own = 0, dropped = 0, first = null, last = null, firstId = null, lastId = null;
+  const counts = [], ids = new Set();
   for (let o = 0; o + 40 <= size; frames++) {
     fs.readSync(fd, h, 0, 40, o);
     if (h.readUInt32LE(0) !== 0x44465452) break; // rt64_frame_dump.h's FrameDump::Magic
@@ -234,6 +236,8 @@ function paceOf(dump) {
     if (o + 40 + w * ht * 3 > size) break;
     if (index === count - 1) { own++; counts.push(count); }
     dropped += h.readUInt32LE(20);
+    const id = Number(h.readBigUInt64LE(24));
+    ids.add(id); lastId = id; firstId ??= id;
     last = Number(h.readBigUInt64LE(32)); first ??= last;
     o += 40 + w * ht * 3;
   }
@@ -241,8 +245,10 @@ function paceOf(dump) {
   const s = (last - first) / 1000;
   if (!(s > 0)) return null;
   counts.sort((a, b) => a - b);
-  return `dump: ${frames} frames in ${s.toFixed(1)} s, ${(frames / s).toFixed(1)} presented a second, ${(own / s).toFixed(1)} ` +
-    `of the game's own (each shown ${counts[counts.length >> 1] ?? 0} times, median), ${dropped} dropped`;
+  const a = (n) => (n / s).toFixed(1);
+  return `dump: ${frames} frames in ${s.toFixed(1)} s, ${a(frames)} presented a second, ${a(own)} of the game's own ` +
+    `(each shown ${counts[counts.length >> 1] ?? 0} times, median), ${a(lastId - firstId + 1)} presents queued a second ` +
+    `(${a(ids.size)} in the dump), ${dropped} frames dropped by the writer`;
 }
 
 // graphics.json for every run: --config's, or the one a first start of the program writes, at Manual --rate.
