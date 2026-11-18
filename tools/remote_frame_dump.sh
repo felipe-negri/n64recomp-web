@@ -60,7 +60,8 @@ remote "docker image inspect $image >/dev/null 2>&1 || docker build -q -t $image
 # What the container reads, in one tar: the scripts, the plan, the settings, the sound reference, the queue's client.
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
-cp "$here/frame_dump.mjs" "$here/frame_check.mjs" "$here/seam_check.mjs" "$here/sound_check.mjs" "$here/sdl_audio_record.c"     "$stage/"
+cp "$here/frame_dump.mjs" "$here/frame_check.mjs" "$here/frame_pace.mjs" "$here/seam_check.mjs" "$here/sound_check.mjs" \
+    "$here/sdl_audio_record.c" "$stage/"
 cp "$plan" "$stage/plan.txt"
 mkdir -p "$stage/config-in"
 [[ -n "$config" ]] && cp -r "$config/." "$stage/config-in/"
