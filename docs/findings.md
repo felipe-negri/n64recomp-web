@@ -250,7 +250,7 @@ since the abort comes anywhere from 70 to 793 s in and most come past 5 minutes.
 critical fix.
 
 No other page leaks or aborts in a soak. Thirteen games' pages from Pages were soaked in Firefox 158 and ten of them in
-Chrome, 2026-10-20 and 21 on an RTX 5080 (the host otherwise idle, other cards' GPU turns between plays), 21-23 minutes
+Chrome, 2026-10-20 and 21 on an RTX 5080 (the host otherwise idle, others' GPU turns between plays), 21-23 minutes
 each, with no crash, no abort and no WebGPU error but Banjo-Kazooie's Firefox OOM above; Pokémon Snap's, Rush 2's and
 Rush 2049's weren't. dlmalloc's break takes what a page uses in its first minutes, then holds or steps up a few MB and
 stops. From the first minute to the last it is flat on Donkey Kong 64 (763.8 and 766.9 MB), Pilotwings 64, Diddy Kong
@@ -418,7 +418,7 @@ three on the busy RTX 2070 host and five on an idle host with an RTX 5080, no We
 run that stops with the browser's main thread idle is the browser's, not the page's (below).
 
 Perfect Dark's page "stopped answering" the same way in Firefox 158 on the RTX 2070 host, 30-56% busy beside other
-cards' pages, about one play in four of its regular plan, from Pages and from a build: once ~45 s into Defection,
+pages, about one play in four of its regular plan, from Pages and from a build: once ~45 s into Defection,
 after its section's 56 prebuilt shaders and the 3 its list misses there, and three times as it booted, before its
 first console line reached play_page (GoldenEye's page, from Pages and a build, too, 34-60 s after Firefox opened).
 The page was not held. At the stop its tab's main thread idled in its event loop, the game's threads sat in ordinary
@@ -781,7 +781,7 @@ Pokémon Snap's page served locally presented 73.9 and 75.6 a second in Firefox 
 v0.85.0; uncapped at 3840x2000 on an RTX 5080, a fresh profile), from the first sample to the last, as many as its
 animation frames, frame gaps 15 ms (the system timer's tick), the GPU 7-14% busy (37-57% in the first, beside Rush
 2049's plays); from Pages after publishing it presented 206-208, and every other game's build 182-293. Each was a shared
-turn with another card's page playing beside it (Rush 2049's in Chrome and Firefox, Perfect Dark's in Firefox). Played
+turn with another page playing beside it (Rush 2049's in Chrome and Firefox, Perfect Dark's in Firefox). Played
 again in whole turns, Pages' own v0.85.0 bytes (2026-10-22, twelve plays), the local server wasn't it, nor was the
 page's name: served locally as Snap64Recomp.html 226, 96, 328, 227 and 222, as index.html 330 and 209; from Pages 227,
 226, 211, 225 and 226. What told them apart is plume's `timedWaitsEndLate()`, measured once as the page starts from the
@@ -882,7 +882,7 @@ the textures' and samplers'. A layout's visibility is each binding's stages over
 made after the pipelines changed it, and fbWriteColor and rspWorld were still built in line until a new binding stage
 built every compute pipeline again. fbReadAnyFull is still built at its dispatch, at the launcher, where nothing
 plays: RT64 leaves one of its set's bindings unbound. Debug builds' boots (the logos, the same plan, a host shared with
-another card's plays): 3,061 frames short before, 360 and 49 after, those in the game's first second, where every
+other plays): 3,061 frames short before, 360 and 49 after, those in the game's first second, where every
 build, either way, has three frames of 130-140 ms. A release build's A/B against the page Pages served: 3,642
 frames short there, 617 (13 ms) in the build, all in the game's first 3 s.
 
@@ -919,7 +919,7 @@ boot's first 0.6 s and at 3.5 s, Paper Mario 612 and 1,016 at 0.016 s and 9.3 s.
 
 Paper Mario's lose nothing a player hears: its boot plays digital silence until its intro stage's music, 12.3 s into
 the sound, and every loss falls before it (Pages' page in Chrome 155, an RTX 5080, 3840x2000 uncapped, a new profile,
-the probe's loudest sample in each 20 ms; a host 11-80% busy, another card's build and plays beside it). The 9.3 s one
+the probe's loudest sample in each 20 ms; a host 11-80% busy, another build and plays beside it). The 9.3 s one
 is where the Intelligent Systems logo gives way to the intro's stage, a map load, where the game draws nothing for
 109 ms: on an idle host the ring fell no lower than 668 frames there and nothing ran short, and with the browser held
 to 2 logical processors (`play_page.mjs --affinity 2`) it fell to 276 in one play and ran dry for 4 quanta in another,
@@ -2233,7 +2233,7 @@ Dark's first picture comes later there, by 30 s where it came within 10 s (twice
 
 ## Firefox slow to start
 
-On some stretches of an afternoon, every Firefox play on one host (an RTX 2070, other cards' pages beside it) took 50
+On some stretches of an afternoon, every Firefox play on one host (an RTX 2070, other pages beside it) took 50
 to 540 s to open, while Chrome plays in the same hours opened at once, and quieter stretches opened in 4-7 s. Host load
 didn't decide it: one slow open was on a host 13% busy. Firefox 158's debugging port answered in 1-26 s every time; what
 waited was BiDi's `session.new`, which answers only once the browser fires `browser-idle-startup-tasks-finished`, after
@@ -2255,7 +2255,7 @@ What the idle browser waits on is win32k, Windows' window manager in the kernel.
 starts on fresh profiles on about:blank with the variable set, one every 4-5 minutes over five hours of an evening,
 each a shared turn: 63 answered `session.new` in 2.3-4.0 s and exited 0.5-1.8 s after `browser.close`, and one
 answered at 45 s, gave its startup profile 60 s later and exited 87 s after `browser.close` (a busy host, 39-47%, its
-turn started 49 s into another card's Firefox play; starts beside that play 2 minutes later, beside Chrome plays and
+turn started 49 s into another Firefox play; starts beside that play 2 minutes later, beside Chrome plays and
 beside a build were fast). Its profile runs a fast start's steps, stretched: the first startup idle tasks at 9.7 s
 (2.1 s in a fast start), the rest at 30-45 s, the prelaunched content and utility processes at 30-45 s (2.3 s). Every
 thread of every process sat in its wait, the parent's main thread using 2.5 s of CPU in 50 s, and timers fired on time
@@ -2275,8 +2275,8 @@ wait (`ExclusiveUserCrit`, `SharedUserCrit`, `AcquireQpcCounts`) and every relea
 `HoldQpcCounts`), with stacks: `xperf -start <name> -on "Microsoft-Windows-Win32k:0x10000000:5:'stack'" -f <etl>`,
 which a member of Performance Log Users can record without admin (the kernel logger's context switches can't), about
 14 MB a second on a busy desktop. On the RTX 2070 host, windowed starts as above, each a shared turn, one every 4.5
-minutes and one as soon as another card's harness Firefox started, with Task Manager open: the 8 started while another
-card's Firefox play ran answered `session.new` in 10.8-147 s and exited 32-40 s after `browser.close`, and the 8 with no
+minutes and one as soon as another harness's Firefox started, with Task Manager open: the 8 started while another
+Firefox play ran answered `session.new` in 10.8-147 s and exited 32-40 s after `browser.close`, and the 8 with no
 other harness browser running in 4.6-6.3 s, exiting within 1.2 s. In the trace of a 107 s start, every windowed process
 on the desktop waited for the lock: 97,445 waits of 20 ms or more in 188 s, up to 98 ms each, the start's main thread
 177 s of them in `NtUserPeekMessage` and `NtUserPostMessage` (fast starts wait under 1 ms). Task Manager held it shared
@@ -2289,11 +2289,11 @@ one: half its exclusive acquires are win32k taking the lock back after calling i
 raises the same events, and NVIDIA's driver takes the lock shared at each of a page's presents
 (`GetForegroundWindow`), but neither was last before more than 1.3% of the waits. With Task Manager closed, in the
 same hours: 24 starts with no other play running answered in 3.9-6.8 s but one at 14.6 s and one at 101 s, and the 2
-started beside other cards' plays in 7.5 and 10.4 s, exiting 1.0 and 5.5 s after `browser.close`. None of these slow
+started beside other plays in 7.5 and 10.4 s, exiting 1.0 and 5.5 s after `browser.close`. None of these slow
 ones waited on win32k: the 101 s start's trace has no wait of 20 ms or more on the whole desktop, its Firefox threads'
 longest 4 ms, so what slows such a start is something else, which this trace doesn't show.
 
-None of these slows it alone. A display that has turned itself off (card sessions keep a host awake but not its
+None of these slows it alone. A display that has turned itself off (agents keep a host awake but not its
 display): on an idle host with an RTX 5080, with Windows reporting the console display off
 (`GUID_CONSOLE_DISPLAY_STATE` 0) before and after each start, six windowed starts on fresh profiles on about:blank,
 uncapped, answered `session.new` in 1.9 s, the page visible and drawing ~80 animation frames a second, and exited
