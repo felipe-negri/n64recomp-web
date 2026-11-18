@@ -13,7 +13,7 @@
 // --profile the build dir is served on 8937 unless --port, since the ROM and saves a kept profile holds are kept per
 // origin, port included. A URL is where
 // the page is, a GitHub Pages one say, and plan.page is taken relative to it, unless the URL names an .html itself
-// (publish_page.sh puts a fork's <name>.html up as index.html, so give .../index.html for it). A build dir is served and
+// (a page published as index.html, say: give .../index.html for it). A build dir is served and
 // plan.page played from it, or, when the dir has no such file (a plan whose page is index.html, which Pages has and a
 // build hasn't), the dir's one .html: a dir with several names them and stops, and <dir>/<name>.html plays that page
 // whatever plan.page says. The browser starts with
@@ -58,7 +58,7 @@
 // Load ROM stays the mouse's: a browser opens a file picker only for a click or a key. A key with no pad button stays
 // the keyboard's and is named in the summary's pad, with the presses that went to the pad and what reached its rumble
 // (padRumbles()). Keys an eval or evalFile step dispatches itself are the keyboard's.
-// --backcheck plays the web port list's W2, W5, W6 and W7 (docs/new-recomp.md) in one visit and prints a verdict line
+// --backcheck plays four checks of a web port, W2, W5, W6 and W7, in one visit and prints a verdict line
 // for each ("backcheck W5 pass: ..."), recorded as the run's backcheck. In Chrome: --scale 2, --pad, --fault
 // hidden,reload,reopen and --chrome-flag --disable-audio-output unless given: W2 is Load ROM opening the picker at its
 // first click at 2 device pixels a CSS pixel (not played where the plan's Load ROM is a key); W5 no sound frame short in
@@ -149,7 +149,7 @@
 // missed: true), WebGPU errors and exceptions, the GPU and the cores, and
 // the GPU process's private bytes from the first sample to the last and MB a second between them (a leak's rate), in
 // Firefox with its own report of which part grew (page_driver.mjs's gpuProcessMemory); --json writes it as JSON too, a
-// failed run's with "failed" (tools/ab_pages.mjs reads it).
+// failed run's with "failed".
 // A run the host slept through (its clock jumped more than 30 s between two of play_page's 1 s ticks) is stopped and
 // fails: its samples would span the sleep, and one such run read as a clean one in an update's plays.
 // The GPU readings are the whole adapter's, so note what else ran beside a number.
@@ -168,9 +168,9 @@
 // the list's size, from RT64's "RT64: <n> prebuilt shaders, ..." line, is the summary's and the run's prebuiltShaders,
 // and a play whose page presented without that line fails, unless its --query asks for ?record-shaders (none built).
 //
-// --record appends the run to a file of runs, one JSON line each, a run that fails too (with "failed"): this repo's
-// plays.jsonl, the history of how each game's page plays. --game is publish_pages.sh's name for the game (rush, ge,
-// mm, banjo, cbfd, dk64, wr, pw, bt, mk64, sf64, oot, dkr, jfg, snap, rush2, 1080, sssv, pd, sm64), --build what the page was built from (a tag of this repo, or Pages),
+// --record appends the run to a file of runs, one JSON line each, a run that fails too (with "failed"): the history
+// of how each game's page plays. --game is a short name for the game (lowercase letters and digits), --build what the
+// page was built from (a tag of this repo, or Pages),
 // and --note anything that makes the run unlike a player's visit (a preload, a test build, another page beside it). A
 // run's conditions are fields of their own, for a script to read without parsing the note: --set an id shared by the runs
 // of one interleaved set (the page Pages serves and a new build, played in turn), --role which side of it the run is
@@ -191,7 +191,7 @@
 // failed), when it fails where they didn't, has WebGPU errors where the last had none, presents a second more than 3
 // below the lowest of theirs, a 99th percentile gap between presents over 50 ms and half again the longest of theirs,
 // or waits for shaders over 2 s and half again longer than the longest of theirs: outside
-// the runs' own noise, but a busy host reads the same, so a flag is a reason to look again (docs/publishing.md, Updating games).
+// the runs' own noise, but a busy host reads the same, so a flag is a reason to look again.
 // Presents aren't compared for a run at the display's rate whose browser drew fewer than 57 animation frames a second:
 // the host had no display to pace them, and every page that interpolates reads the same.
 import fs from 'fs';
@@ -253,7 +253,7 @@ const chromeFlags = [];
 for (let flag; (flag = option(args, '--chrome-flag', null)) !== null;) chromeFlags.push(flag);
 if (chromeBackcheck && !chromeFlags.includes('--disable-audio-output')) chromeFlags.push('--disable-audio-output');
 if (recordFile && !/^[a-z0-9]+$/.test(game ?? '')) {
-  console.error('--record needs --game <name>: rush, ge, mm, banjo, cbfd, dk64, wr, pw, bt, mk64, sf64, oot, dkr, jfg, snap, rush2, pd, sm64 (publish_pages.sh\'s names)');
+  console.error('--record needs --game <name>, a short name for the game in lowercase letters and digits');
   process.exit(1);
 }
 if (role !== null && (!['baseline', 'candidate'].includes(role) || set === null)) {

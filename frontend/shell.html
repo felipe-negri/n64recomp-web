@@ -184,7 +184,7 @@
   // tap while the page isn't fullscreen asks for fullscreen and then for landscape: a browser locks the orientation
   // only in fullscreen (Chrome on Android), and grants fullscreen only from a tap, which pointerup is for a finger and
   // pointerdown isn't. The game's own page goes fullscreen inside the hub's frame too, as its fullscreen button does it
-  // (site/site.js). Leaving fullscreen unlocks it. Fullscreen takes the tap's activation, so a first tap on Load ROM
+  // (the hub's site.js). Leaving fullscreen unlocks it. Fullscreen takes the tap's activation, so a first tap on Load ROM
   // gets the picker's own button (file_picker.cpp). Where either is refused (an iPhone has neither) #turn says to turn
   // the phone, in CSS: it shows on a finger's screen while it is upright.
   addEventListener('pointerup', () => {
@@ -192,7 +192,7 @@
     document.documentElement.requestFullscreen().then(() => screen.orientation?.lock?.('landscape'))
       .catch((e) => console.log(`fullscreen or landscape refused: ${e.name}: ${e.message}`));
   }, { capture: true });
-  // Where the pointer is a finger (as above), the page loads its on-screen controller, site/touch_pad.js, from the top
+  // Where the pointer is a finger (as above), the page loads its on-screen controller, touch_pad.js, from the top
   // of the site, where the hub publishes it with its own files: a change to it reaches every game's page without
   // building one again. It shows once the game has started, which the runtime says with Module.gameStarted (N64ModernRuntime-web's
   // recomp.cpp), noted here for a start that comes before the script, which then takes the call over.
