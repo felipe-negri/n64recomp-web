@@ -952,7 +952,7 @@ const moved = new Map();
 // presents beside it don't share: Mario Golf's to the tee after hole 1's flyover, 0.30 apart between 0.00 and 0.00.
 const wholeOf = (id) => moved.get(id)?.whole ?? 0;
 const band = (id) => (wholeOf(id) >= NEAR) && (wholeOf(id) < CUT_WHOLE);
-const nearPass = ({ f }) => [f.presentId, ...((f.index === f.count - 1) ? [f.presentId + 1] : [])]
+const nearPass = ({ f }) => [f.presentId, ...(own(f) ? [f.presentId + 1] : [])]
     .some((id) => band(id) && (band(id - 1) || band(id + 1)));
 
 // The blocks of c that neither a nor b explains, where a and b match each other.
@@ -1046,14 +1046,31 @@ function checkMiddle({ gw, gh, kept }) {
     }));
 }
 // A kept frame is the game's own picture where it is the last of its present, or where that last frame repeats it: a
-// frame between drawn as the game's frame after it, nothing moved between.
-const own = (f) => f.index === f.count - 1;
+// frame between drawn as the game's frame after it, nothing moved between. Or where its present stopped there (cut): RT64
+// stops a present's frames when the game's next frame comes before they are drawn, and the dump has written the frame
+// it shows as one of the count before it knows, so the present's last frame never comes. Its first frame, drawn a
+// step along from the game's frame before, is then all that is shown of the game's frame: what the game set anew for
+// that frame (a light's level, a colour) is in it, with no frames between on the way. Turok 3's first room in the Breach
+// has a light that flickers, a new level each game frame; with a game frame or two cut to their first frame a second,
+// those frames read as frames between unlike both neighbours, "1 of 8", 16-54 of a dump, the game's own light alone.
+const own = (f) => (f.index === f.count - 1) || (f.cut === true);
+let lastRead = null; // the frame read before, its entry and the kept entry it repeats
 for (const f of (sidesOnly ? [] : readFrames())) {
     presented++;
     first ??= f;
     last = f;
     dropped += f.dropped;
     between += (f.index < f.count - 1) ? 1 : 0;
+    // The frame before was its present's last shown: where that isn't the present's last, the present was cut there. A
+    // frame the dump dropped could be what came between, so then it isn't known, and stays a frame between.
+    if (lastRead && (lastRead.entry.f.presentId !== f.presentId) && !own(lastRead.entry.f) && !f.dropped) {
+        lastRead.entry.f.cut = true;
+        lastRead.entry.own.game = true;
+        if (lastRead.repeats && (lastRead.repeats.f.presentId === lastRead.entry.f.presentId)) {
+            lastRead.repeats.own.game = true;
+        }
+        between--;
+    }
     sizes.add(`${f.w}x${f.h}`);
     if (!run || (run.w !== f.w) || (run.h !== f.h)) {
         run = { w: f.w, h: f.h, gw: Math.floor(W / B) * B, gh: Math.floor(W * f.h / f.w / B) * B, kept: [], game: null,
@@ -1063,7 +1080,9 @@ for (const f of (sidesOnly ? [] : readFrames())) {
     const entry = { f, g, q: quarter(g, run.gw, run.gh), own: { game: own(f) } };
     checkPresent(entry, run);
     const prev = run.kept[run.kept.length - 1];
-    if (prev && (meanDiff(g, prev.g) < 0.05)) {
+    const repeat = prev && (meanDiff(g, prev.g) < 0.05);
+    lastRead = { entry, repeats: repeat ? prev : null };
+    if (repeat) {
         repeats++;
         prev.held = true;
         if (own(f) && (prev.f.presentId === f.presentId)) {
@@ -1118,7 +1137,7 @@ for (const u of small) {
 // from a flat ring, three in 0.8 s, and Mario Party's turn order dice swell to fill the picture's middle and shrink to
 // a third of that in one game frame, again and again.
 {
-    const isGame = (f) => f.index === f.count - 1;
+    const isGame = own;
     const between = new Set(flagged.filter((u) => !isGame(u.c.f)).map((u) => u.c.f.presentId));
     const alone = flagged.filter((u) => isGame(u.c.f) && !between.has(u.c.f.presentId) &&
         !between.has(u.c.f.presentId + 1));
@@ -1179,8 +1198,9 @@ if (presented >= 3) {
     if (!quiet) {
         for (const { c, bad, bw, bh, lone: alone } of flagged.slice(0, 40)) {
             const xs = bad.map((i) => i % bw), ys = bad.map((i) => Math.floor(i / bw));
-            const ids = [c.f.presentId, ...((c.f.index === c.f.count - 1) ? [c.f.presentId + 1] : [])];
-            console.log(`  frame ${c.f.n} at ${c.f.t.toFixed(2)} s (present ${c.f.presentId}, ${c.f.index + 1} of ${c.f.count}):` +
+            const ids = [c.f.presentId, ...(own(c.f) ? [c.f.presentId + 1] : [])];
+            console.log(`  frame ${c.f.n} at ${c.f.t.toFixed(2)} s (present ${c.f.presentId}, ${c.f.index + 1} of ${c.f.count}` +
+                `${c.f.cut ? ', the present cut there' : ''}):` +
                 ` ${bad.length} blocks, x ${(Math.min(...xs) / bw).toFixed(2)}-${((Math.max(...xs) + 1) / bw).toFixed(2)}` +
                 ` y ${(Math.min(...ys) / bh).toFixed(2)}-${((Math.max(...ys) + 1) / bh).toFixed(2)} of the picture` +
                 (nearPass(c) ? `, not counted: the game's frames ${ids.map((id) => wholeOf(id).toFixed(2)).join(' and ')} apart` :
