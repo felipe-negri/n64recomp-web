@@ -49,6 +49,13 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   all three windows, runs frame_check there and brings back only its text, the logs, the plan's shots and the flagged
   frames (its header and `tools/frame_dump.mjs`'s say how), since a dump is too big to move and the check holds a
   third of a machine's cores for minutes. Its verdicts match a dump made on Windows by `capture_window.ps1`.
+- Check a desktop build's sound the same way, by `tools/sound_check.mjs`: each run frame_dump.mjs makes also records
+  every buffer the game queues to SDL with its time (`tools/sdl_audio_record.c`, through LD_PRELOAD on a Linux build),
+  and the times of the plan's steps. sound_check compares that with the recording of the same plan by a build whose
+  sound is right, given as the reference (`remote_frame_dump.sh -r <run's folder>`, frame_dump's `--sound-reference`),
+  in narrow bands lined up by the plan's steps, and fails where one is louder (a stuck or looping sound) or quieter (a
+  missing one) through seconds. A plan for it plays the scene with the fault in it: Rush 2049's squeal left playing
+  across a rewind showed only in a plan that skids while it holds Rewind. Its header says what it was measured on.
 
 ## Plans
 

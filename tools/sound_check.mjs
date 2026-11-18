@@ -4,37 +4,44 @@
 //
 //   node tools/sound_check.mjs <dir> [--reference <dir>] [--from <s>] [--to <s>]
 //
-// - Behind the picture: each buffer is heard once the sound queued before it has played, so a queue that grows is
-//   sound that runs behind the picture by as much, and past 100 ms queue_samples' catch-up (in the recomps that have
-//   it) drops every other sample of a buffer to make it up, a click with no gap in it. The recording's device plays
-//   in real time, as a sound card does (sdl_audio_record.c says why it isn't SDL's), so this reads what a player
-//   hears. It fails where a buffer is queued with 100 ms or more queued before it after --from (5 s: a boot's first
-//   loads). Mario Golf v0.1.2, whose sound library made 552 samples a retrace where 533 play, crackled about four times
-//   a second on players' machines (fixed in v0.1.3); its recording fails here and v0.1.3's passes. Buffers queued
-//   onto an empty queue (the device playing nothing meanwhile, a gap) are counted and their first times listed, but
-//   don't fail: a game below full speed on a busy host runs any queue dry (docs/new-recomp.md's 6c measures that on
-//   the sound device, on a quiet host).
-// - Against a reference: with --reference, the recording of the same plan by a build whose sound is right (a release
-//   a person has listened to, a fixed build), what the game played second by second in third-octave bands. A sound
-//   left playing after its scene (a stuck or looping effect) shows as a band louder than the reference's for seconds
-//   on end, and a missing channel or effect as one quieter. The two are lined up by the plan's steps (each moment
-//   counted from the step before it, since a step that waits for the game moves the steps after it), and a band only
-//   counts as louder where it is above everything the reference played in it within half a second either way, by 6 dB
-//   or more, and quieter where it is under all of it by as much, so a race's small differences in timing from run to
-//   run read as nothing. It fails where a band stays louder or quieter for 3 s or more, in sound at least 40 dB above
-//   the quietest the two play in that band. Rush 2049 v0.1.30 left a tire squeal playing after a skid that started
-//   while Rewind was held, until the race ended (fixed in v0.1.31); a plan that skids, rewinds, lets go and drives on
-//   fails v0.1.30 against v0.1.31 and passes a second run of v0.1.31 against the first.
+// It checks what the game played against the recording of the same plan by a build whose sound is right (a release a
+// person has listened to, a fixed build), given as --reference: second by second, in bands a twelfth of an octave
+// wide (narrow enough for one effect's tone to stand out of a mix with music in it). A sound left playing after its
+// scene (a stuck or looping effect) shows as a band louder than the reference's, and a missing channel or effect as
+// one quieter. A recording holds no other way to tell either from the game's own sound: a tone that holds its pitch
+// for seconds flagged the music's held notes in every recording of Rush 2049 and Mario Golf, as much as a stuck squeal.
 //
-// Exit: 0 passes, 1 fails, 2 nothing to check (no recording, or a program that queued no sound).
+// The two runs are lined up by the plan's steps, each moment counted from the step before it (a step that waits for
+// the game moves the steps after it). A band at a moment is louder by how far it is over everything the reference
+// played in that band within half a second either way, and quieter by how far under all of it, so the small
+// differences in timing between two runs read as nothing; louder only where it is 40 dB over the quietest either run
+// plays in that band, quieter only where the reference is. It fails where a band is 3 dB or more louder or quieter
+// through 4 s (the median of its windows, a quarter of a second apart). Rush 2049, by a plan that drives into a race,
+// skids, holds Rewind with the skid held, lets go, drives on and pauses, two runs of the same build differ by 1.1 dB at
+// the most (v0.1.31 and v0.1.36, each against its other run, both ways), and a build with a known fault fails against
+// both runs of its fix: v0.1.30, whose tire squeal started while Rewind was held kept playing until the race ended
+// (fixed in v0.1.31), by 6.2-6.6 dB at 1.35 kHz in the seconds after Rewind is let go, and v0.1.35, whose squeal kept
+// playing while Rewind was held (fixed in v0.1.36), by 4.4-5.1 dB at 1.35 kHz through the rewind. v0.1.31 against
+// v0.1.36 fails there too, by 4.6 dB: it has v0.1.35's fault. No build with a known missing sound has been recorded,
+// so the quieter side has only been seen as the mirror of these (v0.1.36 against v0.1.31 is quieter by 5.3 dB).
+//
+// It also prints how much sound was queued before each buffer (least, median, most: how far behind the game it was
+// heard) and the buffers queued onto an empty queue (a gap), but fails on neither: a busy host runs any queue dry, and
+// whether a game's sound keeps pace with a sound card is a sound card's to show. Mario Golf v0.1.2, whose queue grew
+// past queue_samples' 100 ms catch-up on players' sound cards so that it cut samples and crackled (fixed in v0.1.3),
+// held 22-34 ms on the recorder's device, as v0.1.3 held 0-54. Without --reference this reading is all it prints.
+// --from (5 s, past a boot's first loads) and --to keep what is checked between those seconds.
+//
+// Exit: 0 passes, 1 fails, 2 nothing to check (no recording, a program that queued no sound, no --reference, or one
+// whose plan played other steps).
 import fs from 'node:fs';
 import path from 'node:path';
 
-const LAG_MS = 100; // sound queued before a buffer at which it fails (queue_samples' catch-up)
 const HOP = 0.25; // seconds between the band levels' windows
 const NEAR = 0.5; // seconds either way of the reference's moment a level is compared with
-const DIFF_DB = 6; // how much louder or quieter than the reference a band counts as different
-const HOLD_S = 3; // how long a band stays different for it to fail
+const PER_OCTAVE = 12; // bands an octave
+const DIFF_DB = 3; // how much louder or quieter than the reference a band fails at
+const HOLD_S = 4; // ... through this many seconds
 const RANGE_DB = 40; // ... in sound at least this far above the quietest the two play in that band
 
 const args = process.argv.slice(2);
@@ -92,28 +99,17 @@ if (run.error) { console.log(`sound: ${run.error}`); process.exit(2); }
 let failed = false;
 const s1 = (x) => x.toFixed(1);
 
-// Behind the picture.
+// The queue: how far behind the game its sound was heard, and its gaps.
 {
   const kept = run.buffers.filter((b) => b.t >= from && b.t <= to);
   const q = kept.map((b) => b.queued * 1000).sort((a, b) => a - b);
-  const behind = kept.filter((b) => b.queued * 1000 >= LAG_MS);
-  let sounding = false;
-  const dry = [];
-  for (const b of run.buffers) {
-    if (b.t >= from && b.t <= to && sounding && b.queued === 0) dry.push(b);
-    sounding ||= b.t >= from;
-  }
+  const dry = kept.filter((b, i) => i > 0 && b.queued === 0);
   console.log(`sound: ${run.freq} Hz, ${run.channels} channels, ${kept.length} buffers from ${from} s to ${s1(Math.min(to, run.buffers.at(-1).t))} s, ` +
-    `queued ${q[0]?.toFixed(0)} / ${q[q.length >> 1]?.toFixed(0)} / ${q.at(-1)?.toFixed(0)} ms before them (least / median / most)`);
-  const times = (bs) => bs.slice(0, 8).map((b) => s1(b.t)).join(' ') + (bs.length > 8 ? ' ...' : '') + ' s';
-  if (behind.length) {
-    failed = true;
-    console.log(`sound behind the picture: FAILS, ${behind.length} of ${kept.length} buffers queued with ${LAG_MS} ms or more before them, at ${times(behind)}`);
-  } else console.log(`sound behind the picture: passes, no buffer queued with ${LAG_MS} ms before it`);
-  if (dry.length) console.log(`sound gaps: ${dry.length} buffers queued onto an empty queue, at ${times(dry)} (not failed: a busy host runs any queue dry)`);
+    `queued ${q[0]?.toFixed(0)} / ${q[q.length >> 1]?.toFixed(0)} / ${q.at(-1)?.toFixed(0)} ms before them (least / median / most)` +
+    (dry.length ? `, ${dry.length} onto an empty queue, at ${dry.slice(0, 8).map((b) => s1(b.t)).join(' ')}${dry.length > 8 ? ' ...' : ''} s` : ''));
 }
 
-// Band levels: dB in third-octave bands, a window every HOP seconds.
+// Band levels: dB in bands PER_OCTAVE to an octave, a window every HOP seconds.
 function fft(re, im) {
   const n = re.length;
   for (let i = 1, j = 0; i < n; i++) {
@@ -136,7 +132,7 @@ function fft(re, im) {
   }
 }
 const BANDS = [];
-for (let f = 100; f <= 12500; f *= 2 ** (1 / 3)) BANDS.push(f);
+for (let f = 100; f <= 12500; f *= 2 ** (1 / PER_OCTAVE)) BANDS.push(f);
 function levels(r) {
   const n = 1 << Math.round(Math.log2(r.freq * 2 * HOP)); // about two hops long
   const win = Float32Array.from({ length: n }, (_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / n));
@@ -147,7 +143,7 @@ function levels(r) {
     fft(re, im);
     const p = BANDS.map(() => 0);
     for (let b = 1; b < n / 2; b++) {
-      const f = b * r.freq / n, band = Math.floor(Math.log2(f / 100) * 3 + 0.5);
+      const f = b * r.freq / n, band = Math.floor(Math.log2(f / 100) * PER_OCTAVE + 0.5);
       if (band >= 0 && band < BANDS.length) p[band] += re[b] * re[b] + im[b] * im[b];
     }
     out.push({ t: (i0 + n / 2) / r.freq, db: p.map((v) => 10 * Math.log10(v / n + 1e-12)) });
@@ -172,33 +168,39 @@ if (opt('--reference')) {
   };
   const a = levels(run), b = levels(ref);
   const floor = BANDS.map((_, j) => Math.min(...a.map((w) => w.db[j]), ...b.map((w) => w.db[j])));
-  const found = [];
+  // Each band's excess at each window: how far over everything the reference played near that moment it is (louder),
+  // or under all of it (quieter), where the louder side is RANGE_DB over the band's quietest; then its median over
+  // every HOLD_S seconds, the worst of which is the band's.
+  const n = Math.round(HOLD_S / HOP), worst = [];
   for (const [j, f] of BANDS.entries()) {
-    let streak = null;
-    const close = (end) => {
-      if (streak && end - streak.t0 >= HOLD_S) found.push({ ...streak, t1: end, f });
-      streak = null;
-    };
+    const ex = { louder: [], quieter: [] };
     for (const w of a) {
-      if (w.t < from || w.t > to) { close(w.t); continue; }
-      const rt = onRef(w.t);
-      const near = b.filter((x) => Math.abs(x.t - rt) <= NEAR).map((x) => x.db[j]);
-      if (!near.length) { close(w.t); continue; }
-      const hi = Math.max(...near), lo = Math.min(...near);
-      const kind = w.db[j] >= hi + DIFF_DB && w.db[j] >= floor[j] + RANGE_DB ? 'louder' :
-        w.db[j] <= lo - DIFF_DB && lo >= floor[j] + RANGE_DB ? 'quieter' : null;
-      if (kind && streak?.kind === kind) { streak.most = Math.max(streak.most, Math.abs(kind === 'louder' ? w.db[j] - hi : lo - w.db[j])); continue; }
-      close(w.t);
-      if (kind) streak = { kind, t0: w.t, most: Math.abs(kind === 'louder' ? w.db[j] - hi : lo - w.db[j]) };
+      const near = w.t >= from && w.t <= to ? b.filter((x) => Math.abs(x.t - onRef(w.t)) <= NEAR).map((x) => x.db[j]) : [];
+      const hi = near.length ? Math.max(...near) : NaN, lo = near.length ? Math.min(...near) : NaN;
+      ex.louder.push({ t: w.t, e: near.length && w.db[j] >= floor[j] + RANGE_DB ? w.db[j] - hi : -Infinity });
+      ex.quieter.push({ t: w.t, e: near.length && lo >= floor[j] + RANGE_DB ? lo - w.db[j] : -Infinity });
     }
-    close(Math.min(to, a.at(-1).t + HOP));
+    for (const kind of ['louder', 'quieter']) {
+      const e = ex[kind];
+      let top = { e: -Infinity };
+      for (let k = 0; k + n <= e.length; k++) {
+        const m = e.slice(k, k + n).map((x) => x.e).sort((x, y) => x - y)[n >> 1];
+        if (m > top.e) top = { e: m, t0: e[k].t, t1: e[k + n - 1].t };
+      }
+      worst.push({ kind, f, ...top });
+    }
   }
-  found.sort((x, y) => x.t0 - y.t0);
-  const hz = (f) => f >= 1000 ? `${(f / 1000).toFixed(1)} kHz` : `${Math.round(f)} Hz`;
-  if (found.length) {
+  worst.sort((x, y) => y.e - x.e);
+  const hz = (f) => f >= 1000 ? `${(f / 1000).toFixed(2)} kHz` : `${Math.round(f)} Hz`;
+  const bad = worst.filter((x) => x.e >= DIFF_DB);
+  const say = (x) => `${x.kind} at ${hz(x.f)} from ${s1(x.t0)} to ${s1(x.t1)} s, by ${x.e.toFixed(1)} dB`;
+  if (bad.length) {
     failed = true;
-    console.log(`sound against ${ref.dir}: FAILS, ${found.length} bands ${DIFF_DB} dB or more louder or quieter for ${HOLD_S} s or more:`);
-    for (const x of found) console.log(`  ${x.kind} at ${hz(x.f)} from ${s1(x.t0)} to ${s1(x.t1)} s, by up to ${x.most.toFixed(0)} dB`);
-  } else console.log(`sound against ${ref.dir}: passes, no band ${DIFF_DB} dB louder or quieter for ${HOLD_S} s`);
+    console.log(`sound against ${ref.dir}: FAILS, ${bad.length} bands ${DIFF_DB} dB or more louder or quieter through ${HOLD_S} s:`);
+    for (const x of bad.slice(0, 12)) console.log(`  ${say(x)}`);
+  } else console.log(`sound against ${ref.dir}: passes, the most a band differs through ${HOLD_S} s: ${say(worst[0])}`);
+} else {
+  console.log('sound: no --reference to check it against');
+  process.exit(2);
 }
 process.exit(failed ? 1 : 0);
