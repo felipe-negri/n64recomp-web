@@ -168,8 +168,8 @@ static int keyButton(const char *k) {
 // recomp's did on the same frames, whatever the keys' latency through a desktop build's window was.
 static bool replaying;
 static uint32_t *replayPad;
-static uint32_t replayCounts, *replayWord;
-static int wordCol = -1;
+static uint32_t replayCounts, *replayWord[8], pokeAddr[8];
+static int wordCol[8], pokes;
 static void setPad(uint32_t p) {
     static const int ids[16] = {RETRO_DEVICE_ID_JOYPAD_R, RETRO_DEVICE_ID_JOYPAD_L, RETRO_DEVICE_ID_JOYPAD_A,
         RETRO_DEVICE_ID_JOYPAD_X, RETRO_DEVICE_ID_JOYPAD_R2, RETRO_DEVICE_ID_JOYPAD_SELECT, -1, -1,
@@ -189,7 +189,7 @@ static bool readReplay(const char *file, int col) {
     char line[512];
     uint32_t cap = 1 << 16, last = 0, lastCount = 0;
     replayPad = calloc(cap, 4);
-    replayWord = calloc(cap, 4);
+    for (int k = 0; k < pokes; k++) replayWord[k] = calloc(cap, 4);
     uint32_t seen = 0xFFFFFFFF;
     while (fgets(line, sizeof(line), f)) {
         uint32_t w[16];
@@ -201,7 +201,9 @@ static bool readReplay(const char *file, int col) {
         if (c >= cap) continue;
         for (uint32_t k = lastCount + 1; k < c && k < cap; k++) replayPad[k] = last;
         replayPad[c] = last = w[col];
-        if (wordCol > 0 && wordCol < n - 1 && c != seen) replayWord[c] = w[wordCol], seen = c;
+        if (c != seen)
+            for (int k = 0; k < pokes; k++) if (wordCol[k] > 0 && wordCol[k] < n - 1) replayWord[k][c] = w[wordCol[k]];
+        seen = c;
         if (c >= lastCount) lastCount = c;
         if (c + 1 > replayCounts) replayCounts = c + 1;
     }
@@ -245,7 +247,7 @@ int main(int argc, char **argv) {
     const char *corePath = argv[1], *romPath = argv[2], *planPath = argv[3];
     snprintf(outDir, sizeof(outDir), "%s", argv[4]);
     double from = 0, to = 1e30, maxSeconds = 600;
-    uint32_t watch[16], padAddr = 0, pokeAddr = 0;
+    uint32_t watch[16], padAddr = 0;
     int watches = 0, padShift = 0;
     const char *replayFile = NULL;
     for (int i = 5; i + 1 < argc; i += 2) {
@@ -255,7 +257,8 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--replay")) replayFile = argv[i + 1];
         else if (!strcmp(argv[i], "--pad")) padAddr = strtoul(argv[i + 1], NULL, 0);
         else if (!strcmp(argv[i], "--pad-shift")) padShift = atoi(argv[i + 1]);
-        else if (!strcmp(argv[i], "--replay-word")) pokeAddr = strtoul(argv[i + 1], NULL, 0);
+        else if (!strcmp(argv[i], "--replay-word"))
+            for (char *s = strtok(argv[i + 1], ","); s && pokes < 8; s = strtok(NULL, ",")) pokeAddr[pokes++] = strtoul(s, NULL, 0);
         else if (!strcmp(argv[i], "--option"))
             for (char *s = strtok(argv[i + 1], ","); s && givens < 16; s = strtok(NULL, ",")) {
                 char *eq = strchr(s, '=');
@@ -276,7 +279,11 @@ int main(int argc, char **argv) {
     if (replayFile) {
         int col = -1;
         for (int i = 0; i < watches; i++) if (watch[i] == padAddr) col = i;
-        for (int i = 0; i < watches; i++) if (pokeAddr && watch[i] == pokeAddr) wordCol = i;
+        for (int k = 0; k < pokes; k++) {
+            wordCol[k] = -1;
+            for (int i = 0; i < watches; i++) if (watch[i] == pokeAddr[k]) wordCol[k] = i;
+            if (wordCol[k] <= 0) { say("--replay-word %08X is not one of --watch\n", pokeAddr[k]); return 3; }
+        }
         if (col <= 0 || !readReplay(replayFile, col)) { say("--replay needs --watch <counter>,...,<pad> and --pad <pad>, as the recomp watched them\n"); return 3; }
         replaying = true;
     }
@@ -444,10 +451,13 @@ int main(int argc, char **argv) {
         newPicture = false;
         p_retro_run();
         ram = p_retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM); // set once the core's thread has started
-        if (wordCol > 0 && ram) {
+        if (pokes && ram) {
             static uint32_t pokedAt = 0xFFFFFFFF;
-            uint32_t c = peek(watch[0]), *w = word(pokeAddr);
-            if (c != pokedAt && c < replayCounts && replayWord[c] && w) *w = replayWord[c], pokedAt = c;
+            uint32_t c = peek(watch[0]);
+            if (c != pokedAt && c < replayCounts) {
+                for (int k = 0; k < pokes; k++) { uint32_t *w = word(pokeAddr[k]); if (w && replayWord[k][c]) *w = replayWord[k][c]; }
+                pokedAt = c;
+            }
         }
         double t = (vi + 1) / fps;
         // What the game holds after this VI, and its picture.
