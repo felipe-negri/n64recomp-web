@@ -27,7 +27,9 @@
 // the game's frames, each at its pace, and the checks read its motion 0.1-0.5 s apart. Mario Golf's at Manual 240 in a
 // 1280x960 window, under Xvfb on an RTX 5090 a training job held, presented 31 a second (157 at 320x240), so 12 of the
 // 25 presents a second its game queued and 3.3 of its own frames a second, each shown 7 times, came out, against 22 of
-// 30 at Manual 60 and all 30 at Manual 30 (none between). Each run's line says how fast its dump came: presents and the
+// 30 at Manual 60 and all 30 at Manual 30 (none between). What a present costs there goes with the window's size, not
+// with what RT64 draws: at Original in the 1280x960 window (its targets 320x240) it presented 32.5 a second, so a large
+// window falls behind at any rate with frames between. Each run's line says how fast its dump came: presents and the
 // game's own frames a second, and the presents the game queued against those in the dump, and frame_check leaves a
 // dump that lacks over a tenth of them untested (exit 2).
 //
