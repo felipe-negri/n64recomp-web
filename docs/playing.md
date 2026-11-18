@@ -1,8 +1,7 @@
 # Playing and measuring a page
 
-How a page is played and measured, how its numbers are kept, and the games page in `site/`.
-CLAUDE.md (The games table) has the rules; `tools/play_page.mjs`'s and `tools/page_driver.mjs`'s headers have the
-options; `docs/findings.md` has what was measured this way.
+How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_driver.mjs`'s headers have the options;
+`docs/findings.md` has what was measured this way.
 
 ## The tools
 
@@ -26,15 +25,14 @@ options; `docs/findings.md` has what was measured this way.
   each game frame, why it ended and what each of its workloads drew, and each present and wait; `tools/frame_log.mjs`
   reads that beside the captures' times, to tell a frame drawn in parts from one matched wrongly. Their headers say
   how. A page opened with `?frame-log` prints the same log to its console.
-- Check a desktop build's frames by machine with `tools/frame_check.mjs` (docs/new-recomp.md, 2a): a capture comes
-  tens of milliseconds after the last, so captures miss a fault in the frames between the game's, and an eye misses
-  one that looks plausible. With `RT64_FRAME_DUMP=<dir>` (and `RT64_FRAME_DUMP_SECONDS=<from>-<to>` for a scene's
-  worth), RT64 writes into that folder, made if it isn't there, every frame presented and where the 3D's triangles
-  lay across the view (rt64-web's `src/hle/rt64_frame_dump.h`); `capture_window.ps1 -Env` passes the variables to
-  the build it starts. frame_check reads one dump for frames drawn for themselves alone between two that agree and for
-  a picture cut short at the 4:3 view's sides, and a
-  dump of the same plan in a 4:3 window with one at 32:9 (`--narrower`, `--wider`) for a world culled at the 4:3
-  view's sides.
+- Check a desktop build's frames by machine with `tools/frame_check.mjs`: a capture comes tens of milliseconds after the
+  last, so captures miss a fault in the frames between the game's, and an eye misses one that looks plausible. With
+  `RT64_FRAME_DUMP=<dir>` (and `RT64_FRAME_DUMP_SECONDS=<from>-<to>` for a scene's worth), RT64 writes into that folder,
+  made if it isn't there, every frame presented and where the 3D's triangles lay across the view (rt64-web's
+  `src/hle/rt64_frame_dump.h`); `capture_window.ps1 -Env` passes the variables to the build it starts. frame_check reads
+  one dump for frames drawn for themselves alone between two that agree and for a picture cut short at the 4:3 view's
+  sides, and a dump of the same plan in a 4:3 window with one at 32:9 (`--narrower`, `--wider`) for a world culled at
+  the 4:3 view's sides.
 
 ## Plans
 
@@ -45,24 +43,23 @@ options; `docs/findings.md` has what was measured this way.
   less. The shaders an extended play misses go into the game's list, in the same work. Each plan's header says what it
   plays.
 - A plan reaches a level as a player does (the menus where quick, the survey's warp or stage start where not; its
-  header says which) and plays a minute or more in its levels, the whole run 2-5 minutes (Which browser, how long). A
-  walk sways out and back by as much each way about a spot it was played to and looked at: a blind walk in one
-  direction, or back the way it came, carries the character off a ledge, into water or out an exit. Its waits and holds
-  in the level are on the game's own clock (a `clock` step, page_driver's header): in ms of the browser's time,
-  uneven frames walked Firefox's runs of one plan to other places than Chrome's (docs/findings.md, Behind CLAUDE.md's
-  rules). So is the wait before a shot of the first screen that draws: Firefox builds the list's first section there,
-  the game waiting with its clock stopped, and Rayman 2's menu shot, 3 s of the browser's time after the menu came up,
-  caught that wait black in every Firefox run. A plan that ends on black is the plan's fault until a direct warp there draws black too (Banjo-Tooie's:
-  docs/findings.md, Behind CLAUDE.md's rules).
+  header says which) and plays a minute or more in its levels, the whole run 2-5 minutes. A walk sways out and back by
+  as much each way about a spot it was played to and looked at: a blind walk in one direction, or back the way it came,
+  carries the character off a ledge, into water or out an exit. Its waits and holds in the level are on the game's own
+  clock (a `clock` step, page_driver's header): in ms of the browser's time, uneven frames walked Firefox's runs of one
+  plan to other places than Chrome's. So is the wait before a shot of the first screen that draws: Firefox builds the
+  list's first section there, the game waiting with its clock stopped, and Rayman 2's menu shot, 3 s of the browser's
+  time after the menu came up, caught that wait black in every Firefox run. A plan that ends on black is the plan's
+  fault until a direct warp there draws black too: Banjo-Tooie's walks took Banjo off ledges and through exits, and its
+  plan ended black where the page draws the place in both browsers.
 - The step the rest of a plan stands on (a survey's `play()`, which loads a file) is a `need` (page_driver's header): a
   run that never gets there fails, rather than its warps and walks pressing keys at a menu for minutes, a path no player
   takes. A plan that goes on to more levels in one load makes each level's start one too, checking in RDRAM that the
   level it asked for is the one playing: Pilotwings 64's gyrocopter test didn't end when its results were pressed, so
   the next test's start found a vehicle flying, resolved at once, and the gyrocopter flew on for minutes.
-- Load ROM waits for the shader list Chrome builds behind the launcher: a click while it builds can be lost
-  (docs/findings.md, Behind CLAUDE.md's rules). `page_driver.mjs`'s rom step waits for `RT64: all <n> prebuilt shaders
-  built` itself before it presses, in every plan, so a plan's own `until` on it (or on Firefox's line that it builds
-  none there) only times its other steps.
+- Load ROM waits for the shader list Chrome builds behind the launcher: a click while it builds can be lost.
+  `page_driver.mjs`'s rom step waits for `RT64: all <n> prebuilt shaders built` itself before it presses, in every plan,
+  so a plan's own `until` on it (or on Firefox's line that it builds none there) only times its other steps.
 - A level the survey starts may crash when it ends: the screens after it read what the menus before it would have set
   up. So a plan that starts one keeps the player alive for as long as it plays (GoldenEye's `setInvincible()`): a
   GoldenEye play of Dam long enough for its guards to kill Bond stopped on the Mission Failed screen in Chrome and
@@ -165,10 +162,10 @@ options; `docs/findings.md` has what was measured this way.
   work grows it: `tools/gpu_growth.mjs` (its header) plays each kind of a page's calls alone, at the rates
   `--preload tools/webgpu_census.js` reads off the page; whose code made what it grows (D3D12's, a driver's, DXC's,
   Firefox's): `tools/memory_scan.ps1`, unelevated, from outside the process.
-- The web port list's W2, W5, W6 and W7 (docs/new-recomp.md): `--backcheck` (play_page's header), in Chrome at 2
-  device pixels a CSS pixel with a stand-in pad driving the plan, then a hidden tab, a reload and the browser closed
-  and opened again (`--fault reopen`) with the saves compared, and in Firefox the boot's sound and a hidden tab;
-  `play_pages.sh --backcheck` plays it on each page from Pages. `--pad` alone plays a plan with the pad.
+- Whether its canvas is in CSS pixels, its sound whole, its saves found again and a pad drives it: `--backcheck`
+  (play_page's header), in Chrome at 2 device pixels a CSS pixel with a stand-in pad driving the plan, then a hidden
+  tab, a reload and the browser closed and opened again (`--fault reopen`) with the saves compared, and in Firefox the
+  boot's sound and a hidden tab. `--pad` alone plays a plan with the pad.
 - How it comes through what a player's browser does to it: `--fault resize,hidden,audio,device,reload` (play_page's
   header) does each in turn once the play is in its level (a resized window, another tab in front for 30 s, its
   AudioContext suspended, its WebGPU device lost, then a reload over a warm cache and service worker), and records
@@ -186,8 +183,8 @@ options; `docs/findings.md` has what was measured this way.
 ## Laptop-like limits on a desktop
 
 A laptop's integrated graphics finds most new flaws. Without one, a desktop takes these stand-ins, each recorded in
-the run, so plays.jsonl compares a run only with runs that set the same (numbers: docs/findings.md, The stand-in,
-measured, and Laptop-like limits on a desktop, measured):
+the run, so a run is compared only with runs that set the same (numbers: docs/findings.md, The stand-in, measured,
+and Laptop-like limits on a desktop, measured):
 
 - `--size 3840x2000 --uncapped`, the stand-in: about 7 times a laptop window's pixels, so a frame's GPU cost
   shows as presents a second. It finds a costly frame and clears none.
