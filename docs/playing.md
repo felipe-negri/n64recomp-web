@@ -30,58 +30,12 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
 - A page served from a build dir needs `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy:
   require-corp` (threads need SharedArrayBuffer); on Pages `coi_serviceworker.js` sets them after one reload. Look at a
   page with CDP `Page.captureScreenshot` of that page.
-- Look at a desktop build with `tools/capture_window.ps1`: it plays a timed plan of keys in the window of the build it
-  starts and captures that window alone with PrintWindow, never the screen, in shots or series, and lists the frames
-  unlike both of their neighbours. With `RT64_FRAME_LOG` set, RT64 (rt64-web, RT64_GAME_FRAME_WORKLOADS on) prints
-  each game frame, why it ended and what each of its workloads drew, and each present and wait; `tools/frame_log.mjs`
-  reads that beside the captures' times, to tell a frame drawn in parts from one matched wrongly. Their headers say
-  how. A page opened with `?frame-log` prints the same log to its console.
-- Check a desktop build's frames by machine with `tools/frame_check.mjs`: a capture comes
-  tens of milliseconds after the last, so captures miss a fault in the frames between the game's, and an eye misses
-  one that looks plausible. With `RT64_FRAME_DUMP=<dir>` (and `RT64_FRAME_DUMP_SECONDS=<from>-<to>` for a scene's
-  worth), RT64 writes into that folder, made if it isn't there, every frame presented and where the 3D's triangles
-  lay across the view (rt64-web's `src/hle/rt64_frame_dump.h`); `capture_window.ps1 -Env` passes the variables to
-  the build it starts. frame_check reads one dump for frames drawn for themselves alone between two that agree, for
-  a part of the picture moving at another pace than the rest through the frames drawn between the game's own
-  (`tools/frame_pace.mjs`) and for a picture cut short at the 4:3 view's sides or black stopping short of the
-  window's, and a dump of the same plan in a 4:3 window with one at 32:9 (`--narrower`, `--wider`) for a world
-  culled at the 4:3 view's sides and a HUD left at them. Where a Linux host with an NVIDIA GPU is at hand, the dumps
-  and the check are made there and not on the machine that works on the game: `tools/remote_frame_dump.sh` plays the
-  game's Linux build by the same plan in all three windows, runs frame_check there and brings back only its text, the
-  logs, the plan's shots and the flagged frames (its header and `tools/frame_dump.mjs`'s say how), since a dump is too
-  big to move and the check holds a third of a machine's cores for minutes. Its verdicts match a dump made on Windows
-  by `capture_window.ps1`. A present slower than the rate asked of it (a busy GPU, a large window) doesn't slow the
-  game: RT64 skips the presents it can't make, and the dump keeps only some of the game's frames. Each run's line in
-  frame_dump's output says how many a second it kept, and frame_check leaves a dump that lacks over a tenth of them
-  untested.
-- Check a high resolution for seams with `tools/seam_check.mjs`: a line thinner than one of the console's pixels, a
-  gap between two of the game's pieces showing what lies behind (terrain blocks a level of detail apart, a sliced
-  sprite's strips a pixel apart), which frame_check can't see. It reads a dump of a plan at 4 times the console's
-  resolution or more against one of the same plan at the console's own, and counts only the lines the second lacks;
-  `remote_frame_dump.sh` given two window sizes (`--window 1280x960,320x240`) makes both and runs it. A dump whose game
-  ran slower than 10 of its own frames a second (a host whose GPU something else holds) can't pass. Its header says
-  what it measured.
-- Check a desktop build's sound the same way, by `tools/sound_check.mjs`: each run frame_dump.mjs makes also records
-  every buffer the game queues to SDL with its time (`tools/sdl_audio_record.c`, through LD_PRELOAD on a Linux build),
-  and the times of the plan's steps. sound_check compares that with the recording of the same plan by a build whose
-  sound is right, given as the reference (`remote_frame_dump.sh -r <run's folder>`, frame_dump's `--sound-reference`),
-  in narrow bands lined up by the plan's steps, and fails where one is louder (a stuck or looping sound) or quieter (a
-  missing one) through seconds. A plan for it plays the scene with the fault in it: Rush 2049's squeal left playing
-  across a rewind showed only in a plan that skids while it holds Rewind. Both runs are recorded on an idle host: on a
-  busy one the game falls behind real time, the plan's keys meet it at other moments, and sound_check checks nothing.
-  Its header says what it was measured on.
-- Check a game's speed against its console's with a plan's `clock` step, in a desktop plan (`capture_window.ps1`,
-  `frame_dump.mjs`) and a page's (page_driver's): it reads a counter the game keeps every 100 ms against real time,
-  and `tools/game_speed.mjs` fails a game that ran faster than its console in any 5 s, and says where it ran slower,
-  which fails only where the host is known to keep up (`-Slow`, `--slow`). `frame_dump.mjs --launcher` starts at the
-  launcher, so a plan waits there before Start Game as a player who leaves it open, and `--no-dump` plays without a
-  dump, which slows a large window's game below its pace.
-- Check a desktop build's settings by machine with `tools/remote_frame_dump.sh ... --restart`: it plays a plan as a
-  new player's first launch and two restarts after it, in one folder, and fails where a start changed a value in the
-  settings files (a setting or a binding not read back) or where two launches' shots of a still moment differ (an
-  option that took effect only from the second launch, as librecomp's first launch calls no option's change
-  callback, or not at every start). Its plan's shots are of a moment that holds still at the same game state in
-  every launch and shows the options a player sees; `tools/frame_dump.mjs`'s header says how.
+- A page opened with `?frame-log` prints RT64's frame log to its console (rt64-web's `RT64_FRAME_LOG`, with
+  RT64_GAME_FRAME_WORKLOADS on): each game frame, why it ended and what each of its workloads drew, and each present
+  and wait, to tell a frame drawn in parts from one matched wrongly.
+- Check a game's speed against its console's with a plan's `clock` step (page_driver's): it reads a counter the game
+  keeps every 100 ms against real time, and `tools/game_speed.mjs` fails a game that ran faster than its console in
+  any 5 s, and says where it ran slower, which fails only where the host is known to keep up (`--slow`).
 
 ## Plans
 

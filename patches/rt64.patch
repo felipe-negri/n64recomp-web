@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 59781ef02693704c061cfae08c393287c832f8f1
+rt64: https://github.com/n64hub/rt64-web 8fb97c6da1357b7c763bb78d7a42efc5f428d0b1
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -1878,7 +1878,7 @@ index 0e62be1..58f07d8 100644
          bool reinterpretTile;
 diff --git a/src/hle/rt64_frame_dump.h b/src/hle/rt64_frame_dump.h
 new file mode 100644
-index 0000000..237948f
+index 0000000..58d55bb
 --- /dev/null
 +++ b/src/hle/rt64_frame_dump.h
 @@ -0,0 +1,346 @@
@@ -1888,8 +1888,8 @@ index 0000000..237948f
 +
 +#pragma once
 +
-+// RT64_FRAME_DUMP=<dir>, RT64_FRAME_DUMP_SECONDS=<from>-<to>: what a machine checks of a game's picture instead of an eye
-+// (N64Recomp-browser's tools/frame_check.mjs), off unless the variable is set, for a desktop build or a test.
++// RT64_FRAME_DUMP=<dir>, RT64_FRAME_DUMP_SECONDS=<from>-<to>: what a machine checks of a game's picture instead of an
++// eye, off unless the variable is set, for a desktop build or a test.
 +//
 +// - <dir>/frames.bin: every frame presented, the frames interpolated between the game's included, each as its 40-byte
 +//   header (FrameHeader) and its pixels, 8-bit RGB, rows top down, the picture box-filtered to at most MaxWidth wide.
