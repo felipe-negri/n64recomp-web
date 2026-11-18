@@ -159,7 +159,8 @@
 //   a 4:3 window only the rest, so a count of what it draws there would pass a culled build. A 4:3
 //   window's target can be a little off 4:3 (Rush 2049's is 640x440): a --narrower dump wider than 1.6:1, a --wider
 //   one narrower than 8:3, or a pair of which under 30 or a tenth of the 32:9 workloads find a match (not the same
-//   scene), exits 2. Without them it only counts the triangles. One dump's own strip against the view tells nothing:
+//   scene), leaves it untested, exiting 2 if nothing else fails. Without them it only counts the triangles.
+//   One dump's own strip against the view tells nothing:
 //   Mario Golf's flyover, culled or not, draws a fraction past the view's edges of what it draws inside, the course
 //   being long and narrow. The picture's shape is the picture's box between --from and --to (pictureBox()), not its
 //   first frame's: a dump that starts before its plan sizes the window begins at 4:3, and one whose frames come in
@@ -206,7 +207,17 @@
 //   the next) leave a band between the 4:3 picture and the halves, but it moves every frame, so no run holds. Faults
 //   only some scenes have are found only where a plan plays them: Golf's closed iris between holes (v0.1.19, a line of
 //   the course down each side) and Lakitu Mode's bars (v0.1.9) weren't in the plans these were measured with.
-// - Where the HUD sits, from a wide dump against the 4:3 one (hudPlacement()): HUDPLACEMENT
+// - Where the HUD sits, from a wide dump against the --narrower one (hudPlacement(), with --narrower): the pixels fixed
+//   on the screen in each (fixedOf(): standing still, something drawn in them, the scene moving around them) at the 4:3
+//   view's sides are looked for in the wide dump at their 4:3 place and moved out toward the window's sides a pixel at
+//   a time. A HUD widened with the picture (to the window's sides, or to a narrower HUD ratio's) has a place of its own
+//   out past the 4:3 one where most of it is found; a side fails where 30% or more is found at its 4:3 place and under
+//   half as much anywhere out from it. Mario Golf's v0.1.22, HUD Placement Original, PROOF_ORIGINAL; Expand,
+//   PROOF_EXPAND. Its v0.1.19 and v0.1.20 have their HUD 72-83% found 40 grey pixels out at 16:9, its 4:3 place 23-25%.
+//   Text the game draws over a moving picture where a 4:3 screen has it (credits over a scene) is fixed too, and found
+//   where it was: Golf's credits come within a little of failing (36% where it was, 23% 8 pixels out), so a dump whose
+//   scene moves under still text for long, and has no HUD, can fail where nothing is wrong. A dump without the HUD (a
+//   menu, a cutscene) has none at the sides and says so. Golf v0.1.1, its HUD left at 4:3, predates the frame dump.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
 // the pairing or the sides. frames.bin is read a frame at a time, those the workers have yet to match kept (a few a
