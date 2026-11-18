@@ -3,18 +3,24 @@
 //
 //   node tools/console_ref.mjs --rom <file> --plan <file> --out <dir> --cache <dir> [--game-id <id>]
 //       [--seconds <from>-<to>] [--watch <addr>,...] [--rsp parallel|cxd4] [--max-seconds <s>]
+//       [--against <dump dir> [--check "<console_check args>"] [--again]]
 //       [--queue <module>] [--priority low] [--url <url>]
 //
 // The core, mupen64plus-next at the commit below, is built once into --cache (mupen64plus_next-<commit>.so and the
 // libretro.h it was built with) and console_ref.c on every run (a second). --seconds, --watch, --rsp and --max-seconds
 // are console_ref.c's (its header says what it writes into --out).
 //
+// --against names a recomp's frame dump of the same plan (frame_dump.mjs --keep --watch, its run's dump folder), which
+// tools/console_check.mjs then holds against the console's, with --check's arguments and --save <out>/unlike; its
+// output goes to <out>/console_check.txt too. --again keeps a console run already in --out and only checks.
+//
 // --queue names a JavaScript module exporting gpuRun(spec, run), the host's queue: the core's build then goes as a
 // build job and the run as a frame-check job (the console's picture is drawn on the CPU), neither asking any GPU
 // memory, each asking the host memory of the container's cap, at --priority (low), linked to --url, the run naming
 // --game-id as its model. Without --queue they run at once.
 //
-// Exit: console_ref's (0, 3 when the plan's until or find went unmet or the core failed), 75 when the queue stopped it.
+// Exit: console_ref's (0, 3 when the plan's until or find went unmet or the core failed), else console_check's with
+// --against (0 passes, 1 fails, 2 nothing to compare), 75 when the queue stopped it.
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -66,6 +72,17 @@ function run(signal) {
   });
 }
 
+function check() {
+  const a = [path.join(here, 'console_check.mjs'), path.resolve(opt('--against')), out, '--save', path.join(out, 'unlike'),
+    ...(opt('--check') ?? '').split(/\s+/).filter(Boolean)];
+  let code = 0, text;
+  try { text = execFileSync(process.execPath, a, { maxBuffer: 1 << 28 }).toString(); }
+  catch (e) { code = e.status ?? 1; text = (e.stdout ?? '').toString() + (e.stderr ?? '').toString(); }
+  fs.writeFileSync(path.join(out, 'console_check.txt'), text);
+  process.stdout.write(text);
+  return code;
+}
+
 function capMiB() {
   try {
     const max = fs.readFileSync('/sys/fs/cgroup/memory.max', 'utf8').trim();
@@ -74,17 +91,20 @@ function capMiB() {
 }
 
 let code;
+const again = args.includes('--again') && fs.existsSync(path.join(out, 'frames.bin'));
 try {
   if (opt('--queue')) {
     const { gpuRun } = await import(pathToFileURL(path.resolve(opt('--queue'))).href);
     const spec = (type, label, model) => ({ type, label, vramMiB: 0, model, priority: opt('--priority', 'low'),
       ramMiB: capMiB(), url: opt('--url') || undefined, ref: process.env.HOSTNAME,
       onUpdate: (j) => j.state === 'waiting' && log(`queue: ${type} waiting, ${j.ahead} ahead: ${j.why?.text ?? 'going next'}`) });
-    if (!fs.existsSync(core)) await gpuRun(spec('build', 'console_ref: mupen64plus-next', 'mupen64plus-next'), async () => buildCore());
-    code = await gpuRun(spec('frame-check', `console_ref: ${gameId}`, gameId), (signal) => run(signal));
+    if (!again && !fs.existsSync(core)) await gpuRun(spec('build', 'console_ref: mupen64plus-next', 'mupen64plus-next'), async () => buildCore());
+    code = again ? 0 : await gpuRun(spec('frame-check', `console_ref: ${gameId}`, gameId), (signal) => run(signal));
+    if (code === 0 && opt('--against')) code = await gpuRun(spec('frame-check', `console_check: ${gameId}`, gameId), async () => check());
   } else {
-    if (!fs.existsSync(core)) buildCore();
-    code = await run(null);
+    if (!again && !fs.existsSync(core)) buildCore();
+    code = again ? 0 : await run(null);
+    if (code === 0 && opt('--against')) code = check();
   }
 } catch (e) {
   log(`console_ref: ${e?.stack ?? e}`);

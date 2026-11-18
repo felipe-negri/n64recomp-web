@@ -33,6 +33,7 @@
 #include <strings.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <time.h>
 
 #include "libretro.h"
 
@@ -275,8 +276,12 @@ int main(int argc, char **argv) {
     char keyHeld[32] = "";
     int code = 0;
     uint64_t written = 0;
+    double lastNow = 0;
+    struct timespec began;
+    clock_gettime(CLOCK_MONOTONIC, &began);
     for (uint64_t vi = 0;; vi++) {
         double now = vi / fps;
+        lastNow = now;
         if (now > maxSeconds) { say("%.2f stopped at --max-seconds\n", now); break; }
         if (keyUpAt >= 0 && now >= keyUpAt) { setKey(keyHeld, false); keyUpAt = -1; }
         // The plan's steps due by now.
@@ -378,7 +383,10 @@ int main(int argc, char **argv) {
     }
     fclose(frames);
     fclose(watchFile);
-    say("%llu frames written\n", (unsigned long long)written);
+    struct timespec ended;
+    clock_gettime(CLOCK_MONOTONIC, &ended);
+    say("%llu frames written, %.0f s of the console's in %.0f s\n", (unsigned long long)written, lastNow,
+        (ended.tv_sec - began.tv_sec) + (ended.tv_nsec - began.tv_nsec) / 1e9);
     if (logFile) fclose(logFile);
     _exit(code); // the core's threads are not torn down
 }

@@ -5,7 +5,7 @@
 // program's logs, the plan's shots and frame_check's flagged frames stay; the dumps are deleted unless --keep.
 //
 //   node tools/frame_dump.mjs --game <dir> --exe <name> --game-id <id> --rom <file> --plan <file> --out <dir>
-//       [--window <w>x<h>[,<w>x<h>,<w>x<h>]] [--rate <hz>] [--seconds <from>-<to>] [--args "<program args>"]
+//       [--window <w>x<h>[,<w>x<h>,<w>x<h>]] [--rate <hz>|config] [--seconds <from>-<to>] [--args "<program args>"]
 //       [--env K=V,...] [--config <dir>] [--check "<frame_check args>"] [--workers <n>] [--keep]
 //       [--watch <addr>[,<addr>...]] [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>]
 //
@@ -17,7 +17,8 @@
 // RT64's refresh rate is set to Manual at --rate (240) in its graphics.json, made by a first start of the program
 // when --config has none: Xvfb has no refresh rate of its own, and at Display the program presents only the game's own
 // frames, which test nothing of the frames between. It presents as fast as it draws below that rate (Mario Golf's
-// title at 1280x720: ~69 a second with the dump on, on an RTX 5090).
+// title at 1280x720: ~69 a second with the dump on, on an RTX 5090). --rate config leaves --config's rate as it is:
+// Original's, the game's own frames only, is what tools/console_check.mjs holds against a console's.
 //
 // --window gives each run's window: one size is one run, frame_check reading its dump alone; three are three runs of
 // the plan, the first checked with the second as --narrower (a 4:3 window) and the third as --wider (32:9), the check
@@ -257,6 +258,7 @@ async function makeConfig() {
   }
   const g = JSON.parse(fs.readFileSync(gj, 'utf8'));
   if (!('rr_option' in g)) log('frame_dump: graphics.json has no rr_option; the refresh rate is left as it is');
+  else if (opt('--rate') === 'config') log(`frame_dump: the refresh rate is --config's, ${g.rr_option}`);
   else { g.rr_option = 'Manual'; g.rr_manual_value = rate; fs.writeFileSync(gj, JSON.stringify(g, null, 4)); }
   return config;
 }
