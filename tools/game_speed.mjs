@@ -8,6 +8,10 @@
 //   of real time, value the counter's 32-bit word, perSecond what the counter counts a second on a console (a frame
 //   counter 60, 30 or 20, a clock in VIs 60).
 //
+//   node tools/game_speed.mjs <speed.tsv> <per second> [--slow]
+//   judges a file of reads, a line each of ms and the value by a tab (tools/capture_window.ps1's): it prints the lines
+//   and exits 1 where they fail.
+//
 // The samples are cut into windows of 5 s of real time, each read as ticks a second. One the counter stood still
 // through is a load or a pause the game counts no time in (DK64's clock, Donald Duck's in a level's load), left out;
 // one where it went back (a level that restarts it) is cut there, and a step larger than three times the rate between
@@ -16,6 +20,9 @@
 // console's is said, and fails only where the caller says the machine draws the game at its own pace (slow: true):
 // a load the counter goes on through, a dump that writes every frame, a host that can't keep up, a page under Xvfb,
 // all read slower than a console without the build being at fault.
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 const windowMs = 5000;
 
 export function judge(samples, perSecond, { slow = false } = {}) {
@@ -62,4 +69,12 @@ export function judge(samples, perSecond, { slow = false } = {}) {
   const fails = fast.length > 0 || (slow && slower.length > 0);
   if (!fails) lines.push('game speed: passes');
   return { lines, fails, windows, median };
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1])) {
+  const [file, perSecond] = process.argv.slice(2);
+  const reads = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => l.split('\t').map(Number));
+  const { lines, fails } = judge(reads, Number(perSecond), { slow: process.argv.includes('--slow') });
+  for (const line of lines) console.log(line);
+  process.exit(fails ? 1 : 0);
 }

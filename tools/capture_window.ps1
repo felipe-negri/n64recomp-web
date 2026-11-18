@@ -50,6 +50,12 @@
 #                             With a key, it presses it every 1.5 s meanwhile. A launcher takes Enter for the option
 #                             under the pointer, wherever that is, and ignores a click posted to its window, so a game
 #                             is best started with -ExeArgs --boot (RecompFrontend's: the stored ROM, no launcher)
+#   <s> clock <addr> <per second>
+#                             from here to the run's end, reads the game's 32-bit counter at addr every 100 ms (while
+#                             the plan waits) against real time, a counter that counts that many a second on a
+#                             console, to speed.tsv; at the end node judges the game's speed from it
+#                             (tools/game_speed.mjs, whose header says how), and a game faster than its console fails
+#                             the run (exit 1), one slower too with -Slow, for a host known to draw it at its pace
 #   <s> end
 # A capture takes 40-110 ms (a 1600x1200 window, a busy host the slower), so a flicker of one 60 Hz frame is caught
 # now and then and one of several frames most times. A burst's and a record's captures are scaled by -Scale (1).
@@ -71,7 +77,7 @@
 param(
     [Parameter(Mandatory)][string]$Exe, [Parameter(Mandatory)][string]$WorkDir, [Parameter(Mandatory)][string]$Plan,
     [Parameter(Mandatory)][string]$OutDir, [string]$ExeArgs = '', [string[]]$Env = @(), [double]$Scale = 1,
-    [int]$Flag = 2
+    [int]$Flag = 2, [switch]$Slow
 )
 # A process that never started would leave the plan capturing nothing until its end, and a run of nothing ends well.
 if (-not (Test-Path -LiteralPath $Exe -PathType Leaf)) { throw "no such exe: $Exe" }
@@ -458,12 +464,22 @@ function Rdram {
     $script:rdram
 }
 
+# The clock step's reads, at most one each 100 ms, taken wherever the plan waits.
+$script:speed = $null; $script:speedAt = -1.0
+function Read-Clock {
+    if (-not $script:speed -or $clock.Elapsed.TotalSeconds - $script:speedAt -lt 0.1) { return }
+    $script:speedAt = $clock.Elapsed.TotalSeconds
+    try { [void]$script:speed.Reads.Add(('{0:F0}' -f $clock.Elapsed.TotalMilliseconds) + "`t" + [CaptureWindow]::Read($handle, (Rdram), $script:speed.Addr)) }
+    catch { } # the game's RDRAM not committed yet
+}
+
 $recording = $null; $recorded = 0; $shift = 0.0; $failed = $false
 try {
     :plan foreach ($line in Get-Content $Plan) {
         if ($line -match '^\s*(#|$)') { continue }
         $p = $line.Trim() -split '\s+'
         while ($clock.Elapsed.TotalSeconds -lt [double]$p[0] + $shift -and -not $proc.HasExited) {
+            Read-Clock
             if ($recording) { Capture $hwnd ($recording + '-' + $recorded.ToString('0000')); $recorded++ }
             else { Start-Sleep -Milliseconds 20 }
         }
@@ -496,6 +512,7 @@ try {
             'until' { $addr = Num $p[2]; $mask = Num $p[3]; $want = Num $p[4]; $began = $clock.Elapsed.TotalSeconds
                 $press = -10.0; $met = $false
                 while (-not $proc.HasExited -and $clock.Elapsed.TotalSeconds - $began -lt [double]$p[5]) {
+                    Read-Clock
                     if (([CaptureWindow]::Read($handle, (Rdram), $addr) -band $mask) -eq $want) { $met = $true; break }
                     if ($p.Count -gt 6 -and $clock.Elapsed.TotalSeconds - $press -ge 1.5) {
                         $press = $clock.Elapsed.TotalSeconds; Send-Key $hwnd $p[6] 120 }
@@ -527,6 +544,9 @@ try {
                 Write-Output ("{0,6:N1}s peek {1}" -f $clock.Elapsed.TotalSeconds, ($words -join ' ')) }
             'dump' { [IO.File]::WriteAllBytes((Join-Path $OutDir "$($p[4]).bin"), [CaptureWindow]::ReadBytes($handle, (Rdram), (Num $p[2]), (Num $p[3])))
                 Write-Output ("{0,6:N1}s dump {1} {2} {3}.bin" -f $clock.Elapsed.TotalSeconds, $p[2], $p[3], $p[4]) }
+            'clock' { $script:speed = @{ Addr = (Num $p[2]); PerSecond = $p[3]; Reads = New-Object System.Collections.ArrayList }
+                $script:speedAt = -1.0; Read-Clock
+                Write-Output ("{0,6:N1}s clock {1} at {2} a second" -f $clock.Elapsed.TotalSeconds, $p[2], $p[3]) }
             'end' { break plan }
             default { throw "unknown plan step: $line" }
         }
@@ -543,4 +563,11 @@ try {
 $script:writer.Errors | ForEach-Object { Write-Output "not saved: $_" }
 Write-Output "$($script:writer.Written) captures; frames unlike both neighbours: $($script:writer.Flicker.Count)"
 $script:writer.Flicker | ForEach-Object { Write-Output "  $_" }
+if ($script:speed) {
+    $tsv = Join-Path $OutDir 'speed.tsv'
+    [IO.File]::WriteAllLines($tsv, [string[]]$script:speed.Reads)
+    $judge = @((Join-Path $PSScriptRoot 'game_speed.mjs'), $tsv, $script:speed.PerSecond) + $(if ($Slow) { @('--slow') } else { @() })
+    & node @judge
+    if ($LASTEXITCODE -ne 0) { $failed = $true }
+}
 if ($failed) { exit 1 }
