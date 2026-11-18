@@ -3,7 +3,7 @@
 # wrongly against the one before, an old picture shown again.
 #
 #   pwsh -File tools/capture_window.ps1 -Exe <exe> -WorkDir <dir> -Plan <plan.txt> -OutDir <dir>
-#        [-ExeArgs <args>] [-Env RT64_FRAME_LOG=1,...] [-Scale 0.5] [-Flag 2]
+#        [-ExeArgs <args>] [-Env RT64_FRAME_LOG=1,...] [-Scale 0.5] [-Flag 2] [-Watch <addr>,...]
 #
 # It starts the exe in -WorkDir (its stdout and stderr go to stdout.log and stderr.log in -OutDir), finds the window
 # of the process it started and plays the plan, then stops that process by its PID. A -WorkDir with a portable.txt
@@ -67,6 +67,10 @@
 # RDRAM is read and written from outside, in the process this started: N64ModernRuntime commits it as one 512 MB region,
 # the start of its allocation, with 0x80000000 at its first byte and each 32-bit word in the host's order.
 #
+# -Watch writes watch.tsv into -OutDir as tools/frame_dump.mjs --watch does: "<ms since 1970>\t<word>..." each time one
+# of those 32-bit words of RDRAM changes, read every millisecond on a thread of its own (the game's frame counter, for
+# tools/console_check.mjs to pair an RT64_FRAME_DUMP's frames with a console's by).
+#
 # Every capture's time, in milliseconds since 1970, is written to captures.tsv, the clock RT64_FRAME_LOG's game frames
 # are printed with (tools/frame_log.mjs puts the two together). Each series is checked as it is written for frames
 # unlike both of their neighbours: the mean difference of a 160x90 grey copy of the frame to each neighbour, against
@@ -76,7 +80,7 @@
 param(
     [Parameter(Mandatory)][string]$Exe, [Parameter(Mandatory)][string]$WorkDir, [Parameter(Mandatory)][string]$Plan,
     [Parameter(Mandatory)][string]$OutDir, [string]$ExeArgs = '', [string[]]$Env = @(), [double]$Scale = 1,
-    [int]$Flag = 2
+    [int]$Flag = 2, [string]$Watch = ''
 )
 # A process that never started would leave the plan capturing nothing until its end, and a run of nothing ends well.
 if (-not (Test-Path -LiteralPath $Exe -PathType Leaf)) { throw "no such exe: $Exe" }
@@ -156,6 +160,29 @@ public static class CaptureWindow {
         var b = new byte[4]; IntPtr n;
         if (!ReadProcessMemory(p, rdram + (int)(addr - 0x80000000u), b, (IntPtr)4, out n)) throw new Exception("can't read RDRAM");
         return BitConverter.ToUInt32(b, 0);
+    }
+    // -Watch: the words at addrs, read every millisecond on a thread of their own, a line to file each time one changes.
+    public static volatile bool Watching;
+    public static void Watch(IntPtr p, uint[] addrs, string file) {
+        Watching = true;
+        var t = new Thread(() => {
+            using (var w = new StreamWriter(file, false) { AutoFlush = true }) {
+                IntPtr rd = IntPtr.Zero; string last = null;
+                while (Watching) {
+                    try {
+                        if (rd == IntPtr.Zero) rd = Rdram(p);
+                        if (rd == IntPtr.Zero) { Thread.Sleep(50); continue; }
+                        var words = new string[addrs.Length];
+                        for (int i = 0; i < addrs.Length; i++) words[i] = Read(p, rd, addrs[i]).ToString("X8");
+                        var line = string.Join("\t", words);
+                        if (line != last) { w.WriteLine(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + "\t" + line); last = line; }
+                    } catch (Exception) { Thread.Sleep(50); }
+                    Thread.Sleep(1);
+                }
+            }
+        });
+        t.IsBackground = true;
+        t.Start();
     }
     public static void Write(IntPtr p, IntPtr rdram, uint addr, uint v) {
         IntPtr n;
@@ -464,6 +491,7 @@ function Rdram {
 }
 
 $recording = $null; $recorded = 0; $shift = 0.0; $failed = $false
+if ($Watch) { [CaptureWindow]::Watch($script:handle, [uint32[]]($Watch -split ',' | ForEach-Object { Num $_ }), (Join-Path $OutDir 'watch.tsv')) }
 try {
     :plan foreach ($line in Get-Content $Plan) {
         if ($line -match '^\s*(#|$)') { continue }
@@ -547,6 +575,7 @@ try {
         }
     }
 } finally {
+    [CaptureWindow]::Watching = $false
     if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force; Write-Output "stopped pid $($proc.Id)" }
     [void][System.Threading.Tasks.Task]::WaitAll($copies, 5000)
     $outFile.Dispose(); $errFile.Dispose()

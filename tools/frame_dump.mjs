@@ -40,7 +40,7 @@
 // 0.3-0.6 GB, frame_check 0.6), never the queue's 8 GiB for a game it hasn't measured. A stop the queue asks for ends
 // the run in progress, and the tool, with 75. Without --queue it runs at once.
 //
-// --watch writes <out>/<run>/watch.tsv, "<ms since 1970>	<word>..." each time one of those 32-bit words of RDRAM
+// --watch writes <out>/<run>/watch.tsv, "<ms since 1970>\t<word>..." each time one of those 32-bit words of RDRAM
 // changes, read every 2 ms: the game's own frame counter, put beside the dump's frames by their time, pairs them with
 // another run's by the game's frame and not by the clock (tools/console_check.mjs against tools/console_ref.c's).
 //
@@ -166,9 +166,8 @@ async function playRun(i, size, signal, config) {
       let last = '';
       watcher = setInterval(() => {
         try {
-          const now = Date.now(), words = addrs.map((a) => read(a).readUInt32LE().toString(16).toUpperCase().padStart(8, '0')).join('	');
-          if (words !== last) { fs.writeSync(wf, `${now}	${words}
-`); last = words; }
+          const now = Date.now(), words = addrs.map((a) => read(a).readUInt32LE().toString(16).toUpperCase().padStart(8, '0')).join('\t');
+          if (words !== last) { fs.writeSync(wf, `${now}\t${words}\n`); last = words; }
         } catch { /* no RDRAM yet */ }
       }, 2);
     }
