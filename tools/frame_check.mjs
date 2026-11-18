@@ -128,7 +128,14 @@
 //   workloads, per band (6-8 a band past the edge culled, 24-25 fixed, as each draws there). Not how the drawing goes on
 //   across the view's edge (the next fifth of the view's width outside against inside: Mario 64 0.23 culled and 0.53
 //   fixed, Mario Golf's flyover 0.36 culled, F-Zero X's fixed 0.34, Dinosaur Planet 0.45, Smash 0.08-0.11, its stage
-//   ending at the 4:3 view by design). Nor triangles past the 32:9 picture, 0-6 a band in every one. A 4:3
+//   ending at the 4:3 view by design). Nor triangles past the 32:9 picture, 0-6 a band in every one. Nor, in the 4:3
+//   window's dump, the whole objects drawn past the view (model matrices whose every triangle lies past one side, a
+//   count a test build of rt64 dumped): Mario 64 reads 0.3-0.6 a workload and F-Zero X 2, but Mario Golf's flyover,
+//   its ground culled to 4:3, draws 42 (props and far scenery its game culls by distance only), among Dinosaur
+//   Planet's 54, Smash's 49 and Paper Mario's 15, and how far past the view they lie against their own size (a
+//   median of 2.1 times it in Mario Golf, 36 Dinosaur Planet, 1.5 Smash, 0.95 Paper Mario) or how many triangles each
+//   has (2 in most, up to 159 in Mario Golf) doesn't part them either: a game culling part of its world to 4:3 shows
+//   a 4:3 window only the rest, so a count of what it draws there would pass a culled build. A 4:3
 //   window's target can be a little off 4:3 (Rush 2049's is 640x440): a --narrower dump wider than 1.6:1, a --wider
 //   one narrower than 8:3, or a pair of which under 30 or a tenth of the 32:9 workloads find a match (not the same
 //   scene), exits 2. Without them it only counts the triangles. One dump's own strip against the view tells nothing:
@@ -225,7 +232,6 @@ const P = 2; // a pixel's search about its block's best place, in grey pixels (e
 const M = 2; // the quarter pixels around a block that its own shift is found over (placesOf())
 const SIDES_GROW = 1.1; // how many times the triangles past the 4:3 view a 32:9 picture has against a 4:3 one, at least
 const SIDES_DENSE = 0.5; // ... unless the strip is this dense against the view: a world not culled at its sides
-const SIDES_OBJECTS = 3; // objects a workload drawn wholly past the view in a 4:3 window from which a game culls nothing by the window
 const SIDES_FEW = 50; // triangles a workload past the view in the wider picture under which a scene can't fail: too few to tell
 
 let dumpStartMs = null; // the first frame's time, ms since 1970: the dump's second 0, sides.tsv's too
@@ -1091,21 +1097,18 @@ function sidesOf(d) {
     fs.readSync(fd, head, 0, HEADER, 0);
     fs.closeSync(fd);
     const startMs = Number(head.readBigUInt64LE(32)); // the dump's second 0
-    const rows = [], objects = [];
+    const rows = [];
     for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
-        // <workload id>\t<ms since 1970>\t<a count a band>...[\t<model matrices wholly past the view>]: the last from
-        // rt64 9adecdf, so a dump made before has none.
+        // <workload id>\t<ms since 1970>\t<a count a band>...
         const cols = line.split('\t').map(Number);
-        const v = cols.slice(2, 2 + PER * 3);
+        const v = cols.slice(2);
         const t = (cols[1] - startMs) / 1000;
-        if ((v.length !== PER * 3) || (cols.length > 3 + PER * 3) || !(t >= from) || !(t <= to) ||
-            (v.reduce((a, b) => a + b, 0) < 200)) {
+        if ((v.length !== PER * 3) || !(t >= from) || !(t <= to) || (v.reduce((a, b) => a + b, 0) < 200)) {
             continue;
         }
         rows.push(v);
-        objects.push(cols.length === 3 + PER * 3 ? cols[2 + PER * 3] : NaN);
     }
-    return { n: rows.length, rows, objects, aspect: shape.w / shape.h };
+    return { n: rows.length, rows, aspect: shape.w / shape.h };
 }
 // A workload's triangles with their middles past the 4:3 view's sides, out to b view widths on each, and inside it.
 const pastOf = (v, b) => {
@@ -1147,10 +1150,10 @@ if (widerDir || narrowerDir) {
     // Each of the wider dump's workloads paired with the 4:3 one's that draws the same inside the view: the same shot,
     // whenever each run came to it, since two runs of a plan don't keep step (Mario Golf's flyover, a race).
     const narrowIn = narrower.rows.map(insideOf);
-    let n = 0, pastA = 0, pastB = 0, inB = 0, objectsA = 0;
+    let n = 0, pastA = 0, pastB = 0, inB = 0;
     for (const w of wider.rows) {
         const wIn = insideOf(w);
-        let best = -1, bestD = SIDES_MATCH;
+        let best = null, bestD = SIDES_MATCH;
         narrower.rows.forEach((u, k) => {
             const scale = Math.max(wIn, narrowIn[k], 1), limit = bestD * scale;
             let d = 0;
@@ -1160,15 +1163,14 @@ if (widerDir || narrowerDir) {
             d /= scale;
             if (d <= bestD) {
                 bestD = d;
-                best = k;
+                best = u;
             }
         });
-        if (best >= 0) {
+        if (best) {
             n++;
-            pastA += pastOf(narrower.rows[best], b);
+            pastA += pastOf(best, b);
             pastB += pastOf(w, b);
             inB += wIn;
-            objectsA += narrower.objects[best];
         }
     }
     if (n < Math.max(30, 0.1 * wider.n)) {
@@ -1179,14 +1181,10 @@ if (widerDir || narrowerDir) {
     pastA /= n;
     pastB /= n;
     inB /= n;
-    objectsA /= n; // NaN for a 4:3 dump made before rt64 9adecdf
     const grows = pastB / Math.max(pastA, 1);
     // Drawn as densely past the view as inside it, a world isn't culled at the sides at all: nothing to grow.
     const density = (pastB / (2 * b)) / Math.max(inB, 1);
-    // Whole objects drawn past the view in the 4:3 window: a game culling nothing by the window, which draws past the
-    // view there what its 32:9 window does, so nothing grows, and culls nothing at 4:3 either.
-    const unculled = objectsA >= SIDES_OBJECTS;
-    const unmet = (grows < SIDES_GROW) && (density < SIDES_DENSE) && !unculled;
+    const unmet = (grows < SIDES_GROW) && (density < SIDES_DENSE);
     // A scene that draws next to nothing past the view can't show the growth: a tenth of a few dozen triangles is a
     // triangle or two.
     const few = unmet && (pastB < SIDES_FEW);
@@ -1195,17 +1193,12 @@ if (widerDir || narrowerDir) {
     untested ||= few;
     console.log(`sides: ${pastA.toFixed(0)} triangles a workload past the 4:3 view's sides in the 4:3 window and ` +
         `${pastB.toFixed(0)} in the ${wider.aspect.toFixed(2)}:1 picture, out to ${b.toFixed(2)} of the view ` +
-        `(x${grows.toFixed(2)}; ${density.toFixed(2)} of the view's density; ` +
-        (Number.isNaN(objectsA) ? 'the 4:3 dump counts no objects past the view: dump it on rt64 9adecdf or later' :
-            `${objectsA.toFixed(1)} objects a workload drawn wholly past the view in the 4:3 window`) +
-        `), over ${n} of its ${wider.n} workloads paired with one of the ${narrower.n} at 4:3 that draws the same inside ` +
-        'the view: ' +
+        `(x${grows.toFixed(2)}; ${density.toFixed(2)} of the view's density), over ${n} of its ${wider.n} workloads paired ` +
+        `with one of the ${narrower.n} at 4:3 that draws the same inside the view: ` +
         (fail ? 'FAILS, the wider picture draws no more past the 4:3 view than the 4:3 window: culled to the 4:3 view, ' +
             'or a scene whose every object reaches into the view (look at the wider dump\'s frames)' :
             few ? `untested, too little drawn past the view to tell (under ${SIDES_FEW} triangles a workload): a scene ` +
-                'that draws more there tests it' :
-            unculled && (grows < SIDES_GROW) && (density < SIDES_DENSE) ? 'passes, the 4:3 window draws whole objects ' +
-                'past the view, so the game culls nothing by the window' : 'passes'));
+                'that draws more there tests it' : 'passes'));
 }
 else if (sides && sides.n) {
     const past = sides.rows.reduce((a, v) => a + pastOf(v, extOf(sides.aspect)), 0) / sides.n;

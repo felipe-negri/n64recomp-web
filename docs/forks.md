@@ -1225,8 +1225,4 @@ rt64 21ed4b9           RT64_SKIP_PLACE_SWAPS: nor a pair of a transform whose ve
                        a frame
 rt64 3c875ec           TransformMap's verticesStill moved after its rigidBody: WWF No Mercy's rt64 adds fields after
                        mapped, and a field there too was its three-way merge's conflict (wwf-patches). It does the same
-rt64 9adecdf           RT64_FRAME_DUMP's sides.tsv ends each workload's line in how many of its model matrices drew
-                       triangles all wholly past the view's left side or all past its right: a whole object drawn off
-                       the view, which a game culling to its 4:3 view draws next to none of in a 4:3 window, and one
-                       culling nothing by the window draws there, so frame_check tells the two apart
 ```
