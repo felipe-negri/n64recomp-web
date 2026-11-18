@@ -386,29 +386,15 @@ What it looks for:
   those rightly (its header), and Mario Party passes them (its sides left to a 32:9 play); Mario Party 2 fails on
   its opening's two camera cuts, drawn with the camera partway from one shot to the next (filed), and Mario Party 3
   on its party setup's spinning star, whose frames between draw its BONUS sign face-on and a second outline neither
-  game frame has
-  (filed). Their triangles test nothing at the sides: a board's picture past the 4:3 view is its 2D background,
-  5-12 triangles a workload. frame_check reads each dump's frames there too (its header, the picture at the 4:3
-  view's sides), which needs no second run to agree: Mario Party 3's Chilly Waters at 32:9 passes, and fails with
-  the board's tiles picked under 4:3 alone, as boards were drawn before the engine widened them; its opening passes,
-  and fails without mario-party-engine 245ec52's scissor, a band of background along the 3D's sides. Mario Party 3's
-  opening without its models' tags (lib/mario-party-engine's model_ids.cpp) was flagged under the 4 blocks a frame
-  needs, a small star drawn where neither neighbour has it, every frame between for 0.3 s; frame_check now counts
-  small flags that recur in one place, and fails flags drawn between that keep coming back to one place, 4 within
-  5 s (its header): the setup star's come at most 2 within a second.
-=======
-  Mario Party 1, 2 and 3 fail 2a on their main, built at v0.226.0 and played at 59 Hz through the opening, title,
-  menus, the first board and its minigame (filed): the board's letterbox wipe between turns in 1 and 2 (5 and 13
-  frames within a second), 2's minigame roulette, and 3's item menu, whose frame between draws the cursor on an
-  option neither neighbour has. Their triangles test nothing at the sides: a board's picture past the 4:3 view is
-  its 2D background, 5-12 triangles a workload. frame_check reads each dump's frames there too (its header, the
-  picture at the 4:3 view's sides), which needs no second run to agree: Mario Party 3's Chilly Waters at 32:9 passes,
-  and fails with the board's tiles picked under 4:3 alone, as boards were drawn before the engine widened them; its
+  game frame has (filed). Their triangles test nothing at the sides: a board's picture past the 4:3 view is its
+  2D background, 5-12 triangles a workload. frame_check reads each dump's frames there too (its header, the picture
+  at the 4:3 view's sides), which needs no second run to agree: Mario Party 3's Chilly Waters at 32:9 passes, and
+  fails with the board's tiles picked under 4:3 alone, as boards were drawn before the engine widened them; its
   opening passes, and fails without mario-party-engine 245ec52's scissor, a band of background along the 3D's sides.
-  Mario Party 3's opening
-  without its models' tags (lib/mario-party-engine's model_ids.cpp) was flagged under the 4 blocks a frame needs, a
-  small star drawn where neither neighbour has it, every frame between for 0.3 s; frame_check now counts small
-  flags that recur in one place (its header).
+  Mario Party 3's opening without its models' tags (lib/mario-party-engine's model_ids.cpp) was flagged under the 4
+  blocks a frame needs, a small star drawn where neither neighbour has it, every frame between for 0.3 s;
+  frame_check now counts small flags that recur in one place, and fails flags drawn between that keep coming back
+  to one place, 4 within 5 s (its header): the setup star's come at most 2 within a second.
   Perfect Dark, Super Mario 64, F-Zero X, Super Smash Bros., Paper Mario and Dinosaur Planet were played for 2a on
   desktop builds of their main with N64Recomp-browser v0.229.0, each also built without a fix it took for one of 2a's
   faults, to see the check fail it. It fails Super Mario 64's title without its head's pairing (586 of 1085 frames),
@@ -429,7 +415,6 @@ What it looks for:
   too little past the 4:3 view to test the sides, and Smash's stage culls nothing by the window, but its fix culls
   fighters, which no scene played had at the picture's side. Paper Mario and Dinosaur Planet pass: their sides read
   x1.00 since neither culls by the window, their world drawn to the 32:9 picture's edges.
->>>>>>> 683e5372394d3444e2a7edd45573683bd31b7c6d
 
 ### 3. Every controller its own port
 
