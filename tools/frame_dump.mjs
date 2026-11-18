@@ -7,13 +7,18 @@
 //   node tools/frame_dump.mjs --game <dir> --exe <name> --game-id <id> --rom <file> --plan <file> --out <dir>
 //       [--window <w>x<h>[,<w>x<h>,<w>x<h>]] [--rate <hz>] [--seconds <from>-<to>] [--args "<program args>"]
 //       [--env K=V,...] [--config <dir>] [--check "<frame_check args>"] [--workers <n>] [--keep]
-//       [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>]
+//       [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>] [--sound-reference <dir>]
 //
 // --game is the folder of a recomp's Linux build (its release archive unpacked, or its build folder with assets/),
 // --exe the program in it, --game-id the name its runtime stores the ROM under (<game id>.z64, as Load ROM does). Each
 // run copies --game into a folder of its own under --out with a portable.txt, so its settings and saves are the run's,
 // stores the ROM, copies --config's files in (a graphics.json, a general.json) and starts the program with --boot,
 // --window and --args, SDL's dummy sound driver, and RT64_FRAME_DUMP (and RT64_FRAME_DUMP_SECONDS from --seconds).
+// Each run's sound is recorded too, by tools/sdl_audio_record.c (built with the image's cc and loaded with
+// LD_PRELOAD), into <out>/<run>/sound.tsv and sound.raw, and each step of the plan's time into steps.tsv, and
+// tools/sound_check.mjs checks the first run's after frame_check, against --sound-reference's if given (a run's folder
+// of an earlier dump, by the same plan, of a build whose sound is right), its text in sound_check.txt. The recording
+// stays (about 23 MB a minute) for a later check against another.
 // RT64's refresh rate is set to Manual at --rate (240) in its graphics.json, made by a first start of the program
 // when --config has none: Xvfb has no refresh rate of its own, and at Display the program presents only the game's own
 // frames, which test nothing of the frames between. It presents as fast as it draws below that rate (Mario Golf's
@@ -42,8 +47,8 @@
 // --workers is frame_check's (a third of the cores it sees unless given), for a container held to fewer cores than
 // the host has.
 //
-// Exit: frame_check's own (0 passes, 1 fails, 2 has nothing to test), 3 when a run failed (the program exited or
-// crashed, an until or find unmet, no window), 75 when the queue asked it to stop.
+// Exit: frame_check's own (0 passes, 1 fails, 2 has nothing to test), or 1 where sound_check fails, 3 when a run failed
+// (the program exited or crashed, an until or find unmet, no window), 75 when the queue asked it to stop.
 import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -278,6 +283,21 @@ function check(made) {
   return code;
 }
 
+// sound_check on the first run's recording, after frame_check, in the same job: its exit, 1 where it fails.
+function soundCheck(made) {
+  const a = [path.join(here, 'sound_check.mjs'), path.dirname(made[0])];
+  if (opt('--sound-reference')) a.push('--reference', path.resolve(opt('--sound-reference')));
+  log(`sound_check ${a.slice(1).join(' ')}`);
+  let code = 0, text;
+  try { text = execFileSync(process.execPath, a, { maxBuffer: 1 << 24 }).toString(); }
+  catch (e) { code = e.status ?? 1; text = (e.stdout ?? '').toString() + (e.stderr ?? '').toString(); }
+  fs.writeFileSync(path.join(out, 'sound_check.txt'), text);
+  process.stdout.write(text);
+  log(`sound_check exited ${code}`);
+  return code;
+}
+const both = (made) => { const frames = check(made), sound = soundCheck(made); return sound === 1 ? 1 : frames; };
+
 // The container's memory cap in MiB (cgroup v2's memory.max), null when it has none (the queue then reads the game's
 // last runs).
 function capMiB() {
@@ -297,8 +317,8 @@ try {
       url: opt('--url') || undefined, ref: process.env.HOSTNAME,
       onUpdate: (j) => j.state === 'waiting' && log(`queue: ${type} waiting, ${j.ahead} ahead: ${j.why?.text ?? 'going next'}`) });
     const made = await gpuRun(spec('frame-dump', `Frame dump: ${gameId}`, opt('--vram', 'auto') === 'auto' ? 'auto' : Number(opt('--vram'))), (signal) => dumps(signal));
-    code = await gpuRun(spec('frame-check', `frame_check: ${gameId}`, 0), async () => check(made));
-  } else code = check(await dumps(null));
+    code = await gpuRun(spec('frame-check', `frame_check: ${gameId}`, 0), async () => both(made));
+  } else code = both(await dumps(null));
 } catch (e) {
   log(`frame_dump: ${e instanceof RunFailed ? e.message : e?.stack ?? e}`);
   code = stopped ? 75 : 3;
