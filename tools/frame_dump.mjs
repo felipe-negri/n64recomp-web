@@ -388,7 +388,7 @@ try {
     const spec = (type, label, vramMiB) => ({ type, label, vramMiB, model: gameId, priority: opt('--priority', 'low'),
       ...(vramMiB === 'auto' ? { guessMiB: 1024 } : {}), ramMiB: capMiB(),
       url: opt('--url') || undefined, ref: process.env.HOSTNAME,
-      onUpdate: (j) => j.state === 'waiting' && log(`queue: ${type} waiting, ${j.ahead} ahead: ${j.why?.text ?? 'going next'}`) });
+      onUpdate: (j) => j.state === 'waiting' && log(`queue: ${type} waiting, ${j.ahead} ahead${j.waitMs != null ? `, ~${Math.ceil(j.waitMs / 60000)} min` : ''}: ${j.why?.text ?? 'going next'}`) });
     const vram = opt('--vram', 'auto') === 'auto' ? 'auto' : Number(opt('--vram'));
     if (loadPlan) code = await gpuRun(spec('frame-dump', `Save check: ${gameId}`, vram), (signal) => saveCheck(signal));
     else {
