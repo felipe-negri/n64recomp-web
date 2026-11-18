@@ -798,7 +798,7 @@ function checkMiddle({ gw, gh, kept }) {
             saveTriplet(`${small ? 'small' : 'unlike'}-${String(c.f.n).padStart(5, '0')}.png`, [a.f, c.f, b.f], bad, gw);
         }
         const ca = meanDiff(c.g, a.g), cb = meanDiff(c.g, b.g);
-        const lone = !small && (c.f.index > 0) && (Math.min(ca, cb) >= Math.max(LONE, LONE_RATIO * meanDiff(a.g, b.g)));
+        const lone = !small && (c.f.index < c.f.count - 1) && (Math.min(ca, cb) >= Math.max(LONE, LONE_RATIO * meanDiff(a.g, b.g)));
         return { c: { f: { ...c.f, rgb: null } }, bad, bw, bh, small, lone };
     }));
 }
