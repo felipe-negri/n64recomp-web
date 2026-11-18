@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 3c875ecdab9bdba94156e7f9c9024e162ca16438
+rt64: https://github.com/n64hub/rt64-web 5c902447f8c37cdbf286a180635f0c76923f8cd4
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -8156,10 +8156,10 @@ index 69a82ac..1dd31f7 100644
              dstNorm = builder.addReadWriteStructuredBuffer(9);
              dstVel = builder.addReadWriteStructuredBuffer(10);
 diff --git a/src/render/rt64_framebuffer_renderer.cpp b/src/render/rt64_framebuffer_renderer.cpp
-index 9fae0d4..f027198 100644
+index 9fae0d4..a97e1e2 100644
 --- a/src/render/rt64_framebuffer_renderer.cpp
 +++ b/src/render/rt64_framebuffer_renderer.cpp
-@@ -63,17 +63,40 @@ namespace RT64 {
+@@ -63,17 +63,35 @@ namespace RT64 {
                  }
              };
  
@@ -8185,25 +8185,20 @@ index 9fae0d4..f027198 100644
  
 -            int32_t left = static_cast<int32_t>(std::floor((computeOrigin(leftOrigin) + (rect.left(true) - computeOrigin(leftOrigin)) * aspectRatioScale) * resScale.x));
 -            int32_t right = static_cast<int32_t>(std::ceil((computeOrigin(rightOrigin) + (rect.right(true) - computeOrigin(rightOrigin)) * aspectRatioScale) * resScale.x));
-+            // An edge a float's rounding leaves just short of or past a whole pixel is on that pixel: the 4:3 picture's
-+            // scaled into a 16:9 window (a ratio of 0.75000006) put a scissor's left edge at x 8 on 367.99994 of 2560,
-+            // which floored to 367, a column of a triangle under it drawn left of the rects beside it.
-+            auto floorPixel = [](float coord) {
-+                const float nearest = std::round(coord);
-+                return static_cast<int32_t>((std::fabs(coord - nearest) < 1.0e-3f) ? nearest : std::floor(coord));
-+            };
-+
-+            auto ceilPixel = [](float coord) {
-+                const float nearest = std::round(coord);
-+                return static_cast<int32_t>((std::fabs(coord - nearest) < 1.0e-3f) ? nearest : std::ceil(coord));
-+            };
-+
-+            int32_t left = floorPixel((computeOrigin(leftOrigin) + (rect.left(true) - computeOrigin(leftOrigin)) * aspectRatioScale) * resScale.x);
-+            int32_t right = ceilPixel((computeOrigin(rightOrigin) + (rect.right(true) - computeOrigin(rightOrigin)) * aspectRatioScale) * resScale.x);
++            // Each side is on the pixel nearest it, as a rect's are (convertViewportRect) and as the top and bottom are,
++            // so a scissor and a rect with a side at the same x put it on the same column. Floored on the left and
++            // ceiled on the right, a scissor took in the column a side only partly reaches, which the rect beside it
++            // leaves out: where the picture's scale puts x 8 off a whole pixel (7.1125 pixels each in a 2276-wide
++            // picture, 8 on 56.9), a triangle under the 3D's scissor drew a column past a rect drawn over the
++            // scissor's whole width to cover it, a line of the 3D down each side of a screen that is black; and an
++            // edge a float's rounding leaves a hair short of a whole pixel (8 on 367.99994 of 2560, from a ratio of
++            // 0.75000006) floored to the column before it.
++            int32_t left = lround((computeOrigin(leftOrigin) + (rect.left(true) - computeOrigin(leftOrigin)) * aspectRatioScale) * resScale.x);
++            int32_t right = lround((computeOrigin(rightOrigin) + (rect.right(true) - computeOrigin(rightOrigin)) * aspectRatioScale) * resScale.x);
              int32_t top = lround(rect.top(true) * resScale.y);
              int32_t bottom = lround(rect.bottom(true) * resScale.y);
              left = correctMisalignment(left, leftOrigin);
-@@ -95,8 +118,14 @@ namespace RT64 {
+@@ -95,8 +113,14 @@ namespace RT64 {
              }
          };
          
@@ -8218,7 +8213,7 @@ index 9fae0d4..f027198 100644
                  return (coord - std::fmod(coord, resScale[1])) - horizontalMisalignment;
              }
              else {
-@@ -151,6 +180,7 @@ namespace RT64 {
+@@ -151,6 +175,7 @@ namespace RT64 {
  
          shaderUploader = std::make_unique<BufferUploader>(worker->device);
          descCommonSet = std::make_unique<FramebufferRendererDescriptorCommonSet>(shaderLibrary->samplerLibrary, worker->device->getCapabilities().raytracing, worker->device);
@@ -8226,7 +8221,7 @@ index 9fae0d4..f027198 100644
  
  #   if RT_ENABLED
          if (rtSupport) {
-@@ -161,6 +191,8 @@ namespace RT64 {
+@@ -161,6 +186,8 @@ namespace RT64 {
      }
  
      FramebufferRenderer::~FramebufferRenderer() {
@@ -8235,7 +8230,7 @@ index 9fae0d4..f027198 100644
          dummyColorTargetView.reset();
          dummyDepthTargetView.reset();
          dummyColorTarget.reset();
-@@ -187,7 +219,7 @@ namespace RT64 {
+@@ -187,7 +214,7 @@ namespace RT64 {
  
          // Create dummy depth target if it hasn't been created yet.
          if (dummyDepthTarget == nullptr) {
@@ -8244,7 +8239,7 @@ index 9fae0d4..f027198 100644
              dummyDepthTarget = worker->device->createTexture(dummyDepthDesc);
              dummyDepthTarget->setName("Framebuffer Renderer Depth Dummy");
              dummyDepthTargetView = dummyDepthTarget->createTextureView(RenderTextureViewDesc::Texture2D(dummyDepthDesc.format));
-@@ -310,12 +342,12 @@ namespace RT64 {
+@@ -310,12 +337,12 @@ namespace RT64 {
          assert(worker != nullptr);
          assert(drawBuffers != nullptr);
          
@@ -8259,7 +8254,7 @@ index 9fae0d4..f027198 100644
              descriptorTextureVersions.clear();
              descriptorTextureGlobalVersion = 0;
              descriptorTextureReplacementMapEnabled = textureCacheReplacementMapEnabled;
-@@ -373,10 +405,36 @@ namespace RT64 {
+@@ -373,10 +400,36 @@ namespace RT64 {
  
          descCommonSet->setBuffer(descCommonSet->FrParams, frameParamsBuffer.get(), sizeof(interop::FrameParams));
          descCommonSet->setBuffer(descCommonSet->instanceRenderIndices, renderIndicesBuffer.get(), RenderBufferStructuredView(sizeof(interop::RenderIndices)));
@@ -8296,7 +8291,7 @@ index 9fae0d4..f027198 100644
  
          // Make sure the versions vector matches the texture cache size.
          descriptorTextureVersions.resize(textureCacheSize, 0);
-@@ -473,16 +531,30 @@ namespace RT64 {
+@@ -473,16 +526,30 @@ namespace RT64 {
          interop::RasterParams rasterParams;
          RenderDescriptorSet *descRealFbSet = framebuffer.descRealFbSet->get();
          RenderDescriptorSet *descDummyFbSet = framebuffer.descDummyFbSet->get();
@@ -8329,7 +8324,7 @@ index 9fae0d4..f027198 100644
              worker->commandList->setGraphicsDescriptorSet(depthState ? descRealFbSet : descDummyFbSet, 3);
              worker->commandList->setViewports(framebuffer.viewport);
          };
-@@ -499,12 +571,13 @@ namespace RT64 {
+@@ -499,12 +566,13 @@ namespace RT64 {
              }
          };
  
@@ -8345,7 +8340,7 @@ index 9fae0d4..f027198 100644
              }
          };
  
-@@ -551,13 +624,14 @@ namespace RT64 {
+@@ -551,13 +619,14 @@ namespace RT64 {
                  }
  
                  // A new pass must be started if decals are required and something wrote to the depth buffer before this call.
@@ -8362,7 +8357,7 @@ index 9fae0d4..f027198 100644
                      switchToDepthWrite();
                  }
  
-@@ -570,10 +644,49 @@ namespace RT64 {
+@@ -570,10 +639,49 @@ namespace RT64 {
                      worker->commandList->setPipeline(triangles.pipeline);
                      previousPipeline = triangles.pipeline;
                  }
@@ -8412,7 +8407,7 @@ index 9fae0d4..f027198 100644
                  worker->commandList->setGraphicsPushConstants(0, &rasterParams);
  
                  drawCallTriangles(drawCall);
-@@ -618,7 +731,12 @@ namespace RT64 {
+@@ -618,7 +726,12 @@ namespace RT64 {
                  const interop::RSPVertexTestZCB &testZCB = drawCall.vertexTestZ;
                  switchToDepthRead();
  
@@ -8425,7 +8420,7 @@ index 9fae0d4..f027198 100644
                  const auto &rspVertexTestZ = useMSAA ? shaderLibrary->rspVertexTestZMS : shaderLibrary->rspVertexTestZ;
                  worker->commandList->barriers(RenderBarrierStage::COMPUTE, RenderBufferBarrier(testZIndexBuffer, RenderBufferAccess::WRITE));
                  worker->commandList->setPipeline(rspVertexTestZ.pipeline.get());
-@@ -1335,12 +1453,22 @@ namespace RT64 {
+@@ -1335,12 +1448,22 @@ namespace RT64 {
          }
  
          Framebuffer &framebuffer = framebufferVector[framebufferCount - 1];
@@ -8450,7 +8445,7 @@ index 9fae0d4..f027198 100644
          framebuffer.descRealFbSet->setBuffer(framebuffer.descRealFbSet->FbParams, framebuffer.paramsBuffer.get(), sizeof(interop::FramebufferParams));
          framebuffer.descRealFbSet->setTexture(framebuffer.descRealFbSet->gBackgroundColor, backgroundColorTexture, RenderTextureLayout::SHADER_READ, backgroundColorTextureView);
          framebuffer.descRealFbSet->setTexture(framebuffer.descRealFbSet->gBackgroundDepth, p.fbStorage->depthTarget->texture.get(), RenderTextureLayout::DEPTH_READ, p.fbStorage->depthTarget->textureView.get());
-@@ -1608,8 +1736,28 @@ namespace RT64 {
+@@ -1608,8 +1731,28 @@ namespace RT64 {
                          triangles.shaderDesc = call.shaderDesc;
  
                          RasterShader *gpuShader = p.ubershadersOnly ? nullptr : p.rasterShaderCache->getGPUShader(call.shaderDesc);
@@ -8479,7 +8474,7 @@ index 9fae0d4..f027198 100644
                          }
                          else {
                              const bool copyMode = (call.shaderDesc.otherMode.cycleType() == G_CYC_COPY);
-@@ -1619,7 +1767,7 @@ namespace RT64 {
+@@ -1619,7 +1762,7 @@ namespace RT64 {
                                  (call.shaderDesc.otherMode.cvgDst() == CVG_DST_WRAP) || (call.shaderDesc.otherMode.cvgDst() == CVG_DST_SAVE));
                          }
                          
@@ -8488,7 +8483,7 @@ index 9fae0d4..f027198 100644
                          triangles.vertexTestZ = (vertexTestZCallIndex >= 0);
                          triangles.postBlendDitherNoise = false;
  
-@@ -1628,6 +1776,16 @@ namespace RT64 {
+@@ -1628,6 +1771,16 @@ namespace RT64 {
                          switch (proj.type) {
                          case Projection::Type::Perspective:
                          case Projection::Type::Orthographic: {
@@ -8505,7 +8500,7 @@ index 9fae0d4..f027198 100644
                              instanceDrawCall.type = InstanceDrawCall::Type::IndexedTriangles;
                              triangles.indexStart = triangles.vertexTestZ ? vertexTestZFaceIndicesStart : call.meshDesc.faceIndicesStart;
                              invRatioScale = projInvRatioScale;
-@@ -1656,6 +1814,20 @@ namespace RT64 {
+@@ -1656,6 +1809,20 @@ namespace RT64 {
                              triangles.screenScale = { viewportRect.width / framebuffer.viewport.width, viewportRect.height / framebuffer.viewport.height };
                              triangles.screenOffset.x = halfPixelOffset.x + ((viewportRect.x + viewportRect.width / 2.0f) - halfViewportSize.x) / halfViewportSize.x;
                              triangles.screenOffset.y = halfPixelOffset.y + (halfViewportSize.y - (viewportRect.y + viewportRect.height / 2.0f)) / halfViewportSize.y;
@@ -8526,7 +8521,7 @@ index 9fae0d4..f027198 100644
  
                              if (p.postBlendNoise) {
                                  // Indicate if post blend dither noise should be applied.
-@@ -1760,7 +1932,215 @@ namespace RT64 {
+@@ -1760,7 +1927,215 @@ namespace RT64 {
          checkRasterScene(rasterScene);
      }
  
@@ -8743,7 +8738,7 @@ index 9fae0d4..f027198 100644
          bool shaderViewRtEnabled = false;
          std::vector<BufferUploader::Upload> shaderUploads = {
              { renderIndicesVector.data(), { 0, renderIndicesVector.size() }, sizeof(interop::RenderIndices), RenderBufferFlag::STORAGE, { }, &renderIndicesBuffer},
-@@ -1816,8 +2196,16 @@ namespace RT64 {
+@@ -1816,8 +2191,16 @@ namespace RT64 {
          }
  #   endif
  

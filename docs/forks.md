@@ -1225,4 +1225,9 @@ rt64 21ed4b9           RT64_SKIP_PLACE_SWAPS: nor a pair of a transform whose ve
                        a frame
 rt64 3c875ec           TransformMap's verticesStill moved after its rigidBody: WWF No Mercy's rt64 adds fields after
                        mapped, and a field there too was its three-way merge's conflict (wwf-patches). It does the same
+rt64 5c90244           a scissor's left and right sides are on the pixel nearest them, as a rect's are and as its own
+                       top and bottom were, not floored and ceiled: where the picture's scale left an x off a whole
+                       pixel, the scissor took in a column on each side that a rect over the same x leaves out, and
+                       Mario Golf's course showed in a line down each side of the black screen its closed iris wipe
+                       draws in a wide window (x 8 on 56.9 of 2276). It takes in ae0a708's case
 ```
