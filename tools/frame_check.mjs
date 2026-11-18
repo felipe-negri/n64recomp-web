@@ -85,7 +85,19 @@
 //   Light, a few large walls whose middles lie inside the view, reads 29 culled and 43 fixed. A shot whose every
 //   object reaches into the view draws them whole in both windows and fails whatever the build: Rayman 2's first still
 //   shot of Rayman, a few cliffs, x1.00 with its v0.1.1. So a scene is picked where the world goes on past the view (a
-//   course, a field, a race), and a fail is looked at in the 32:9 dump's frames before it is called the game's. A 4:3
+//   course, a field, a race), and a fail is looked at in the 32:9 dump's frames before it is called the game's. A game
+//   that culls nothing by the window fails it too, its 4:3 window drawing past the view all the 32:9 one does: Paper
+//   Mario's opening x1.00 (532 triangles a workload), Dinosaur Planet x1.03, Super Smash Bros.' stage zoomed in x1.00,
+//   where Super Mario 64's Bob-omb Battlefield reads x1.00 culled to 4:3 (its objects; its level is drawn whole in any
+//   window) and x2.99 fixed. Nothing in the 32:9 dump alone tells them apart, measured on these and on Mario Golf's
+//   culled flyover. Not things appearing at the view's sides as the camera turns, read as blocks of a game frame with
+//   nothing like them near in the game's frame before: on a 640x180 dump Mario 64's culled objects are a pixel or two
+//   across, its fixed build has as many by the view's edge (438-447 a column of blocks, every thousand frames, either
+//   build), and split by which way the camera turns neither leans. Not sides.tsv's triangles appearing between
+//   workloads, per band (6-8 a band past the edge culled, 24-25 fixed, as each draws there). Not how the drawing goes on
+//   across the view's edge (the next fifth of the view's width outside against inside: Mario 64 0.23 culled and 0.53
+//   fixed, Mario Golf's flyover 0.36 culled, F-Zero X's fixed 0.34, Dinosaur Planet 0.45, Smash 0.08-0.11, its stage
+//   ending at the 4:3 view by design). Nor triangles past the 32:9 picture, 0-6 a band in every one. A 4:3
 //   window's target can be a little off 4:3 (Rush 2049's is 640x440): a --narrower dump wider than 1.6:1, a --wider
 //   one narrower than 8:3, or a pair of which under 30 or a tenth of the 32:9 workloads find a match (not the same
 //   scene), exits 2. Without them it only counts the triangles. One dump's own strip against the view tells nothing:
@@ -110,7 +122,11 @@
 //   pixels short of the side, the picture behind it showing. Mario Party 3's opening without mario-party-engine
 //   245ec52 draws its 3D grass under a scissor 8 of the console's pixels inside the screen, the background's grass in a
 //   band around it: a line 6 pixels in from the view's side (a 640x180 dump at 32:9) in 32 of 56 frames where the
-//   scene moves, and none with it. Turok 1's and 2's 16:9 sweeps and Mario Golf's iris wipes have neither. Neither
+//   scene moves, and none with it. A frame counts the line only where the picture beside it moves too (its rows'
+//   pixels 3 either side, as much as a moving scene does): a cut lies across what moves, where the scene's own straight
+//   edge that stands still isn't one. Paper Mario's opening at 32:9 has its stage's pillars at the view's sides while only
+//   the curtain above them moves: a line 2 pixels out in 6 of 23 moving frames, 2 counting the picture beside it.
+//   Turok 1's and 2's 16:9 sweeps and Mario Golf's iris wipes have neither. Neither
 //   needs two runs to agree, so a board the computer players play differently each time is checked too.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
@@ -1044,6 +1060,7 @@ const PIC_ROOM = 0.1; // ... and is this much of the view's width at least
 const PIC_RUN = 1; // seconds in a row of frames cut short that fail
 const SEAM_EVERY = 0.25; // seconds between the frames a straight line is looked for in
 const SEAM_MOVES = 2; // a frame's mean difference to the last one looked at, of 255, from which the scene moves
+const SEAM_BESIDE = 3; // ... where the pixels this many columns either side of a line, in the rows it steps, move as much
 const SEAM_STEP = 10; // a step between two pixels, of 255, that counts in a column
 const SEAM_OVER = 0.3; // the share of a column's rows stepping, over its neighbours', that is a straight line
 const SEAM_NEAR = 0.05; // ... within this much of the view's width of its sides
@@ -1143,7 +1160,8 @@ function pictureAtSides(d) {
         }
         nextSeam = f.t + SEAM_EVERY;
         const g = grey(f, w, h);
-        const moved = (prev && (prev.length === g.length)) ? meanDiff(g, prev) : Infinity;
+        const last = (prev && (prev.length === g.length)) ? prev : null;
+        const moved = last ? meanDiff(g, last) : Infinity;
         prev = g;
         if (moved < SEAM_MOVES) {
             continue;
@@ -1161,6 +1179,24 @@ function pictureAtSides(d) {
             }
             share[x] = (rows >= h / 2) ? steps / rows : 0;
         }
+        // How much the picture beside column x moved since the last frame looked at: its pixels SEAM_BESIDE either side,
+        // in the rows where x steps. A line where the picture beside it stands still is the scene's own edge (Paper
+        // Mario's stage pillars at the view's sides, while only the curtain above them moves), not a cut.
+        const beside = (x) => {
+            if (!last) {
+                return Infinity;
+            }
+            let sum = 0, n = 0;
+            for (let i = x; i < w * h; i += w) {
+                if (drawn[i - 1] && drawn[i] && drawn[i + 1] && drawn[i + 2] && (Math.abs(g[i + 1] - g[i]) > SEAM_STEP)) {
+                    for (let k = -SEAM_BESIDE; k <= SEAM_BESIDE + 1; k++) {
+                        sum += Math.abs(g[i + k] - last[i + k]);
+                        n++;
+                    }
+                }
+            }
+            return n ? sum / n : 0;
+        };
         const near = Math.ceil(SEAM_NEAR * vw);
         for (const side of [v0, v1 - 1]) {
             for (let x = Math.max(side - near, 7); x <= Math.min(side + near, w - 9); x++) {
@@ -1170,7 +1206,7 @@ function pictureAtSides(d) {
                 }
                 around.sort((a, b) => a - b);
                 if ((share[x] - around[around.length >> 1] >= SEAM_OVER) && (share[x] >= share[x - 1]) &&
-                    (share[x] >= share[x + 1])) {
+                    (share[x] >= share[x + 1]) && (beside(x) >= SEAM_MOVES)) {
                     seams.set(x, (seams.get(x) ?? 0) + 1);
                 }
             }
