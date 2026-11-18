@@ -4,11 +4,13 @@
 // drawn between the game's, and its ground culled at the 4:3 view's sides), and which these find without anyone
 // looking.
 //
-//   node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--from <s>] [--to <s>] [--save <dir>]
+//   node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--sides] [--from <s>] [--to <s>] [--save <dir>]
 //       [--workers <n>] [--quiet]
 //
 // <dir> is a dump's: frames.bin, every frame presented, and sides.tsv, where across the view the 3D's triangles lay.
-// --narrower and --wider name two dumps of the same plan for the sides, one in a 4:3 window and one at 32:9. --from and
+// --narrower and --wider name two dumps of the same plan for the sides, one in a 4:3 window and one at 32:9; --sides checks
+// only those and the picture at their sides, not <dir>'s frames between the game's or its cuts: a few seconds and no
+// workers where the pairing takes minutes of every core (Turok 1's 122 s at 4:3, 3.5 GB). --from and
 // --to keep what came between those seconds of the dumps, counted from each one's first frame; --save writes each
 // flagged frame with the frames either side of it as one PNG, its flagged blocks outlined, for whoever wants to see
 // one. It matches the frames on --workers threads, a third of the host's cores unless told (4 of 12): 20 s of Turok's
@@ -216,7 +218,7 @@ const opt = (name, fallback) => {
 };
 const dir = args[0];
 if (isMainThread && (!dir || dir.startsWith('--'))) {
-    console.error('usage: node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--workers <n>] [--quiet]');
+    console.error('usage: node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--sides] [--from <s>] [--to <s>] [--save <dir>] [--workers <n>] [--quiet]');
     process.exit(2);
 }
 const from = Number(opt('--from', 0));
@@ -226,6 +228,11 @@ const widerDir = opt('--wider', null);
 const narrowerDir = opt('--narrower', null);
 const quiet = args.includes('--quiet');
 const workers = Math.max(Math.round(Number(opt('--workers', os.availableParallelism() / 3))) || 1, 1);
+const sidesOnly = args.includes('--sides');
+if (isMainThread && sidesOnly && !(narrowerDir && widerDir)) {
+    console.error('--sides checks only the sides: give it --narrower <a dump in a 4:3 window> --wider <one at 32:9>');
+    process.exit(2);
+}
 
 const MAGIC = 0x44465452; // rt64_frame_dump.h's FrameDump::Magic
 const HEADER = 40;
@@ -1048,7 +1055,7 @@ function checkMiddle({ gw, gh, kept }) {
 // those frames read as frames between unlike both neighbours, "1 of 8", 16-54 of a dump, the game's own light alone.
 const own = (f) => (f.index === f.count - 1) || (f.cut === true);
 let lastRead = null; // the frame read before, its entry and the kept entry it repeats
-for (const f of readFrames()) {
+for (const f of (sidesOnly ? [] : readFrames())) {
     presented++;
     first ??= f;
     last = f;
@@ -1215,7 +1222,7 @@ if (presented >= 3) {
         }
     }
 }
-else {
+else if (!sidesOnly) {
     console.log('frames: fewer than 3 in frames.bin, nothing to match');
 }
 
@@ -1521,7 +1528,7 @@ function pictureAtSides(d) {
     const seam = [...seams].sort((a, b) => b[1] - a[1])[0];
     return { looked, cutShort, longest, moving, seam, vw, v0, v1, aspect };
 }
-for (const d of [dir, narrowerDir, widerDir].filter(Boolean)) {
+for (const d of new Set([sidesOnly ? null : dir, narrowerDir, widerDir].filter(Boolean))) {
     const p = pictureAtSides(d);
     if (!p.looked) {
         continue;
