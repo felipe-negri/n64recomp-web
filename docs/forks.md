@@ -1296,4 +1296,10 @@ rt64 8868f0d           RT64_INTERPOLATE_RECT_SCROLLS: a strip cut at an edge it 
                        rows high and its texcoord stepping a row as its bottom moves a pixel, and unpaired it showed a
                        line of sky under it and its hills aside of those below in the frames between as the camera
                        panned the Mini-Golf flyover (a sky seam across up to 29% of the width, then none)
+plume 0f99478          WebGPU: after a READBACK map is cancelled (a threaded build's copy into a buffer whose map was
+                       still in flight), the next map is made a task later: emdawnwebgpu's rejection of the cancelled
+                       map, run after the current task, dropped the new map's state, so reading it threw a TypeError
+                       in emwgpuBufferGetConstMappedRange and the buffer stayed mapped, every later submission copying
+                       into it failing. Super Smash Bros.' page hit it as a battle ended, under a busy GPU
+rt64 59781ef           plume-web 0f99478
 ```
