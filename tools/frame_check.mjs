@@ -4,14 +4,16 @@
 // drawn between the game's, and its ground culled at the 4:3 view's sides), and which these find without anyone
 // looking.
 //
-//   node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--quiet]
+//   node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--from <s>] [--to <s>] [--save <dir>]
+//       [--workers <n>] [--quiet]
 //
 // <dir> is a dump's: frames.bin, every frame presented, and sides.tsv, where across the view the 3D's triangles lay.
 // --narrower and --wider name two dumps of the same plan for the sides, one in a 4:3 window and one at 32:9. --from and
 // --to keep what came between those seconds of the dumps, counted from each one's first frame; --save writes each
 // flagged frame with the frames either side of it as one PNG, its flagged blocks outlined, for whoever wants to see
-// one. It matches the frames on a worker thread a core: 20 s of Turok's 640x360 frames at 120 a second (1025 matched)
-// took 88 s on a 12-core host already 100% busy, where one thread took 17 minutes.
+// one. It matches the frames on --workers threads, a third of the host's cores unless told (4 of 12): 20 s of Turok's
+// 640x360 frames at 120 a second (1025 matched) took 88 s on 11 of a 12-core host already 100% busy, where one thread
+// took 17 minutes.
 //
 // - Frames unlike both neighbours. Each frame is matched against the frames presented before and after it, block by
 //   block (8 pixels of a grey copy about 400 wide), each block to the best place within a few pixels of where the
@@ -162,9 +164,11 @@
 // the pairing or the sides. frames.bin is read a frame at a time, those the workers have yet to match kept (a few a
 // worker, pool.room()): a dump at a 240 Hz display's rate is about 160 MB a second.
 //
-// It runs below normal priority, its workers with it: it takes every core but one, and it is run beside plays,
-// builds and a person at the desktop, which come first. On an idle host that costs it nothing; on a busy one it
-// takes what is left rather than making the host 100% busy for everything else.
+// It runs below normal priority, its workers with it: it is run beside plays, builds and a person at the desktop,
+// which come first. On a busy host it takes what is left rather than making it 100% busy for everything else. Its
+// workers are a third of the cores, not every core but one, as two checks run at once where several cards check
+// dumps: at every core but one each, two held a 12-core host at 100%, and a play that measures waits for a host under
+// half busy (up to 20 minutes, then measures a busy one). Two at a third leave a third for the rest.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -181,7 +185,7 @@ const opt = (name, fallback) => {
 };
 const dir = args[0];
 if (isMainThread && (!dir || dir.startsWith('--'))) {
-    console.error('usage: node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--quiet]');
+    console.error('usage: node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--workers <n>] [--quiet]');
     process.exit(2);
 }
 const from = Number(opt('--from', 0));
@@ -190,6 +194,7 @@ const saveDir = opt('--save', null);
 const widerDir = opt('--wider', null);
 const narrowerDir = opt('--narrower', null);
 const quiet = args.includes('--quiet');
+const workers = Math.max(Math.round(Number(opt('--workers', os.availableParallelism() / 3))) || 1, 1);
 
 const MAGIC = 0x44465452; // rt64_frame_dump.h's FrameDump::Magic
 const HEADER = 40;
@@ -651,7 +656,7 @@ if (!isMainThread) {
     await new Promise(() => {}); // a worker runs no more of the file: the main thread ends it
 }
 const pool = {
-    size: Math.max(os.availableParallelism() - 1, 1), // the main thread reads and greys the frames on the last core
+    size: workers, // the main thread reads and greys the frames beside them
     workers: [], idle: [], queue: [],
     // A job's result, from the first worker free. A job holds its frames' grey copies until it is posted.
     run(kind, gw, gh, entries) {
