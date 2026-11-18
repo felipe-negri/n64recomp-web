@@ -1214,8 +1214,8 @@ rt64 b24056f           RT64_SKIP_CAMERA_CUTS: the turn is the whole rotation bet
                        the trace, the three axes' cosines less 1, halved), so a roll about the way the camera looks
                        counts: Rush 2049's attract race cuts between overhead cameras by rolling the picture 86-180
                        degrees, and the frames between swung it round. Rush 2049 carried it as runtime-patches/rt64-0017
-```
 rt64 9adecdf           RT64_FRAME_DUMP's sides.tsv ends each workload's line in how many of its model matrices drew
                        triangles all wholly past the view's left side or all past its right: a whole object drawn off
                        the view, which a game culling to its 4:3 view draws next to none of in a 4:3 window, and one
                        culling nothing by the window draws there, so frame_check tells the two apart
+```
