@@ -212,12 +212,15 @@
 //   view's sides are looked for in the wide dump at their 4:3 place and moved out toward the window's sides a pixel at
 //   a time. A HUD widened with the picture (to the window's sides, or to a narrower HUD ratio's) has a place of its own
 //   out past the 4:3 one where most of it is found; a side fails where 30% or more is found at its 4:3 place and under
-//   half as much anywhere out from it. Mario Golf's v0.1.22, HUD Placement Original, PROOF_ORIGINAL; Expand,
-//   PROOF_EXPAND. Its v0.1.19 and v0.1.20 have their HUD 72-83% found 40 grey pixels out at 16:9, its 4:3 place 23-25%.
-//   Text the game draws over a moving picture where a 4:3 screen has it (credits over a scene) is fixed too, and found
-//   where it was: Golf's credits come within a little of failing (36% where it was, 23% 8 pixels out), so a dump whose
-//   scene moves under still text for long, and has no HUD, can fail where nothing is wrong. A dump without the HUD (a
-//   menu, a cutscene) has none at the sides and says so. Golf v0.1.1, its HUD left at 4:3, predates the frame dump.
+//   half as much anywhere out from it, where it thins out to half within 30 grey pixels of there (a share as high
+//   every way out is a picture fixed all over, no place in particular). Mario Golf's v0.1.22 with HUD Placement
+//   Original fails at 16:9 and 32:9, its HUD 100% where it was and nowhere out; with Expand it passes, 97% of it 40 of
+//   40 grey pixels out at 16:9 (26% where it was) and found only at the window's side at 32:9. Its v0.1.19, v0.1.20
+//   and v0.1.22 at their default pass, 87-97% found 39-40 pixels out and 25-28% where it was. Only what is fixed for
+//   half of a stretch counts (fixedOf()): text the game draws over a moving picture where a 4:3 screen has it, as
+//   credits are, stays where it was and is fixed too, but only for the seconds each line is up. A dump without the
+//   HUD (a menu, a cutscene) has none at the sides and says so. Golf v0.1.1, its HUD left at 4:3, predates the frame
+//   dump.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
 // the pairing or the sides. frames.bin is read a frame at a time, those the workers have yet to match kept (a few a
@@ -1566,13 +1569,14 @@ const HUD_H = 180; // the grey copy's height it is looked for at
 const HUD_STILL = 2; // a pixel this near its last value, of 255, stood still
 const HUD_EDGE = 24; // ... and with a step this large to the pixel right of or below it is part of something drawn
 const HUD_CHANGE = 6; // a pixel moving more than this, of 255, is the scene moving
-const HUD_SCENE = 0.3; // ... in this share of the picture at least, in a frame looked at: the world moves
 const HUD_AROUND = 12; // ... looked at this many grey pixels around a still one
 const HUD_MOVES = 0.3; // ... where this share of them moving makes it fixed on the screen over a moving scene
-const HUD_FIXED = 0.2; // the share of the frames looked at in which a pixel is so: the HUD's
+const HUD_FIXED = 0.5; // the share of the frames looked at in which a pixel is so: the HUD's, up for seconds on end
 const HUD_CHUNK = 10; // ... in the seconds of a dump that share is counted over at a time
-const HUD_CHUNK_MIN = 8; // ... of which this many frames looked at, at least, with the scene moving
+const HUD_CHUNK_MIN = 8; // ... of which this many frames looked at, at least
 const HUD_FOUND = 0.3; // the share of the 4:3 dump's HUD at a side the wide dump has at one place, at least: found
+const HUD_VALLEY = 0.5; // ... a peak of its own: the share between it and the 4:3 place falls to this much of it
+const HUD_FALL_IN = 30; // ... and thins out to that within this many grey pixels of its 4:3 place, where it is left there
 const HUD_OUT = 3; // grey pixels out from the 4:3 place from which the HUD is placed out
 const HUD_MIDDLE = 0.15; // the view's middle, this much of its width either side of its centre, left out
 const HUD_BORDER = 0.05; // ... and this much of the 4:3 picture's width and height at its edges: its own border
@@ -1585,17 +1589,19 @@ const BLACK_RUN = 0.1; // seconds in a row a frame does so, its edge in one colu
 // drawn in it (a step to a neighbour) while the scene around it moves. A HUD's figures, frame and icons, which stay
 // where the screen has them while the world moves under them; a menu that stands still has nothing moving around it.
 // The share is each HUD_CHUNK seconds', the most of them kept: a HUD shown a few seconds of a long dump (Mario Golf's
-// tee before its credits) is as much the HUD as one shown throughout.
+// tee before its credits) is as much the HUD as one shown throughout, and a pixel is the HUD's where it is fixed in half
+// of a stretch: Mario Golf's credits, each line up a few seconds over a moving scene, have their lines' pixels in a
+// third of one, and at that the right side's read as a HUD left at 4:3 (65 pixels, 88% where they were).
 function fixedOf(d) {
-    let prev = null, moving = 0, gw = 0, fixed = null, best = null, chunkFrom = null;
+    let prev = null, pairs = 0, gw = 0, fixed = null, best = null, chunkFrom = null;
     const flush = () => {
-        if (moving >= HUD_CHUNK_MIN) {
+        if (pairs >= HUD_CHUNK_MIN) {
             fixed.forEach((n, i) => {
-                best[i] = Math.max(best[i], n / moving);
+                best[i] = Math.max(best[i], n / pairs);
             });
         }
         fixed?.fill(0);
-        moving = 0;
+        pairs = 0;
     };
     for (const f of sampledFrames(d, HUD_EVERY)) {
         gw = Math.round(f.w * HUD_H / f.h);
@@ -1613,21 +1619,14 @@ function fixedOf(d) {
         }
         // How many pixels moved in each box about a pixel: a sum table of the moved ones.
         const sum = new Int32Array((gw + 1) * (HUD_H + 1));
-        let any = 0;
         for (let y = 0; y < HUD_H; y++) {
             for (let x = 0, row = 0; x < gw; x++) {
                 const m = (Math.abs(g[y * gw + x] - last[y * gw + x]) > HUD_CHANGE) ? 1 : 0;
                 row += m;
-                any += m;
                 sum[(y + 1) * (gw + 1) + x + 1] = sum[y * (gw + 1) + x + 1] + row;
             }
         }
-        if (any < HUD_SCENE * gw * HUD_H) {
-            // Too little of the picture moves to tell what is fixed on the screen from the scene: a menu or the credits
-            // with a small part animated, which a game keeps at 4:3 by design, or a shot held still.
-            continue;
-        }
-        moving++;
+        pairs++;
         for (let y = 1; y < HUD_H - 1; y++) {
             const y0 = Math.max(y - HUD_AROUND, 0), y1 = Math.min(y + HUD_AROUND + 1, HUD_H);
             for (let x = 1; x < gw - 1; x++) {
@@ -1700,15 +1699,24 @@ function hudPlacement(narrow, wide) {
         // The best place out from 4:3: a peak of its own past HUD_OUT, higher than the share on either side of it, not
         // the slope down from 0 (a line along the HUD, a row of text, matches nearly as well a few pixels along).
         let out = null;
-        for (let s = HUD_OUT + 1; s <= ext; s++) {
-            if ((share[s] > share[s - 1]) && (share[s] >= (share[s + 1] ?? 0)) && ((out === null) || (share[s] > share[out]))) {
+        let valley = share[0];
+        for (let s = 1; s <= ext; s++) {
+            valley = Math.min(valley, share[s - 1]);
+            if ((s > HUD_OUT) && (share[s] > share[s - 1]) && (share[s] >= (share[s + 1] ?? 0)) && (valley <= HUD_VALLEY * share[s]) &&
+                ((out === null) || (share[s] > share[out]))) {
                 out = s;
             }
         }
         const atOut = (out === null) ? 0 : share[out];
+        // Left at 4:3 only where what is found there thins out moved off it: a share as high every way out is a picture
+        // fixed all over (a still screen's text over a scene), no place in particular.
+        let falls = false;
+        for (let s = 1; s <= Math.min(ext, HUD_FALL_IN); s++) {
+            falls ||= (share[s] <= HUD_VALLEY * share[0]);
+        }
         const found = (at.length >= 20) && (Math.max(share[0], atOut) >= HUD_FOUND);
         sides.push({ side, pixels: at.length, at43: share[0], out, atOut, found, ext,
-            left: found && (share[0] >= HUD_FOUND) && (atOut < 0.5 * share[0]) });
+            left: found && falls && (share[0] >= HUD_FOUND) && (atOut < 0.5 * share[0]) });
     }
     return sides;
 }
