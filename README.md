@@ -464,7 +464,8 @@ take the web support without moving its submodules to the forks (Using it in a r
   dump at a high resolution against one at the console's for seams thinner than a console pixel, and
   `sound_check.mjs` the sound `sdl_audio_record.c` records beside such a dump against a good build's, for a sound
   stuck on or gone missing. `frame_dump.mjs` plays a Linux build by a plan for those dumps, or, with `--saves`, for a
-  save made, the program restarted and the save found again, through symlinks.
+  save made, the program restarted and the save found again, through symlinks. `game_speed.mjs` judges a game's speed
+  against its console's from a plan's `clock` step, on the desktop and on a page.
   `frame_lengths.js`, a preload too, logs how long the game's frames are against the page's presents, and
   `frame_lengths.mjs` counts from that what each guess at a frame's length would hold and cut. `wait_probe.js` logs
   whether a timed wait off the page's thread ends on time, each second of a play, and `heap_probe.js` how much of its
