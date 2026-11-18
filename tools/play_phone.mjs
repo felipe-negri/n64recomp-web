@@ -6,8 +6,7 @@
 //   node tools/play_phone.mjs <url> [--steps <steps.json>] [--seconds <n>] [--json <file>] [--adb <path>]
 //     [--serial <device>] [--port <n>] [--tab <id>] [--preload <script.js>] [--no-cache] [--check]
 //
-// A whole turn on a shared phone (the proxy, the forwards, a blank tab, putting it all back) is tools/phone_turn.mjs,
-// which runs this for the play itself. --check only reads the steps and the preload and says what is wrong with them,
+// --check only reads the steps and the preload and says what is wrong with them,
 // touching nothing on the phone: every step is checked that way before a play starts anyway.
 //
 // adb forwards --port (9333) to the phone's Chrome, which must be running with USB or wireless debugging on (adb
