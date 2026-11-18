@@ -58,6 +58,21 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   `remote_frame_dump.sh` given two window sizes (`--window 1280x960,320x240`) makes both and runs it. A dump whose game
   ran slower than 10 of its own frames a second (a host whose GPU something else holds) can't pass. Its header says
   what it measured.
+- Check a desktop build's sound the same way, by `tools/sound_check.mjs`: each run frame_dump.mjs makes also records
+  every buffer the game queues to SDL with its time (`tools/sdl_audio_record.c`, through LD_PRELOAD on a Linux build),
+  and the times of the plan's steps. sound_check compares that with the recording of the same plan by a build whose
+  sound is right, given as the reference (`remote_frame_dump.sh -r <run's folder>`, frame_dump's `--sound-reference`),
+  in narrow bands lined up by the plan's steps, and fails where one is louder (a stuck or looping sound) or quieter (a
+  missing one) through seconds. A plan for it plays the scene with the fault in it: Rush 2049's squeal left playing
+  across a rewind showed only in a plan that skids while it holds Rewind. Both runs are recorded on an idle host: on a
+  busy one the game falls behind real time, the plan's keys meet it at other moments, and sound_check checks nothing.
+  Its header says what it was measured on.
+- Check a game's speed against its console's with a plan's `clock` step, in a desktop plan (`capture_window.ps1`,
+  `frame_dump.mjs`) and a page's (page_driver's): it reads a counter the game keeps every 100 ms against real time,
+  and `tools/game_speed.mjs` fails a game that ran faster than its console in any 5 s, and says where it ran slower,
+  which fails only where the host is known to keep up (`-Slow`, `--slow`). `frame_dump.mjs --launcher` starts at the
+  launcher, so a plan waits there before Start Game as a player who leaves it open, and `--no-dump` plays without a
+  dump, which slows a large window's game below its pace.
 - Play a desktop build for the crashes and hangs a short boot misses, those that come in one scene: `tools/frame_dump.mjs
   --soak <seconds>` (through `tools/remote_frame_dump.sh` like a dump) plays its Linux build by a plan through each of
   its modes and scenes once, a few minutes, pressing random keys where its `random` step says, and fails at once on
