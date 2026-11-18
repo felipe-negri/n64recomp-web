@@ -133,8 +133,8 @@ const BAD = 14; // a block's mean difference to its best match that counts as un
 const RATIO = 3; // ... and how much worse than the neighbours match each other there
 const MIN_BLOCKS = 4; // blocks a flagged frame has
 const NEAR_BLOCKS = 4; // ... or, drawn between the game's own, fewer within this many blocks of where
-const NEAR_FRAMES = 3; // ... this many other frames drawn between had theirs
-const NEAR_SECONDS = 1; // ... within this many seconds either side
+const NEAR_FRAMES = 4; // ... this many other frames drawn between had theirs
+const NEAR_SECONDS = 0.25; // ... within this many seconds either side
 const CUT = 8; // the mean difference of two of the game's frames in a row, of 255, at the least, that is a cut
 const CUT_JUMP = 2; // ... and how many times the game's frames either side of them differ, at the least
 const CUT_PARTWAY = 0.3; // a frame between a cut's two as unlike both, against how unlike they are: the camera partway
@@ -665,7 +665,7 @@ if (saveDir) {
 const middles = [];
 const flagged = [];
 let checked = 0, repeats = 0, dropped = 0, presented = 0, between = 0, first = null, last = null, run = null;
-let untested = false;
+let untested = false, gameAlone = 0;
 const sizes = new Set();
 // The game's frames, each against the one before it, and the frames RT64 drew between the two (a present's frames
 // before its last, which is the game's). Gathered until the present's own frame comes, and checked only where the dump
@@ -882,6 +882,26 @@ for (const u of small) {
         fs.rmSync(path.join(saveDir, 'small' + name));
     }
 }
+// A game's own frame counts only beside a frame between that does. A pairing fault changes only the frames between:
+// where it makes the game's own frame unlike both, the frames between either side are drawn wrongly and read so too.
+// Alone, it is the game's own picture unlike the frames either side: something that appears, goes or swells in a step
+// of its own, faster than a block's match follows, and the frames between on its way. Mario Party 2's warp pipes rise
+// from a flat ring, three in 0.8 s, and Mario Party's turn order dice swell to fill the picture's middle and shrink to
+// a third of that in one game frame, again and again.
+{
+    const isGame = (f) => f.index === f.count - 1;
+    const between = new Set(flagged.filter((u) => !isGame(u.c.f)).map((u) => u.c.f.presentId));
+    const alone = flagged.filter((u) => isGame(u.c.f) && !between.has(u.c.f.presentId) &&
+        !between.has(u.c.f.presentId + 1));
+    for (const u of alone) {
+        flagged.splice(flagged.indexOf(u), 1);
+        if (saveDir) {
+            const name = `-${String(u.c.f.n).padStart(5, '0')}.png`;
+            fs.renameSync(path.join(saveDir, 'unlike' + name), path.join(saveDir, 'alone' + name));
+        }
+    }
+    gameAlone = alone.length;
+}
 flagged.sort((u, v) => u.c.f.t - v.c.f.t);
 await Promise.all(cutChecks);
 cuts.sort((x, y) => x.f.n - y.f.n);
@@ -908,7 +928,8 @@ if (presented >= 3) {
     }
     console.log(`unlike both neighbours: ${counted.length} of ${checked} frames, at most ${burst} within a second: ` +
         (fail ? 'FAILS' : 'passes') + (passing.length ? ` (${passing.length} more, not counted, where something passes` +
-        ` close to the camera: the game's frames ${NEAR}-${CUT_WHOLE} of the picture apart, two presents running)` : ''));
+        ` close to the camera: the game's frames ${NEAR}-${CUT_WHOLE} of the picture apart, two presents running)` : '') +
+        (gameAlone ? ` (${gameAlone} of the game's own, not counted, with no frame between beside them flagged)` : ''));
     if (!quiet) {
         for (const { c, bad, bw, bh } of flagged.slice(0, 40)) {
             const xs = bad.map((i) => i % bw), ys = bad.map((i) => Math.floor(i / bw));
