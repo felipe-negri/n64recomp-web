@@ -523,6 +523,29 @@ ms), and main with rt64 c89ced0 read 58.6-60 while the display was there (an hou
 cost anything uncapped: Conker's page on v0.51.0 presented 339-341 a second against v0.50.0's 330 (headless Chrome
 155, 3840x2000, both served from one port, interleaved).
 
+## A Linux host's X server
+
+On Linux NVIDIA's Vulkan driver presents into an X server without NVIDIA's own X driver (Xvfb, or Xorg's dummy) by
+sending every image down the X socket (XPutImage), MIT-SHM or not, at about 150-190 MB a second of CPU: 35 ms a
+present at 1280x960, 83 at 2560x1440 (vkcube, an RTX 5090). Into Xorg on NVIDIA's X driver with no display
+(`UseDisplayDevice None`, `AllowEmptyInitialConfiguration`, a virtual screen, run as an ordinary user with
+`-novtswitch -sharevts`) a present takes 1.0-1.4 ms at every size, so `tools/page_play.Dockerfile` draws into that.
+
+Mario Golf's page from Pages, its shader plan and 20 s of the game, uncapped, a fresh profile, on that RTX 5090
+beside other jobs of its queue, presents a second (Xvfb's but Chrome's at 1256x645 are the same day's earlier plays
+of that page there):
+
+| Browser | Size | Xvfb | Xorg, NVIDIA's driver |
+|---|---|---|---|
+| Chrome | 1256x645 | 123 (117-148) | 357 (356-360) |
+| Chrome | 3840x2000 | 7.4-8.8 | 352 (348-360) |
+| Firefox | 1256x645 | 255 | 350 (309-354) |
+| Firefox | 3840x2000 | 220-242 | 319 (287-331) |
+
+Into Xvfb Chrome's GPU process used 1.5 cores at 1256x645 with frame gaps of 40 ms at the 99th percentile; into Xorg
+0.5, gaps of 3-5 ms, no WebGPU errors in either browser. Firefox lost less to Xvfb than Chrome, but still lost it.
+An RTX 2070 on Windows presents the same page 345 at 1256x645 and 239-287 at 3840x2000.
+
 ## A page in a hidden tab
 
 In a tab behind another, headless Chrome 155 runs a page's timers about once a second and its animation frames not at
