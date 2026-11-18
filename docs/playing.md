@@ -45,7 +45,9 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   a part of the picture moving at another pace than the rest through the frames drawn between the game's own
   (`tools/frame_pace.mjs`) and for a picture cut short at the 4:3 view's sides or black stopping short of the
   window's, and a dump of the same plan in a 4:3 window with one at 32:9 (`--narrower`, `--wider`) for a world
-  culled at the 4:3 view's sides and a HUD left at them. Where a Linux host with an NVIDIA GPU is at hand, the dumps
+  culled at the 4:3 view's sides, a HUD left at them and a wide picture whose middle 4:3 isn't the 4:3 window's (a
+  menu, a title or a wipe scaled or placed otherwise; a plan stops before a HUD the recomp moves out to the sides by
+  design, which reads so too). Where a Linux host with an NVIDIA GPU is at hand, the dumps
   and the check are made there and not on the machine that works on the game: `tools/remote_frame_dump.sh` plays the
   game's Linux build by the same plan in all three windows, runs frame_check there and brings back only its text, the
   logs, the plan's shots and the flagged frames (its header and `tools/frame_dump.mjs`'s say how), since a dump is too
