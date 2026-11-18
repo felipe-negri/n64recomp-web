@@ -2,8 +2,7 @@
 
 What a recomp's code and RT64 need to run as a page: WebGPU and the shaders, prebuilt shader lists, building with
 Emscripten, and mods. Read it before porting a game or changing a fork; the README's Using it in a recomp has the steps
-a port takes, `docs/new-recomp.md`'s web port list what a page is checked for before it is called done,
-`docs/game-forks.md` what each port found, and `docs/findings.md` the measurements.
+a port takes, and `docs/findings.md` the measurements.
 
 ## WebGPU and the shaders
 
@@ -106,7 +105,7 @@ What a recomp's code needed for wasm, besides N64ModernRuntime-0003 and N64Recom
 - A tail call is a call and a return in the C, which natively becomes a jump and in wasm stays a call: N64Recomp
   8038212 forces a `return_call` with `-mtail-call` (Conker ran out of stack minutes in without it).
 - A wait that polls memory or the clock without an OS call never ends, or starves every other game thread: ultramodern
-  runs one game thread at a time and delivers interrupts only inside OS calls (GoldenEye, docs/game-forks.md).
+  runs one game thread at a time and delivers interrupts only inside OS calls (GoldenEye).
 - An interrupt's message to a queue the game leaves full (Jet Force Gemini's controller queue) waits in a list, tried
   first at each OS call and idle wait (N64ModernRuntime 66539ab). Put back into the external queue, which keeps no
   order, the idle thread took it again at once and spun on it while the messages behind it, an RDP completion among
@@ -115,8 +114,9 @@ What a recomp's code needed for wasm, besides N64ModernRuntime-0003 and N64Recom
   thread, which presents nothing meanwhile. Read a large file with `read()` in 4 MB pieces and write it in one call,
   behind `__EMSCRIPTEN__` (N64ModernRuntime-web b79d63b, CBFD-Recompiled-web 8de429c), never with an
   istreambuf_iterator, an ifstream loop or libc++'s `std::filesystem::copy_file`, which take a 64 MB ROM in ~65,000
-  round trips (docs/findings.md, Behind CLAUDE.md's rules). The same is why `thread_stdio.js` prints a thread's lines
-  without the page's thread, and `persistent_home.js` stores a file of 1 MB or more (a ROM) from a worker.
+  round trips (Conker's ROM-version check held its launcher 0.85 s in Chrome and 2.3 s in Firefox). The same is why
+  `thread_stdio.js` prints a thread's lines without the page's thread, and `persistent_home.js` stores a file of 1 MB
+  or more (a ROM) from a worker.
 - Emscripten's SDL2 port opens audio on the page's thread except one line that reads the audio context's rate on the
   calling thread, which fails from a pthread (`frontend/sdl_audio.js` works around it). It also plays on the page's
   thread, WebGPU's, 256 frames at a time, so its callbacks come late and a laptop's music was extremely choppy. A page
@@ -143,29 +143,27 @@ What a recomp's code needed for wasm, besides N64ModernRuntime-0003 and N64Recom
   (`tools/page_driver.mjs`) shows. A new port clears the flag with Emscripten.
 - Gamepads (no `SDL_INIT_HAPTIC` on Emscripten: README) were checked with a stand-in `navigator.getGamepads()` (a
   standard-mapping pad set from CDP, `vibrationActuator.playEffect` logged): launcher, menus, a race, rumble. No real
-  pad has been tried. A phone's on-screen controller (site/touch_pad.js) is a standard-mapping pad of the same
-  kind, plugged in by a gamepadconnected event once the game starts. Exit is hidden on a page (RecompFrontend-0005): it left a black canvas, and the next input
-  aborted the program (`emscripten_proxy_async failed`).
+  pad has been tried. A phone's on-screen controller is a standard-mapping pad of the same kind, plugged in by a
+  gamepadconnected event once the game starts. Exit is hidden on a page (RecompFrontend-0005): it left a black canvas,
+  and the next input aborted the program (`emscripten_proxy_async failed`).
 - A game that draws touch controls of its own says so to the page, or a phone shows them and the page's on-screen
   controller one over the other: `Module.gameTouchControls`, true while they have the touchscreen and false while its
   player has them off, set on the page's thread whenever that changes, before the game starts too
   (`MAIN_THREAD_ASYNC_EM_ASM({ Module.gameTouchControls = !!$0; }, on)`). The page's controller and its Hide controls
-  button then stay hidden, and every touch reaches the canvas (site/touch_pad.js). The game's filter for SDL's finger
-  events is chained: SDL keeps one filter, and `SDL_SetEventFilter` replaces the one there (RecompFrontend-web's for the
-  pointer lock, which chains RT64's), so the new one takes the old with `SDL_GetEventFilter` first and passes it every
-  event it keeps, or the page loses its pointer lock. `SDL_SetEventFilter` also empties SDL's queue (RecompFrontend
+  button then stay hidden, and every touch reaches the canvas. The game's filter for SDL's finger events is chained:
+  SDL keeps one filter, and `SDL_SetEventFilter` replaces the one there (RecompFrontend-web's for the pointer lock,
+  which chains RT64's), so the new one takes the old with `SDL_GetEventFilter` first and passes it every event it
+  keeps, or the page loses its pointer lock. `SDL_SetEventFilter` also empties SDL's queue (RecompFrontend
   060709f), so it goes in where nothing is queued, after a frame's events were read. rush2recompiled-web's
   `src/touch_controls.cpp` does both.
 - A script in the page (a preload, a survey) waits on a timer (`setTimeout`, 4 ms at the shortest), never on a loop of
   messages to itself (`MessageChannel`, a promise that resolves at once): in Chrome ~10,000 tasks a second starve the
-  tasks that carry the device thread's WebGPU work, and presents stop for seconds while the thread looks free
-  (docs/findings.md, Behind CLAUDE.md's rules).
+  tasks that carry the device thread's WebGPU work, and presents stop for seconds while the thread looks free.
 - A page's build is hundreds of compiles, each starting emcc's Python (about a second on Windows), and a link whose
   Binaryen pass at -O3 runs on one core. ccache in front of emcc (`frontend/build_speed.cmake`, ccache on `PATH`) hits
   every compile of a fresh build dir of sources built before, though little carries from one game to another; a build
   dir outside the checkout gets half the hits (ccache makes paths relative only inside `CCACHE_BASEDIR`).
-  `-DN64RECOMP_BROWSER_FAST_LINK=ON` links at -O1; a page people play links at -O3. Timings: docs/findings.md, Behind
-  CLAUDE.md's rules.
+  `-DN64RECOMP_BROWSER_FAST_LINK=ON` links at -O1; a page people play links at -O3.
 
 ## Mods
 

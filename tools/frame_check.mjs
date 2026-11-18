@@ -1,5 +1,5 @@
 // Checks a game's picture by machine, from what RT64 writes with RT64_FRAME_DUMP=<dir> set (rt64-web's
-// src/hle/rt64_frame_dump.h): docs/new-recomp.md item 2's flicker and interpolation and item 1's widescreen culling,
+// src/hle/rt64_frame_dump.h): flicker, the frames interpolated between the game's own, and widescreen culling,
 // which a person or a model looking at captures missed (Mario Golf's trees put where other trees stood in every frame
 // drawn between the game's, and its ground culled at the 4:3 view's sides), and which these find without anyone
 // looking.
@@ -19,22 +19,37 @@
 //   block (8 pixels of a grey copy about 400 wide), each block to the best place within a few pixels of where the
 //   picture as a whole moved or of where the part around it moved (a screen split open from its middle, near and far
 //   parts of a scene), and each pixel of a block that matches neither whole to the nearest like it in either about the
-//   block's place there, and about its own unmoved place where the neighbours are alike there (the edge of a wipe that
-//   moved, a picture that stretches, the edge of a HUD fixed on the screen over a world that moves: 8 s of F-Zero X's
-//   race flag 39 of 767 frames at its HUD's figures without the unmoved place, 2 with it): a block neither neighbour
-//   has anywhere near, where the
+//   block's place there, and about its own unmoved place where the neighbours are alike there, or to a value between
+//   the two's there (the edge of a wipe that moved, a picture that stretches, the edge of a HUD fixed on the screen
+//   over a world that moves: 8 s of F-Zero X's race flag 39 of 767 frames at its HUD's figures without the unmoved
+//   place, 2 with it; Mario Party's board wipe between turns, a strip grown from the picture's middle whose edge pixels
+//   are part black, part board), and where it still matches neither, to something within 24 pixels that moved from
+//   one neighbour's place to the other's (a menu's cursor or bar, stepped from one option to the next, with the frame
+//   between drawn on the way): a block neither neighbour has anywhere near, where the
 //   neighbours match each other there, is something drawn for that frame alone. A frame paired wrongly between the
 //   game's own (a model drawn halfway to a look-alike's place, a camera cut stretched, polygons torn), a frame drawn
 //   in parts, a frame of garbage or an old picture between two right ones all read so; the game's own motion, a fade,
 //   a cut, a wipe, something appearing for good don't. A presented frame equal to the one before (a repeat) is left
-//   out, and a frame between that the last of its present (the game's own) repeats is the game's own picture, drawn a
-//   frame early. A frame whose neighbours are the game's own pictures as it is has nothing drawn between them to flag,
-//   and a few blocks flagged in one of the game's own aren't counted: Super Mario 64's Bob-omb Battlefield, whose
-//   dialogs draw the game's picture as the frame between, flagged 33 of its 2671 frames, 2 with this and the HUD's
-//   unmoved place above. It fails where such frames are more than 1 in 100, or come 3 or more within a second: a
-//   one-frame flash a game draws is rare and alone, and a pairing fault shows in every frame drawn between the game's
-//   for as long as the scene lasts. A frame between two of the game's own that differ over a fifth to a half of the
-//   picture (the share of the newer one's blocks with nothing like them near in the older, as the camera cuts' check reads it), where
+//   out, and the frame it repeats isn't matched: a picture the game held, its neighbours the picture before the hold
+//   and the one after, which a menu's cursor stepping from option to option and staying on each reads as unlike both
+//   (Mario Party 3's book of minigames, 12 in a second); a frame between paired wrongly is never shown twice. A frame
+//   between that the last of its present (the game's own) repeats is the game's own picture, drawn a frame early. A
+//   frame whose neighbours are the game's own pictures as it is has nothing drawn between them to flag, and a few
+//   blocks flagged in one of the game's own aren't counted: Super Mario 64's Bob-omb Battlefield, whose dialogs draw
+//   the game's picture as the frame between, flagged 33 of its 2671 frames, 2 with this and the HUD's unmoved place
+//   above. The game's own frame (the last of its present) counts only beside a frame between, either side of it, that
+//   counts too: a pairing fault changes only the frames between, so where it makes the game's frame unlike its
+//   neighbours, they read so too, and alone it is the game's own picture changing in a step faster than a block's
+//   match follows (Mario Party 2's warp pipes rising from a flat ring, Mario Party's turn order dice swelling and
+//   shrinking to a third in one game frame; 4-13 of a dump, listed apart). It fails where such frames are more than 1
+//   in 100, come 3 or more within a second, or 4 or more drawn between the game's own within 5 s have their blocks
+//   within 4 blocks of the first's: a one-frame flash a game draws is rare and alone, and a pairing fault shows in the
+//   frames drawn between the game's, again and again in one place, for as long as the scene lasts. Mario Party 3's
+//   party setup draws its spinning star's BONUS sign face-on and a second outline in frames between, where neither
+//   game frame either side has them: from 80 to 110 s, 9 of 1023 flagged, at most 2 within a second,
+//   5 in one place within 5 s. Mario Party's and 2's dumps of the same plan read 3 of 5367 and 3 of 4419.
+//   A frame between two of the game's own that differ over a fifth to a half of the picture (the share of the
+//   newer one's blocks with nothing like them near in the older, as the camera cuts' check reads it), where
 //   the game's frames before or after differ as much too, isn't counted, nor the game's frame at either end, and they are
 //   listed apart: something passing close to the camera, game frame after game frame, moves further from frame to
 //   frame than a block's match follows, and the frames between are the camera's own path. Turok: Dinosaur Hunter's
@@ -46,17 +61,17 @@
 //   flyover, whose trees its build without rt64 eda3964 put where other trees stood, has game frames at most 0.09
 //   apart, and Turok 2's world missing at the picture's edge as the player turns lies between game frames 0.01-0.05
 //   apart. A fault drawn while something passes that close to the camera goes unseen. A frame between the game's own
-//   with fewer blocks than 4 counts where 3 others between, within a second either side, have theirs within 4 blocks
-//   of its: one small thing paired wrongly, again and again in one place, where the odd small block of a clean game
-//   lands anywhere, and only where its neighbours match each other in place around it (within 3 pixels) in all but a
-//   tenth of the blocks within 4 of its: a field of sparkles the game redraws in new places every frame has a block or
-//   two unlike both in each frame, never where the last one's were, and Super Mario 64's title, sparkles over a still
-//   picture, flagged 58 of 1168 frames where it flags 22 with this and the rest below. Mario Party 3's opening without
-//   its models' tags (lib/mario-party-engine's model_ids.cpp) draws a small star for a frame where neither neighbour
-//   has it, at one place in every frame between for 0.3 s, 1-2 blocks each: 14 of 566 frames flagged, 10 within a
-//   second; with the tags, 1 of 467. On Rayman 2's, Turok 2's and
-//   3's and Rush 2049's dumps it changes no verdict, and adds nothing to the ones that pass. And a flagged frame
-//   between the game's own (not the game's own picture) that is unlike the whole picture either
+//   with fewer blocks than 4 counts where 4 others between, within a quarter second either side, have theirs within 4
+//   blocks of its: one small thing paired wrongly, again and again in one place, where the odd small block of a clean
+//   game lands anywhere (Mario Party's Luigi jumping), and only where its neighbours match each other in place around
+//   it (within 3 pixels) in all but a tenth of the blocks within 4 of its: a field of sparkles the game redraws in new
+//   places every frame has a block or two unlike both in each frame, never where the last one's were, and Super Mario
+//   64's title, sparkles over a still picture, flagged 58 of 1168 frames where it flags 22 with this and the rest
+//   below. Mario Party 3's opening without its models' tags (lib/mario-party-engine's model_ids.cpp) draws a small
+//   star for a frame where neither neighbour has it, at one place in every frame between for 0.3 s, 1-2 blocks each:
+//   11 of 341 frames flagged, 10 within a second, 10 in one place; with the tags, 0 of 282. Its board with
+//   mario-party-engine 199db65's board zoom fix reverted reads 6 of 184 frames from 205 to 232 s, 3 within a second.
+//   And a flagged frame between the game's own (not the game's own picture) that is unlike the whole picture either
 //   side of it, by 10 of 255 at the least and 3 times as much as those two differ from each other, fails alone: a pairing
 //   fault that comes once per event, not once per frame. Dinosaur Planet's map blocks paired with a look-alike across a
 //   step of its world's origin (its src/game/interpolation.cpp before its block groups) draw a cliff over the camera for
@@ -80,13 +95,16 @@
 //   texture): block by block, each to its best place in either, one unlike both by 0.3 or more of how unlike the two
 //   are to each other fails. A game camera that moves that far in one frame and that little either side is a cut,
 //   whatever the game meant by it, if it is a new shot: half or more of the new frame's blocks (the picture's edge left
-//   out) match nothing near them in the old, or a tenth or more where it jumps 3 times as far as the game's frames
+//   out) match nothing near them in the old, or a tenth or more where it jumps 5 times as far as the game's frames
 //   either side or more, unless 0.8 or more of the rest of the new frame's blocks where something is drawn (not flat)
 //   are just where they were in the old: something opening over a scene that stays put (Super Mario 64's dialog
 //   boxes, 0.13-0.16 of the picture, 0.94-0.98 of the rest in place, 29-37 times either side), where a cut moves its
-//   rest (0.00-0.17). Super Smash Bros.' camera zooming fast onto a fighter reads as a cut, 0.12 of the picture at 3.3
-//   times either side and 0.63 in place, as F-Zero X's cut drawn partway on its build without its pairing fix does at
-//   0.12, 3.2 and 0.56: nothing here tells them apart, so its frame between fails as that one's does. A near object
+//   rest (0.00-0.17). The cuts measured that change under half of the picture jump 9.2 times as far as either side
+//   or more (Mario Party 2's partway at 9.2, Mario Golf's 24, Turok 2's 49 and 58). A camera moving fast changes as
+//   much of it, its jumps uneven but never that lone: Super Smash Bros.' zooming onto a fighter reads 0.12 of the
+//   picture at 3.3 times either side, its frame between rightly halfway, and is no cut. Under 5 times are also F-Zero
+//   X's 3.2 and Paper Mario's 3.4-4.3 on their builds without their pairing fixes, which are no cuts either but that
+//   fault drawn in a frame where the game jolted, and which the check above fails in every frame between. A near object
 //   passing the camera changes the picture as much and only in part, and its frames
 //   between are the camera's own, rightly drawn: Turok: Dinosaur Hunter's title fly-over goes through a leaf between
 //   two of the game's frames, changing 0.35 of the picture, 2.4 times as far as either side, and the frame drawn between
@@ -154,7 +172,7 @@
 //   side, so neither counts. Mario Party 3's Chilly Waters at 32:9 with its board's tiles picked under 4:3 alone
 //   (lib/mario-party-engine's board_back_area() with no side) is cut short in 339 of 544 frames, 14.5 s in a row, and
 //   the game as released in none of 381, though its map ends short of the window in much of them. A straight line: a
-//   column within a twentieth of the view's width of its side that steps sharply in 0.3 more of its rows than the
+//   column at the view's side or within a twentieth of its width inside it that steps sharply in 0.3 more of its rows than the
 //   columns around it (only rows drawn either side of it, so a picture's own end isn't one), in the same column in a
 //   quarter or more of the frames where the scene moves, looked at four a second: something the game cuts a few
 //   pixels short of the side, the picture behind it showing. Mario Party 3's opening without mario-party-engine
@@ -164,6 +182,11 @@
 //   pixels 3 either side, as much as a moving scene does): a cut lies across what moves, where the scene's own straight
 //   edge that stands still isn't one. Paper Mario's opening at 32:9 has its stage's pillars at the view's sides while only
 //   the curtain above them moves: a line 2 pixels out in 6 of 23 moving frames, 2 counting the picture beside it.
+//   Past the view's side no line counts: what a game cuts short is its own screen (a scissor, a viewport), so its line
+//   lies at the view's side or inside it, where past it the picture is the widening's, its straight lines the HUD
+//   placed out at the window's side or the scene's own. F-Zero X's race in a 16:9 window has its racers' portraits'
+//   edge 9 pixels out from the view's side, over the race moving beside it: a line in 30 of 75 moving frames, 17
+//   even counting only those where both sides of it move, and not one inside the view.
 //   Turok 1's and 2's 16:9 sweeps and Mario Golf's iris wipes have neither. Neither
 //   needs two runs to agree, so a board the computer players play differently each time is checked too.
 //
@@ -213,15 +236,17 @@ const BAD = 14; // a block's mean difference to its best match that counts as un
 const RATIO = 3; // ... and how much worse than the neighbours match each other there
 const MIN_BLOCKS = 4; // blocks a flagged frame has
 const NEAR_BLOCKS = 4; // ... or, drawn between the game's own, fewer within this many blocks of where
-const NEAR_FRAMES = 3; // ... this many other frames drawn between had theirs
-const NEAR_SECONDS = 1; // ... within this many seconds either side
+const NEAR_FRAMES = 4; // ... this many other frames drawn between had theirs
+const NEAR_SECONDS = 0.25; // ... within this many seconds either side
+const PLACE_FRAMES = 4; // flagged frames between, within NEAR_BLOCKS of the first's blocks, that fail together
+const PLACE_SECONDS = 5; // ... within this many seconds of it
 const LONE = 10; // a frame between the game's own as unlike each neighbour, of 255 over the whole picture, at the least,
 const LONE_RATIO = 3; // ... and this many times as unlike as they are to each other: a fault alone
 const CUT = 8; // the mean difference of two of the game's frames in a row, of 255, at the least, that is a cut
 const CUT_JUMP = 2; // ... and how many times the game's frames either side of them differ, at the least
 const CUT_PARTWAY = 0.3; // a frame between a cut's two as unlike both, against how unlike they are: the camera partway
 const CUT_WHOLE = 0.5; // ... and the share of the new frame's blocks the old one has nothing like: a new shot
-const CUT_LONE = 3; // ... or, where the game's frames either side of them differ this many times less, at the least,
+const CUT_LONE = 5; // ... or, where the game's frames either side of them differ this many times less, at the least,
 const CUT_PART = 0.1; // ... this share of the new frame's blocks: a new shot much like the old one
 const CUT_STILL = 0.8; // ... unless this share of the rest of it, where something is drawn (FLAT), is where it was
 const FLAT = 4; // a block's mean difference from its own mean, of 255, under which nothing is drawn in it
@@ -230,6 +255,7 @@ const STIR = 0.1; // a frame of fewer than MIN_BLOCKS counts only where its neig
 const NEAR = 0.2; // the share, at the least, of something passing near the camera: frames between not counted
 const P = 2; // a pixel's search about its block's best place, in grey pixels (eitherDiff())
 const M = 2; // the quarter pixels around a block that its own shift is found over (placesOf())
+const RM = 24; // how far a block's thing moved from one neighbour to the other is looked for, in grey pixels (movedDiff())
 const SIDES_GROW = 1.1; // how many times the triangles past the 4:3 view a 32:9 picture has against a 4:3 one, at least
 const SIDES_DENSE = 0.5; // ... unless the strip is this dense against the view: a world not culled at its sides
 const SIDES_FEW = 50; // triangles a workload past the view in the wider picture under which a scene can't fail: too few to tell
@@ -238,17 +264,20 @@ let dumpStartMs = null; // the first frame's time, ms since 1970: the dump's sec
 
 // The picture's box in a dump's frames between --from and --to, from their top left corner. RT64 draws a frame into a
 // color target that can be larger than the picture (one kept from a larger frame before, the targets of the frames
-// drawn between the game's), and the dump reads back the whole target, so one dump's frames can come in several sizes
-// with the picture the same size in each and black past it: Rush 2049's at 16:9, 533x301 and 533x275 every two
-// frames, a 489x275 picture in both. Matched whole, a frame of another size than the one before starts the matching
-// again, and with sizes taking turns every two frames no three in a row are compared: 422 of Rush 2049's 2150 were.
-// So every frame is cut to the box before it is matched. The box is the smallest of the sizes at least half as many of
-// those frames have as the commonest size does, so a dump that starts before its plan sizes the window (Rayman 2's
-// first 129 frames at 300x224, then 533x300) takes the size the plan set, and a frame smaller than it is matched whole,
-// starting the matching again.
-// Where those sizes differ, the box is less the columns and rows at its right and bottom that are black in each of 64
-// frames taken across those seconds; a dump in one size is its own box, so a picture the game itself pillarboxes isn't
-// cut on one side only. Its shape is the picture's, which the sides check takes too (sidesOf()).
+// drawn between the game's), and a dump from a build before rt64 a00fdff reads back the whole target, so its frames can
+// come in several sizes with the picture the same size in each and black past it: Rush 2049's at 16:9, 533x301 and
+// 533x275 every two frames, a 489x275 picture in both. Past it can be an old picture too, which no box cuts: Dinosaur
+// Planet's frames between the game's at 1280x720 came out 564x320 beside the game's 640x360, the boot logos' text past
+// a 427x240 picture, and 6 of 2027 frames failed. From a00fdff on, the dump reads back only the picture, so a dump
+// comes in one size while the picture keeps one, and is its own box. Matched whole, a frame of another size than the
+// one before starts the matching again, and with sizes taking turns every two frames no three in a row are compared:
+// 422 of Rush 2049's 2150 were. So every frame is cut to the box before it is matched. The box is the smallest of the
+// sizes at least half as many of those frames have as the commonest size does, so a dump that starts before its plan
+// sizes the window (Rayman 2's first 129 frames at 300x224, then 533x300) takes the size the plan set, and a frame
+// smaller than it is matched whole, starting the matching again. Where those sizes differ, the box is less the columns
+// and rows at its right and bottom that are black in each of 64 frames taken across those seconds; a dump in one size
+// is its own box, so a picture the game itself pillarboxes isn't cut on one side only. Its shape is the picture's,
+// which the sides check takes too (sidesOf()).
 function pictureBox(d) {
     const fd = fs.openSync(path.join(d, 'frames.bin'), 'r');
     const size = fs.fstatSync(fd).size;
@@ -503,10 +532,14 @@ function explain(a, b, gw, gh, places) {
 }
 
 // Block k of c against a and b each about its best place (explain()'s), each pixel against the closest pixel of either
-// within P of there: a block half one picture and half the other (the edge of a wipe that moved between them), or
-// stretched a little (a wipe that scales), is explained, a model where neither has anything like it nearby isn't. Where
-// a and b are alike in the block's own place, unmoved, each is searched there too: a block half something fixed on the
-// screen and half what moves behind it (a HUD's edge over a moving world) is explained.
+// within P of there, or against the span between the two's pixels there: a block half one picture and half the other
+// (the edge of a wipe that moved between them), or stretched a little (a wipe that scales), is explained, a model where
+// neither has anything like it nearby isn't. A wipe's edge seldom falls on a grey pixel's edge, so the pixel it crosses
+// is part the one picture and part the other, a shade neither has: Mario Party 2's board opening from a band across
+// the middle between turns, a strip a lone game frame grows, had its edges flagged in every frame of it. Where a and
+// b agree, the span between them is nothing, so a model drawn where both have the same thing still reads as unlike.
+// Where a and b are alike in the block's own place, unmoved, each is searched there too: a block half something fixed
+// on the screen and half what moves behind it (a HUD's edge over a moving world) is explained.
 function eitherDiff(c, a, b, ea, eb, k, gw, gh) {
     const bw = gw / B | 0;
     const by = Math.floor(k / bw), bx = k % bw;
@@ -530,11 +563,15 @@ function eitherDiff(c, a, b, ea, eb, k, gw, gh) {
         for (let x = bx * B; x < (bx + 1) * B; x++) {
             const v = c[y * gw + x];
             let m = Infinity;
-            for (const [n, dy, dx] of places) {
-                for (let py = -P; py <= P; py++) {
-                    const yn = clampY(y + dy + py) * gw;
-                    for (let px = -P; px <= P; px++) {
-                        m = Math.min(m, Math.abs(v - n[yn + clampX(x + dx + px)]));
+            const [[, ady, adx], [, bdy, bdx]] = places;
+            for (let py = -P; py <= P; py++) {
+                const ya = clampY(y + ady + py) * gw, yb = clampY(y + bdy + py) * gw;
+                for (let px = -P; px <= P; px++) {
+                    const va = a[ya + clampX(x + adx + px)], vb = b[yb + clampX(x + bdx + px)];
+                    m = Math.min(m, Math.abs(v - va), Math.abs(v - vb), Math.max(Math.min(va, vb) - v, v - Math.max(va, vb), 0));
+                    for (let k = 2; k < places.length; k++) {
+                        const [n, dy, dx] = places[k];
+                        m = Math.min(m, Math.abs(v - n[clampY(y + dy + py) * gw + clampX(x + dx + px)]));
                     }
                 }
             }
@@ -569,6 +606,50 @@ function blendDiff(c, a, b, ea, eb, k, gw, gh) {
         s += Math.abs(cs[i] - as[i] - t * (bs[i] - as[i]));
     }
     return s / cs.length;
+}
+
+// Block k of c as something that moved from a to b through it: the same block in a at -d and in b at +d (within a pixel),
+// for the d up to RM that fits best, where a has nothing like it at +d nor b at -d. A thing moving faster than a block's
+// search follows (a menu's cursor and its bar a whole option a frame, a title sliding in) lies halfway along its path in
+// a frame between, as unlike both as a model put where it never is, but it left the place it was in a for the place it
+// is in b. A model drawn halfway to a look-alike's place lies between the two as well, but both stand where they stand
+// in a and in b, so the like at the other end is there in both, and the block is not explained.
+function movedDiff(c, a, b, k, gw, gh) {
+    const bw = gw / B | 0;
+    const by = Math.floor(k / bw) * B, bx = (k % bw) * B;
+    const at = (f, dy, dx) => {
+        let s = 0;
+        for (let y = 0; y < B; y++) {
+            const r = Math.min(Math.max(by + y + dy, 0), gh - 1) * gw;
+            for (let x = 0; x < B; x++) {
+                s += Math.abs(c[(by + y) * gw + bx + x] - f[r + Math.min(Math.max(bx + x + dx, 0), gw - 1)]);
+            }
+        }
+        return s / (B * B);
+    };
+    let best = Infinity;
+    for (let dy = -RM; dy <= RM; dy++) {
+        for (let dx = -RM; dx <= RM; dx++) {
+            if (Math.max(Math.abs(dy), Math.abs(dx)) <= R) {
+                continue;
+            }
+            const da = at(a, -dy, -dx);
+            if ((da >= best) || (da > BAD)) {
+                continue;
+            }
+            let db = Infinity;
+            for (let ey = -1; ey <= 1; ey++) {
+                for (let ex = -1; ex <= 1; ex++) {
+                    db = Math.min(db, at(b, dy + ey, dx + ex));
+                }
+            }
+            if ((db > BAD) || (Math.max(da, db) >= best) || (at(a, dy, dx) <= BAD) || (at(b, -dy, -dx) <= BAD)) {
+                continue;
+            }
+            best = Math.max(da, db);
+        }
+    }
+    return best;
 }
 
 // The mean absolute difference of a to b moved by (dy, dx) grey pixels, over a's pixels whose place in b lies inside it.
@@ -718,7 +799,7 @@ const middles = [];
 const owns = []; // each kept frame's own.game: whether it is the game's own picture
 const flagged = [];
 let checked = 0, repeats = 0, dropped = 0, presented = 0, between = 0, first = null, last = null, run = null;
-let untested = false;
+let untested = false, gameAlone = 0;
 const sizes = new Set();
 // The game's frames, each against the one before it, and the frames RT64 drew between the two (a present's frames
 // before its last, which is the game's). Gathered until the present's own frame comes, and checked only where the dump
@@ -885,6 +966,9 @@ function middleBad(gw, gh, a, c, b) {
             if (e > BAD) {
                 e = Math.min(e, blendDiff(c.g, a.g, b.g, ea, eb, i, gw, gh));
             }
+            if (e > BAD) {
+                e = Math.min(e, movedDiff(c.g, a.g, b.g, i, gw, gh));
+            }
             // a's block that c's block i matched, roughly: i shifted by its match in a, in blocks
             const ay = Math.min(Math.max(by + Math.round(ea.dy[i] / B), 0), bh - 1);
             const ax = Math.min(Math.max(bx + Math.round(ea.dx[i] / B), 0), bw - 1);
@@ -926,9 +1010,17 @@ function middleBad(gw, gh, a, c, b) {
     return { bad, stir };
 }
 
+// A frame presented again unchanged after it (a repeat) is a picture the game held, not one drawn for a frame alone,
+// and isn't matched: repeats left out, the frames either side of it are the ones before and after the hold, and a
+// menu's cursor that steps from option to option and stays on each reads as unlike both, the step before and the step
+// after. Mario Party 3's book of minigames drew it 12 times in a second, its bar's edge one block each. A frame between
+// paired wrongly is never shown twice: the game's own frame after it is drawn as the game has it.
 function checkMiddle({ gw, gh, kept }) {
     const bw = gw / B | 0, bh = gh / B | 0;
     const [a, c, b] = kept;
+    if (c.held) {
+        return;
+    }
     checked++;
     middles.push(pool.run('middle', gw, gh, kept).then(({ bad, stir }) => {
         const small = bad.length < MIN_BLOCKS;
@@ -965,6 +1057,7 @@ for (const f of readFrames()) {
     const prev = run.kept[run.kept.length - 1];
     if (prev && (meanDiff(g, prev.g) < 0.05)) {
         repeats++;
+        prev.held = true;
         if (own(f) && (prev.f.presentId === f.presentId)) {
             prev.own.game = true;
         }
@@ -1010,6 +1103,26 @@ for (const u of small) {
         fs.rmSync(path.join(saveDir, 'small' + name));
     }
 }
+// A game's own frame counts only beside a frame between that does. A pairing fault changes only the frames between:
+// where it makes the game's own frame unlike both, the frames between either side are drawn wrongly and read so too.
+// Alone, it is the game's own picture unlike the frames either side: something that appears, goes or swells in a step
+// of its own, faster than a block's match follows, and the frames between on its way. Mario Party 2's warp pipes rise
+// from a flat ring, three in 0.8 s, and Mario Party's turn order dice swell to fill the picture's middle and shrink to
+// a third of that in one game frame, again and again.
+{
+    const isGame = (f) => f.index === f.count - 1;
+    const between = new Set(flagged.filter((u) => !isGame(u.c.f)).map((u) => u.c.f.presentId));
+    const alone = flagged.filter((u) => isGame(u.c.f) && !between.has(u.c.f.presentId) &&
+        !between.has(u.c.f.presentId + 1));
+    for (const u of alone) {
+        flagged.splice(flagged.indexOf(u), 1);
+        if (saveDir) {
+            const name = `-${String(u.c.f.n).padStart(5, '0')}.png`;
+            fs.renameSync(path.join(saveDir, 'unlike' + name), path.join(saveDir, 'alone' + name));
+        }
+    }
+    gameAlone = alone.length;
+}
 flagged.sort((u, v) => u.c.f.t - v.c.f.t);
 await Promise.all(cutChecks);
 cuts.sort((x, y) => x.f.n - y.f.n);
@@ -1029,8 +1142,15 @@ if (presented >= 3) {
         }
         burst = Math.max(burst, i - j + 1);
     }
+    // PLACE_FRAMES or more drawn between the game's own within PLACE_SECONDS, in one place.
+    const inPlace = counted.filter(({ own: [, o] }) => !o.game);
+    let place = 0;
+    inPlace.forEach((u, i) => {
+        const at = inPlace.slice(i).filter((v) => (v.c.f.t - u.c.f.t <= PLACE_SECONDS) && ((v === u) || near(u, v)));
+        place = Math.max(place, at.length);
+    });
     const lone = counted.filter((u) => u.lone);
-    const fail = (counted.length * 100 > checked) || (burst >= 3) || (lone.length > 0);
+    const fail = (counted.length * 100 > checked) || (burst >= 3) || (place >= PLACE_FRAMES) || (lone.length > 0);
     failed ||= fail;
     console.log(`frames: ${presented} presented over ${(last.t - first.t).toFixed(1)} s, ${between} of them between the` +
         ` game's own (${repeats} repeats, ${dropped} dropped by the dump, ${drawn} of them kept that aren't the game's` +
@@ -1041,10 +1161,12 @@ if (presented >= 3) {
             ' they are paired (the game\'s own frames flagged are left out): dump at Framerate Display on a display faster' +
             ' than the game');
     }
-    console.log(`unlike both neighbours: ${counted.length} of ${checked} frames, at most ${burst} within a second` +
+    console.log(`unlike both neighbours: ${counted.length} of ${checked} frames, at most ${burst} within a second, ` +
+        `${place} between the game's own in one place within ${PLACE_SECONDS} s` +
         (lone.length ? `, ${lone.length} between the game's own unlike the whole picture either side of it` : '') + ': ' +
         (fail ? 'FAILS' : 'passes') + (passing.length ? ` (${passing.length} more, not counted, where something passes` +
-        ` close to the camera: the game's frames ${NEAR}-${CUT_WHOLE} of the picture apart, two presents running)` : ''));
+        ` close to the camera: the game's frames ${NEAR}-${CUT_WHOLE} of the picture apart, two presents running)` : '') +
+        (gameAlone ? ` (${gameAlone} of the game's own, not counted, with no frame between beside them flagged)` : ''));
     if (!quiet) {
         for (const { c, bad, bw, bh, lone: alone } of flagged.slice(0, 40)) {
             const xs = bad.map((i) => i % bw), ys = bad.map((i) => Math.floor(i / bw));
@@ -1224,7 +1346,7 @@ const SEAM_MOVES = 2; // a frame's mean difference to the last one looked at, of
 const SEAM_BESIDE = 3; // ... where the pixels this many columns either side of a line, in the rows it steps, move as much
 const SEAM_STEP = 10; // a step between two pixels, of 255, that counts in a column
 const SEAM_OVER = 0.3; // the share of a column's rows stepping, over its neighbours', that is a straight line
-const SEAM_NEAR = 0.05; // ... within this much of the view's width of its sides
+const SEAM_NEAR = 0.05; // ... at the view's sides or within this much of its width inside them
 const SEAM_SHARE = 0.25; // ... in this share of the frames where the scene moves: fails
 
 // A dump's frames between --from and --to, one every <every> seconds, cut to its picture's box.
@@ -1359,8 +1481,9 @@ function pictureAtSides(d) {
             return n ? sum / n : 0;
         };
         const near = Math.ceil(SEAM_NEAR * vw);
-        for (const side of [v0, v1 - 1]) {
-            for (let x = Math.max(side - near, 7); x <= Math.min(side + near, w - 9); x++) {
+        // At the view's side or inside it, a step between columns x and x + 1: v0 - 1 and v1 - 1 are the side itself.
+        for (const [x0, x1] of [[v0 - 1, v0 - 1 + near], [v1 - 1 - near, v1 - 1]]) {
+            for (let x = Math.max(x0, 7); x <= Math.min(x1, w - 9); x++) {
                 const around = [];
                 for (let k = 2; k <= 6; k++) {
                     around.push(share[x - k], share[x + k]);

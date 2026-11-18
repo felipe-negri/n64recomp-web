@@ -8,7 +8,7 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Twenty-three options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Twenty-four options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
@@ -17,7 +17,8 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
 2d2db0c, d798d28, a17b46a, 952d327, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4,
-1682468, which it turns on too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
+1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES` (rt64 9ef2024,
+a86c053, ff78e32, which it turns on too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
 `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
@@ -421,8 +422,8 @@ N64ModernRuntime       on a page the timer thread orders its timers by a copy of
 ba2551b,               added, not by the OSTimer's own, which osSetTimer rewrites on the game's thread: a timer
 a25ea81                restarted while still pending moved inside the set, its erase missed, and it fired at every
                        pass with no wait, so Banjo-Tooie's page on a phone hung at a level change and ended in
-                       Aborted(OOM) (docs/phones.md); a25ea81 keeps the timers in a TimerSet with a std::set's calls,
-                       so the loop stays each pinned runtime's own (ba2551b's copy of it didn't compile on ca568b6)
+                       Aborted(OOM); a25ea81 keeps the timers in a TimerSet with a std::set's calls, so the loop stays
+                       each pinned runtime's own (ba2551b's copy of it didn't compile on ca568b6)
 rt64 dd2fd23,          a triangle covers its scissor only where it crosses the camera plane, on every build: one wholly
 baa3753                behind it draws nothing, and one wholly in front has its box from its vertices held to 8192
                        pixels. a8bfc93 made a pass of triangles behind the camera or off one side a write of its whole
@@ -447,7 +448,7 @@ rt64 30df1f5           one just queued, and an upload buffer is mapped at memory
                        writes copied for the backend's at unmap(): RT64 waits after each list, each wait a trip to
                        the page's thread behind everything queued there, 5.5-6.7 ms of each interpolated frame on a
                        phone, so RT64 skipped the second frame of 35-45% of Rush 2049's game frames; 1-5% with this,
-                       and 44.8 presents a second against 39.7 (docs/phones.md)
+                       and 44.8 presents a second against 39.7
 rt64 63703df           a TMEM hash takes a CI4 texture's palette indices from 16 pieces of its byte set, not a loop
                        over 256 values, and each run of used palette indices in one update, not 8 bytes an index:
                        the same bytes and hashes (2,000,000 random tiles compared), on every build; Rush 2049's race
@@ -472,14 +473,14 @@ rt64 e74c09d           5aa2cbe, without a copy of its own on the calling side: t
 rt64 9c88af0           7844c07's slowest of the last three only where the fastest took one VI: a game at 30 mixing
                        frames of 2 and 3 VIs or more is timed at the fastest again, as RT64 skipped the third frame it
                        set each; on a phone, with State's layout right (rt64 43ef41c) both ways, Diddy Kong Racing
-                       presented 58.3 and 58.7 a second against 57.0 and 54.7 (docs/phones.md)
+                       presented 58.3 and 58.7 a second against 57.0 and 54.7
 rt64 b173eb3,          on the web a present is dropped for a newer one only once its own workload is done and the
 rt64 01d734b,          newer one's is too, not as it is taken from the queue: where workloads end after the game's
 rt64 2f9290c           next present comes, every present found a newer one queued and was dropped, and Banjo-Tooie's
                        page on a phone showed nothing from its attract's second level change on, its game still
-                       running (docs/phones.md); 01d734b moves the function it adds out of the lines Jet Force
-                       Gemini's own RT64 patch changes, and 2f9290c out of where Pokémon Snap's port adds one, where
-                       its web fork's three-way merge put it inside that function without a conflict
+                       running; 01d734b moves the function it adds out of the lines Jet Force Gemini's own RT64
+                       patch changes, and 2f9290c out of where Pokémon Snap's port adds one, where its web fork's
+                       three-way merge put it inside that function without a conflict
 rt64 43ef41c           RT64_UNEVEN_FRAME_RATES is a PUBLIC definition, as RT64_GAME_FRAME_WORKLOADS is: 7844c07 put
                        fields of VIHistory under it in rt64_vi.h, so a recomp's own code that includes rt64_state.h
                        (Diddy Kong Racing's F3DDKR and scenery code, Pokémon Snap's render context) saw every State
@@ -508,8 +509,7 @@ rt64 1c9e639           with render to RAM's late copy and a frontend's Applicati
                        its full sync tells the game its RDP is done once its draws are interpreted and its tiles
                        loaded, before RT64 records and submits its last batch, that batch's framebuffers kept whole
                        for it to read; a pending copy still lands before the next list's RDP is done, at its start,
-                       and a desktop build (no rdpDone) is unchanged (docs/phones.md, Conker's Bad Fur Day on a
-                       Galaxy S21)
+                       and a desktop build (no rdpDone) is unchanged (docs/phones.md, What holds a page back)
 N64ModernRuntime       Emscripten: ultramodern::renderer::rdp_done() sends a graphics task's DP message from inside
 51dd220                send_dl, and dp_complete() doesn't send it again (take_rdp_done()); nothing calls it on a
                        desktop build
@@ -930,8 +930,8 @@ N64ModernRuntime       ULTRAMODERN_YIELDS_END_QUEUED_GRAPHICS: a yield the game 
                        loaded since until the page ran out of memory, or the scheduler's thread queues broke. With
                        render to RAM's late copy it came 33 times in a play, and the page never reached a race. A
                        game that reuses a list's buffer once the RSP is done can't take the early done, and its page
-                       takes the define out: Rage Wars' (docs/game-forks.md), and Turok 2's and Turok 3's (their
-                       CMakeLists.txt), which ran out of memory or stopped drawing in their first level from v0.192.0
+                       takes the define out: Rage Wars', and Turok 2's and Turok 3's (their CMakeLists.txt), which
+                       ran out of memory or stopped drawing in their first level from v0.192.0
 rt64 32e204c           the RAM of the framebuffer a VI shows changed to what render to RAM copied into it is no present
                        and no frame of its own (VIHistory::pushFactor), as with render to RAM off: Turok 2's second list
                        a frame draws into the framebuffer already shown, and its exact copy, landing a VI after the
@@ -1225,6 +1225,44 @@ rt64 21ed4b9           RT64_SKIP_PLACE_SWAPS: nor a pair of a transform whose ve
                        a frame
 rt64 3c875ec           TransformMap's verticesStill moved after its rigidBody: WWF No Mercy's rt64 adds fields after
                        mapped, and a field there too was its three-way merge's conflict (wwf-patches). It does the same
+rt64 5c90244           a scissor's left and right sides are on the pixel nearest them, as a rect's are and as its own
+                       top and bottom were, not floored and ceiled: where the picture's scale left an x off a whole
+                       pixel, the scissor took in a column on each side that a rect over the same x leaves out, and
+                       Mario Golf's course showed in a line down each side of the black screen its closed iris wipe
+                       draws in a wide window (x 8 on 56.9 of 2276). It takes in ae0a708's case
+rt64 9ef2024           RT64_INTERPOLATE_SCREEN_VERTICES: a screen position a game writes into a vertex (G_MODIFYVTX's
+                       XYSCREEN) is drawn between the game frame before's and its own, paired in the order the game
+                       wrote them through one projection: Mario Golf writes four corners of its pin's flagstick, which
+                       stood still on the screen a game frame at a time while the green moved under it, its foot
+                       sliding across the cup and back, four frames a game frame at 120 Hz
+rt64 a86c053           RT64_INTERPOLATE_SCREEN_VERTICES's function at the end of the projection processor, with no
+                       include of its own: Banjo-Tooie's own RT64 changes add lines where 9ef2024 put it and its
+                       include, and didn't apply over 9ef2024
+rt64 ff78e32           RT64_INTERPOLATE_SCREEN_VERTICES's function after the camera's eye helpers, the file's end as
+                       upstream has it: Beetle Adventure Racing's own RT64 changes end the file with a newline, and
+                       didn't apply over a86c053
+rt64 a00fdff           RT64_FRAME_DUMP reads back only the box of a present's color target the VI draws from, not the
+                       whole target: the targets of the frames drawn between the game's are kept at the largest size
+                       drawn, so Dinosaur Planet's at 1280x720 read 1692x960 and came out 564x320 beside the game's
+                       640x360, with the boot logos' text past the picture, and frame_check failed 6 of 2027
+rt64 9adecdf           RT64_FRAME_DUMP's sides.tsv counted the model matrices drawn wholly past the view's sides,
+                       reverted by 4de3122: the count didn't tell a game that culls nothing by the window from one
+                       culled to 4:3
+rt64 f0da42b           a present that takes a game frame whose frames a present has shown presents nothing, and the
+                       screen holds its last frame: the VI showing a frame again showed them all again, the frame
+                       between the game's first, from targets the next game frame was already drawn into, so
+                       Mario Golf's menus now and then showed a character with a forearm gone for one frame
+rt64 ffc1447           f0da42b's shown at InterpolatedFrameCounters' end, past inUse, where Jet Force Gemini's own
+                       field after skipped doesn't meet it
+rt64 3f0181c           RT64_FRAME_DUMP_RATE=<Hz>, beside RT64_FRAME_DUMP: the swap chain's vsync off and its rate taken
+                       as that one wherever RT64 sets it, so Framerate Display presents and interpolates at it whatever
+                       the display's: a game of 60 on a 59-60 Hz display presented no frame between the game's, and
+                       Perfect Dark's Defection dumped 0 of 2879, at Framerate Display and at Manual 120 alike
+rt64 696a70d           RT64_FRAME_DUMP_RATE's swapChainCreated() after the swap chain's rate is first set, away from
+                       createSwapChain(): Diddy Kong Racing's own RT64 change adds a check right after it, and didn't
+                       apply over 3f0181c
+rt64 4de3122           9adecdf (sides.tsv's count of model matrices drawn wholly past the view's sides) reverted: the
+                       pin carries both, so nothing changes
 rt64 9ed78c7           a framebuffer's pixels are shaped as the TV shows them (VI::pixelAspect(), from the VI's x and y
                        scales): the ratios the TV shows (the window's under Expand, Manual's targets) are divided by it,
                        and without black borders SD space is the framebuffer's width times it. Excitebike 64 draws at

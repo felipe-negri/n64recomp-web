@@ -19,7 +19,6 @@ game: what one of them or one browser turns up is fixed in this repo or the fork
 so every game and both browsers get it. Rush 2049, Perfect Dark, Super Mario 64, F-Zero X, Mario Party 1, 2 and 3,
 Super Smash Bros., Paper Mario, Mario Golf, Rayman 2, Donald Duck: Goin' Quackers, Dinosaur Planet, Turok: Dinosaur Hunter, Turok 2
 and Turok 3 are this project's own recomps, each with releases of its desktop build for Windows and Linux on its repo's Releases page.
-A game is released, and gets its row here, once it has been played through its checklist (docs/new-recomp.md).
 
 | Game | Recomp | Repo | Page |
 |---|---|---|---|
@@ -69,8 +68,7 @@ A game is released, and gets its row here, once it has been played through its c
 This is for a recomp built on RecompFrontend that already builds for the desktop. Its dependencies stay as they are:
 `rt64`, `N64ModernRuntime` and `RecompFrontend` remain its own submodules at the commits it pins, this repo is added
 beside them, and the web build patches their checkouts with `patches/`. The patches change nothing in a desktop build
-but fixes to bugs it has too (The forks), and the changes stay in the checkouts, uncommitted. What a page is played
-and checked for before a port is called done is docs/new-recomp.md's web port list.
+but fixes to bugs it has too (The forks), and the changes stay in the checkouts, uncommitted.
 
 ### 1. Add this repo
 
@@ -136,8 +134,7 @@ What changes in the game's own code (behind `__EMSCRIPTEN__`) and files:
   with settings of its own sets them with Emscripten (Ocarina of Time's `machine_defaults`, Jet Force Gemini's Frame
   Interpolation, with a page's saved settings moved to it once), and one that interpolates only in a profile of its own plays
   that profile on a page (DKR-R's Modern, in its default widescreen). The game's own frame rate setting stays as the
-  game has it, but where a faster one plays the page better (Jet Force Gemini's Game Frame Rate 60: docs/game-forks.md,
-  The games' own frame rates).
+  game has it, but where a faster one plays the page better (Jet Force Gemini's Game Frame Rate 60).
 - A window made without `SDL_WINDOW_ALLOW_HIGHDPI`, so the canvas stays in CSS pixels. With it, a recomp that makes its
   own window gets a canvas at the device's pixels, which on a laptop at 200% draws four times the pixels and takes every
   click at the wrong spot: Wave Race 64's Load ROM opened nothing there (wave-race-64-recomp-web 9d3f621).
@@ -208,7 +205,7 @@ What changes in the game's own code (behind `__EMSCRIPTEN__`) and files:
   already held looks untouched, though, and gets the frame, so it is also wrong for a game that puts code or data in
   a framebuffer's memory once the RDP is done: Jet Force Gemini's CPU reworks its shadows' render targets once the RDP
   has drawn them, and keeps the exact copy too. Conker's, GoldenEye's, Donkey Kong 64's, Perfect Dark's and F-Zero
-  X's pages take the copy late (docs/game-forks.md).
+  X's pages take the copy late.
 - Give RT64 a list of the game's shaders, so the page builds them before the game draws with them.
   This is part of every port, not an optional extra: without it the page is unplayable on most machines. Until a
   shader is built RT64 draws with its ubershader, which costs several times as much a pixel: on a laptop's Intel
@@ -445,35 +442,24 @@ take the web support without moving its submodules to the forks (Using it in a r
   waiting for the page's thread, SDL2 audio from a thread, sound
   played on the browser's audio thread (`audio_output.h`), the browser's file picker for a recomp with menus of its own
   (`file_picker.h`), the WebGPU device, a notice in Firefox on Windows' Intel graphics naming its fixes, fullscreen in landscape at
-  a phone's first tap, an on-screen controller on a phone once the game starts (`site/touch_pad.js`, served from the
-  hub's top and put into a game's frame by the hub, so it changes without a page build; it steps aside for a game that
+  a phone's first tap, an on-screen controller on a phone once the game starts (the hub's `touch_pad.js`, served from
+  its top and put into a game's frame by the hub, so it changes without a page build; it steps aside for a game that
   draws touch controls of its own), and `coi_serviceworker.js`.
 - `renderer/`: RT64 as the runtime's renderer without RecompFrontend, for a test page with no menus.
 - `tools/`: `fetch_forks.sh` checks out the forks at `forks.txt`'s commits (CI uses it), `fetch_pins.sh` a recomp's
-  own commits in `patches/pins.txt`, patched, and `publish_page.sh` puts
-  a recomp's built page on GitHub Pages, in its folder of the hub (n64hub), as the only commit on an orphan `gh-pages`
-  branch (its header says how); `publish_site.sh` publishes the games' page (`site/`) at the hub's top. Each
-  waits until Pages has deployed what it pushed, building it again when a deploy fails (`wait_pages.sh`). A page holds the recompiled code, so it is built where the ROM is, never in CI. `publish_pages.sh` is the
-  deploy after a change: it rebuilds every game's page in the Games table from its main on a build host, publishes
-  only those whose files differ from what Pages serves (a commit builds the same bytes in any checkout), and boots
-  each one it published from Pages in headless Chrome; `play_pages.sh` then plays the pages Pages serves by their
-  regular plans, most often in Firefox, which needs no build, so another machine can do it during an update of every game. `timer_tick.c`, linked into a test build, makes a desktop's
+  own commits in `patches/pins.txt`, patched. A page holds the recompiled code, so it is built where the ROM is,
+  never in CI. `timer_tick.c`, linked into a test build, makes a desktop's
   timed waits end on Windows' default 15.6 ms tick, as Firefox's do on a laptop. `record_shaders.mjs` records a
   prebuilt shader list by a plan, and `play_page.mjs` plays a page, a build or one on Pages, by the same kind of plan in
   Chrome or Firefox and measures it: presents a second, sound frames short, WebGPU errors, the shader waits, the GPU's
-  load and the browser's cores, a line every few seconds and a summary, for a game's notes and `plays.jsonl`;
-  `--record` appends the run to `plays.jsonl`, every page play kept, a JSON line each, so how each game's page plays
-  can be followed day by day; `ab_pages.mjs` plays a new build and the page Pages serves interleaved in Chrome, says
-  whether the build plays worse, and with `--smoke` plays the build once in Firefox for crashes and errors (an update's
-  checks); `update_games.sh` runs a whole update of games onto a tag with them, a game at a time from build to publish. `pass_probe.js`, a preload for it, says what a page's presents spend the GPU on: its
+  load and the browser's cores, a line every few seconds and a summary; `--record` appends the run to a file, a JSON
+  line each, so how a page plays can be followed day by day. `pass_probe.js`, a preload for it, says what a page's presents spend the GPU on: its
   passes, their size, their draws by shader and the GPU time of each; `webgpu_census.js`, another, counts its WebGPU calls
   and bytes a second by kind, and `gpu_growth.mjs` plays those kinds one at a time in a test page, `gpu_growth.html`,
   reading Firefox's GPU process memory around each; `memory_scan.ps1` says whose code made what that process grows.
   `capture_window.ps1` plays a desktop build by a plan and captures its own window, and `frame_log.mjs` reads RT64's
   frame log beside those captures (docs/playing.md); `frame_check.mjs` checks every frame RT64 dumps with
-  `RT64_FRAME_DUMP` for frames unlike both neighbours and a world culled at the 4:3 view's sides. `boot_release.sh` boots a recomp's desktop release archive from a
-  new folder, as a player first runs it, before its `tools/release.sh` publishes it: on Windows through
-  `capture_window.ps1`, on Linux in a container of `boot_release.Dockerfile` on software Vulkan.
+  `RT64_FRAME_DUMP` for frames unlike both neighbours and a world culled at the 4:3 view's sides.
   `frame_lengths.js`, a preload too, logs how long the game's frames are against the page's presents, and
   `frame_lengths.mjs` counts from that what each guess at a frame's length would hold and cut. `wait_probe.js` logs
   whether a timed wait off the page's thread ends on time, each second of a play, and `heap_probe.js` how much of its
@@ -486,9 +472,8 @@ take the web support without moving its submodules to the forks (Using it in a r
   `build/`, every library of a page built with Emscripten from the forks. CI (`.github/workflows/ci.yml`) runs all
   four.
 - `docs/`: notes for whoever changes this repo, beside `CLAUDE.md`: what the web needs from a recomp and RT64
-  (`porting.md`), how a page is played and measured (`playing.md`), updating games and publishing (`publishing.md`), every
-  fork commit (`forks.md`), what porting each game fork found (`game-forks.md`), and what has been measured about the
-  pages in Chrome and Firefox (`findings.md`).
+  (`porting.md`), how a page is played and measured (`playing.md`) and on a phone (`phones.md`), every fork commit
+  (`forks.md`), and what has been measured about the pages in Chrome and Firefox (`findings.md`).
 
 ## Changing it
 
