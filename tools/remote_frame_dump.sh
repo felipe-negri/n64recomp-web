@@ -14,8 +14,9 @@
 # plan's shots, and flagged/ (frame_check's --save), each run's sound recording and sound_check.txt
 # (tools/sound_check.mjs's output, also printed). -c sends a folder of settings files (graphics.json, general.json)
 # for every run, and -r a run's folder from an earlier one (its sound.tsv, sound.raw and steps.tsv) for sound_check to
-# compare the first run's sound with (frame_dump.mjs's --sound-reference). tools/frame_dump.mjs's header says what a run does and what the options mean; its exit code is this
-# one's (0 passes, 1 fails, 2 nothing to test, 3 a run failed, 75 stopped by the queue).
+# compare the first run's sound with (frame_dump.mjs's --sound-reference). tools/frame_dump.mjs's header says what a
+# run does and what the options mean; its exit code is this one's (0 passes, 1 fails, 2 nothing to test, 3 a run
+# failed, 75 stopped by the queue).
 #
 # It runs in the image of tools/frame_dump.Dockerfile, tagged with a hash of that file and built on the host the first
 # time a run needs it, in a container named frame-dump-<out dir's name> (`docker stop` that name to end one), as the
