@@ -1,7 +1,8 @@
 // Runs one play of a page (tools/play_page.mjs) or one shader recording (tools/record_shaders.mjs) as a job of a GPU
 // queue, in the container of tools/page_play.Dockerfile, which tools/remote_play_page.sh starts on a Linux host whose
-// GPU is shared through that queue. It starts what the browsers need there (Xvfb on DISPLAY :99 for Firefox's
-// window, PulseAudio with a null sink for their sound), waits for the job's turn, runs the command and ends the job.
+// GPU is shared through that queue. It starts what the browsers need there (PulseAudio with a null sink for their
+// sound, and once the job's turn comes Xorg on NVIDIA's X driver on DISPLAY :99 for their windows), waits for the
+// job's turn, runs the command and ends the job.
 //
 //   node tools/play_job.mjs --queue <module> --model <game> [--measure] [--priority low] [--url <url>]
 //       -- <command> [args...]
@@ -11,8 +12,7 @@
 // "auto" GPU memory for --model (the game's name: the queue sizes the ask from that game's last runs, plus a margin,
 // and a first run asks 2 GiB; a page holds under 1), so it runs beside other jobs. --measure files it as page-measure asking more memory
 // than the GPU has, so it runs alone on the GPU, as the one-page-at-a-time rule asks of a play whose numbers are the
-// result; in Xvfb every present is copied on the CPU, which paces the page, so a play here measures no page
-// (docs/playing.md). The host memory each asks is the container's own cap (its docker run's --memory, read from its
+// result (docs/playing.md). The host memory each asks is the container's own cap (its docker run's --memory, read from its
 // cgroup), so what the queue reserves is what the play can hold, never the queue's 8 GiB for a game it hasn't measured;
 // with no cap it is the queue's reading of the game's last runs. The cores are capped by the docker run (--cpus). Both
 // are --priority (low) and linked to --url. A stop the queue asks for ends the play, and this, with 75.
