@@ -7,7 +7,7 @@
 //   node tools/frame_dump.mjs --game <dir> --exe <name> --game-id <id> --rom <file> --plan <file> --out <dir>
 //       [--window <w>x<h>[,<w>x<h>,<w>x<h>]] [--rate <hz>] [--seconds <from>-<to>] [--args "<program args>"]
 //       [--env K=V,...] [--config <dir>] [--check "<frame_check args>"] [--workers <n>] [--keep]
-//       [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>]
+//       [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>] [--restart]
 //
 // --game is the folder of a recomp's Linux build (its release archive unpacked, or its build folder with assets/),
 // --exe the program in it, --game-id the name its runtime stores the ROM under (<game id>.z64, as Load ROM does). Each
@@ -23,6 +23,22 @@
 // the plan, the first checked with the second as --narrower (a 4:3 window) and the third as --wider (32:9), the check
 // of the frames between the game's and the sides asks for. With --window the plan's size steps are skipped. Without it each run is the plan's own size steps
 // from a 1280x720 window.
+//
+// --restart checks that what a player sets is what the game runs, after a first launch and after a restart, in place
+// of frame_check: the plan is played three times in one copy of the game, its first launch with only --config's files
+// (none given: a new player's very first launch) and two more starts after it (restart, again), each reading what the
+// one before it left, the window --window's first size. A first launch's settings must be the defaults in effect, not
+// only on disk (librecomp writes them out without calling the options' change callbacks, so an option read only in
+// its callback keeps its C++ starting value until the next launch), and a setting or a binding, once written, must
+// read back the same at every start. It fails where the first launch's settings files don't hold --config's values,
+// where a start changed a value in them, where the runs' dumps were drawn at another size or shown in another number
+// of frames a game frame, and where two launches' shots of a still picture differ (restartCheck() says how much). So
+// the plan's shots are of moments that hold still at the same game state in every launch (a race's countdown, reached
+// by until steps), where an option a player sees shows: Rush 2049's countdown on its first track tells Draw Distance,
+// Level of Detail and Scenery Culling at Original from their defaults, and fails v0.1.26, whose first launch ran them
+// at Original. It writes <out>/restart.txt, each run's shots and its settings files (<out>/<run>/settings), and
+// passes RT64_FRAME_DUMP_RATE=--rate in place of graphics.json's Manual, which a first launch doesn't have yet. Exit 0
+// passes, 1 fails, 3 a run failed.
 //
 // The plan is tools/capture_window.ps1's (its header has every step), its times in seconds since the program started:
 // key, down, up, size, shot (a PNG of the window, <out>/<run>/<name>.png), until, poke, or, peek, dump, find and end

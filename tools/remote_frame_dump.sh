@@ -13,7 +13,8 @@
 # folder here that gets frame_check.txt (the check's output, also printed), each run's stdout.log, stderr.log and the
 # plan's shots, and flagged/ (frame_check's --save). -c sends a folder of settings files (graphics.json, general.json)
 # for every run. tools/frame_dump.mjs's header says what a run does and what the options mean; its exit code is this
-# one's (0 passes, 1 fails, 2 nothing to test, 3 a run failed, 75 stopped by the queue).
+# one's (0 passes, 1 fails, 2 nothing to test, 3 a run failed, 75 stopped by the queue). With --restart (a first launch
+# and two restarts, in place of frame_check) <out dir> gets restart.txt and each run's settings files instead.
 #
 # It runs in the image of tools/frame_dump.Dockerfile, tagged with a hash of that file and built on the host the first
 # time a run needs it, in a container named frame-dump-<out dir's name> (`docker stop` that name to end one), as the

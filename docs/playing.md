@@ -49,6 +49,12 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   all three windows, runs frame_check there and brings back only its text, the logs, the plan's shots and the flagged
   frames (its header and `tools/frame_dump.mjs`'s say how), since a dump is too big to move and the check holds a
   third of a machine's cores for minutes. Its verdicts match a dump made on Windows by `capture_window.ps1`.
+- Check a desktop build's settings by machine with `tools/remote_frame_dump.sh ... --restart`: it plays a plan as a
+  new player's first launch and two restarts after it, in one folder, and fails where a start changed a value in the
+  settings files (a setting or a binding not read back) or where two launches' shots of a still moment differ (an
+  option that took effect only from the second launch, as librecomp's first launch calls no option's change
+  callback, or not at every start). Its plan's shots are of a moment that holds still at the same game state in
+  every launch and shows the options a player sees; `tools/frame_dump.mjs`'s header says how.
 
 ## Plans
 
