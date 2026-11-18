@@ -54,7 +54,10 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   a plan for half an hour or more, looping a round of modes and menus with the plan's `again` step and pressing
   random keys where its `random` step says, and fails at once on a `Crash:` line, the program exiting, or a picture
   that stands still for 10 s, saying whether the game's memory went on changing behind it (a frozen picture) or not
-  (a hang). Its header has the steps and what it keeps.
+  (a hang). Its header has the steps and what it keeps. It failed Rush 2049 v0.1.51 at the start of a two-player
+  race on track 2 (black for good, the game's memory still changing) and Mario Golf v0.1.6 as Training's hole changes
+  (a hang), and passed the releases that fixed them, v0.1.52 racing on for 4 minutes and v0.1.7 taking 2 minutes of
+  random input on Training's course screen.
 
 ## Plans
 
