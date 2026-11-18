@@ -45,18 +45,18 @@ items by almost no game when the record began.
 | Game | New recomp: left | Web port: left |
 |---|---|---|
 | San Francisco Rush 2049 | 2a fails, 4c fails, 8a fails | W5, W6's Drive |
-| Perfect Dark | 2a, 4c, 8a fails | W5 fails, W6's Drive |
-| Super Mario 64 | 2a | W5 fails, W6's Drive |
+| Perfect Dark | 2a fails, 4c, 8a fails | W5 fails, W6's Drive |
+| Super Mario 64 | 2a fails | W5 fails, W6's Drive |
 | F-Zero X | 2a | W6's Drive |
 | Mario Party | 2a fails, 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Mario Party 2 | 2a fails, 4c, 5b, 6a, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
 | Mario Party 3 | 2a fails, 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Super Smash Bros. | 2a | W6's Drive |
-| Paper Mario | 2a, 4a, 4c, 6b | W5 fails, W6's Drive |
+| Paper Mario | 4a, 4c, 6b | W5 fails, W6's Drive |
 | Mario Golf | | W6's Drive |
 | Rayman 2 | 2a fails | W5 fails, W6's Drive |
 | Donald Duck: Goin' Quackers | 2, 5b | W5 fails, W6's Drive |
-| Dinosaur Planet | 2a | W5 fails |
+| Dinosaur Planet | | W5 fails |
 | Turok: Dinosaur Hunter | 2a fails, 5a | W5 fails, W6's Drive |
 | Turok 2: Seeds of Evil | 2 fails, 2a fails, 4c, 5a | W5 fails, W6's Drive |
 | Turok 3: Shadow of Oblivion | 2a's sides, 4c, 5a | W5 fails, W6's Drive |
@@ -112,9 +112,13 @@ Breach x0.99 and 0.72, x1.22 and 0.76), so their sides are played again against 
 camera cuts (Turok 2's cinematics' 21, none drawn partway), and Turok 3 the frames between the game's (9 of 12419, at
 most 2 a second), so Turok 3 passes 2a but for its sides; Turok 2 fails it, the world missing at the picture's edge in frames between
 the game's while the player turns (the background showing at the top left 3 times in a second in the Port of Adia), as
-Turok 1 does once (a dark wedge at the left edge), filed for turok-engine; Turok 1's title fly-over through a leaf drew
+Turok 1 does once (a dark wedge at the left edge): RT64 paired a level block that came into view with one that left,
+drawn partway from its place, which rt64 21ed4b9 (`RT64_SKIP_PLACE_SWAPS`, on for every page, off on their desktop
+builds) ends, played on the same desktop builds with it and the pages' `RT64_SKIP_*` options on (frame_check of main,
+Turok 2's Port of Adia 3 frames unlike both neighbours and Turok 1's first level 3, none a hole, slab or wedge), so
+both pass once their pins move onto it and their desktop builds turn those options on; Turok 1's title fly-over through a leaf drew
 5 frames in a second unlike both neighbours that are the camera's own (a near object moving further between two frames
-than a block's match follows), which frame_check no longer counts (its header), so Turok 1 fails 2a on the wedge alone;
+than a block's match follows), which frame_check no longer counts (its header), so Turok 1 fails 2a on the wedge alone until then;
 the Mario Parties' READMEs don't link their pages (8c); Mario Golf's courses, Mini-Golf, every play mode and a whole
 Tournament round draw on its desktop build at 16:9, 21:9 and 4:3, so it was passed 2, on captures that missed its trees
 drawn where other trees stood in the frames between the game's, which its first players reported, and passes 2a since
@@ -360,8 +364,8 @@ What it looks for:
   world goes on past the view (a course, a field, a race; Rayman 2's Fairy Glade), and a sides fail is looked at in
   the 32:9 dump's frames before it is called the game's. A game that culls nothing by the window fails it as one
   culled to 4:3 does, x1.00 or so (Paper Mario's opening, Dinosaur Planet, Smash Bros.' stage), and nothing in the
-  32:9 dump alone was found to tell the two apart (frame_check's header has what was tried), so its fail is looked at
-  the same way.
+  32:9 dump alone, nor the whole objects the 4:3 one draws past the view, was found to tell the two apart (frame_check's
+  header has what was tried), so its fail is looked at the same way.
   San Francisco Rush 2049's dumps brought two more holes in the tools to light. Its frames come back in two sizes by
   turns, the picture the same in both with black past it (RT64's targets are larger than the picture), and
   frame_check, which started over at each change of size, matched 422 of 2150 frames; it now cuts every frame to the
@@ -386,6 +390,26 @@ What it looks for:
   without its models' tags (lib/mario-party-engine's model_ids.cpp) was flagged under the 4 blocks a frame needs, a
   small star drawn where neither neighbour has it, every frame between for 0.3 s; frame_check now counts small
   flags that recur in one place (its header).
+  Perfect Dark, Super Mario 64, F-Zero X, Super Smash Bros., Paper Mario and Dinosaur Planet were played for 2a on
+  desktop builds of their main with N64Recomp-browser v0.229.0, each also built without a fix it took for one of 2a's
+  faults, to see the check fail it. It fails Super Mario 64's title without its head's pairing (586 of 1085 frames),
+  F-Zero X's race without its racers' (986 of 2197), Paper Mario's opening drawn in parts without
+  `RT64_GAME_FRAME_WORKLOADS` (1204 of 1504), Dinosaur Planet's map blocks paired across an origin step (a lone frame,
+  its header) and Super Mario 64's objects culled at 4:3 (x1.00, x2.99 with the fix). Builds with the fixes failed it
+  falsely too, and no longer do: a repeat of the game's picture read as a frame between, a HUD over a scene moving
+  behind it, sparkles the game draws anew each frame, a dialog box opening read as a cut (its header).
+  On main, Super Mario 64 fails 2a: its title's frames between draw Mario's head turned and winking as it first
+  appears, and sparkles neither neighbour has (filed). Perfect Dark fails it: Defection's 3D isn't widened past the
+  game's own shape in a 16:9 window, its HUD out at the window's sides on black (filed); its pairing is untested,
+  since it runs at 60 in its levels and a 60 Hz display draws no frame between (a dump at a set rate, filed). F-Zero X
+  (dumped at a rate of 120 set in a local RT64 build) and Super Smash Bros. are left 2a, each on a fail frame_check
+  still reads falsely: F-Zero X's fixed race flags 20 of 2669 frames, 14 within a second in a tunnel, the game's own
+  frames with a few blocks along its HUD over a texture changing fast (144 before the fixes above), and Smash's camera
+  zooming fast reads as a cut drawn partway, 3.3 times as far as the game's frames either side and 0.12 of the picture
+  new, where F-Zero X's real cut drawn partway without its fix reads 3.2 and 0.12 (filed). F-Zero X's race draws
+  too little past the 4:3 view to test the sides, and Smash's stage culls nothing by the window, but its fix culls
+  fighters, which no scene played had at the picture's side. Paper Mario and Dinosaur Planet pass: their sides read
+  x1.00 since neither culls by the window, their world drawn to the 32:9 picture's edges.
 
 ### 3. Every controller its own port
 
