@@ -8,8 +8,8 @@
 //       [--rsp parallel|cxd4] [--max-seconds <s>]
 //
 // <out dir> gets frames.bin, in RT64's frame dump format (rt64-web's src/hle/rt64_frame_dump.h: a 40-byte header and
-// 8-bit RGB, rows top down), every VI's picture halved to 320 wide by a 2x2 box filter (Angrylion's picture is 640x480
-// with the VI's filters applied), a frame equal to the one before left out, its presentId the VI's number and its
+// 8-bit RGB, rows top down), every VI's picture at the game's own size (Angrylion's, with the VI's filters applied, is 640 wide and
+// 240 or 480 high: video() says how it is brought down), a frame equal to the one before left out, its presentId the VI's number and its
 // timeMs the VI's time since the console started (the core's VI rate); watch.tsv, "<VI time ms>\t<word>..." each time
 // a watched 32-bit word changes, read after the VI, the file tools/frame_dump.mjs --watch writes of a recomp; the
 // plan's shots, <name>.ppm; and log.txt, what the plan did.
@@ -23,6 +23,8 @@
 //
 // Exit 0 at end (or --max-seconds, 600), 3 when an until or find was unmet or the core failed.
 #include <dlfcn.h>
+#include <execinfo.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -41,7 +43,7 @@ static void say(const char *fmt, ...) {
     vfprintf(stdout, fmt, a);
     va_end(a);
     va_start(a, fmt);
-    if (logFile) vfprintf(logFile, fmt, a);
+    if (logFile) vfprintf(logFile, fmt, a), fflush(logFile);
     va_end(a);
     fflush(stdout);
 }
@@ -93,17 +95,19 @@ static bool environment(unsigned cmd, void *data) {
     case RETRO_ENVIRONMENT_GET_CAN_DUPE: *(bool *)data = true; return true;
     case RETRO_ENVIRONMENT_GET_INPUT_BITMASKS: return true;
     case RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION: *(unsigned *)data = 0; return true;
+    case RETRO_ENVIRONMENT_GET_JIT_CAPABLE: *(bool *)data = true; return true;
     default: return false;
     }
 }
 
-// The picture of the last VI, halved.
+// The picture of the last VI at the game's own size: Angrylion's is 640 wide, each pixel of a 320-wide picture twice,
+// and 480 high for an interlaced picture or 240 for one of 240 lines, so it is halved across, and down when over 300.
 static uint8_t *picture, *lastWritten;
 static unsigned pictureW, pictureH;
 static bool newPicture;
 static void video(const void *data, unsigned w, unsigned h, size_t pitch) {
     if (!data) return; // a dupe: the picture is the last one
-    unsigned hw = w / 2, hh = h / 2;
+    unsigned sy = h > 300 ? 2 : 1, hw = w / 2, hh = h / sy;
     if (hw != pictureW || hh != pictureH) {
         pictureW = hw, pictureH = hh;
         picture = realloc(picture, (size_t)hw * hh * 3);
@@ -111,8 +115,8 @@ static void video(const void *data, unsigned w, unsigned h, size_t pitch) {
         memset(lastWritten, 0, (size_t)hw * hh * 3);
     }
     for (unsigned y = 0; y < hh; y++) {
-        const uint32_t *r0 = (const uint32_t *)((const uint8_t *)data + pitch * (2 * y));
-        const uint32_t *r1 = (const uint32_t *)((const uint8_t *)data + pitch * (2 * y + 1));
+        const uint32_t *r0 = (const uint32_t *)((const uint8_t *)data + pitch * (sy * y));
+        const uint32_t *r1 = (const uint32_t *)((const uint8_t *)data + pitch * (sy * y + sy - 1));
         uint8_t *o = picture + (size_t)y * hw * 3;
         for (unsigned x = 0; x < hw; x++) {
             uint32_t p[4] = {r0[2 * x], r0[2 * x + 1], r1[2 * x], r1[2 * x + 1]};
@@ -170,11 +174,19 @@ static uint32_t *ram;
 static size_t ramSize;
 static uint32_t *word(uint32_t addr) {
     uint32_t o = addr & 0x1FFFFFFF;
-    return o + 4 <= ramSize ? &ram[o >> 2] : NULL;
+    return ram && o + 4 <= ramSize ? &ram[o >> 2] : NULL;
 }
 static uint32_t peek(uint32_t addr) { uint32_t *w = word(addr); return w ? *w : 0; }
 
 struct Step { double t; char *f[8]; int n; };
+
+static void crashed(int sig) {
+    void *frames[64];
+    int n = backtrace(frames, 64);
+    fprintf(stderr, "console_ref: signal %d\n", sig);
+    backtrace_symbols_fd(frames, n, 2);
+    _exit(3);
+}
 
 int main(int argc, char **argv) {
     if (argc < 5) { fprintf(stderr, "usage: console_ref <core.so> <rom> <plan> <out dir> [options] (the header says)\n"); return 3; }
@@ -190,6 +202,10 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--watch"))
             for (char *s = strtok(argv[i + 1], ","); s && watches < 16; s = strtok(NULL, ",")) watch[watches++] = strtoul(s, NULL, 0);
     }
+    signal(SIGSEGV, crashed);
+    signal(SIGBUS, crashed);
+    signal(SIGILL, crashed);
+    signal(SIGFPE, crashed);
     mkdir(outDir, 0777);
     char path[1200];
     snprintf(path, sizeof(path), "%s/log.txt", outDir);
@@ -309,14 +325,14 @@ int main(int argc, char **argv) {
                 uint32_t a = strtoul(st->f[2], NULL, 0) & 0x1FFFFFFF, n = strtoul(st->f[3], NULL, 0);
                 snprintf(path, sizeof(path), "%s/%s.bin", outDir, st->f[4]);
                 FILE *df = fopen(path, "wb");
-                if (df && a + n <= ramSize) fwrite((uint8_t *)ram + a, 1, n, df);
+                if (df && ram && a + n <= ramSize) fwrite((uint8_t *)ram + a, 1, n, df);
                 if (df) fclose(df);
                 say("%.2f dump %s\n", now, st->f[4]);
             } else if (!strcmp(c, "find") && st->n >= 5) {
                 uint32_t w0 = strtoul(st->f[3], NULL, 0), w1 = strtoul(strchr(st->f[3], ',') + 1, NULL, 0);
                 if (waitBegan < 0) waitBegan = now;
                 size_t at = 0;
-                for (size_t o = 0; o + 8 <= ramSize && o < (32u << 20); o += 4)
+                for (size_t o = 0; ram && o + 8 <= ramSize && o < (32u << 20); o += 4)
                     if (ram[o >> 2] == w0 && ram[(o >> 2) + 1] == w1) { at = o + 1; break; }
                 if (!at) {
                     if (now - waitBegan > atof(st->f[4])) { say("%.2f find %s NOT found\n", now, st->f[2]); code = 3; ended = true; break; }
@@ -339,6 +355,7 @@ int main(int argc, char **argv) {
 
         newPicture = false;
         p_retro_run();
+        ram = p_retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM); // set once the core's thread has started
         double t = (vi + 1) / fps;
         // What the game holds after this VI, and its picture.
         if (watches) {

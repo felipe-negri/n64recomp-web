@@ -7,7 +7,7 @@
 //   node tools/frame_dump.mjs --game <dir> --exe <name> --game-id <id> --rom <file> --plan <file> --out <dir>
 //       [--window <w>x<h>[,<w>x<h>,<w>x<h>]] [--rate <hz>] [--seconds <from>-<to>] [--args "<program args>"]
 //       [--env K=V,...] [--config <dir>] [--check "<frame_check args>"] [--workers <n>] [--keep]
-//       [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>]
+//       [--watch <addr>[,<addr>...]] [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>]
 //
 // --game is the folder of a recomp's Linux build (its release archive unpacked, or its build folder with assets/),
 // --exe the program in it, --game-id the name its runtime stores the ROM under (<game id>.z64, as Load ROM does). Each
@@ -38,6 +38,10 @@
 // the host memory of the container's cap (its docker run's --memory, read from its cgroup; a game's dumps held
 // 0.3-0.6 GB, frame_check 0.6), never the queue's 8 GiB for a game it hasn't measured. A stop the queue asks for ends
 // the run in progress, and the tool, with 75. Without --queue it runs at once.
+//
+// --watch writes <out>/<run>/watch.tsv, "<ms since 1970>	<word>..." each time one of those 32-bit words of RDRAM
+// changes, read every 2 ms: the game's own frame counter, put beside the dump's frames by their time, pairs them with
+// another run's by the game's frame and not by the clock (tools/console_check.mjs against tools/console_ref.c's).
 //
 // --workers is frame_check's (a third of the cores it sees unless given), for a container held to fewer cores than
 // the host has.
@@ -151,9 +155,22 @@ async function playRun(i, size, signal, config) {
     return Number(s) >>> 0;
   };
   const press = async (key, ms = 120) => { xdo('keydown', keysym(key)); await sleep(ms); xdo('keyup', keysym(key)); };
+  let watcher = null;
   try {
     await findWindow();
     if (size) xdo('windowsize', win, String(w), String(h));
+    if (opt('--watch')) {
+      // The game's words, read every 2 ms and written each time one changes, on the frames' clock.
+      const addrs = opt('--watch').split(',').map(Number), wf = fs.openSync(path.join(dir, 'watch.tsv'), 'w');
+      let last = '';
+      watcher = setInterval(() => {
+        try {
+          const now = Date.now(), words = addrs.map((a) => read(a).readUInt32LE().toString(16).toUpperCase().padStart(8, '0')).join('	');
+          if (words !== last) { fs.writeSync(wf, `${now}	${words}
+`); last = words; }
+        } catch { /* no RDRAM yet */ }
+      }, 2);
+    }
     plan: for (const p of plan) {
       while (t() < Number(p[0]) + shift) { live(); await sleep(10); }
       live();
@@ -203,6 +220,7 @@ async function playRun(i, size, signal, config) {
       }
     }
   } finally {
+    if (watcher) clearInterval(watcher);
     if (mem !== null) fs.closeSync(mem);
     if (exited === null) {
       proc.kill('SIGTERM');
