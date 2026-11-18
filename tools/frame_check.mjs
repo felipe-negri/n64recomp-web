@@ -1274,7 +1274,9 @@ const extOf = (aspect) => (aspect / (4 / 3) - 1) / 2; // a picture's strip past 
 // Two workloads draw the same shot where their bands inside the view differ by at most this share of their triangles.
 const SIDES_MATCH = 0.1;
 const sides = sidesOf(dir);
-if (widerDir || narrowerDir) {
+// A dump that can't test the culling (no 3D, not the same scene) leaves it untested, and the picture's checks below
+// still run.
+cull: if (widerDir || narrowerDir) {
     if (!widerDir || !narrowerDir) {
         console.error('sides: the culling check takes two dumps, --narrower <a dump of the same plan in a 4:3 window> ' +
             '--wider <one at 32:9>');
@@ -1284,7 +1286,8 @@ if (widerDir || narrowerDir) {
     for (const [d, s] of [[narrowerDir, narrower], [widerDir, wider]]) {
         if (!s || !s.n) {
             console.error(`sides: no 3D in ${d}'s dump between those seconds`);
-            process.exit(2);
+            untested = true;
+            break cull;
         }
     }
     // A 4:3 window's frames are the game's own target, which can be a little off 4:3 (Rush 2049's 640x440): a 16:9 one isn't.
@@ -1327,7 +1330,8 @@ if (widerDir || narrowerDir) {
     if (n < Math.max(30, 0.1 * wider.n)) {
         console.error(`sides: ${n} of ${widerDir}'s ${wider.n} workloads draw what one of ${narrowerDir}'s does inside the ` +
             '4:3 view: not the same scene, so play the same plan and seconds in both');
-        process.exit(2);
+        untested = true;
+        break cull;
     }
     pastA /= n;
     pastB /= n;
@@ -1527,6 +1531,287 @@ function pictureAtSides(d) {
     }
     const seam = [...seams].sort((a, b) => b[1] - a[1])[0];
     return { looked, cutShort, longest, moving, seam, vw, v0, v1, aspect };
+}
+
+// The picture past the 4:3 view that isn't the world: where the HUD sits (hudPlacement()), and black or a still band
+// at the view's sides (bandsAtSides()).
+const HUD_EVERY = 0.25; // seconds between the frames the HUD is looked for in
+const HUD_H = 180; // the grey copy's height it is looked for at
+const HUD_STILL = 2; // a pixel this near its last value, of 255, stood still
+const HUD_EDGE = 24; // ... and with a step this large to the pixel right of or below it is part of something drawn
+const HUD_CHANGE = 6; // a pixel moving more than this, of 255, is the scene moving
+const HUD_AROUND = 12; // ... looked at this many grey pixels around a still one
+const HUD_MOVES = 0.3; // ... where this share of them moving makes it fixed on the screen over a moving scene
+const HUD_FIXED = 0.2; // the share of the frames looked at in which a pixel is so: the HUD's
+const HUD_FOUND = 0.3; // the share of the 4:3 dump's HUD at a side the wide dump has at one place, at least: found
+const HUD_OUT = 3; // grey pixels out from the 4:3 place from which the HUD is placed out
+const HUD_MIDDLE = 0.15; // the view's middle, this much of its width either side of its centre, left out
+const BAND_EVERY = 0.1; // seconds between the frames black and bands are looked for in
+const BAND_ROWS = 0.08; // the share of a frame's rows whose black stops at one column, at least
+const BAND_RUN = 0.3; // seconds in a row a frame does so that fail
+const BAND_WIDE = 2; // a band's width at least, in the dump's pixels
+
+// Each pixel's share of the frames looked at in which it is fixed on the screen: it stands still with something
+// drawn in it (a step to a neighbour) while the scene around it moves. A HUD's figures, frame and icons, which stay
+// where the screen has them while the world moves under them; a menu that stands still has nothing moving around it.
+function fixedOf(d) {
+    let prev = null, moving = 0, gw = 0, fixed = null;
+    for (const f of sampledFrames(d, HUD_EVERY)) {
+        gw = Math.round(f.w * HUD_H / f.h);
+        const g = grey(f, gw, HUD_H);
+        fixed ??= new Float32Array(gw * HUD_H);
+        const last = (prev && (prev.length === g.length)) ? prev : null;
+        prev = g;
+        if (!last) {
+            continue;
+        }
+        // How many pixels moved in each box about a pixel: a sum table of the moved ones.
+        const sum = new Int32Array((gw + 1) * (HUD_H + 1));
+        let any = 0;
+        for (let y = 0; y < HUD_H; y++) {
+            for (let x = 0, row = 0; x < gw; x++) {
+                const m = (Math.abs(g[y * gw + x] - last[y * gw + x]) > HUD_CHANGE) ? 1 : 0;
+                row += m;
+                any += m;
+                sum[(y + 1) * (gw + 1) + x + 1] = sum[y * (gw + 1) + x + 1] + row;
+            }
+        }
+        if (any < 0.05 * gw * HUD_H) {
+            continue; // the scene stands still: nothing tells what is fixed on the screen
+        }
+        moving++;
+        for (let y = 1; y < HUD_H - 1; y++) {
+            const y0 = Math.max(y - HUD_AROUND, 0), y1 = Math.min(y + HUD_AROUND + 1, HUD_H);
+            for (let x = 1; x < gw - 1; x++) {
+                const i = y * gw + x;
+                if ((Math.abs(g[i] - last[i]) > HUD_STILL) ||
+                    (Math.max(Math.abs(g[i] - g[i + 1]), Math.abs(g[i] - g[i + gw])) < HUD_EDGE)) {
+                    continue;
+                }
+                const x0 = Math.max(x - HUD_AROUND, 0), x1 = Math.min(x + HUD_AROUND + 1, gw);
+                const around = sum[y1 * (gw + 1) + x1] - sum[y0 * (gw + 1) + x1] - sum[y1 * (gw + 1) + x0] +
+                    sum[y0 * (gw + 1) + x0];
+                if (around >= HUD_MOVES * (x1 - x0) * (y1 - y0)) {
+                    fixed[i]++;
+                }
+            }
+        }
+    }
+    return moving ? { gw, gh: HUD_H, moving, fixed: fixed.map((n) => n / moving) } : null;
+}
+
+// Where a wide dump has the HUD the 4:3 dump has at its sides: the share of the 4:3 dump's fixed pixels in each side of
+// the view (its middle left out, where nothing moves out) that the wide one has fixed when each is moved out from its
+// 4:3 place by s grey pixels, toward the window's side, for every s from 0 to the wide picture's side. A HUD placed at
+// the wide picture's sides (or at a narrower HUD ratio's) has its peak out past 0; one left at 4:3, at 0.
+function hudPlacement(narrow, wide) {
+    const { gw: nw, gh, fixed: nf } = narrow;
+    const { gw: ww, fixed: wf } = wide;
+    // The wide map spread by a pixel, so a HUD scaled a little differently in the two windows still meets.
+    const near = new Uint8Array(ww * gh);
+    for (let y = 0; y < gh; y++) {
+        for (let x = 0; x < ww; x++) {
+            if (wf[y * ww + x] < HUD_FIXED) {
+                continue;
+            }
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    const yy = y + dy, xx = x + dx;
+                    if ((yy >= 0) && (yy < gh) && (xx >= 0) && (xx < ww)) {
+                        near[yy * ww + xx] = 1;
+                    }
+                }
+            }
+        }
+    }
+    const ext = Math.floor((ww - nw) / 2);
+    const sides = [];
+    for (const side of [-1, 1]) {
+        const at = [];
+        for (let y = 0; y < gh; y++) {
+            for (let x = 2; x < nw - 2; x++) {
+                const cx = x + 0.5 - nw / 2;
+                if ((Math.sign(cx) === side) && (Math.abs(cx) >= HUD_MIDDLE * nw) && (nf[y * nw + x] >= HUD_FIXED)) {
+                    at.push([x, y]);
+                }
+            }
+        }
+        const share = [];
+        for (let s = 0; s <= ext; s++) {
+            let hit = 0;
+            for (const [x, y] of at) {
+                const xx = x + Math.round((ww - nw) / 2) + side * s;
+                hit += ((xx >= 0) && (xx < ww)) ? near[y * ww + xx] : 0;
+            }
+            share.push(at.length ? hit / at.length : 0);
+        }
+        // The best place out from 4:3 is past HUD_OUT and a peak of its own, not the slope down from 0.
+        let out = HUD_OUT;
+        for (let s = HUD_OUT; s <= ext; s++) {
+            out = (share[s] > share[out]) ? s : out;
+        }
+        const found = (at.length >= 20) && (Math.max(share[0], share[out] ?? 0) >= HUD_FOUND);
+        sides.push({ side, pixels: at.length, at43: share[0], out, atOut: share[out] ?? 0, found, ext,
+            left: found && (share[0] >= HUD_FOUND) && !((share[out] ?? 0) >= 0.5 * share[0]) });
+    }
+    return sides;
+}
+
+// Black that stops short of the window, and a band at the view's side unlike the scene either side of it, from a wide
+// dump's frames alone, looked at ten a second.
+// - Black stopping short: rows black at the view's side, a twentieth of the view inside it, and on out past it to a
+//   column, past which out to the window's edge the scene is drawn, the same column in a twelfth of the rows or more:
+//   a straight edge of black in the wide picture. Bars across the view (Lakitu Mode's letterbox), a wipe closing to
+//   black about the middle, a black screen between scenes, drawn to 4:3 or to a HUD ratio narrower than the window,
+//   leave the scene showing past them; drawn to the window, the black reaches its edge.
+// - A band: columns from the view's side out, black or standing still across every row, between the scene drawn in
+//   the view and drawn again past the band: a strip the game left out between its 4:3 picture and the widening.
+// Either, in frames for BAND_RUN seconds in a row, fails.
+function bandsAtSides(d) {
+    let looked = 0, prev = null;
+    const runs = { black: { n: 0, longest: 0, from: null, at: null, where: null }, band: { n: 0, longest: 0, from: null, at: null, where: null } };
+    const count = (r, t, where) => {
+        r.from = ((r.at !== null) && (t - r.at <= 2.5 * BAND_EVERY)) ? r.from : t;
+        r.at = t;
+        r.n++;
+        if (t - r.from + BAND_EVERY > r.longest) {
+            r.longest = t - r.from + BAND_EVERY;
+            r.where = where;
+        }
+    };
+    let aspect = 0;
+    for (const f of sampledFrames(d, BAND_EVERY)) {
+        const { w, h, rgb, t } = f;
+        aspect = w / h;
+        if (aspect <= 4 / 3 * 1.1) {
+            break;
+        }
+        looked++;
+        const vw = h * 4 / 3, v0 = Math.round((w - vw) / 2), v1 = Math.round((w + vw) / 2), k = Math.ceil(vw / 20);
+        const lit = new Uint8Array(w * h);
+        const value = new Uint8Array(w * h);
+        for (let i = 0, p = 0; i < w * h; i++, p += 3) {
+            value[i] = Math.max(rgb[p], rgb[p + 1], rgb[p + 2]);
+            lit[i] = (value[i] > PIC_LIT) ? 1 : 0;
+        }
+        // Black stopping short, each side: the column the row's black stops at, out from the view's side.
+        let black = null;
+        for (const [inner, step, edge] of [[v0, -1, 0], [v1 - 1, 1, w - 1]]) {
+            const stops = new Map();
+            for (let y = 0; y < h; y++) {
+                const row = y * w;
+                let dark = true;
+                for (let j = 0; j < k && dark; j++) {
+                    dark = !lit[row + inner - step * j];
+                }
+                if (!dark) {
+                    continue;
+                }
+                let x = inner + step;
+                while ((x !== edge + step) && !lit[row + x]) {
+                    x += step;
+                }
+                if (x === edge + step) {
+                    continue; // black to the window's edge
+                }
+                let drawn = 0;
+                for (let xx = x; xx !== edge + step; xx += step) {
+                    drawn += lit[row + xx];
+                }
+                if (drawn * 2 >= Math.abs(edge - x) + 1) {
+                    stops.set(x, (stops.get(x) ?? 0) + 1);
+                }
+            }
+            // The commonest column, a pixel either side of it counted with it.
+            let best = null;
+            for (const [x] of stops) {
+                const n = (stops.get(x - 1) ?? 0) + stops.get(x) + (stops.get(x + 1) ?? 0);
+                best = (!best || (n > best.n)) ? { x, n } : best;
+            }
+            if (best && (best.n >= BAND_ROWS * h)) {
+                black = { x: best.x, out: Math.abs(best.x - inner), rows: best.n, h };
+            }
+        }
+        if (black) {
+            count(runs.black, t, black);
+        }
+        // A band, each side: columns from the view's side out, black or still in all but 2 in 100 of their rows, with
+        // the scene drawn (and moving, for a still band) in the view's twentieth inside the side and past the band.
+        const g = new Uint8Array(value);
+        const last = (prev && (prev.length === g.length)) ? prev : null;
+        prev = g;
+        const colShare = (x, test) => {
+            let n = 0;
+            for (let y = 0; y < h; y++) {
+                n += test(y * w + x) ? 1 : 0;
+            }
+            return n / h;
+        };
+        const isLit = (i) => lit[i];
+        const moves = (i) => last && (Math.abs(g[i] - last[i]) > HUD_CHANGE);
+        let band = null;
+        for (const [inner, step, edge] of [[v0, -1, 0], [v1 - 1, 1, w - 1]]) {
+            for (const [kind, test, scene] of [['black', isLit, isLit], ...(last ? [['still', moves, moves]] : [])]) {
+                let x = inner + step;
+                while ((x !== edge + step) && (colShare(x, test) <= 0.02)) {
+                    x += step;
+                }
+                const width = Math.abs(x - inner) - 1;
+                if ((width < BAND_WIDE) || (x === edge + step)) {
+                    continue;
+                }
+                let inside = 0, past = 0, n = 0;
+                for (let j = 0; j < k; j++) {
+                    inside += colShare(inner - step * j, scene) / k;
+                }
+                for (let xx = x; (xx !== edge + step) && (n < k); xx += step, n++) {
+                    past += colShare(xx, scene);
+                }
+                past /= Math.max(n, 1);
+                if ((inside >= 0.5) && (past >= 0.5)) {
+                    band = { kind, out: width, inside, past };
+                }
+            }
+        }
+        if (band) {
+            count(runs.band, t, band);
+        }
+    }
+    return { looked, aspect, ...runs };
+}
+{
+    const narrow = narrowerDir && fixedOf(narrowerDir);
+    for (const d of new Set([dir, widerDir].filter(Boolean))) {
+        const b = bandsAtSides(d);
+        if (!b.looked) {
+            continue;
+        }
+        const blackFails = b.black.longest >= BAND_RUN, bandFails = b.band.longest >= BAND_RUN;
+        failed ||= blackFails || bandFails;
+        const bw = b.black.where, bb = b.band.where;
+        console.log(`black and bands at the sides (${d}, ${b.aspect.toFixed(2)}:1): black stopping short of the ` +
+            `window in ${b.black.n} of ${b.looked} frames` + (bw ? `, at most ${b.black.longest.toFixed(1)} s in a ` +
+                `row (${bw.rows} of ${bw.h} rows black to ${bw.out} pixels out from the view's side, the scene past it)` : '') +
+            (blackFails ? ': FAILS, black that should reach the window\'s edge' : '') + `; a band at the view's side ` +
+            `in ${b.band.n}` + (bb ? `, at most ${b.band.longest.toFixed(1)} s in a row (${bb.kind}, ${bb.out} pixels ` +
+                `wide, the scene drawn either side of it)` : '') +
+            (bandFails ? ': FAILS, a strip left out between the 4:3 picture and the widening' : ''));
+        if (!narrow) {
+            continue;
+        }
+        const wide = fixedOf(d);
+        if (!wide || (wide.gw <= narrow.gw * 1.1)) {
+            continue;
+        }
+        const sides = hudPlacement(narrow, wide);
+        const left = sides.some((s) => s.left);
+        failed ||= left;
+        console.log(`HUD placement (${d} against ${narrowerDir}): ` + sides.map((s) =>
+            `${(s.side < 0) ? 'left' : 'right'}: ${s.pixels} fixed pixels in the 4:3 dump, ` +
+            `${Math.round(s.at43 * 100)}% where they were, ${Math.round(s.atOut * 100)}% ${s.out} of ${s.ext} out` +
+            (s.found ? '' : ' (no HUD found)')).join('; ') +
+            (left ? ': FAILS, the HUD left at the 4:3 view\'s sides' : ''));
+    }
 }
 for (const d of new Set([sidesOnly ? null : dir, narrowerDir, widerDir].filter(Boolean))) {
     const p = pictureAtSides(d);
