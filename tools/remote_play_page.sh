@@ -6,13 +6,14 @@
 #
 #   PLAY_HOST=<host> tools/remote_play_page.sh [--measure] [--model <game>] <out dir> <play_page.mjs | record_shaders.mjs> <its args...>
 #
-# The tool's arguments are its own (each one's header), with four kinds rewritten for the host:
+# The tool's arguments are its own (each one's header), with five kinds rewritten for the host:
 #   host:<path>   a file or folder on the host, relative to its home (a build dir, a ROM), given to the tool read-only
 #   out:<name>    a file the tool writes (--json, --shot, record_shaders' list), which comes back as <out dir>/<name>;
 #                 one already there is sent first, so record_shaders' --add records into it
 #   --record <f>  a local file of runs (plays.jsonl): sent, so the tool compares the run with the earlier ones, and the
 #                 lines the run adds are appended to the local file
 #   a local file  sent as it is (a plan, a --preload script), a plan with the files its evalFile steps name
+#   a local dir   a folder, sent as it is: a page built elsewhere and kept here, which no host: path names
 # Anything else (a URL, a number, a flag) goes as it is. For example, a smoke play of a page built there:
 #
 #   tools/remote_play_page.sh --model mg out/mg-smoke play_page.mjs chrome host:pages/mg/build-web host:roms/mg.z64 \
@@ -90,6 +91,10 @@ for a in "$@"; do
                 cp "$(dirname "$a")/$f" "$stage/in/$n/$f"
             done
         fi
+        targs+=("/work/in/$n/$(basename "$a")")
+    elif [[ -d "$a" ]]; then
+        mkdir -p "$stage/in/$n"
+        cp -r "$a" "$stage/in/$n/"
         targs+=("/work/in/$n/$(basename "$a")")
     else
         targs+=("$a")
