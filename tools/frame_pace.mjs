@@ -18,6 +18,8 @@ const CR = 8; // the coarse search, in coarse pixels either way
 const TEX = 6; // a block's mean difference from its own mean under which it has too little drawn to place
 const BAD = 10; // a block's mean difference to its best place, of 255, over which it isn't placed
 const CORNER = 2; // how much worse, of 255, a block matches 2 pixels off its place any way, at least
+const EDGE = 16; // a step to the next pixel, of 255, that makes a pixel a detailed one (still())
+const STILL = 0.25; // the share of a moving block's detailed pixels unmoved, at least, that leaves it out (still())
 const MOVE = 2; // grey pixels a block moves between the game's frames, at least, to be measured
 const MIN_MOVING = 12; // moving blocks placed in a frame between, at least, for its common weight
 const OFF = 0.3; // a block's fraction off the frame's common one, at least
@@ -93,6 +95,23 @@ function texture(a, w, bx, by) {
         }
     }
     return d / n;
+}
+
+// The share of a block's detailed pixels (a step of EDGE or more to the next across or down) that are as they were in
+// the frame before, where they were: a HUD's figures over a world that moves, which a block holding both places at
+// one end of the way or the other, whichever is more of it.
+function still(g1, g0, gw, bx, by) {
+    let edge = 0, same = 0;
+    for (let y = 0; y < B; y++) {
+        for (let x = 0; x < B; x++) {
+            const p = (by + y) * gw + bx + x;
+            if (Math.max(Math.abs(g1[p + 1] - g1[p]), Math.abs(g1[p + gw] - g1[p])) >= EDGE) {
+                edge++;
+                same += (Math.abs(g1[p] - g0[p]) <= 3) ? 1 : 0;
+            }
+        }
+    }
+    return edge ? same / edge : 0;
 }
 
 // Where the block at (bx, by) in the game's new frame g1 was in its frame before, g0: { dx, dy (sub-pixel), err } or
@@ -196,7 +215,7 @@ function checkPresent(prev, frames, gw, gh) {
                 continue;
             }
             const o = placeBefore(g1, q1, g0, q0, gw, gh, bx, by);
-            if (!o || (Math.hypot(o.dx, o.dy) < MOVE)) {
+            if (!o || (Math.hypot(o.dx, o.dy) < MOVE) || (still(g1, g0, gw, bx, by) >= STILL)) {
                 continue;
             }
             blocks.push({ bx, by, o, at: [] });
@@ -400,9 +419,7 @@ export async function checkPace(dir, { from = 0, to = Infinity, workers = 1, sav
         betweenFrames += (f.index < f.count - 1) ? 1 : 0;
         const gw = Math.min(GW, f.w), gh = Math.floor(gw * f.h / f.w);
         f.g = grey(f.rgb, f.w, f.h, gw, gh);
-        if (!saveDir) {
-            f.rgb = null;
-        }
+        f.rgb = null;
         const last = window[window.length - 1];
         if (last && ((last.w !== f.w) || (last.h !== f.h))) {
             window = [];
@@ -424,13 +441,9 @@ export async function checkPace(dir, { from = 0, to = Infinity, workers = 1, sav
         }
         if ((window.length === 3) && (window[2].t - window[0].t <= MAX_GAP)) {
             const [a, b, c] = window;
-            const keep = saveDir ? [a, b, c] : null;
             jobs.push(post({ a: { g: a.g, q: a.q }, b: { g: b.g }, c: { g: c.g, q: c.q }, gw, gh }).then((r) => {
                 r.t = b.t;
                 results.push(r);
-                if (keep && (r.off.length >= 4)) {
-                    save(path.join(saveDir, `pace-${b.t.toFixed(2)}.png`), keep[0], keep.slice(1), r.off, gw);
-                }
             }));
             // Frames read ahead stay a few per worker.
             while (inFlight > workers * 3) {
@@ -499,6 +512,34 @@ export async function checkPace(dir, { from = 0, to = Infinity, workers = 1, sav
         }
         log(`  ${p.length} blocks at ${x0}-${x1} x ${y0}-${y1} (of a ${GW} wide copy) from ${t0.toFixed(2)} to ` +
             `${t1.toFixed(2)} s: ${Object.entries(kinds).map(([k, n]) => `${n} ${k}`).join(', ')}`);
+    }
+    // Each place's triplet with the most of its blocks off, saved: read again from the dump, the rest's frames long gone.
+    for (const p of (saveDir ? places : [])) {
+        const inPlace = (o) => p.some((c) => (c.bx === o.bx) && (c.by === o.by));
+        const t0 = Math.min(...p.map((c) => c.t0)), t1 = Math.max(...p.map((c) => c.t1));
+        const r = results.filter((x) => (x.t >= t0) && (x.t <= t1))
+            .reduce((x, y) => (y.off.filter(inPlace).length > x.off.filter(inPlace).length) ? y : x);
+        let win = [];
+        for (const f of readFrames(dir, r.t - MAX_GAP - 0.05, r.t + MAX_GAP + 0.05)) {
+            const gw = Math.min(GW, f.w), gh = Math.floor(gw * f.h / f.w);
+            f.g = grey(f.rgb, f.w, f.h, gw, gh);
+            const last = win[win.length - 1];
+            if (last && (last.w === f.w) && (last.h === f.h)) {
+                let d = 0;
+                for (let i = 0; i < f.g.length; i += 7) {
+                    d += Math.abs(f.g[i] - last.g[i]);
+                }
+                if (d / (f.g.length / 7) < 0.05) {
+                    continue;
+                }
+            }
+            win = [...win, f].slice(-3);
+            if ((win.length === 3) && (Math.abs(win[1].t - r.t) < 1e-6)) {
+                save(path.join(saveDir, `pace-${r.t.toFixed(2)}.png`), win[0], win.slice(1), r.off.filter(inPlace), gw);
+                log(`  saved pace-${r.t.toFixed(2)}.png`);
+                break;
+            }
+        }
     }
     return { failed: places.length > 0, untested, lines };
 }

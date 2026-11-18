@@ -1548,4 +1548,10 @@ for (const d of new Set([sidesOnly ? null : dir, narrowerDir, widerDir].filter(B
             (seamFails ? ': FAILS, something cut short of the picture\'s side' : '') :
             `no straight line along the view's sides in ${p.moving} frames where the scene moves`));
 }
+// The pace of what moves through the frames drawn between the game's own: tools/frame_pace.mjs, its header.
+if (!sidesOnly && fs.existsSync(path.join(dir, 'frames.bin'))) {
+    const pace = await checkPace(dir, { from, to, workers, saveDir });
+    pace.lines.forEach((l) => console.log(l));
+    failed ||= pace.failed;
+}
 process.exit(failed ? 1 : (untested ? 2 : 0));
