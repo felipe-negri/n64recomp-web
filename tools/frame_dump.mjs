@@ -130,8 +130,11 @@ async function playRun(i, size, signal, config) {
     if (mem === null) mem = fs.openSync(`/proc/${proc.pid}/mem`, 'r+');
     return rdram;
   };
-  const read = (addr, len = 4) => { const at = memory() + BigInt(addr - 0x80000000), b = Buffer.alloc(len); fs.readSync(mem, b, 0, len, at); return b; };
-  const write = (addr, v) => { const at = memory() + BigInt(addr - 0x80000000), b = Buffer.alloc(4); b.writeUInt32LE(v >>> 0); fs.writeSync(mem, b, 0, 4, at); };
+  // A position in /proc/<pid>/mem is a Number: fs.writeSync takes a BigInt one as null and writes at the file's
+  // offset, address 0, which fails with EIO (readSync takes either). A user address is below 2^47, so it is exact.
+  const at = (addr) => Number(memory() + BigInt(addr - 0x80000000));
+  const read = (addr, len = 4) => { const pos = at(addr), b = Buffer.alloc(len); fs.readSync(mem, b, 0, len, pos); return b; };
+  const write = (addr, v) => { const pos = at(addr), b = Buffer.alloc(4); b.writeUInt32LE(v >>> 0); fs.writeSync(mem, b, 0, 4, pos); };
   const num = (s) => {
     let m = s.match(/^\[(.+)\](?:\+(.+))?$/);
     if (m) return (read(num(m[1])).readUInt32LE() + (m[2] ? num(m[2]) : 0)) >>> 0;
