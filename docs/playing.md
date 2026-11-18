@@ -70,6 +70,18 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   across a rewind showed only in a plan that skids while it holds Rewind. Both runs are recorded on an idle host: on a
   busy one the game falls behind real time, the plan's keys meet it at other moments, and sound_check checks nothing.
   Its header says what it was measured on.
+- Check a game's speed against its console's with a plan's `clock` step, in a desktop plan (`capture_window.ps1`,
+  `frame_dump.mjs`) and a page's (page_driver's): it reads a counter the game keeps every 100 ms against real time,
+  and `tools/game_speed.mjs` fails a game that ran faster than its console in any 5 s, and says where it ran slower,
+  which fails only where the host is known to keep up (`-Slow`, `--slow`). `frame_dump.mjs --launcher` starts at the
+  launcher, so a plan waits there before Start Game as a player who leaves it open, and `--no-dump` plays without a
+  dump, which slows a large window's game below its pace.
+- Check a desktop build's settings by machine with `tools/remote_frame_dump.sh ... --restart`: it plays a plan as a
+  new player's first launch and two restarts after it, in one folder, and fails where a start changed a value in the
+  settings files (a setting or a binding not read back) or where two launches' shots of a still moment differ (an
+  option that took effect only from the second launch, as librecomp's first launch calls no option's change
+  callback, or not at every start). Its plan's shots are of a moment that holds still at the same game state in
+  every launch and shows the options a player sees; `tools/frame_dump.mjs`'s header says how.
 
 ## Plans
 

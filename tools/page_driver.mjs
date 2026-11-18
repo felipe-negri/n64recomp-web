@@ -60,7 +60,10 @@
 // (DK64's gameTime()). The game's own data symbols (a recomp's data_dump.toml, a decomp's) say where it is. A run
 // says how many ticks its holds asked for and how many the clock had moved by when each was let go: a hold lets go
 // after the tick it waited for, so the game can read the key in one frame more, and more where the page's thread is
-// busy.
+// busy. While a clock is on, the page reads it every 100 ms against performance.now(), and where it stops (a
+// ["clock"], or the steps' end) tools/game_speed.mjs judges the game's speed from those reads: its lines are logged,
+// and a game faster than perSecond on a console fails the run there. Slower is said, not failed: a page under Xvfb, a
+// laptop and a hidden tab all draw a game slower than its console without the build being at fault.
 //
 // The launcher shows Start Game where Load ROM was only once recomp::select_rom has hashed the ROM and stored a copy
 // (in HOME/.config/<program id>; every recomp's launcher calls it), and on a busy host that came after a plan's fixed
@@ -90,6 +93,7 @@ import http from 'http';
 import net from 'net';
 import path from 'path';
 import { spawn, execFile, execFileSync } from 'child_process';
+import { judge } from './game_speed.mjs';
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -542,12 +546,26 @@ export const open = async (browser, { profile, port, size = [1256, 645], executa
       if (!got) log(`the clock stood still: ${read} stayed ${at} through ${ms} ms of the game's time`);
       return at;
     };
+    // The game's speed from the clock's reads since it was set (the header).
+    const judgeClock = async () => {
+      if (!clock) return;
+      const reads = await page.evaluate('(() => { clearInterval(window.__speedTimer); const r = window.__speed; window.__speed = null; return r; })()');
+      const { lines, fails } = judge(reads ?? [], clock[1]);
+      for (const line of lines) log(line);
+      if (fails) throw new Error(`the game's speed fails: ${lines.at(-1).replace(/^game speed: /, '')}`);
+    };
     for (const [op, ...a] of steps) {
       if (stopped) throw stopped;
       if (extra[op]) await extra[op](...a);
       else if (op === 'clock') {
+        await judgeClock();
         clock = a.length ? a : null;
-        if (clock) await page.evaluate(rdramHelpers);
+        if (clock) {
+          await page.evaluate(rdramHelpers);
+          await page.evaluate(`(() => { clearInterval(window.__speedTimer); const read = new Function('return ' + ${JSON.stringify(clock[0])});
+            window.__speed = []; const once = () => { try { window.__speed.push([performance.now(), read() >>> 0]); } catch {} };
+            window.__speedTimer = setInterval(once, 100); once(); })()`);
+        }
       }
       else if (op === 'wait') await onClock(a[0]);
       else if (op === 'until') {
@@ -619,6 +637,7 @@ export const open = async (browser, { profile, port, size = [1256, 645], executa
       else throw new Error(`unknown step ${op}`);
     }
     if (asked) log(`holds on the clock: ${asked} ticks asked, ${held} held`);
+    await judgeClock();
   };
   return page;
 };

@@ -2,12 +2,14 @@
 // tools/remote_frame_dump.sh starts on a Linux host with an NVIDIA GPU: the dumps and
 // tools/frame_check.mjs on them, made on that host's GPU and CPU instead of the machine a person or an agent works on.
 // A dump is ~20 MB a second of frames, too much to bring back over a slow link, so only the check's text, the
-// program's logs, the plan's shots and frame_check's flagged frames stay; the dumps are deleted unless --keep.
+// program's logs, the plan's steps and shots and frame_check's flagged frames stay; the dumps are deleted unless --keep.
 //
 //   node tools/frame_dump.mjs --game <dir> --exe <name> --game-id <id> --rom <file> --plan <file> --out <dir>
 //       [--window <w>x<h>[,<w>x<h>,<w>x<h>]] [--rate <hz>] [--seconds <from>-<to>] [--args "<program args>"]
 //       [--env K=V,...] [--config <dir>] [--check "<frame_check args>"] [--workers <n>] [--keep]
-//       [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>] [--sound-reference <dir>]
+//       [--reuse] [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>] [--sound-reference <dir>]
+//       [--launcher] [--no-dump] [--slow]
+//       [--restart]
 //
 // --game is the folder of a recomp's Linux build (its release archive unpacked, or its build folder with assets/),
 // --exe the program in it, --game-id the name its runtime stores the ROM under (<game id>.z64, as Load ROM does). Each
@@ -40,11 +42,43 @@
 // than a console pixel that the second lacks (its header says how), and --check's arguments are seam_check's. With --window the plan's size steps are skipped. Without it each run is the plan's own size steps
 // from a 1280x720 window.
 //
+// --restart checks that what a player sets is what the game runs, after a first launch and after a restart, in place
+// of frame_check: the plan is played three times in one copy of the game, its first launch with only --config's files
+// (none given: a new player's very first launch) and two more starts after it (restart, again), each reading what the
+// one before it left, the window --window's first size. A first launch's settings must be the defaults in effect, not
+// only on disk (librecomp writes them out without calling the options' change callbacks, so an option read only in
+// its callback keeps its C++ starting value until the next launch), and a setting or a binding, once written, must
+// read back the same at every start. It fails where the first launch's settings files don't hold --config's values,
+// where a start changed a value in them, where the runs' dumps were drawn at another size or shown in another number
+// of frames a game frame, and where two launches' shots of a still picture differ (restartCheck() says how much). So
+// the plan's shots are of moments that hold still at the same game state in every launch (a race's countdown, reached
+// by until steps), where an option a player sees shows: Rush 2049's countdown on its first track tells Draw Distance,
+// Level of Detail and Scenery Culling at Original from their defaults. On v0.1.26, whose first launch ran them at
+// Original, 7 of 18 launches drew so (3 of 6 first launches, and some starts after them too), and 5 of 6 checks failed;
+// on v0.1.78, 2 of 15 launches (each a third start, whose files said the defaults), and 2 of 5 checks: the fault strikes at
+// some starts and not others, so one pass says little and a game's check is played two or three times. It writes <out>/restart.txt, each run's shots and its settings files (<out>/<run>/settings), and
+// passes RT64_FRAME_DUMP_RATE=--rate in place of graphics.json's Manual, which a first launch doesn't have yet. Exit 0
+// passes, 1 fails, 3 a run failed.
+//
 // The plan is tools/capture_window.ps1's (its header has every step), its times in seconds since the program started:
 // key, down, up, size, shot (a PNG of the window, <out>/<run>/<name>.png), until, poke, or, peek, dump, find and end
 // do what they do there, keys through XTEST into the window and RDRAM through /proc/<pid>/mem (the runtime maps it as
 // one 512 MB region, 0x80000000 at its first byte, each 32-bit word in the host's order). burst, record and stop are
 // captures, which the dump replaces: they are skipped. drag, Windows' move loop, has no counterpart and fails the run.
+// Two steps are this tool's own:
+//   <s> clock <addr> <per second>  from here to the run's end, reads the game's 32-bit counter at addr every 100 ms
+//                                  against real time, a counter that counts that many a second on a console (Mario
+//                                  Golf's frame counter, 0x800B67F0, 30; Donald Duck's clock, 0x800C3D24, 60), and
+//                                  tools/game_speed.mjs judges the game's speed from it: each run's speed.tsv has the
+//                                  reads, the log what was judged. A game faster than its console fails the run (exit
+//                                  1), and one slower too with --slow, for a host known to draw the game at its pace
+//   <s> click <x> <y>              clicks at x, y in the window, through XTEST as a mouse does: with --launcher a plan
+//                                  starts the game with a click on Start Game (Enter under the pointer doesn't, on X)
+// --launcher starts the program without --boot, at its launcher, so a plan can wait there as a player who leaves it
+// open does before Start Game (a game whose clock counted the launcher's time played its demos with no title).
+// --no-dump plays the plan with RT64's frame dump off and no frame_check, for the clock alone: a dump writes every
+// frame, which slows a large window's game below its pace. Its exit is then the clock's: 0 passes, 1 fails, 3 a
+// run failed.
 //
 // --queue names a JavaScript module exporting gpuRun(spec, run) of a GPU queue the host's GPU work takes turns in: the
 // runs then go as one job of type frame-dump and frame_check as a second, frame-check, asking no GPU memory (its
@@ -55,16 +89,24 @@
 // 0.3-0.6 GB, frame_check 0.6), never the queue's 8 GiB for a game it hasn't measured. A stop the queue asks for ends
 // the run in progress, and the tool, with 75. Without --queue it runs at once.
 //
+// --reuse checks the dumps a run before with --keep left in --out, and makes only those it lacks (a run that didn't
+// finish leaves none): a change to frame_check is checked against dumps already made, a check's worth of CPU instead
+// of a dump's turn on the GPU and minutes of play. With every dump there it files no frame-dump job, only frame-check.
+// The plan, --window, --seconds, --rate and the build must be the ones the dumps were made with; the caller keys --out
+// by them.
+//
 // --workers is frame_check's (a third of the cores it sees unless given), for a container held to fewer cores than
 // the host has.
 //
 // Exit: frame_check's own (0 passes, 1 fails, 2 has nothing to test), or 1 where sound_check fails, 2 where the frames
 // pass and sound_check had nothing it could check against --sound-reference (a run that fell behind real time), 3 when
-// a run failed (the program exited or crashed, an until or find unmet, no window), 75 when the queue asked it to stop.
+// a run failed (the program exited or crashed, an until or find unmet, no window), 75 when the queue asked it to stop;
+// 1 too where a clock step's speed fails.
 import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { judge } from './game_speed.mjs';
 
 const args = process.argv.slice(2);
 const opt = (name, def) => { const i = args.indexOf(name); return i < 0 ? def : args[i + 1]; };
@@ -74,6 +116,7 @@ const game = path.resolve(need('--game')), exe = need('--exe'), gameId = need('-
 const rom = path.resolve(need('--rom')), planFile = path.resolve(need('--plan')), out = path.resolve(need('--out'));
 const windows = opt('--window') ? opt('--window').split(',').map((s) => s.split('x').map(Number)) : null;
 const rate = Number(opt('--rate', 60));
+const restart = flag('--restart');
 const here = path.dirname(new URL(import.meta.url).pathname);
 const runNames = windows?.length === 2 ? ['main', 'low'] : ['main', 'narrower', 'wider'];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -81,6 +124,8 @@ const log = (s) => console.log(s);
 
 class RunFailed extends Error {}
 let stopped = false; // the queue asked for a stop
+let speedFails = false; // a clock step's run judged the game's speed wrong
+const dumping = !flag('--no-dump');
 
 const plan = fs.readFileSync(planFile, 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
   .map((l) => l.split(/\s+/));
@@ -125,28 +170,45 @@ function rdramOf(pid) {
   return merged ? merged.end - size : null;
 }
 
-async function playRun(i, size, signal, config) {
-  const name = windows ? runNames[i] : 'main';
-  const dir = path.join(out, name), work = path.join(dir, 'run');
+const runName = (i) => (windows ? runNames[i] : 'main');
+// A dump a finished run left (--keep), for --reuse.
+const kept = (i) => fs.existsSync(path.join(out, runName(i), 'dump.done'));
+
+// One run of the plan as <out>/<name>: in a new copy of the game with config's files (<out>/<name>/run), or, given
+// work, in that folder as an earlier run left it (a restart).
+async function playRun(name, size, signal, { config, work: keptWork }) {
+  const dir = path.join(out, name), work = keptWork ?? path.join(dir, 'run');
   fs.rmSync(dir, { recursive: true, force: true });
-  fs.cpSync(game, work, { recursive: true });
-  fs.writeFileSync(path.join(work, 'portable.txt'), '');
-  fs.copyFileSync(rom, path.join(work, `${gameId}.z64`));
-  for (const f of fs.readdirSync(config)) fs.copyFileSync(path.join(config, f), path.join(work, f));
-  const env = { ...process.env, DISPLAY: display, SDL_AUDIODRIVER: 'dummy', RT64_FRAME_DUMP: path.join(dir, 'dump') };
+  fs.mkdirSync(dir, { recursive: true });
+  if (!keptWork) {
+    fs.cpSync(game, work, { recursive: true });
+    fs.writeFileSync(path.join(work, 'portable.txt'), '');
+    fs.copyFileSync(rom, path.join(work, `${gameId}.z64`));
+    for (const f of config ? fs.readdirSync(config) : []) fs.copyFileSync(path.join(config, f), path.join(work, f));
+  }
+  const env = { ...process.env, DISPLAY: display, SDL_AUDIODRIVER: 'dummy' };
+  if (dumping) env.RT64_FRAME_DUMP = path.join(dir, 'dump');
   if (recorder) Object.assign(env, { LD_PRELOAD: recorder, SDL_AUDIO_RECORD: path.join(dir, 'sound') });
-  if (opt('--seconds')) env.RT64_FRAME_DUMP_SECONDS = opt('--seconds');
+  if (dumping && opt('--seconds')) env.RT64_FRAME_DUMP_SECONDS = opt('--seconds');
+  if (restart) env.RT64_FRAME_DUMP_RATE = String(rate); // a first launch has no graphics.json to set Manual in
   for (const kv of (opt('--env') ?? '').split(',').filter(Boolean)) { const k = kv.indexOf('='); env[kv.slice(0, k)] = kv.slice(k + 1); }
   const [w, h] = size ?? [1280, 720];
-  const progArgs = ['--boot', '--window', `${w}x${h}`, ...(opt('--args') ?? '').split(/\s+/).filter(Boolean)];
+  const progArgs = [...(flag('--launcher') ? [] : ['--boot']), '--window', `${w}x${h}`, ...(opt('--args') ?? '').split(/\s+/).filter(Boolean)];
   const started = Date.now();
   const proc = spawn(path.join(work, exe), progArgs, { cwd: work, env,
     stdio: ['ignore', fs.openSync(path.join(dir, 'stdout.log'), 'w'), fs.openSync(path.join(dir, 'stderr.log'), 'w')] });
   let exited = null;
   proc.on('exit', (code, sig) => { exited = sig ?? code; });
   const t = () => (Date.now() - started) / 1000;
+  // Each step as it is done: printed, in <run>/plan.log, which stays with the dump (when a reused dump's run had its
+  // plan reach a scene), and with its wall-clock time in <run>/steps.tsv (for the sound check).
   const steps = fs.openSync(path.join(dir, 'steps.tsv'), 'w');
-  const say = (s) => { log(`${name} ${t().toFixed(1).padStart(6)}s ${s}`); fs.writeSync(steps, `${Date.now()}\t${s}\n`); };
+  const say = (s) => {
+    const l = `${name} ${t().toFixed(1).padStart(6)}s ${s}`;
+    log(l);
+    fs.appendFileSync(path.join(dir, 'plan.log'), `${l}\n`);
+    fs.writeSync(steps, `${Date.now()}\t${s}\n`);
+  };
   say(`started ${exe} ${progArgs.join(' ')}`);
   let win = null, mem = null, rdram = null, shift = 0;
   const names = {};
@@ -181,6 +243,11 @@ async function playRun(i, size, signal, config) {
     return Number(s) >>> 0;
   };
   const press = async (key, ms = 120) => { xdo('keydown', keysym(key)); await sleep(ms); xdo('keyup', keysym(key)); };
+  // The clock step's reads, [ms, value], every 100 ms on a timer of their own while the plan goes on.
+  let clock = null, clockTimer = null;
+  const clockRead = () => {
+    try { clock.reads.push([performance.now(), read(clock.addr).readUInt32LE()]); } catch { /* the game's RDRAM not mapped yet */ }
+  };
   try {
     await findWindow();
     if (size) xdo('windowsize', win, String(w), String(h));
@@ -194,10 +261,14 @@ async function playRun(i, size, signal, config) {
         case 'size':
           if (size) { say(`size ${p[2]}x${p[3]} skipped: --window gives the size`); break; }
           xdo('windowsize', win, p[2], p[3]); say(`size ${p[2]}x${p[3]}`); break;
-        case 'shot':
-          execFileSync('bash', ['-c', `xwd -silent -id ${win} | convert xwd:- ${JSON.stringify(path.join(dir, p[2] + '.png'))}`],
+        case 'shot': {
+          const shoot = (file) => execFileSync('bash', ['-c', `xwd -silent -id ${win} | convert xwd:- ${JSON.stringify(path.join(dir, file))}`],
             { env: { ...process.env, DISPLAY: display } });
+          shoot(p[2] + '.png');
+          // --restart compares shots only of a picture that holds still: a second one half a second later says so.
+          if (restart) { await sleep(500); shoot(p[2] + '.still.png'); }
           say(`shot ${p[2]}`); break;
+        }
         case 'burst': case 'record': case 'stop': say(`${p[1]} skipped: the dump has every frame`); break;
         case 'drag': throw new RunFailed('drag is Windows\' move loop, which this has no counterpart of');
         case 'until': case 'find': {
@@ -228,11 +299,23 @@ async function playRun(i, size, signal, config) {
         case 'or': { const a = num(p[2]); write(a, read(a).readUInt32LE() | num(p[3])); say(`or ${p[2]} ${p[3]}`); break; }
         case 'peek': say('peek ' + p[2].split(',').map((a) => `${a}=0x${read(num(a)).readUInt32LE().toString(16).toUpperCase().padStart(8, '0')}`).join(' ')); break;
         case 'dump': fs.writeFileSync(path.join(dir, p[4] + '.bin'), read(num(p[2]), num(p[3]))); say(`dump ${p[2]} ${p[3]} ${p[4]}.bin`); break;
+        case 'clock':
+          clock = { addr: num(p[2]), perSecond: Number(p[3]), reads: [] };
+          clearInterval(clockTimer); clockTimer = setInterval(clockRead, 100); clockRead();
+          say(`clock ${p[2]} at ${p[3]} a second`); break;
+        case 'click': xdo('mousemove', '--window', win, p[2], p[3]); await sleep(100); xdo('click', '1'); say(`click ${p[2]} ${p[3]}`); break;
         case 'end': break plan;
         default: throw new RunFailed(`unknown plan step: ${p.join(' ')}`);
       }
     }
   } finally {
+    clearInterval(clockTimer);
+    if (clock) {
+      fs.writeFileSync(path.join(dir, 'speed.tsv'), clock.reads.map(([ms, v]) => `${Math.round(ms)}\t${v}`).join('\n') + '\n');
+      const { lines, fails } = judge(clock.reads, clock.perSecond, { slow: flag('--slow') });
+      for (const line of lines) say(line);
+      speedFails ||= fails;
+    }
     if (mem !== null) fs.closeSync(mem);
     if (exited === null) {
       proc.kill('SIGTERM');
@@ -243,6 +326,7 @@ async function playRun(i, size, signal, config) {
   }
   const crash = fs.readFileSync(path.join(dir, 'stderr.log'), 'utf8').match(/^.*Crash:.*$/m);
   if (crash) throw new RunFailed(`the program crashed: ${crash[0]}`);
+  fs.writeFileSync(path.join(dir, 'dump.done'), '');
   const pace = paceOf(path.join(dir, 'dump'));
   if (pace) say(pace);
   return path.join(dir, 'dump');
@@ -308,11 +392,131 @@ async function makeConfig() {
   return config;
 }
 
+const runs = windows ?? [null];
+const reusing = () => flag('--reuse') && runs.every((_, i) => kept(i));
+
 async function dumps(signal) {
-  const config = await makeConfig();
   const made = [];
-  for (const [i, size] of (windows ?? [null]).entries()) made.push(await playRun(i, size, signal, config));
+  let config = null;
+  for (const [i, size] of runs.entries()) {
+    if (flag('--reuse') && kept(i)) { log(`${runName(i)} reused`); made.push(path.join(out, runName(i), 'dump')); continue; }
+    config ??= await makeConfig();
+    made.push(await playRun(runName(i), size, signal, { config }));
+  }
   return made;
+}
+
+// --restart: the plan played three times in one copy of the game, a first launch with only --config's files and two
+// starts after it, each run's settings files copied to <out>/<run>/settings as it ends.
+const restartNames = ['first', 'restart', 'again'];
+const jsonFiles = (d) => fs.readdirSync(d).filter((f) => f.endsWith('.json') && fs.statSync(path.join(d, f)).isFile());
+async function restartRuns(signal) {
+  const config = opt('--config') ? path.resolve(opt('--config')) : null;
+  const work = path.join(out, 'first', 'run');
+  for (const name of restartNames) {
+    await playRun(name, windows?.[0] ?? null, signal, { config, work: name === 'first' ? undefined : work });
+    const kept = path.join(out, name, 'settings');
+    fs.mkdirSync(kept, { recursive: true });
+    for (const f of jsonFiles(work)) fs.copyFileSync(path.join(work, f), path.join(kept, f));
+  }
+}
+
+// Each settings file's values by key (a.b.c, a.0 for an array's first), as JSON text.
+function flatten(v, key = '', into = new Map()) {
+  if (v !== null && typeof v === 'object' && (Array.isArray(v) ? v.length : Object.keys(v).length))
+    for (const [k, x] of Object.entries(v)) flatten(x, key ? `${key}.${k}` : k, into);
+  else into.set(key, JSON.stringify(v));
+  return into;
+}
+function settingsOf(d) {
+  const files = new Map();
+  for (const f of fs.existsSync(d) ? jsonFiles(d) : []) {
+    try { files.set(f, flatten(JSON.parse(fs.readFileSync(path.join(d, f), 'utf8')))); }
+    catch (e) { files.set(f, new Map([['(the file)', `not JSON: ${e.message}`]])); }
+  }
+  return files;
+}
+// What changed from settings a to b: each value that differs, and each file or key one of them lacks.
+function settingsDiff(a, b, keysOfA = false) {
+  const lines = [];
+  for (const [f, av] of a) {
+    const bv = b.get(f);
+    if (!bv) { lines.push(`${f}: gone`); continue; }
+    for (const [k, x] of av) if (bv.get(k) !== x) lines.push(`${f}: ${k} ${x} -> ${bv.get(k) ?? '(gone)'}`);
+    if (!keysOfA) for (const k of bv.keys()) if (!av.has(k)) lines.push(`${f}: ${k} (new) ${bv.get(k)}`);
+  }
+  if (!keysOfA) for (const f of b.keys()) if (!a.has(f)) lines.push(`${f}: new`);
+  return lines;
+}
+
+// A shot as a grey 160x120 picture, for comparing runs' shots of the same window.
+function thumb(file) {
+  return execFileSync('convert', [file, '-resize', '160x120!', '-colorspace', 'Gray', '-depth', '8', 'gray:-'],
+    { maxBuffer: 1 << 20 });
+}
+const mae = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]); return s / a.length; };
+
+// A dump's frames by their headers alone: the size they were drawn at and how many frames each game frame was shown
+// in, the most common of each.
+function dumpShape(d) {
+  const file = path.join(d, 'frames.bin');
+  if (!fs.existsSync(file)) return null;
+  const fd = fs.openSync(file, 'r'), size = fs.fstatSync(fd).size, head = Buffer.alloc(40);
+  const sizes = new Map(), counts = new Map();
+  let frames = 0;
+  for (let o = 0; o + 40 <= size; frames++) {
+    fs.readSync(fd, head, 0, 40, o);
+    if (head.readUInt32LE(0) !== 0x44465452) break; // rt64_frame_dump.h's FrameDump::Magic
+    const w = head.readUInt32LE(4), h = head.readUInt32LE(8), k = `${w}x${h}`, c = head.readUInt32LE(16);
+    sizes.set(k, (sizes.get(k) ?? 0) + 1);
+    counts.set(c, (counts.get(c) ?? 0) + 1);
+    o += 40 + w * h * 3;
+  }
+  fs.closeSync(fd);
+  const most = (m) => [...m].sort((x, y) => y[1] - x[1])[0]?.[0];
+  return frames ? { frames, size: most(sizes), count: most(counts) } : null;
+}
+
+// --restart's verdict, also in <out>/restart.txt. It fails where the first launch's settings files don't hold
+// --config's values, where a start changed a value the one before it wrote (a setting or a binding not read back),
+// where a dump's frames were drawn at another size or shown in another number of frames a game frame, and where two
+// launches' shots of a picture that holds still differ by more than SHOT_SLACK (of 255, a grey pixel's mean). A shot
+// that differs by more from its .still, taken half a second later, is moving and isn't compared: a launch's moment
+// wanders by a frame or two, which a still picture doesn't show. Rush 2049's countdown on its first track, from three
+// launches each, read 0.1-1.0 apart within a launch's settings and 9-10 between Draw Distance, Level of Detail and
+// Scenery Culling at Original and at their defaults; its attract race, moving, 14-37.
+const SHOT_SLACK = 3;
+function restartCheck() {
+  const lines = [], say = (s) => lines.push(s);
+  let failed = false;
+  const fail = (s) => { failed = true; say(`FAIL ${s}`); };
+  const given = settingsOf(opt('--config') ? path.resolve(opt('--config')) : path.join(out, 'none'));
+  const runs = restartNames.map((n) => ({ name: n, settings: settingsOf(path.join(out, n, 'settings')) }));
+  say(`settings files the first launch left: ${[...runs[0].settings.keys()].join(', ') || 'none'}`);
+  for (const l of settingsDiff(given, runs[0].settings, true)) fail(`--config's value not kept by the first launch: ${l}`);
+  for (let i = 1; i < runs.length; i++)
+    for (const l of settingsDiff(runs[i - 1].settings, runs[i].settings)) fail(`changed by the ${runs[i].name} start: ${l}`);
+  const shapes = restartNames.map((n) => dumpShape(path.join(out, n, 'dump')));
+  if (shapes.every(Boolean)) {
+    say(`dumps: ${shapes.map((s, i) => `${restartNames[i]} ${s.frames} frames at ${s.size}, ${s.count} a game frame`).join('; ')}`);
+    for (const k of ['size', 'count']) if (new Set(shapes.map((s) => s[k])).size > 1) fail(`the runs' frames differ in ${k}`);
+  } else say('dumps: not in every run (a build without RT64_FRAME_DUMP), so only the shots compare the pictures');
+  const shots = fs.readdirSync(path.join(out, 'first')).filter((f) => f.endsWith('.png') && !f.endsWith('.still.png'));
+  for (const s of shots) {
+    const files = restartNames.map((n) => path.join(out, n, s));
+    if (!files.every((f) => fs.existsSync(f) && fs.existsSync(f.replace(/\.png$/, '.still.png')))) { say(`shot ${s}: not in every run`); continue; }
+    const pics = files.map(thumb), moved = files.map((f, i) => mae(pics[i], thumb(f.replace(/\.png$/, '.still.png'))));
+    if (Math.max(...moved) > SHOT_SLACK) { say(`shot ${s}: moving (${moved.map((m) => m.toFixed(1)).join(', ')} in half a second), not compared`); continue; }
+    const apart = [[0, 1], [1, 2], [0, 2]].map(([i, j]) => `${restartNames[i]}-${restartNames[j]} ${mae(pics[i], pics[j]).toFixed(1)}`);
+    const worst = Math.max(...[[0, 1], [1, 2], [0, 2]].map(([i, j]) => mae(pics[i], pics[j])));
+    (worst > SHOT_SLACK ? fail : say)(`shot ${s}: launches apart ${apart.join(', ')}`);
+  }
+  if (!shots.length) say('shots: none in the plan, so the pictures aren\'t compared');
+  say(failed ? 'restart check: FAILS' : 'restart check: passes');
+  const text = lines.join('\n') + '\n';
+  fs.writeFileSync(path.join(out, 'restart.txt'), text);
+  process.stdout.write(text);
+  return failed ? 1 : 0;
 }
 
 function check(made) {
@@ -320,6 +524,7 @@ function check(made) {
   if (made.length === 2) a.push('--low', made[1]);
   if (made.length === 3) a.push('--narrower', made[1], '--wider', made[2]);
   if (opt('--workers') && (made.length !== 2)) a.push('--workers', opt('--workers'));
+  fs.rmSync(path.join(out, 'flagged'), { recursive: true, force: true });
   a.push('--save', path.join(out, 'flagged'), ...(opt('--check') ?? '').split(/\s+/).filter(Boolean));
   log(`${path.basename(a[0], '.mjs')} ${a.slice(1).join(' ')}`);
   let code = 0, text;
@@ -367,15 +572,20 @@ try {
       ...(vramMiB === 'auto' ? { guessMiB: 1024 } : {}), ramMiB: capMiB(),
       url: opt('--url') || undefined, ref: process.env.HOSTNAME,
       onUpdate: (j) => j.state === 'waiting' && log(`queue: ${type} waiting, ${j.ahead} ahead${j.waitMs != null ? `, ~${Math.ceil(j.waitMs / 60000)} min` : ''}: ${j.why?.text ?? 'going next'}`) });
-    const made = await gpuRun(spec('frame-dump', `Frame dump: ${gameId}`, opt('--vram', 'auto') === 'auto' ? 'auto' : Number(opt('--vram'))), (signal) => dumps(signal));
-    code = await gpuRun(spec('frame-check', `frame_check: ${gameId}`, 0), async () => both(made));
-  } else code = both(await dumps(null));
+    const made = reusing() && !restart ? await dumps(null) : await gpuRun(spec('frame-dump', `Frame dump: ${gameId}`, opt('--vram', 'auto') === 'auto' ? 'auto' : Number(opt('--vram'))),
+      (signal) => (restart ? restartRuns(signal) : dumps(signal)));
+    // --restart's check reads headers and 160x120 shots, seconds of one core: no job of its own.
+    if (restart) code = restartCheck();
+    else code = dumping ? await gpuRun(spec('frame-check', `frame_check: ${gameId}`, 0), async () => both(made)) : 0;
+  } else if (restart) { await restartRuns(null); code = restartCheck(); }
+  else code = dumping ? both(await dumps(null)) : (await dumps(null), 0);
+  if (speedFails) { log("frame_dump: the game's speed fails (the clock step's lines above)"); code = 1; }
 } catch (e) {
   log(`frame_dump: ${e instanceof RunFailed ? e.message : e?.stack ?? e}`);
   code = stopped ? 75 : 3;
 }
-if (!flag('--keep')) for (const n of [...runNames, 'first-start']) {
-  fs.rmSync(path.join(out, n, 'dump'), { recursive: true, force: true });
+for (const n of [...runNames, ...restartNames, 'first-start']) {
+  if (!flag('--keep')) fs.rmSync(path.join(out, n, 'dump'), { recursive: true, force: true });
   fs.rmSync(path.join(out, n, 'run'), { recursive: true, force: true });
 }
 xvfb.kill();
