@@ -1,9 +1,8 @@
 # Findings and measurements
 
-What has been measured about the pages and about Chrome's and Firefox's WebGPU, and what each measurement explains.
-Each run of a page is a line in `plays.jsonl`; this file keeps what a run's line doesn't: test pages and test builds,
-GPU and CPU counters, traces, and the conclusions drawn. CLAUDE.md points here where a rule rests on one, and its
-Ruled out lists what not to try again.
+What has been measured about the pages and about Chrome's and Firefox's WebGPU, and what each measurement explains: test
+pages and test builds, GPU and CPU counters, traces, and the conclusions drawn. CLAUDE.md points here where a rule rests
+on one, and its Ruled out lists what not to try again.
 
 
 ## A page's GPU time
@@ -51,7 +50,7 @@ with `--profiling-funcs` (capped at 1920x945, uncapped at 3840x2000): the page's
 28% busy capped and 58% uncapped, nearly all of it WebGPU calls; RT64's display list and workload threads and the
 sound's aspMain each under 10%; the game's own threads waiting on their messages. A trace puts a wait inlined into a
 thread's loop down to the loop itself (`timer_thread` and RT64's idle texture streaming threads at 100%), so a share
-there is not CPU time: untraced, the capped page took 0.8-1.2 cores (plays.jsonl). Nothing in either is the web's or
+there is not CPU time: untraced, the capped page took 0.8-1.2 cores. Nothing in either is the web's or
 the game's own to make cheaper.
 
 ## Memory
@@ -250,47 +249,45 @@ any of them, so the request that ran it out still isn't named. The soaks are 17-
 since the abort comes anywhere from 70 to 793 s in and most come past 5 minutes. Banjo moved to v0.77.0 on that, as a
 critical fix.
 
-No other page leaks or aborts in a soak (docs/playing.md, Soaks). Thirteen games' pages from Pages were soaked in
-Firefox 158 and ten of them in Chrome, 2026-10-20 and 21 on an RTX 5080 (the host otherwise idle, other cards' GPU
-turns between plays), 21-23 minutes each, with no crash, no abort and no WebGPU error but Banjo-Kazooie's Firefox OOM
-above; Pokémon Snap's, Rush 2's and Rush 2049's weren't. dlmalloc's break takes what a page uses in its first minutes,
-then holds or steps up a few MB and stops. From the first minute to the last it is flat on Donkey Kong 64 (763.8 and
-766.9 MB), Pilotwings 64, Diddy Kong Racing, Banjo-Kazooie in Chrome, and Banjo-Tooie, Ocarina of Time and Jet Force
-Gemini from minute 3, and climbs +4.6-4.9 MB on GoldenEye, +8.6 on Mario Kart 64, +9.4 on Star Fox 64 (Firefox),
-+6.9-10.2 on Wave Race 64 and +7.2 on Majora's Mask in Firefox (its last step at minute 18; flat in Chrome). At the
-fastest of those the 1536 MB heap lasts two days. Chrome's GPU process holds 1.3-2.3 GB through a play. Firefox's,
-1.6-2.9 GB, climbs about 100 MB every 6-10 minutes and drifts back down between, on every page, so it churns rather
-than grows. Presents hold all through, about 350 a second in Chrome and 180-200 in Firefox. Conker's page alone grows
-its heap (-sALLOW_MEMORY_GROWTH, in its own link options); heap_probe.js reads its length too, but Conker's soaks ran
-before it could find that page's sbrk, so its heap's curve is still unread.
+No other page leaks or aborts in a soak. Thirteen games' pages from Pages were soaked in Firefox 158 and ten of them in
+Chrome, 2026-10-20 and 21 on an RTX 5080 (the host otherwise idle, other cards' GPU turns between plays), 21-23 minutes
+each, with no crash, no abort and no WebGPU error but Banjo-Kazooie's Firefox OOM above; Pokémon Snap's, Rush 2's and
+Rush 2049's weren't. dlmalloc's break takes what a page uses in its first minutes, then holds or steps up a few MB and
+stops. From the first minute to the last it is flat on Donkey Kong 64 (763.8 and 766.9 MB), Pilotwings 64, Diddy Kong
+Racing, Banjo-Kazooie in Chrome, and Banjo-Tooie, Ocarina of Time and Jet Force Gemini from minute 3, and climbs
++4.6-4.9 MB on GoldenEye, +8.6 on Mario Kart 64, +9.4 on Star Fox 64 (Firefox), +6.9-10.2 on Wave Race 64 and +7.2 on
+Majora's Mask in Firefox (its last step at minute 18; flat in Chrome). At the fastest of those the 1536 MB heap lasts
+two days. Chrome's GPU process holds 1.3-2.3 GB through a play. Firefox's, 1.6-2.9 GB, climbs about 100 MB every 6-10
+minutes and drifts back down between, on every page, so it churns rather than grows. Presents hold all through, about
+350 a second in Chrome and 180-200 in Firefox. Conker's page alone grows its heap (-sALLOW_MEMORY_GROWTH, in its own
+link options); heap_probe.js reads its length too, but Conker's soaks ran before it could find that page's sbrk, so its
+heap's curve is still unread.
 
-A page's break at boot is the peak of its boot, not what it keeps. GoldenEye's page from Pages (v0.106.0) held its
-break at 1457.9 of its 1536 MB from 4 s in, 78 MB from an abort, and a walk of dlmalloc's chunks (heap_probe.js's
-break, then each chunk's header from the heap's start; 2026-10-25 on an RTX 5080, Chrome uncapped at 3840x2000) named
-what was in it: RDRAM's 512 MB (untouched), the ROM (12 MB), the launcher's fonts (8 MB), 1-2 MB chunks (44 MB), and
-one 371 MB chunk of RGBA pixels at the top, with 440-500 MB free below it that the boot had taken and given back
-(copies of the ROM and of the same pixels). The 371 MB was RecompFrontend's copy buffer for its menus' images, made
-half again the largest image yet and kept, here the launcher's SVG background (`mm-clipped.svg` in a box 100vh + 105vw
-high, 10723x6032 at that canvas, 247 MB): its rows padded to 43008 bytes, times 1.5, are the chunk's size to the
-byte. Banjo-Kazooie's page held a 94 MB one. With RecompFrontend 4c15260 (an image uploaded 16 MB of rows at a time)
-the breaks fell to 1113.9 MB on GoldenEye and 748.3 MB on Banjo (from 841.0), the same in Firefox 158 (1114.0,
-750.3), and Chrome's GPU process to 1813 MB from 2175 on GoldenEye, the plays otherwise as Pages' (plays.jsonl, sets
-heapband-ge-5080-20261025 and heapband-banjo-5080-20261025). So a page whose heap is short is walked before its
+A page's break at boot is the peak of its boot, not what it keeps. GoldenEye's page from Pages (v0.106.0) held its break
+at 1457.9 of its 1536 MB from 4 s in, 78 MB from an abort, and a walk of dlmalloc's chunks (heap_probe.js's break, then
+each chunk's header from the heap's start; 2026-10-25 on an RTX 5080, Chrome uncapped at 3840x2000) named what was in
+it: RDRAM's 512 MB (untouched), the ROM (12 MB), the launcher's fonts (8 MB), 1-2 MB chunks (44 MB), and one 371 MB
+chunk of RGBA pixels at the top, with 440-500 MB free below it that the boot had taken and given back (copies of the ROM
+and of the same pixels). The 371 MB was RecompFrontend's copy buffer for its menus' images, made half again the largest
+image yet and kept, here the launcher's SVG background (`mm-clipped.svg` in a box 100vh + 105vw high, 10723x6032 at that
+canvas, 247 MB): its rows padded to 43008 bytes, times 1.5, are the chunk's size to the byte. Banjo-Kazooie's page held
+a 94 MB one. With RecompFrontend 4c15260 (an image uploaded 16 MB of rows at a time) the breaks fell to 1113.9 MB on
+GoldenEye and 748.3 MB on Banjo (from 841.0), the same in Firefox 158 (1114.0, 750.3), and Chrome's GPU process to 1813
+MB from 2175 on GoldenEye, the plays otherwise as Pages'. So a page whose heap is short is walked before its
 INITIAL_MEMORY is raised: GoldenEye's own -sINITIAL_MEMORY=2GB would have hidden a buffer every page keeps.
 
 Every page also kept each of RT64's upload buffers in its heap twice, before plume 8618d66: plume's WebGPU backend a
-shadow of the buffer's whole size (what map() handed out) and plume_device_thread a copy on the calling side of each
-one under 16 MB, both for the buffer's whole life, besides the GPU's own two. RT64's BufferUploader keeps a pair for
-each draw input in each workload at 1.5 times the largest data it has carried, and RT64_GAME_FRAME_WORKLOADS queues 64
+shadow of the buffer's whole size (what map() handed out) and plume_device_thread a copy on the calling side of each one
+under 16 MB, both for the buffer's whole life, besides the GPU's own two. RT64's BufferUploader keeps a pair for each
+draw input in each workload at 1.5 times the largest data it has carried, and RT64_GAME_FRAME_WORKLOADS queues 64
 workloads (4 on the desktop; rt64 759e12a raised it from 32), so a game that draws a frame in one kept 64 frames of its
 biggest draws, twice. Rush 2049's page with all of a track's scenery drawn went from about 1180 to 2270 MB once a race
 began, past its 1536 MB, its abort's stack (a float4x4 vector's assign in WorkloadQueue::threadRenderFrame) only the
 last allocation; that game keeps 16 workloads now (its docs/web.md). With both copies made at map() and freed once
-unmap()'s data is written, every page's break fell, and none played worse. Chrome uncapped at 3840x2000 on an
-RTX 2070, each page's regular plan, whole GPU turns, the page Pages serves and the build played in turn with
-`tools/heap_probe.js` (ab_pages.mjs --preload; plays.jsonl, notes "an upload buffer's heap memory only while mapped"),
-the break in MB, Pages' build first (Mario Party's, which Pages has none of, v0.151.0's built the same way; Conker's
-heap grows, -sALLOW_MEMORY_GROWTH, so its break can pass 1536):
+unmap()'s data is written, every page's break fell, and none played worse. Chrome uncapped at 3840x2000 on an RTX 2070,
+each page's regular plan, whole GPU turns, the page Pages serves and the build played in turn with `tools/heap_probe.js`
+preloaded, the break in MB, Pages' build first (Mario Party's, which Pages has none of, v0.151.0's built the same way;
+Conker's heap grows, -sALLOW_MEMORY_GROWTH, so its break can pass 1536):
 
 ```
 banjo  938 -> 778    mk64   894 -> 788    snap  1146 -> 960
@@ -312,22 +309,21 @@ Racing's builds were clean, at 725, 781 and 1086 MB. An upload buffer of 16 MB o
 memory on the device thread: with a copy on the calling side too, both would be in the heap at its unmap, and the
 break keeps the peak.
 
-The 64 workloads also kept 64 copies of every framebuffer's RAM, before rt64 1589517. Each RDRAM check stores the
-RAM of every framebuffer RT64 knows into the workload it is in (FramebufferStorage, which a workload reads to load a
+The 64 workloads also kept 64 copies of every framebuffer's RAM, before rt64 1589517. Each RDRAM check stores the RAM of
+every framebuffer RT64 knows into the workload it is in (FramebufferStorage, which a workload reads to load a
 framebuffer from RAM again), and each workload kept its storage at 1.5 times the most it had held. Star Wars: Rogue
 Squadron's page from Pages (main 98b75c5) aborted with `Aborted(OOM)` 0.4 s after its first mission, Ambush at Mos
-Eisley, loaded, 220-234 s into the fork's extended plan, in Chrome and in Firefox, at 3840x2000 and at 1256x645
-alike (its regular plan plays the second mission and never reached it). A walk of dlmalloc's chunks (`heap_probe.js`
-with `?heapwalk`, Chrome uncapped at 3840x2000 on an RTX 2070, a busy host) named it: from 20 s in, 62 chunks of
-7,372,800 bytes, 450 MB beside RDRAM's 512 MB, each pointed at from its own entry of a 64-entry array of 3040-byte
-workloads, that size being 1.5 times eight of the game's 640x480 16-bit framebuffers. The break held at 1369 MB
-through the chapter's crawl, and the mission's load grew five of those to 14.7 MB (sixteen framebuffers) and the
-heap ran out. With a framebuffer's bytes that match its last store shared between the workloads that stored them,
-the same build played the extended plan through the mission to its end in both browsers, no 7 MB chunk in its heap,
-the break at 924 MB through the crawl (from 1369) and 963 MB at most in the mission in Chrome, 955 MB in Firefox,
-with no WebGPU error or exception, and its regular plan's A/B in Chrome read 314 presents a second against Pages'
-316. Diddy Kong Racing's, two pairs, read 310 and 314 against 324 and 317, its Firefox smoke play clean
-(plays.jsonl, notes "the framebuffer storage shared between workloads").
+Eisley, loaded, 220-234 s into the fork's extended plan, in Chrome and in Firefox, at 3840x2000 and at 1256x645 alike
+(its regular plan plays the second mission and never reached it). A walk of dlmalloc's chunks (`heap_probe.js` with
+`?heapwalk`, Chrome uncapped at 3840x2000 on an RTX 2070, a busy host) named it: from 20 s in, 62 chunks of 7,372,800
+bytes, 450 MB beside RDRAM's 512 MB, each pointed at from its own entry of a 64-entry array of 3040-byte workloads, that
+size being 1.5 times eight of the game's 640x480 16-bit framebuffers. The break held at 1369 MB through the chapter's
+crawl, and the mission's load grew five of those to 14.7 MB (sixteen framebuffers) and the heap ran out. With a
+framebuffer's bytes that match its last store shared between the workloads that stored them, the same build played the
+extended plan through the mission to its end in both browsers, no 7 MB chunk in its heap, the break at 924 MB through
+the crawl (from 1369) and 963 MB at most in the mission in Chrome, 955 MB in Firefox, with no WebGPU error or exception,
+and its regular plan's A/B in Chrome read 314 presents a second against Pages' 316. Diddy Kong Racing's, two pairs, read
+310 and 314 against 324 and 317, its Firefox smoke play clean.
 
 Perfect Dark's mission targets reach 1854x960 where its passes draw 1286x660 (2.1x the pixels) through RT64's own
 code, the desktop build's included. Measured at 1256x645 on rt64-web d19fdcc with every `RenderTarget::resize` logged
@@ -496,12 +492,12 @@ or that it was still running 5 s after the close (the browser dropping the conne
 copied to `<profile>-crashes` beside the fresh profile play_page deletes, with its stderr's last lines in the log. A
 tab's crash ends the run at once as "the page's renderer crashed", which before waited for the next evaluate's timeout.
 
-Of the runs in plays.jsonl that ended with the connection closed, Banjo-Kazooie's Firefox soak (2026-10-20, 687 s in)
-came before page_driver.mjs had a WebSocket client of its own, so it was Node's masks (A page that stops answering).
-Super Mario 64's Firefox play (2026-10-22) closed with 1000, a close frame Firefox sent, before its play began. Star
-Fox 64's Chrome soak from Pages (2026-10-21) and F-Zero X's Chrome play from Pages at 3840x2000 uncapped (2026-10-26,
-11 s into its race after a clean boot, not recorded) closed with 1006, each played clean when run again, before the
-browser's exit was kept: whether the browser crashed or was stopped is not known for them, and the next one says.
+Of the recorded runs that ended with the connection closed, Banjo-Kazooie's Firefox soak (2026-10-20, 687 s in) came
+before page_driver.mjs had a WebSocket client of its own, so it was Node's masks (A page that stops answering). Super
+Mario 64's Firefox play (2026-10-22) closed with 1000, a close frame Firefox sent, before its play began. Star Fox 64's
+Chrome soak from Pages (2026-10-21) and F-Zero X's Chrome play from Pages at 3840x2000 uncapped (2026-10-26, 11 s into
+its race after a clean boot, not recorded) closed with 1006, each played clean when run again, before the browser's exit
+was kept: whether the browser crashed or was stopped is not known for them, and the next one says.
 
 ## Two pages at once
 
@@ -645,13 +641,13 @@ hidden` with `tools/audio_probe.js`, whose `pagestall` lines say when the page's
   (Compute pipelines built at their first dispatch).
 - What Firefox lost after the tab came back in the play that filed this, a dozen rounds of `building N prebuilt shaders
   for section (none), the game waiting`, is the intro story's own shaders, none missing from the list. Of the 64 the
-  story draws in 110 s by itself, 36 are the boot section's and 28 the intro section's, which the list records from
-  the title (tools/shader_survey.js's intro()), and those come 56-106 s after Start Game, one to eight in a 5 s. RT64
-  enters a section only where a frame wants 4 of it (rt64's RasterShaderCache), so Firefox builds them as strays, 1-3
-  a round with the game waiting, 0.0-0.3 s each. They stay in the intro section: in the boot section, which Firefox
-  builds before the game's first frame, they would cost about as much once and on every visit, a player who presses
-  Start included, as Paper Mario's sections cost Firefox 0.06-0.16 s a shader (demo's 62 in 3.6-9.8 s, new_game's 151
-  in 5.7-13.8 s; plays.jsonl), 2-4 s more at the boot.
+  story draws in 110 s by itself, 36 are the boot section's and 28 the intro section's, which the list records from the
+  title (tools/shader_survey.js's intro()), and those come 56-106 s after Start Game, one to eight in a 5 s. RT64 enters
+  a section only where a frame wants 4 of it (rt64's RasterShaderCache), so Firefox builds them as strays, 1-3 a round
+  with the game waiting, 0.0-0.3 s each. They stay in the intro section: in the boot section, which Firefox builds
+  before the game's first frame, they would cost about as much once and on every visit, a player who presses Start
+  included, as Paper Mario's sections cost Firefox 0.06-0.16 s a shader (demo's 62 in 3.6-9.8 s, new_game's 151 in
+  5.7-13.8 s), 2-4 s more at the boot.
 
 What Chrome loses as the tab goes hidden is its own work on the page's thread, which runs the game's WebGPU calls.
 Paper Mario's and Mario Kart 64's pages, each hidden three times a play (`--play 20 --fault hidden,hidden,hidden`, the
@@ -670,38 +666,36 @@ as much as Pages in as many hides: Paper Mario 4 of 9 hides (464-1,384 frames, a
 visibilitychange fires, so the page can't see it coming, and plume's wait wasn't what held the game.
 
 Rush 2049's page lost sound after its tab was shown again, and none while it was hidden, but not for the hide (main
-485de90 on v0.201.0, 3840x2000, an RTX 2070, `tools/audio_probe.js` and `?frame-log`). Its race lost as much before the hide
-as after it, 7,544 frames in the 0.7 s before one, and every loss came at a game frame RT64 took 60-140 ms over or at
-the attract race's end, 30 s after the show, where the page's thread stalled 100-200 ms (`pagestall`) as the next mode
-loaded. Each is the runtime's hold: the VI thread sends no VI while the graphics thread spends 30 ms in one action
-(N64ModernRuntime-web's renderer_stalled), so the game's clock stops and its sound with it, and the sound for that
-time is never made. The ring, about 2,000 frames (42 ms) all through the race, ran dry and was back at that level a
-quantum later, with no burst of held buffers; the game's audio thread waits only for its own last audio task (the
-task its scheduler keeps at 0x8002AFA0), not for the graphics task in hand. Uncapped, RT64's frames interpolated for
-360 a second kept the GPU 95-98% busy with nothing else on it, and each game frame waits for the workload that last
-drew its framebuffer, so most race frames past 33 ms lost time to the hold: 1,013 frames short after the show on a
-whole GPU turn, 1,350-7,740 on shared ones. A game can only ride out a hold on what it has queued, so the page keeps
-100 ms (its src/main.cpp): capped and hidden 30 s, Firefox lost none after the show in 4 plays against main's 3,935
-and 110 in 2 of 4, all at the race's end (plays.jsonl set rush-queue-100-capped). A clock slow for seconds drains any
-queue: in the one uncapped Firefox play of 2 where the 100 ms build lost 1,689, its ring fell from 4,400 frames to 0
-over 5 s. Mario Party 2's 40 ms in Chrome 2.2 s after a show (docs/new-recomp.md) may be the same hold against a
-thinner ring.
+485de90 on v0.201.0, 3840x2000, an RTX 2070, `tools/audio_probe.js` and `?frame-log`). Its race lost as much before the
+hide as after it, 7,544 frames in the 0.7 s before one, and every loss came at a game frame RT64 took 60-140 ms over or
+at the attract race's end, 30 s after the show, where the page's thread stalled 100-200 ms (`pagestall`) as the next
+mode loaded. Each is the runtime's hold: the VI thread sends no VI while the graphics thread spends 30 ms in one action
+(N64ModernRuntime-web's renderer_stalled), so the game's clock stops and its sound with it, and the sound for that time
+is never made. The ring, about 2,000 frames (42 ms) all through the race, ran dry and was back at that level a quantum
+later, with no burst of held buffers; the game's audio thread waits only for its own last audio task (the task its
+scheduler keeps at 0x8002AFA0), not for the graphics task in hand. Uncapped, RT64's frames interpolated for 360 a second
+kept the GPU 95-98% busy with nothing else on it, and each game frame waits for the workload that last drew its
+framebuffer, so most race frames past 33 ms lost time to the hold: 1,013 frames short after the show on a whole GPU
+turn, 1,350-7,740 on shared ones. A game can only ride out a hold on what it has queued, so the page keeps 100 ms (its
+src/main.cpp): capped and hidden 30 s, Firefox lost none after the show in 4 plays against main's 3,935 and 110 in 2 of
+4, all at the race's end. A clock slow for seconds drains any queue: in the one uncapped Firefox play of 2 where the 100
+ms build lost 1,689, its ring fell from 4,400 frames to 0 over 5 s. Mario Party 2's 40 ms of music lost in Chrome 2.2 s
+after a show may be the same hold against a thinner ring.
 
 Most of that hold protected nothing. With render to RAM off (Rush 2049, Super Mario 64) a list's long part is RT64's own
 work after it has read everything of the game's: the uploads of its draw data and the wait for the GPU to take them,
-behind the interpolated frames or Firefox's in-line pipeline builds, and the wait for a free slot in the workload
-queue. So RT64 tells the game the RDP is done once a list's tiles are loaded with render to RAM off too, as it does for
-the late copy (rt64 dc57749), and the runtime holds no VI once the game has been told (N64ModernRuntime e3e2d06): the
-game's clock, and the sound it makes, go on through RT64's own waits, and a game whose logic steps every VI can't reach
+behind the interpolated frames or Firefox's in-line pipeline builds, and the wait for a free slot in the workload queue.
+So RT64 tells the game the RDP is done once a list's tiles are loaded with render to RAM off too, as it does for the
+late copy (rt64 dc57749), and the runtime holds no VI once the game has been told (N64ModernRuntime e3e2d06): the game's
+clock, and the sound it makes, go on through RT64's own waits, and a game whose logic steps every VI can't reach
 anything RT64 still reads. Rush 2049's page, uncapped at 3840x2000, its tab hidden 30 s, two interleaved pairs on one
 build with `?vi-hold-old` for the hold as it was, on a busy host (another browser outside the machine's queue held
-51-88% of the GPU; plays.jsonl sets vi-hold-ffu and vi-hold-chu): in Firefox 4 holds a play, all before its sound
-starts, against 91 and 105 (9.5 and 11.9 s held), and 0 frames of its sound short against 237,524 and 252,824, most of
-those in the 5 s wait for a section's prebuilt shaders as its attract race starts, which the sound now plays through;
-in Chrome 12 and 11 holds against 79 and 105, its sound the same, one run lost in one play of two either way, each at a
-400-760 ms stall of Chrome's page thread while RT64 still read the list, where the hold stays. Presents a second in the
-race read the same. A game that keeps render to RAM's exact copy still holds through its readback, since the copy
-writes RDRAM the game may read.
+51-88% of the GPU): in Firefox 4 holds a play, all before its sound starts, against 91 and 105 (9.5 and 11.9 s held),
+and 0 frames of its sound short against 237,524 and 252,824, most of those in the 5 s wait for a section's prebuilt
+shaders as its attract race starts, which the sound now plays through; in Chrome 12 and 11 holds against 79 and 105, its
+sound the same, one run lost in one play of two either way, each at a 400-760 ms stall of Chrome's page thread while
+RT64 still read the list, where the hold stays. Presents a second in the race read the same. A game that keeps render to
+RAM's exact copy still holds through its readback, since the copy writes RDRAM the game may read.
 
 ## A host that holds Chrome's presents
 
@@ -734,44 +728,42 @@ number is its 11:54 run, and Star Fox 64's 173*, from Pages at 12:28-12:31, was 
 ## A present's sleep in Chrome
 
 Perfect Dark's page with its steady rate (perfect-dark-recomp 4005efd) presented about half its display's frames in
-Chrome on a 240 Hz display, capped (2026-10-22/23, an RTX 5080 on an idle host, the regular plan, whole GPU
-turns, plays.jsonl's set pd-sleep and the probe builds' lines): 111.6 and 116.7 a second over the play, at 60 for half
-of it, frame gaps p99 20-21 ms. `?present-stats` put the drops in the present thread's sleep, 5-30 ms past its slots,
-and pace() took them for a GPU falling behind and paced down; each retry 10-120 s later fell back. Chrome's timed waits
-are judged on time, so plume's sleepUntil waited 0.1 ms for a frame, judged it, and handed the rest to RT64's
-`Timer::preciseSleepUntil`, steps of `sleep_for(100 us)`. A probe build split the lateness: the judged wait ended 0.0 ms
-past its slot every time, and the longest 100 us step reached 16 ms (the system timer's tick) now and then. A
-build that spun the whole sleep on the clock instead woke no step over 0.3 ms late and presented a median of 159
-where the base read 60, at a core's cost for as long as the sleep.
+Chrome on a 240 Hz display, capped (2026-10-22/23, an RTX 5080 on an idle host, the regular plan, whole GPU turns):
+111.6 and 116.7 a second over the play, at 60 for half of it, frame gaps p99 20-21 ms. `?present-stats` put the drops in
+the present thread's sleep, 5-30 ms past its slots, and pace() took them for a GPU falling behind and paced down; each
+retry 10-120 s later fell back. Chrome's timed waits are judged on time, so plume's sleepUntil waited 0.1 ms for a
+frame, judged it, and handed the rest to RT64's `Timer::preciseSleepUntil`, steps of `sleep_for(100 us)`. A probe build
+split the lateness: the judged wait ended 0.0 ms past its slot every time, and the longest 100 us step reached 16 ms
+(the system timer's tick) now and then. A build that spun the whole sleep on the clock instead woke no step over 0.3 ms
+late and presented a median of 159 where the base read 60, at a core's cost for as long as the sleep.
 
 So where waits are on time the sleep is plume's own (docs/forks.md, plume e16e003): it waits on the frame futex while
 the next animation frame comes more than 2 ms before the slot, woken by each frame, and spins on the clock from the
-last, no more than a frame and 2 ms. Interleaved with the base in the same minutes it presented 211.9 and 213.1 a
-second against 111.6 and 116.7, Defection 210-228 against 108-131, frame gaps p99 17.2 and 18.1 ms against 20.3 and
-21.2, no present thread's sleep over 4 ms late against 7 and 9, with no WebGPU error and no sound running short. Its
-first 30 s (the boot and the menus) read 55-60 in both, as the game draws them. Firefox takes the late waits' path
-either way (220.7 with it, 198 without, within its noise). The drops left in Chrome are the presents in flight: wait()
-8-18 ms, the GPU's work-done reported 12-14 ms after it in Defection. Mario Kart 64's page (MarioKart64Recomp-web
-de022ae, its regular plan, plays.jsonl's set mk64-sleep, the same host minutes later, Chrome's animation frames at 174 a
-second that hour) presented 167.9 and 168.5 a second with it against 153.9 and 155.3, frame gaps p99 14.9 and 15.0 ms
-against 17.8 and 18.5, none of the present thread's sleeps over 4 ms past their slots against 15 and 29, and no sound
-running short against 151 samples in one; Firefox 67.2 against 65.9, no WebGPU error in either.
+last, no more than a frame and 2 ms. Interleaved with the base in the same minutes it presented 211.9 and 213.1 a second
+against 111.6 and 116.7, Defection 210-228 against 108-131, frame gaps p99 17.2 and 18.1 ms against 20.3 and 21.2, no
+present thread's sleep over 4 ms late against 7 and 9, with no WebGPU error and no sound running short. Its first 30 s
+(the boot and the menus) read 55-60 in both, as the game draws them. Firefox takes the late waits' path either way
+(220.7 with it, 198 without, within its noise). The drops left in Chrome are the presents in flight: wait() 8-18 ms, the
+GPU's work-done reported 12-14 ms after it in Defection. Mario Kart 64's page (MarioKart64Recomp-web de022ae, its
+regular plan, the same host minutes later, Chrome's animation frames at 174 a second that hour) presented 167.9 and
+168.5 a second with it against 153.9 and 155.3, frame gaps p99 14.9 and 15.0 ms against 17.8 and 18.5, none of the
+present thread's sleeps over 4 ms past their slots against 15 and 29, and no sound running short against 151 samples in
+one; Firefox 67.2 against 65.9, no WebGPU error in either.
 
 Spun from the last frame, the sleep keeps a core busy whenever a page sleeps to its slots, the display faster than its
-game (2026-10-23, Chrome 155 headless on an RTX 5080, an idle host, the regular plans, whole GPU turns; plays.jsonl's
-sets pd-spin-lead, mk64-spin-lead and mk64-spin-lead-60, probe builds that count the spin in present-stats and take
-its lead from the query). Chrome's animation frames ran at 172-175 a second that morning, not 240. Spinning from a frame
-2 ms before the slot, Perfect Dark's page spun 405-412 ms a second (400 in a third play) and Mario Kart 64's 635-646. At
-57 animation frames a second (a preload that runs the page's frames at most every 16.4 ms, a 60 Hz display's, on the
-240 Hz one), Mario Kart 64's, a game of 30 frames a second, spun 493-526, and Perfect Dark's, at the display's rate
-and never sleeping to a slot, 0-5. Spinning from a frame 1 ms before the slot they spun 331-349, 541-542 and 413-414;
-0.5 ms before, Perfect Dark's and Mario Kart 64's 304-310 and 462-483 at 240 Hz, and the build with it 322, 457 and,
-at 57, 376. They presented as many (Perfect Dark 145.7 and 147.6 against 143.4 and 145.3, Mario Kart 64 167.5 and
-167.6 against 167.9 and 167.9, at 57 frames 57.6-57.9 in every play), with the same frame gaps (p99 23-25 ms, 15.0-15.4
-ms), and no sleep woke later for it: the few over 4 ms past their slots (16.5-26.8 ms, one a play at most) came at
-every lead. So the spin starts 0.5 ms before the slot (docs/forks.md, plume 9728862). Firefox, whose waits are judged
-late and which waits on the frames either way, played both builds clean (Perfect Dark 59.2 a second, Mario Kart 64
-80.8, no WebGPU error or exception).
+game (2026-10-23, Chrome 155 headless on an RTX 5080, an idle host, the regular plans, whole GPU turns; probe builds
+that count the spin in present-stats and take its lead from the query). Chrome's animation frames ran at 172-175 a
+second that morning, not 240. Spinning from a frame 2 ms before the slot, Perfect Dark's page spun 405-412 ms a second
+(400 in a third play) and Mario Kart 64's 635-646. At 57 animation frames a second (a preload that runs the page's
+frames at most every 16.4 ms, a 60 Hz display's, on the 240 Hz one), Mario Kart 64's, a game of 30 frames a second, spun
+493-526, and Perfect Dark's, at the display's rate and never sleeping to a slot, 0-5. Spinning from a frame 1 ms before
+the slot they spun 331-349, 541-542 and 413-414; 0.5 ms before, Perfect Dark's and Mario Kart 64's 304-310 and 462-483
+at 240 Hz, and the build with it 322, 457 and, at 57, 376. They presented as many (Perfect Dark 145.7 and 147.6 against
+143.4 and 145.3, Mario Kart 64 167.5 and 167.6 against 167.9 and 167.9, at 57 frames 57.6-57.9 in every play), with the
+same frame gaps (p99 23-25 ms, 15.0-15.4 ms), and no sleep woke later for it: the few over 4 ms past their slots
+(16.5-26.8 ms, one a play at most) came at every lead. So the spin starts 0.5 ms before the slot (docs/forks.md, plume
+9728862). Firefox, whose waits are judged late and which waits on the frames either way, played both builds clean
+(Perfect Dark 59.2 a second, Mario Kart 64 80.8, no WebGPU error or exception).
 
 What's left of the spin is the time from the last frame before the slot to the slot, which only a timer could take,
 and Chrome's timed waits off a page's thread don't end on time. A worker of a preload's own timing back-to-back
@@ -785,38 +777,36 @@ did.
 
 ## Pokémon Snap's timed waits in Firefox
 
-Pokémon Snap's page served locally presented 73.9 and 75.6 a second in Firefox 158 in two retests' smoke plays
-(v0.82.0, v0.85.0; uncapped at 3840x2000 on an RTX 5080, a fresh profile), from the first sample to the last, as many
-as its animation frames, frame gaps 15 ms (the system timer's tick), the GPU 7-14% busy (37-57% in the first, beside
-Rush 2049's plays); from Pages after publishing it presented 206-208, and every other game's build 182-293. Each was a
-shared turn with another card's page playing beside it (Rush 2049's in Chrome and Firefox, Perfect Dark's in Firefox).
-Played again in whole turns, Pages' own v0.85.0 bytes (2026-10-22, plays.jsonl's twelve lines that name the card on
-Snap local vs Pages), the local server wasn't it, nor was the page's name: served locally as Snap64Recomp.html 226, 96,
-328, 227 and 222, as index.html 330 and 209; from Pages 227, 226, 211, 225 and 226. What told them apart is plume's
-`timedWaitsEndLate()`, measured once as the page starts from the shortest of three waits of 100 us: every play in
-which it found them late (its console line says so) and spun presented 209-227, and the three in which one came in
-under its 4 ms and it kept timed waits presented 330, 328 and 96 (the 96 at the animation frames' 108, frame gaps p50
-10 ms). Firefox's waits there are neither on time nor on the tick: `tools/wait_probe.js` read the shortest of three
-waits each second at 0.4-16 ms, a median of 5-8 ms, through every play, served locally or from Pages alike. So the
-start's shortest of three passes 4 ms about a third of the time: locally in 3 of 7 plays, and from Pages, where it
-read 4.5-5.5 ms, in none of 5. That measure picks whether the page's waits are timed or woken and spun (docs/forks.md, plume
-cabe1ac), so a page that judged them on time plays fastest while they are and can fall to about its animation frames'
-rate when they aren't.
+Pokémon Snap's page served locally presented 73.9 and 75.6 a second in Firefox 158 in two retests' smoke plays (v0.82.0,
+v0.85.0; uncapped at 3840x2000 on an RTX 5080, a fresh profile), from the first sample to the last, as many as its
+animation frames, frame gaps 15 ms (the system timer's tick), the GPU 7-14% busy (37-57% in the first, beside Rush
+2049's plays); from Pages after publishing it presented 206-208, and every other game's build 182-293. Each was a shared
+turn with another card's page playing beside it (Rush 2049's in Chrome and Firefox, Perfect Dark's in Firefox). Played
+again in whole turns, Pages' own v0.85.0 bytes (2026-10-22, twelve plays), the local server wasn't it, nor was the
+page's name: served locally as Snap64Recomp.html 226, 96, 328, 227 and 222, as index.html 330 and 209; from Pages 227,
+226, 211, 225 and 226. What told them apart is plume's `timedWaitsEndLate()`, measured once as the page starts from the
+shortest of three waits of 100 us: every play in which it found them late (its console line says so) and spun presented
+209-227, and the three in which one came in under its 4 ms and it kept timed waits presented 330, 328 and 96 (the 96 at
+the animation frames' 108, frame gaps p50 10 ms). Firefox's waits there are neither on time nor on the tick:
+`tools/wait_probe.js` read the shortest of three waits each second at 0.4-16 ms, a median of 5-8 ms, through every play,
+served locally or from Pages alike. So the start's shortest of three passes 4 ms about a third of the time: locally in 3
+of 7 plays, and from Pages, where it read 4.5-5.5 ms, in none of 5. That measure picks whether the page's waits are
+timed or woken and spun (docs/forks.md, plume cabe1ac), so a page that judged them on time plays fastest while they are
+and can fall to about its animation frames' rate when they aren't.
 
-A test build forcing each choice (2026-10-22, `?present-stats`, plays.jsonl's lines naming the card on timed waits
-judged as a page plays, whole turns) showed the fall is timed waits that stayed late. Held to timed waits Snap's page
-presented 308, 311, 330 and 94: RT64's sleeps ended 140 ms past their slots for 1-3 s as its game booted and 0.1 ms
-past them after, but in the 94 66-117 ms past them all through. Held to the animation frames it presented 217-232.
-Later that morning, held to timed waits from a start judged on time and each second's waits logged, the present
-thread's ended late for 5-6 s as the game booted, then on time, and late again from its menus (24-28 s) or its level
-(51 s) to the end of every play: 172-176 a second in 6 plays, Star Fox 64's late all through at 183-184 in 2, and the VI
-thread's late in every second of every play. So both judge their waits again as the page plays, one way: while they
-are judged on time, each first sleep is a 100 us wait for a frame, judged, and once most of those in each of 10 seconds
-in a row ended over 4 ms late, waits are woken and spun for the rest of the play (docs/forks.md, plume d554411). The
-same plays turned at 21-63 s and presented 206-218, and on spun waits from the start 206-216; 5 s in a row also took the
-boot's stretch. Why only Snap's plays have shown the fall to 94 isn't known: its port paces and presents its frames in
-RT64 code of its own (docs/game-forks.md). A Firefox number for Snap is read beside its console's plume and ultramodern
-lines.
+A test build forcing each choice (2026-10-22, `?present-stats`, whole turns) showed the fall is timed waits that stayed
+late. Held to timed waits Snap's page presented 308, 311, 330 and 94: RT64's sleeps ended 140 ms past their slots for
+1-3 s as its game booted and 0.1 ms past them after, but in the 94 66-117 ms past them all through. Held to the
+animation frames it presented 217-232. Later that morning, held to timed waits from a start judged on time and each
+second's waits logged, the present thread's ended late for 5-6 s as the game booted, then on time, and late again from
+its menus (24-28 s) or its level (51 s) to the end of every play: 172-176 a second in 6 plays, Star Fox 64's late all
+through at 183-184 in 2, and the VI thread's late in every second of every play. So both judge their waits again as the
+page plays, one way: while they are judged on time, each first sleep is a 100 us wait for a frame, judged, and once most
+of those in each of 10 seconds in a row ended over 4 ms late, waits are woken and spun for the rest of the play
+(docs/forks.md, plume d554411). The same plays turned at 21-63 s and presented 206-218, and on spun waits from the start
+206-216; 5 s in a row also took the boot's stretch. Why only Snap's plays have shown the fall to 94 isn't known: its
+port paces and presents its frames in RT64 code of its own. A Firefox number for Snap is read beside its console's plume
+and ultramodern lines.
 
 ## Uncapped in Firefox
 
@@ -831,11 +821,11 @@ v0.58.0) and 17,000-30,000 there with `gfx.webrender.dcomp-texture-overlay-win`.
   (Chrome headless 44.9), Banjo 66.1 against 79.4. With the pref the loop crowded the page's thread instead: Conker
   drew 41.4 with the Intel GPU 24-88% busy, against 50.0 at ~90% without it. The round's uncapped Firefox numbers (A
   laptop, measured) understate its GPU that way.
-- Replayed at 360 on the same laptop (2026-10-18, Pages v0.63.0, 1920x945 off the desktop, cold, `?present-stats`,
-  the host 16-32% busy before each run; plays.jsonl's runs noted "frame_rate 360 replay"), Firefox's animation frames
-  ran at 63-154 a second, and its presents uncapped, default / with the overlay pref / Chrome headless, were: Rush 2049
-  48.9 and 59.2 / 55.4 and 61.8 / 52.2, Banjo 69.5 and 64.4 / 67.9 and 78.9 / 90.4, Conker 55.4 / 65.0 / 65.0,
-  Banjo-Tooie 39.0 / 45.8 / 50.0, the Intel GPU 82-97% busy in Firefox and 88-100% in Chrome, no WebGPU errors.
+- Replayed at 360 on the same laptop (2026-10-18, Pages v0.63.0, 1920x945 off the desktop, cold, `?present-stats`, the
+  host 16-32% busy before each run), Firefox's animation frames ran at 63-154 a second, and its presents uncapped,
+  default / with the overlay pref / Chrome headless, were: Rush 2049 48.9 and 59.2 / 55.4 and 61.8 / 52.2, Banjo 69.5
+  and 64.4 / 67.9 and 78.9 / 90.4, Conker 55.4 / 65.0 / 65.0, Banjo-Tooie 39.0 / 45.8 / 50.0, the Intel GPU 82-97% busy
+  in Firefox and 88-100% in Chrome, no WebGPU errors.
   - With the pref, 360 reads what the pref read at 0 (Rush 2049 62.3, Banjo 79.4); by default it reads less, so the
     pref still adds presents where WebRender composites each animation frame on the page's GPU: 3-10 a run in Rush
     2049, Conker and Banjo-Tooie, -2 and +15 in Banjo's two pairs.
@@ -878,10 +868,10 @@ entries and took 2.0 s once. The page shows its indicator only after a second, s
 ## Compute pipelines built at their first dispatch
 
 Dinosaur Planet's page lost 1,700-7,200 sound frames (35-150 ms) at its boot's Nintendo and Rareware logos in Chrome on
-a profile's first visit, and none on the next (an RTX 5080, 3840x2000 uncapped; plays.jsonl). A Chrome trace with
-Dawn's categories (`play_page.mjs --chrome-trace`) showed the GPU process's main thread compiling a compute pipeline in
-line, `APICreateComputePipeline` with its DXC compile, for 53 and 94 ms at the game's first frames and 125 and 64 ms at
-the second logo, the page's queue held behind it. plume made a compute pipeline at its first dispatch, with
+a profile's first visit, and none on the next (an RTX 5080, 3840x2000 uncapped). A Chrome trace with Dawn's categories
+(`play_page.mjs --chrome-trace`) showed the GPU process's main thread compiling a compute pipeline in line,
+`APICreateComputePipeline` with its DXC compile, for 53 and 94 ms at the game's first frames and 125 and 64 ms at the
+second logo, the page's queue held behind it. plume made a compute pipeline at its first dispatch, with
 createComputePipeline: RT64's fbReadAnyFull at the launcher, textureDecode and fbWriteColor at the first frames, and
 rspProcess and rspWorld at the first 3D. The game keeps render to RAM's exact copy, whose readback waited behind them,
 so its graphics task ended late, its scheduler started no audio task for 152 ms, and the worklet's ring ran dry.
@@ -995,68 +985,65 @@ at Start 103,000-107,000 against 88,000-116,000, which is the ubershader's, the 
 
 In Firefox only the ubershader's first build costs: once its 245 KB module has been built for one depth and coverage
 state, the others are built for about nothing. A section's first frame draws the shaders the list has for it with the
-ubershader, since its round is built, the game waiting, only before the next frame (rt64's RasterShaderCache), and
-each state that frame draws with is built in line where none was. Super Mario 64's castle grounds, the first section
-after the boot, built two states that way (z:always again for a new layout, z:less) ahead of its 30 shaders. A test
-build of rt64 that wanted the list's shaders as the game submitted them, so that the round was built before that
-frame drew, drew nothing with the ubershader there, and read the same: 1.6 and 1.4 s round trips there and
-96,848 and 82,216 frames short, against Pages' 1.5 and 1.2 s and 83,032 and 72,248 (two interleaved pairs of its
-regular plan, Firefox, 3840x2000 uncapped, new profiles, an RTX 2070 on a busy host; plays.jsonl, notes "the
-pipeline probe preloaded"). The first build is the one at the game's first frame, beside section boot's: Dinosaur
-Planet's 6 boot shaders were built in 0.4-0.6 s and the round trip there took 1.4-4.2 s, Super Mario 64's 27 with
-two states 3.2-3.7 s. RT64 skips its warm-up draw of nothing at setup (State::warmUpPipelines()) where pipelines
-don't build in the background, so in Firefox nothing built the ubershader before the game's first frame did. rt64
-c5ced59 does that draw just before the game starts (Firefox's boot wait and the first sound, below), but in Firefox it
-built nothing: a draw of nothing resolves the layout, which starts builds only where they run in the background, and
-plume built a pipeline in line only when something was drawn with it. The probe showed it on v0.198.0: Dinosaur
-Planet's ubershader was built at its menu, 25 s after section boot's 6 shaders, with a 1.4-1.7 s round trip and 71,285
-and 83,295 frames short in those 5 s; Super Mario 64's at the castle grounds' first frame, beside its 30 shaders, a
-2.4-2.6 s wait and 99,520 and 114,912 short. plume-web 0ac34ab builds the bound pipeline at a draw of nothing where
-the device builds in line, so the warm-up builds the ubershader's first state with section boot, the game waiting
-before its sound starts (section boot's wait 1.1 and 2.3 s against 0.5 and 0.4 s in Dinosaur Planet, 2.3 and 3.3 s
-against 1.9 and 1.5 s in Super Mario 64), and its other states are built for about nothing later. Dinosaur Planet's
-menu then lost 2,244 and 1,187 frames, and Super Mario 64's castle grounds waited 1.7 and 1.9 s and lost 74,712 and
-89,952, the section's own 30 shaders (two interleaved pairs a game, Firefox, 3840x2000 uncapped, new profiles, an RTX
-2070 on a busy host; plays.jsonl, notes "the warm-up's draw of nothing builds the ubershader").
+ubershader, since its round is built, the game waiting, only before the next frame (rt64's RasterShaderCache), and each
+state that frame draws with is built in line where none was. Super Mario 64's castle grounds, the first section after
+the boot, built two states that way (z:always again for a new layout, z:less) ahead of its 30 shaders. A test build of
+rt64 that wanted the list's shaders as the game submitted them, so that the round was built before that frame drew, drew
+nothing with the ubershader there, and read the same: 1.6 and 1.4 s round trips there and 96,848 and 82,216 frames
+short, against Pages' 1.5 and 1.2 s and 83,032 and 72,248 (two interleaved pairs of its regular plan, Firefox, 3840x2000
+uncapped, new profiles, an RTX 2070 on a busy host, the pipeline probe preloaded). The first build is the one at the
+game's first frame, beside section boot's: Dinosaur Planet's 6 boot shaders were built in 0.4-0.6 s and the round trip
+there took 1.4-4.2 s, Super Mario 64's 27 with two states 3.2-3.7 s. RT64 skips its warm-up draw of nothing at setup
+(State::warmUpPipelines()) where pipelines don't build in the background, so in Firefox nothing built the ubershader
+before the game's first frame did. rt64 c5ced59 does that draw just before the game starts (Firefox's boot wait and the
+first sound, below), but in Firefox it built nothing: a draw of nothing resolves the layout, which starts builds only
+where they run in the background, and plume built a pipeline in line only when something was drawn with it. The probe
+showed it on v0.198.0: Dinosaur Planet's ubershader was built at its menu, 25 s after section boot's 6 shaders, with a
+1.4-1.7 s round trip and 71,285 and 83,295 frames short in those 5 s; Super Mario 64's at the castle grounds' first
+frame, beside its 30 shaders, a 2.4-2.6 s wait and 99,520 and 114,912 short. plume-web 0ac34ab builds the bound pipeline
+at a draw of nothing where the device builds in line, so the warm-up builds the ubershader's first state with section
+boot, the game waiting before its sound starts (section boot's wait 1.1 and 2.3 s against 0.5 and 0.4 s in Dinosaur
+Planet, 2.3 and 3.3 s against 1.9 and 1.5 s in Super Mario 64), and its other states are built for about nothing later.
+Dinosaur Planet's menu then lost 2,244 and 1,187 frames, and Super Mario 64's castle grounds waited 1.7 and 1.9 s and
+lost 74,712 and 89,952, the section's own 30 shaders (two interleaved pairs a game, Firefox, 3840x2000 uncapped, new
+profiles, an RTX 2070 on a busy host).
 
 ## Firefox's boot wait and the first sound
 
 In Firefox the prebuilt list's boot section was built once the game's first frame had resolved the pipelines' WebGPU
-layout, with the game waiting before its second frame, and by then its sound had started: the backcheck's W5 (the
-first 10 s of sound, docs/new-recomp.md) counted 0.1-11.7 s short on 37 pages of 38 from Pages, each loss on RT64's
-"the game waiting" for section boot (GoldenEye 9.7 s for 64 shaders, Conker 10.2 s, Rush 2049 3.8 s). Since rt64
-c5ced59 the runtime has the graphics thread build it before the game's code first runs (forks.md), the draw of nothing
-first, so the game and its sound start once Firefox has built it, the launcher's last frame held meanwhile:
+layout, with the game waiting before its second frame, and by then its sound had started: play_page's `--backcheck`,
+which counts the sound short in the boot's first 10 s, counted 0.1-11.7 s short on 37 pages of 38 from Pages, each loss
+on RT64's "the game waiting" for section boot (GoldenEye 9.7 s for 64 shaders, Conker 10.2 s, Rush 2049 3.8 s). Since
+rt64 c5ced59 the runtime has the graphics thread build it before the game's code first runs (forks.md), the draw of
+nothing first, so the game and its sound start once Firefox has built it, the launcher's last frame held meanwhile:
 
 | Firefox, short in the first 10 s of sound | Pages | The fix's build |
 |---|---|---|
 | GoldenEye 007 (section boot 64 shaders, 8.3-9.5 s) | 7.9 s, 9.1 s | 0.76 s, 0.83 s |
 | San Francisco Rush 2049 (section boot 21, 1.6-3.6 s) | 4.6 s, 3.8 s | 4.2 s, 3.2 s |
 
-(two interleaved pairs a game, Firefox, 1256x645 uncapped, new profiles, an RTX 2070 on a busy host; plays.jsonl,
-notes "the game's start waiting for RT64's section boot"). What GoldenEye's build still loses isn't its boot's: two
-plays of an earlier build of the same change, whose plan started 40 s later, lost 47 and 99 ms, and play_page.mjs's
-memory report in Firefox holds the page's thread 0.3-0.5 s right after a plan's start steps, inside those 10 s when
-the start comes early. Rush 2049's is its next section's: the race's 43 shaders, an 8.4-9.0 s wait about 8 s into the
-sound, the first race being that early in its plan. A later section's wait stops the sound in Firefox as the boot's
-did, and no point before the game gets there is free to build it in: built before the game starts too, Rush 2049's
-would add 7-9 s to every Firefox start.
+(two interleaved pairs a game, Firefox, 1256x645 uncapped, new profiles, an RTX 2070 on a busy host). What GoldenEye's
+build still loses isn't its boot's: two plays of an earlier build of the same change, whose plan started 40 s later,
+lost 47 and 99 ms, and play_page.mjs's memory report in Firefox holds the page's thread 0.3-0.5 s right after a plan's
+start steps, inside those 10 s when the start comes early. Rush 2049's is its next section's: the race's 43 shaders, an
+8.4-9.0 s wait about 8 s into the sound, the first race being that early in its plan. A later section's wait stops the
+sound in Firefox as the boot's did, and no point before the game gets there is free to build it in: built before the
+game starts too, Rush 2049's would add 7-9 s to every Firefox start.
 
-Nor can the sound go on through a later section's wait while the game is held. RT64's workload thread holds the
-frame for the round (RasterShaderCache::waitForPrebuild()) after the game's list has been read, and within a few lists
-the graphics thread finds RT64's workload queue full and stops in its list. The VI thread then sends no VI
+Nor can the sound go on through a later section's wait while the game is held. RT64's workload thread holds the frame
+for the round (RasterShaderCache::waitForPrebuild()) after the game's list has been read, and within a few lists the
+graphics thread finds RT64's workload queue full and stops in its list. The VI thread then sends no VI
 (ULTRAMODERN_VIS_WAIT_FOR_RENDERER, N64ModernRuntime d405b65), on purpose: Paper Mario's page trapped when its game ran
-on past a list the renderer still held. With no VI the game makes no sound: an N64 game's audio is made a VI's worth at a
-time, on the VI's message. A wait split so the game draws between pieces is no shorter: Firefox's GPU process builds one
-pipeline at a time, 0.06-0.3 s each (Rush 2049's race 43 in 6.7-9.0 s, plays.jsonl), so the game is held as long in
-all, its sound lost in pieces of 0.06-0.3 s instead of one gap. The game's sound can only go on if the game does,
-RT64 taking its lists and drawing none until the round is built: the player misses that much of the level unseen
-behind the panel, and a game that renders to RAM reads back
-framebuffers that were never drawn. The one place a later section's build costs no play is where the player waits
-anyway, behind the launcher, where Firefox would build a pipeline at a time between its frames, the launcher held a
-build's 0.06-0.3 s when the player acts there and the play plans, which click through it at once, gaining nothing.
-So a later section's wait in Firefox stays what it is, the game held under the page's panel with its sound as at a
-load, and W5 (docs/new-recomp.md) doesn't count it.
+on past a list the renderer still held. With no VI the game makes no sound: an N64 game's audio is made a VI's worth at
+a time, on the VI's message. A wait split so the game draws between pieces is no shorter: Firefox's GPU process builds
+one pipeline at a time, 0.06-0.3 s each (Rush 2049's race 43 in 6.7-9.0 s), so the game is held as long in all, its
+sound lost in pieces of 0.06-0.3 s instead of one gap. The game's sound can only go on if the game does, RT64 taking its
+lists and drawing none until the round is built: the player misses that much of the level unseen behind the panel, and a
+game that renders to RAM reads back framebuffers that were never drawn. The one place a later section's build costs no
+play is where the player waits anyway, behind the launcher, where Firefox would build a pipeline at a time between its
+frames, the launcher held a build's 0.06-0.3 s when the player acts there and the play plans, which click through it at
+once, gaining nothing. So a later section's wait in Firefox stays what it is, the game held under the page's panel with
+its sound as at a load, and the boot's first 10 s of sound, which `--backcheck` counts, don't hold it.
 
 ## What the prebuilt lists miss
 
@@ -1065,7 +1052,6 @@ it left out). How many shaders a longer play asks for that a list lacks, counted
 Prebuilt shader lists): one play of 6-10 minutes a game from Pages on v0.63.0 (2026-10-18, a busy host), cold, headless
 Chrome 155 uncapped at 1256x645 (RTX 2070), past level starts into what the recordings left out, reached by each game
 fork's survey or warps, memory pokes and inputs: bosses, later rooms, items and weapons in use, minigames, endings.
-Each run is in `plays.jsonl` with its misses (`shaderMisses`), its note naming the places.
 
     game               misses  where the most were
     Banjo-Kazooie        33    every world a few; Furnace Fun 4, the ending 5
@@ -1162,10 +1148,9 @@ can still change a flag: DKR-R's Modern profile's extended culling changed one o
 
 On 2026-10-14, every page built on N64Recomp-browser ed8764a (v0.36.0: rt64 58fc4e4's pacing, the CPU hot paths), Rush
 2049's, Banjo's, Majora's Mask's and Donkey Kong 64's from Pages, Chrome 155 and Firefox 158, RTX 2070, an idle host,
-one page at a time, a cold profile each, over 90 s of the game playing by itself (`play_page.mjs --size 3840x2000
---play 90`). The boot's shader waits and the presents a second after them are plays.jsonl's runs of that date at
-3840x2000 (the 90 s ones; GoldenEye's and Conker's local builds on v0.36.0), but for Rush 2049's: Chrome 55-60, Firefox
-a 9.6 s wait and then 58-60. What plays.jsonl lacks, GPU busy and watts and the GPU process's cores (medians):
+one page at a time, a cold profile each, over 90 s of the game playing by itself (`play_page.mjs --size 3840x2000 --play
+90`). GoldenEye's and Conker's were local builds on v0.36.0. Rush 2049's presents a second after the boot's shader waits
+were Chrome 55-60, and in Firefox a 9.6 s wait and then 58-60. GPU busy and watts and the GPU process's cores (medians):
 
 ```
                  GPU busy, W         GPU process
@@ -1197,54 +1182,52 @@ a second in `bgra8unorm`, against 1.21-1.24, 78-82%, 104 W and 53.7-58.9 in `rgb
 78-90 W, the same in either format.
 
 Every page again from Pages on b1c35d1 (plume 16e608a and 97f4e64), one page at a time, the same GPU, an idle host, at
-3840x2000, 25-60 s after the boot's wait, is plays.jsonl's runs of 2026-10-14 16:24-16:43 UTC from Pages. In Firefox
-Majora's Mask and Donkey Kong 64 are held at their game's 20 and 30 by rt64's pacing, which switches on just after the
-wait with the GPU ~48 W, not working hard (Banjo's 10 s at 20-30 are the same); the others hold 58-60, the GPU's memory
-flat at ~2 GB. GoldenEye's sound was ~8% short in both browsers, ~6% on 59dc8e8 and none from Pages on 7f40089. The
-presents above the display's rate and the memory climbing are gone.
+3840x2000, 25-60 s after the boot's wait (2026-10-14): in Firefox Majora's Mask and Donkey Kong 64 are held at their
+game's 20 and 30 by rt64's pacing, which switches on just after the wait with the GPU ~48 W, not working hard (Banjo's
+10 s at 20-30 are the same); the others hold 58-60, the GPU's memory flat at ~2 GB. GoldenEye's sound was ~8% short in
+both browsers, ~6% on 59dc8e8 and none from Pages on 7f40089. The presents above the display's rate and the memory
+climbing are gone.
 
-Every page again on 2efc795 (rt64 9ed449d), cold, the same GPU and canvas, a quiet host, 25 s after the waits, is
-plays.jsonl's 25 s runs of 2026-10-14 for the five forks from Pages. Rush 2049, from a local build of the same commit,
-isn't there: Firefox 158 waited 2.2 and 7.3 s for its two sections and then drew 57-60. rt64's pacing switched on in
-none of the twelve runs, where on ed8764a Banjo in Chrome was paced to 20-30 for 10 s straight after its wait; no sound
-short after the waits, no WebGPU errors.
+Every page again on 2efc795 (rt64 9ed449d), cold, the same GPU and canvas, a quiet host, 25 s after the waits
+(2026-10-14; the five forks from Pages, and Rush 2049 from a local build of the same commit, where Firefox 158 waited
+2.2 and 7.3 s for its two sections and then drew 57-60): rt64's pacing switched on in none of the twelve runs, where on
+ed8764a Banjo in Chrome was paced to 20-30 for 10 s straight after its wait; no sound short after the waits, no WebGPU
+errors.
 
 Every page again on d3b9031 (N64ModernRuntime f0e0884, RecompFrontend 75fe596, rt64 f34b19c), cold, 1256x645, RTX 2070,
-a host with every core busy with other work, is plays.jsonl's runs of 2026-10-15 03:37-04:11 UTC (the six forks'
-gh-pages files served locally, Rush 2049 a local build of the same commit): Majora's Mask through its plan's whole
-clock-town section, pause menu included, where before f0e0884 it stopped ~35 s in; the others through their boots and
-25-60 s of play; no WebGPU errors or exceptions.
+a host with every core busy with other work, 2026-10-15 (the six forks' gh-pages files served locally, Rush 2049 a local
+build of the same commit): Majora's Mask through its plan's whole clock-town section, pause menu included, where before
+f0e0884 it stopped ~35 s in; the others through their boots and 25-60 s of play; no WebGPU errors or exceptions.
 
 ## A laptop, measured
 
 On 2026-10-15, nine pages from Pages, all built on v0.46.0, on a laptop's Intel UHD (Tiger Lake GT1, 32 EU; Windows 11
 in its best power efficiency mode; a 3840x2160 display at 200%), every run on that adapter: Chrome 155 in a window and
 headless, Firefox 158, 1920x945 off the desktop, cold, `?present-stats`, each game's play plan (`--play 90` after the
-start for those without one). The runs are plays.jsonl's 42 of that date on v0.46.0 at 1920x945 noted "laptop report",
-their `gpu.busy` the Intel GPU's 3D engine (~12% of it the idle desktop); those noted "part A, the table" give the
-laptop's numbers, the presents a second after the waits. Headless Chrome read within a present of the window, and no run
-had a WebGPU error or exception. Firefox's longest gaps were its shader waits, and in GoldenEye's intro it had many
-times Chrome's gaps over 100 ms.
+start for those without one), 42 runs. The GPU's load is the Intel GPU's 3D engine's (~12% of it the idle desktop), and
+the laptop's numbers are the presents a second after the waits. Headless Chrome read within a present of the window, and
+no run had a WebGPU error or exception. Firefox's longest gaps were its shader waits, and in GoldenEye's intro it had
+many times Chrome's gaps over 100 ms.
 
 - Firefox's 20-30 is RT64's pacing, its done callbacks 25-45 ms late; with 1 ms timers it drew 59 (WebGPU in Chrome
   and Firefox).
 - Chrome sat at 51-55 in six games with the Intel GPU at most 70% busy and the browser and the host far from busy, so a
-  slow CPU isn't what holds it, and Chrome's 3x CPU throttling (docs/playing.md, A page's numbers) doesn't stand in for it: Conker drew
-  more that way on the desktop than on the laptop. RT64 paced Conker in Chrome 3 times; the other 54s are unexplained.
-  On v0.58.0 it drew 58-60 there (below).
-- Maximized on the desktop at its 200% (the runs noted "part C"), instead of off it, Firefox's Intel load rose ~30
-  points, its GPU process's CPU 1.4-4.6 times, and Conker's presents fell and its boot wait doubled; Chrome stayed
-  within 2 presents. So an off-desktop Firefox run on a laptop reads better than a player's visit. On screen Firefox
-  redraws the canvas into its window at device pixels each frame (WebGPU in Chrome and Firefox, below). Chrome maximized
-  there had a viewport of 1920x889, Firefox 1920x947: a plan's clicks at another `--size` missed Load ROM.
+  slow CPU isn't what holds it, and Chrome's 3x CPU throttling doesn't stand in for it: Conker drew more that way on the
+  desktop than on the laptop. RT64 paced Conker in Chrome 3 times; the other 54s are unexplained. On v0.58.0 it drew
+  58-60 there (below).
+- Maximized on the desktop at its 200%, instead of off it, Firefox's Intel load rose ~30 points, its GPU process's CPU
+  1.4-4.6 times, and Conker's presents fell and its boot wait doubled; Chrome stayed within 2 presents. So an
+  off-desktop Firefox run on a laptop reads better than a player's visit. On screen Firefox redraws the canvas into its
+  window at device pixels each frame (WebGPU in Chrome and Firefox, below). Chrome maximized there had a viewport of
+  1920x889, Firefox 1920x947: a plan's clicks at another `--size` missed Load ROM.
 - In 10 minutes of Rush 2049 Firefox held 55-60, its callbacks ~20 ms late (30-42 where the Intel GPU reached ~97%),
   the cap moving to 3 at 106 s and 4 at 140 s, while its GPU process's private memory grew from 1.05 to 3.14 GB, near
   linearly, and the adapter's shared memory by 740 MB.
 
-On 2026-10-17, the same laptop played nine pages from Pages, all built on v0.58.0 (Chrome 155, Firefox 158, plugged
-in, best power efficiency, Windows' global timer at 1 ms set by something already running, the host 1-13% busy before
-each run), cold, each game's play plan: plays.jsonl's 79 runs of that date noted "laptop report", failed ones
-included, those noted "onscreen" giving the laptop's numbers. No run that played had a WebGPU error or exception.
+On 2026-10-17, the same laptop played nine pages from Pages, all built on v0.58.0 (Chrome 155, Firefox 158, plugged in,
+best power efficiency, Windows' global timer at 1 ms set by something already running, the host 1-13% busy before each
+run), cold, each game's play plan, 79 runs, failed ones included, those on screen giving the laptop's numbers. No run
+that played had a WebGPU error or exception.
 
 - Off the desktop (1920x945) Chrome headed drew 58.2-60.1 in all nine and headless the same within a present, where on
   v0.46.0 it sat at 51-55. Firefox drew 59.7-59.9 in Banjo, Majora's Mask, Donkey Kong 64 and Wave Race 64 (20-30 on
@@ -1272,41 +1255,39 @@ included, those noted "onscreen" giving the laptop's numbers. No run that played
   ms (median), the GPU was 66-80% busy and plume waited 0 ms a second at 2 in flight (with
   `gfx.webrender.dcomp-texture-overlay-win` and a kick of empty submits): each try at the display's rate fell back
   within ~2 s. What pace() counts is the present thread coming to a game frame's present with the next one already
-  queued, and on a desktop GPU (Firefox 158 at the display's rate, 1920x945, `?timer-tick=15.625`, an idle host)
-  rt64 f262d56's lines say that thread has no time to spare at a 30 fps game's two presents a frame: once 341 game
-  frames in a row came to 33.3 ms each, 32.5 of it asleep to the slots, without a wait for the next one, and one
-  present dropped. Most of the other drops there were held by wait() (14-55 ms a game frame), which plume's count of
-  time waiting leaves out: on a page it is a loop of trips to the device thread, the page's own (plume_device_thread's
-  wait(), runSync of isWaitReady()), each queued behind whatever that thread is doing, with a 1 ms sleep between,
-  a timed wait. On the
-  laptop's screen the same lines put it on wait(), then on late sleeps (a test build of Banjo's main on v0.66.0,
-  Firefox 158 maximized at 200%, cold, `?present-stats`): 30.0 presents a second with default prefs (Intel 86% busy,
-  214 drops, paced at 29.5, 41.5, 63.5 and 105.5 s, each try at the display's rate back within ~2 s) and 30.0 with the
-  overlay pref (75%, 161 drops). Over the drops leading up to each pace, a game frame took 73.4 / 62.7 ms (median,
-  default / overlay) against its 33.3: wait() 32.8 / 38.2, asleep 31.0 / 19.8 of which past the slots 11.5 / 3.3,
-  workload 3.5 / 2.5, draw 1.1 / 1.2, interpolation and present() ~0, mostly one game frame a drop. So wait() costs
-  two or three animation frames a game frame however cheap the composite, which looked like those trips to the page's
-  thread and the sleeps between them (it isn't them, below); the late sleeps to the slots are plume's 6-14 ms timed waits, shorter when the
-  overlay takes the composite off the page's thread. Chrome on that screen paced Banjo to 30 too, twice for 10 s in a
-  play otherwise at 60, in a build without the lines; on the test build (Chrome 155, 37 drops) the drops before its
-  two paces had the same make-up, wait() 33.5 ms a game frame (median) and asleep 30.6, but only 2.0 past the slots.
-  plume bf417cf (rt64 0c5ba5d) takes wait()'s trips out: the present thread blocks on a futex the done callbacks wake.
-  On a desktop GPU that changes nothing measurable (Banjo in Firefox at `?timer-tick=15.625` 60.0 before and after,
-  its drops there the level loads; GoldenEye uncapped in Firefox 174.0 and 177.6 on a busy host), and on the laptop's
-  screen it doesn't stop the paces either. That evening's runs there (plays.jsonl's 15 noted "test-v0.66.0" or
-  "test-wait": the test build and the same build with only that change, served locally, interleaved, cold, two runs a
-  setup and a third overlay pair) paced to 30 the same: with default prefs 29.9-30.0 presents a second in all four
-  runs, 4-5 paces and 205-232 drops each, the Intel GPU 85-86% busy, wait() 25.7-26.5 ms a game frame (median over a
-  run's drops) with the change against 28.5-37.4 without, and 0-7 ms past the slots; Chrome 59.9-60.0 in all four,
-  each with two 10 s paces at the same moments. The wait() that is left is plume's cap on presents in flight, waiting
-  on the GPU for earlier presents: plume tried 3 and 4 in flight as the drops began and mostly went back to 2, since
-  by then RT64 had paced and the try compared 30 with 30. What decides 60 against 30 there is how much of the GPU
-  Windows' compositor (DWM) takes, by each process's use of the 3D engine: with default prefs Firefox's GPU process
-  had ~55 of the 85-86%, the rest composing the page; with the overlay pref in the before build's first two runs the
-  GPU was 59-61% busy, nearly all Firefox's, and Banjo held 60.0; in the other four overlay runs (all three with the
-  change and the before build's third) Banjo paced to 30, Firefox's GPU process had ~26 of 72-73% where measured and
-  DWM took 45-54% of the GPU through the third pair. So Banjo's 30 on that screen is the composition's, whichever
-  build, not wait()'s trips or Firefox's late sleeps.
+  queued, and on a desktop GPU (Firefox 158 at the display's rate, 1920x945, `?timer-tick=15.625`, an idle host) rt64
+  f262d56's lines say that thread has no time to spare at a 30 fps game's two presents a frame: once 341 game frames in
+  a row came to 33.3 ms each, 32.5 of it asleep to the slots, without a wait for the next one, and one present dropped.
+  Most of the other drops there were held by wait() (14-55 ms a game frame), which plume's count of time waiting leaves
+  out: on a page it is a loop of trips to the device thread, the page's own (plume_device_thread's wait(), runSync of
+  isWaitReady()), each queued behind whatever that thread is doing, with a 1 ms sleep between, a timed wait. On the
+  laptop's screen the same lines put it on wait(), then on late sleeps (a test build of Banjo's main on v0.66.0, Firefox
+  158 maximized at 200%, cold, `?present-stats`): 30.0 presents a second with default prefs (Intel 86% busy, 214 drops,
+  paced at 29.5, 41.5, 63.5 and 105.5 s, each try at the display's rate back within ~2 s) and 30.0 with the overlay pref
+  (75%, 161 drops). Over the drops leading up to each pace, a game frame took 73.4 / 62.7 ms (median, default / overlay)
+  against its 33.3: wait() 32.8 / 38.2, asleep 31.0 / 19.8 of which past the slots 11.5 / 3.3, workload 3.5 / 2.5, draw
+  1.1 / 1.2, interpolation and present() ~0, mostly one game frame a drop. So wait() costs two or three animation frames
+  a game frame however cheap the composite, which looked like those trips to the page's thread and the sleeps between
+  them (it isn't them, below); the late sleeps to the slots are plume's 6-14 ms timed waits, shorter when the overlay
+  takes the composite off the page's thread. Chrome on that screen paced Banjo to 30 too, twice for 10 s in a play
+  otherwise at 60, in a build without the lines; on the test build (Chrome 155, 37 drops) the drops before its two paces
+  had the same make-up, wait() 33.5 ms a game frame (median) and asleep 30.6, but only 2.0 past the slots. plume bf417cf
+  (rt64 0c5ba5d) takes wait()'s trips out: the present thread blocks on a futex the done callbacks wake. On a desktop
+  GPU that changes nothing measurable (Banjo in Firefox at `?timer-tick=15.625` 60.0 before and after, its drops there
+  the level loads; GoldenEye uncapped in Firefox 174.0 and 177.6 on a busy host), and on the laptop's screen it doesn't
+  stop the paces either. That evening's 15 runs there (the test build and the same build with only that change, served
+  locally, interleaved, cold, two runs a setup and a third overlay pair) paced to 30 the same: with default prefs
+  29.9-30.0 presents a second in all four runs, 4-5 paces and 205-232 drops each, the Intel GPU 85-86% busy, wait()
+  25.7-26.5 ms a game frame (median over a run's drops) with the change against 28.5-37.4 without, and 0-7 ms past the
+  slots; Chrome 59.9-60.0 in all four, each with two 10 s paces at the same moments. The wait() that is left is plume's
+  cap on presents in flight, waiting on the GPU for earlier presents: plume tried 3 and 4 in flight as the drops began
+  and mostly went back to 2, since by then RT64 had paced and the try compared 30 with 30. What decides 60 against 30
+  there is how much of the GPU Windows' compositor (DWM) takes, by each process's use of the 3D engine: with default
+  prefs Firefox's GPU process had ~55 of the 85-86%, the rest composing the page; with the overlay pref in the before
+  build's first two runs the GPU was 59-61% busy, nearly all Firefox's, and Banjo held 60.0; in the other four overlay
+  runs (all three with the change and the before build's third) Banjo paced to 30, Firefox's GPU process had ~26 of
+  72-73% where measured and DWM took 45-54% of the GPU through the third pair. So Banjo's 30 on that screen is the
+  composition's, whichever build, not wait()'s trips or Firefox's late sleeps.
 - Uncapped at 1920x945, the Intel GPU 94-99% busy in each run, Chrome headless / Firefox presented: Donkey Kong 64
   88.9/63.8, Pilotwings 64 84.5/56.2, Wave Race 64 83.8/74.8, GoldenEye 81.2/69.1, Majora's Mask 68.0/51.9, Banjo
   67.9/60.0, Conker 61.1/48.2, Rush 2049 44.9/27.0, Banjo-Tooie 41.1/31.6. So at a laptop window's size Rush 2049 and
@@ -1318,10 +1299,9 @@ included, those noted "onscreen" giving the laptop's numbers. No run that played
 
 That evening the same laptop played four pages in Firefox on screen with `gfx.webrender.dcomp-texture-overlay-win` on
 (`play_page.mjs --firefox-pref`) and with the default prefs, one run each, interleaved game by game, cold, nothing else
-running (the runs noted "Firefox composition"; the pref couldn't be read back, since the driver can't script
-about:support). Presents a second and the Intel GPU's median, default / pref: Banjo 30.0 at 86% / 30.1 at 75%, Conker
-29.7 at 99% (paced to 30) / 41.5 at 95% (Windy 39-48, its shader waits halved), GoldenEye 24.7 at 99% / 22.6 at 94%,
-Rush 2049 25.7 at 100% / 27.8 at 100%.
+running (the pref couldn't be read back, since the driver can't script about:support). Presents a second and the Intel
+GPU's median, default / pref: Banjo 30.0 at 86% / 30.1 at 75%, Conker 29.7 at 99% (paced to 30) / 41.5 at 95% (Windy
+39-48, its shader waits halved), GoldenEye 24.7 at 99% / 22.6 at 94%, Rush 2049 25.7 at 100% / 27.8 at 100%.
 
 - Where a page left the GPU room the overlay took 25-35 points off it: Banjo's intro 57.6-53.7 at 93-96% against
   59.9-57.9 at 64-65%, GoldenEye's 59 at 91-99% against 60-64 at 60-67%, Rush 2049's 55 at 93% against 58.9 at 62%.
@@ -1339,13 +1319,12 @@ Rush 2049 25.7 at 100% / 27.8 at 100%.
   the 800 MB more is about 56 of them, one game frame of ~0.9 s. On v0.63.0 the collapse stayed and the memory didn't
   (next bullet), so it wasn't those targets.
 - GoldenEye on v0.63.0 in Firefox, the next day (Pages, its plan, `?present-stats`, cold, interleaved with Chrome
-  headless; plays.jsonl's 20 lines of 2026-10-18 noted "laptop report" for GoldenEye): 9 of 13 runs off the desktop at
-  1920x945 and both on screen fell to 18-29 presents a second in Dam, starting 65-115 s in, most a few seconds after its
-  one-shader wait, with the Intel GPU 91-100% busy; Chrome held 60.1-60.3 at 69-73%. The collapsing runs ended with
-  2.0-2.2 GB of the adapter's shared memory in use (Chrome 1.6), not v0.58.0's 3.1-3.2. The GPU drew more power in the
-  collapse, not less (6.3-6.8 W at 91-96% busy against 4.1-5.8 W at 71-75% at 60, by RAPL), and no thermal zone or
-  limit throttled. `tools/memory_scan.ps1` found 27-37 MB of new driver heap and 7-54 MB of Firefox's own between 15 and
-  55 s of play, too little to be it.
+  headless, 20 runs): 9 of 13 runs off the desktop at 1920x945 and both on screen fell to 18-29 presents a second in
+  Dam, starting 65-115 s in, most a few seconds after its one-shader wait, with the Intel GPU 91-100% busy; Chrome held
+  60.1-60.3 at 69-73%. The collapsing runs ended with 2.0-2.2 GB of the adapter's shared memory in use (Chrome 1.6), not
+  v0.58.0's 3.1-3.2. The GPU drew more power in the collapse, not less (6.3-6.8 W at 91-96% busy against 4.1-5.8 W at
+  71-75% at 60, by RAPL), and no thermal zone or limit throttled. `tools/memory_scan.ps1` found 27-37 MB of new driver
+  heap and 7-54 MB of Firefox's own between 15 and 55 s of play, too little to be it.
 - `tools/pass_probe.js` in those runs (Firefox 158 gives it timestamps on this adapter): the scene pass, 2682x1320
   rgba8unorm with depth32float-stencil8, took 5.1-7.1 ms of GPU a present before the collapse and 33-56 ms in it, and
   Chrome's 5.3-6.8 all through Dam. Each pass took 25-35 ms instead of 5-6, with the same draws by fragment shader
@@ -1355,27 +1334,27 @@ Rush 2049 25.7 at 100% / 27.8 at 100%.
   GPU was 58% busy and it never came. So the same draws into the same targets cost Firefox's GPU 5-7 times more, and
   Chrome's never: they were drawn with the ubershader (next bullet), and `?probe-skip` couldn't show it, since an
   ubershader draw carries the size of a shader already in the table.
-- What it was, the next two nights (Pages on v0.63.0, GoldenEye's list at main 5967d94, `pass_probe.js`, Firefox off
-  the desktop at 1920x945; plays.jsonl's 15 lines of 2026-10-18/19 noted "laptop report"): shaders GoldenEye's list
-  lacked, which Firefox drew with the ubershader for the rest of the visit (What the prebuilt lists miss, above). On the
-  plan with holds on the game's clock (5967d94) Dam held 64 until 214-360 s in all three runs, the scene pass at
-  5.0-6.9 ms, as Chrome's 5.2-6.3 on that plan. On the plan before it, holds on the wall clock, 4 of 5 runs fell to
-  16-23 in Dam, the build of the night before (main 0f30f97) as well as that day's, each just after Dam missed some of
-  a family of `c8102078 …6f` shaders, about 80 s in: the scene pass went 6.0, 12.1, 22.6 ms a pass over 10 s at the
-  same 110-270 draws. The one run that met none of them held 64. GoldenEye64Recomp-web 4681896 adds the 21 shaders
-  these runs missed to Dam's section. Nothing in the other pages behaved like it: Rush 2049's race at 86-99% busy for
-  300 s kept its main pass at 9-20 µs a draw, and Conker's and Majora's Mask's plans (69-75% busy) stayed flat.
+- What it was, the next two nights (Pages on v0.63.0, GoldenEye's list at main 5967d94, `pass_probe.js`, Firefox off the
+  desktop at 1920x945, 15 runs): shaders GoldenEye's list lacked, which Firefox drew with the ubershader for the rest of
+  the visit (What the prebuilt lists miss, above). On the plan with holds on the game's clock (5967d94) Dam held 64
+  until 214-360 s in all three runs, the scene pass at 5.0-6.9 ms, as Chrome's 5.2-6.3 on that plan. On the plan before
+  it, holds on the wall clock, 4 of 5 runs fell to 16-23 in Dam, the build of the night before (main 0f30f97) as well as
+  that day's, each just after Dam missed some of a family of `c8102078 …6f` shaders, about 80 s in: the scene pass went
+  6.0, 12.1, 22.6 ms a pass over 10 s at the same 110-270 draws. The one run that met none of them held 64.
+  GoldenEye64Recomp-web 4681896 adds the 21 shaders these runs missed to Dam's section. Nothing in the other pages
+  behaved like it: Rush 2049's race at 86-99% busy for 300 s kept its main pass at 9-20 µs a draw, and Conker's and
+  Majora's Mask's plans (69-75% busy) stayed flat.
 - Banjo stayed at 30 with it: RT64 paced it to 30 with the GPU 70-78% busy until 123 s, and drew 58-60 after.
 
 On 2026-10-18 and 19 the same laptop played Banjo's test build (its main on v0.66.0 with plume bf417cf) and Mario Kart
-64 from Pages on v0.63.0 on screen (Firefox 158 maximized at 200%), cold, `?present-stats`, with each process's share
-of the Intel GPU's 3D engine (dwm.exe, the browser) sampled every 5 s: plays.jsonl's 24 lines from 20:37 UTC on the 18th
-to 00:17 on the 19th, after the 15 above. That night's first laptop runs of Mario Kart 64, Ocarina of Time and Jet
-Force Gemini, from Pages on v0.63.0 (plays.jsonl's 17 lines from 22:58 to 23:48 UTC on the 18th, with Diddy Kong
-Racing's two failed boots: its page plays the US 1.0 ROM and the laptop has Rev A), read the same split as Banjo (presents a second, then the Intel GPU / Firefox / DWM
-in percent): Banjo 30.0 at 85-87 / 55-56 / 30-31, Mario Kart 64 42.6 at 99 / 61 / 38, Ocarina of Time 37.1 at 91 / 53 /
-38, Jet Force Gemini 44.2 at 95 / 58 / 36. Chrome 155 on the same screen drew 58.4-60.0 with the GPU 62-73% busy and
-DWM at 0. Off the desktop DWM is at 0 for both browsers, and Firefox draws these pages at 58-60 with 56-62% of the GPU.
+64 from Pages on v0.63.0 on screen (Firefox 158 maximized at 200%), cold, `?present-stats`, with each process's share of
+the Intel GPU's 3D engine (dwm.exe, the browser) sampled every 5 s, 24 runs after the 15 above. That night's first
+laptop runs of Mario Kart 64, Ocarina of Time and Jet Force Gemini, from Pages on v0.63.0 (17 runs, with Diddy Kong
+Racing's two failed boots: its page plays the US 1.0 ROM and the laptop has Rev A), read the same split as Banjo
+(presents a second, then the Intel GPU / Firefox / DWM in percent): Banjo 30.0 at 85-87 / 55-56 / 30-31, Mario Kart 64
+42.6 at 99 / 61 / 38, Ocarina of Time 37.1 at 91 / 53 / 38, Jet Force Gemini 44.2 at 95 / 58 / 36. Chrome 155 on the
+same screen drew 58.4-60.0 with the GPU 62-73% busy and DWM at 0. Off the desktop DWM is at 0 for both browsers, and
+Firefox draws these pages at 58-60 with 56-62% of the GPU.
 
 - What holds Firefox below 60 on this screen is DWM compositing WebRender's native compositor's surfaces (WebGPU in
   Chrome and Firefox, below): Firefox's own share is the same on screen as off, and DWM adds 30-38 points. With
@@ -1400,13 +1379,12 @@ DWM at 0. Off the desktop DWM is at 0 for both browsers, and Firefox draws these
   not Arc, and names the three fixes. Making that WebGL context and losing it took 37 ms once in Firefox on Windows.
 
 On 2026-10-20 the same laptop played Banjo on screen in Firefox 158 with the default prefs and DWM at 0% in every run,
-three interleaved rounds of four test pages, each its main eafae14 with N64Recomp-browser at main 92e85dc (v0.77.0+),
-at one with RT64's present thread calling wait() before its slot sleep (rt64-web 4462e8e, not on main), at one with that
+three interleaved rounds of four test pages, each its main eafae14 with N64Recomp-browser at main 92e85dc (v0.77.0+), at
+one with RT64's present thread calling wait() before its slot sleep (rt64-web 4462e8e, not on main), at one with that
 and pace() leaving the first 0.5 s after a try out of its count (c9908d6, not on main), and main's with
-`?presents-in-flight=3` (plays.jsonl's 12 lines from 18:56 to 19:24 UTC): every run was paced to 30 at 28-31 s, and
-nearly every try of 60 after fell back within 2-5 s, in all four. Presents a second (median): 30.0, 31.5, 32.6 on main,
-30.0, 30.4, 30.0 with the wait first, 30.0, 30.0, 58.1 with the 0.5 s too (a try into a quiet moment), 30.0, 30.1, 30.1
-with 3 in flight.
+`?presents-in-flight=3` (12 runs): every run was paced to 30 at 28-31 s, and nearly every try of 60 after fell back
+within 2-5 s, in all four. Presents a second (median): 30.0, 31.5, 32.6 on main, 30.0, 30.4, 30.0 with the wait first,
+30.0, 30.0, 58.1 with the 0.5 s too (a try into a quiet moment), 30.0, 30.1, 30.1 with 3 in flight.
 
 - At 60 the GPU doesn't keep up in Firefox's default path: the Intel GPU was 94-100% busy in every 5 s sample at 60 and
   54-74% at 30. At 30 plume had each present done 10-14 ms after it with no time at the cap; right after a try of 60,
@@ -1420,10 +1398,10 @@ with 3 in flight.
 
 ## Laptop-like limits on a desktop, measured
 
-On 2026-10-20, GoldenEye's and Banjo's pages from Pages (v0.67.0), each game's plan, Chrome 155 and Firefox 158 off
-the desktop at a laptop window's 1920x945, cold, on a desktop GPU (RTX 5080, 8 cores of 16 threads), one page at a
-time, at the display's rate (64 Hz): plays.jsonl's lines of that date noted "laptop-like limits", with play_page's
-`--fallback-adapter` and `--affinity` (docs/playing.md, Laptop-like limits on a desktop).
+On 2026-10-20, GoldenEye's and Banjo's pages from Pages (v0.67.0), each game's plan, Chrome 155 and Firefox 158 off the
+desktop at a laptop window's 1920x945, cold, on a desktop GPU (RTX 5080, 8 cores of 16 threads), one page at a time, at
+the display's rate (64 Hz), with play_page's `--fallback-adapter` and `--affinity` (docs/playing.md, Laptop-like limits
+on a desktop).
 
 - A software adapter is far slower than a laptop's Intel UHD, so it stands in for no laptop. Chrome on SwiftShader
   drew GoldenEye's logos at 33-65 presents a second and Dam at 0.2-3.8 (median 2.1), its GPU process taking 11.6
@@ -1485,27 +1463,26 @@ time, at the display's rate (64 Hz): plays.jsonl's lines of that date noted "lap
   thread: six at once took ~9 cores and halved the frame rate. The wasm grew from 7.3 to 16.6 MB (the spec
   constant shaders), and since rt64 85a6ad5 links 4.4 MB less of them (GoldenEye's 17.2 → 12.8 MB).
 - Chrome parses and validates a shader module (Tint) in `createShaderModule`, on that same main thread, even for a
-  pipeline it then builds async, in a time that grows faster than the WGSL (0.16 ms a KB at 24 KB, 0.56 at 180 KB,
-  1.07 at 713 KB) and with the variables of a function: that is what held a page's presents 100-160 ms per large
-  RasterPS while its list built behind the game, until rt64 29f50e6. What is left there: the pipelines a draw
-  wants before their background build is done, built in line (plume 54b3be7 builds every pipeline in the background
-  once a draw resolves its layout): the boot's fixed ones and the RSP's compute shaders at the game's first frame
-  (13-64 ms each, DXC on that thread; under 50 ms each in a trace of Banjo's Start); a
-  `GPUDevice.prototype.createRenderPipeline` wrapped in a preload (`play_page.mjs --preload`) names each; and the spec constant
-  shaders' module at setup, which held the launcher's first presents 1.1-1.8 s while there were two, and is done
-  before the first present now (below, The launcher). The ubershader
-  states (245 KB of WGSL, one per depth and coverage state) were built there too, as the first frames drew them:
-  Banjo's page held 2.1 s after Start for 4. A draw of nothing at setup builds them behind the launcher now (rt64
-  977ddca), one first and the rest from its compiled shader (plume 2950009): Chrome compiles a pipeline's shaders on
-  its own for each, on its worker threads, and 8 at once beside the prebuilt list took every core for ~2 s and held
-  the presents as long, though no task on the GPU process's main thread ran over 80 ms (a Perfetto trace,
-  `--trace-startup`). The longest present gap after Load ROM, outside the boot and shader waits, against v0.51.0
-  (headless Chrome 155, 3840x2000 uncapped, cold, RTX 2070, a quiet host, `plays.jsonl`): Banjo 2.08 → 0.30 s, Rush
-  2049 1.35 → 0.25, Conker 2.97 → 0.61 (Load ROM's, on both), Ocarina of Time 2.27 → 0.44, Mario Kart 64 2.53 →
-  0.67, GoldenEye 1.79 → 1.65 and Donkey Kong 64 1.78 → 1.54, their second gap gone; Firefox 158 the same on
-  both. What is left over 100 ms after Start is not the GPU process (Present gaps after Start, below).
-  Dawn reuses a module whose WGSL matches one still alive, but
-  keeping a list's ~280 alive cost ~750 MB in the GPU process, and JavaScript only lets one go when it collects it.
+  pipeline it then builds async, in a time that grows faster than the WGSL (0.16 ms a KB at 24 KB, 0.56 at 180 KB, 1.07
+  at 713 KB) and with the variables of a function: that is what held a page's presents 100-160 ms per large RasterPS
+  while its list built behind the game, until rt64 29f50e6. What is left there: the pipelines a draw wants before their
+  background build is done, built in line (plume 54b3be7 builds every pipeline in the background once a draw resolves
+  its layout): the boot's fixed ones and the RSP's compute shaders at the game's first frame (13-64 ms each, DXC on that
+  thread; under 50 ms each in a trace of Banjo's Start); a `GPUDevice.prototype.createRenderPipeline` wrapped in a
+  preload (`play_page.mjs --preload`) names each; and the spec constant shaders' module at setup, which held the
+  launcher's first presents 1.1-1.8 s while there were two, and is done before the first present now (below, The
+  launcher). The ubershader states (245 KB of WGSL, one per depth and coverage state) were built there too, as the first
+  frames drew them: Banjo's page held 2.1 s after Start for 4. A draw of nothing at setup builds them behind the
+  launcher now (rt64 977ddca), one first and the rest from its compiled shader (plume 2950009): Chrome compiles a
+  pipeline's shaders on its own for each, on its worker threads, and 8 at once beside the prebuilt list took every core
+  for ~2 s and held the presents as long, though no task on the GPU process's main thread ran over 80 ms (a Perfetto
+  trace, `--trace-startup`). The longest present gap after Load ROM, outside the boot and shader waits, against v0.51.0
+  (headless Chrome 155, 3840x2000 uncapped, cold, RTX 2070, a quiet host): Banjo 2.08 → 0.30 s, Rush 2049 1.35 → 0.25,
+  Conker 2.97 → 0.61 (Load ROM's, on both), Ocarina of Time 2.27 → 0.44, Mario Kart 64 2.53 → 0.67, GoldenEye 1.79 →
+  1.65 and Donkey Kong 64 1.78 → 1.54, their second gap gone; Firefox 158 the same on both. What is left over 100 ms
+  after Start is not the GPU process (Present gaps after Start, below). Dawn reuses a module whose WGSL matches one
+  still alive, but keeping a list's ~280 alive cost ~750 MB in the GPU process, and JavaScript only lets one go when it
+  collects it.
 - Firefox (157, Windows) builds a `createRenderPipelineAsync` pipeline on its GPU process in line with the device's
   other work: a specialized RasterPS took 2-8 s there (12 at worst), with the page queuing 60 frames a second and
   Firefox painting a handful in between, so menus and races sat below a frame a second for minutes, until every
@@ -1627,138 +1604,133 @@ time, at the display's rate (64 Hz): plays.jsonl's lines of that date noted "lap
   10.0-10.8 s instead of 16.1-17.7 s for Rush 2049 and 35-38 s instead of 87-91 s for GoldenEye, and Chrome's GPU
   process spent 47% less CPU on GoldenEye's. Stripping their indentation measured nothing. Checked with the adapter
   reported as Intel to the page (a CDP script overriding `GPUAdapter.prototype.info`): they build, and the game draws.
-- RT64's render to RAM (on by default) draws each frame a second time at the N64's resolution and reads it back
-  into RDRAM. In Chrome that readback makes the list wait 5-6 ms for the GPU process whatever its size (Rush 2049's
+- RT64's render to RAM (on by default) draws each frame a second time at the N64's resolution and reads it back into
+  RDRAM. In Chrome that readback makes the list wait 5-6 ms for the GPU process whatever its size (Rush 2049's
   `headless/main.cpp` header has the measurements), so a game that never reads its frames on the CPU turns it off
   (RecompFrontend-0004, `set_render_to_ram`), and one that does keeps it on. If it can take a frame one list old (a
-  patch of the screen, a row of depth), `set_render_to_ram_late` (rt64 73e9ca0) makes the copy land later instead,
-  and the list stops waiting: Conker's, GoldenEye's, Donkey Kong 64's, Perfect Dark's and Beetle Adventure Racing's
-  pages do. It landed when the
-  next list started, which waited there for the GPU where the GPU took longer over a frame than the game between lists
-  (a phone's, at its lowest clock); since rt64 330f84a it lands at the first VI or list start that finds the GPU done,
-  or at the latest where the next list's draws are synced, before that list's RDP is done (docs/phones.md, Conker's Bad
-  Fur Day). Majora's Mask can't: it flushes its task queue and reads the pictograph and the pause background at once,
-  so it keeps the exact copy. Nor can a game that puts something in a framebuffer's memory once the RDP is done: the copy lands while the game runs,
-  and though it keeps every word the CPU changed (rt64 cb75c5c), a word written with the value it held looks untouched
-  and gets the frame. Jet Force Gemini's CPU reworks its shadows' render targets once the RDP has drawn them, and with
-  the copy late they came out blurred or as dots, so its page keeps the exact copy too. The console reports each write
-  it kept, so a page run through a game's levels with the late copy says whether its CPU touches a framebuffer with one
-  pending. Turned off where nothing reads a frame, in Chrome (uncapped at 3840x2000, the page Pages serves against the
-  build, an interleaved pair, an RTX 2070): WWF No Mercy, whose frames are drawn in several tasks each, went from 226
-  presents a second to 268, Rogue Squadron (its fork's write-back off, with the late copy) from 273 to 301, and THPS2
-  from 330 to 335, within the noise. Space Station Silicon Valley's late copy measured no faster (148 against 167, with
-  Pages' own two plays at 178 and 157), so it keeps the exact copy. Beetle Adventure Racing's went from 217 to 238,
-  and its races from about 30 frames a second to 50-60, once a yield its scheduler asks of a queued graphics task was
-  answered: unanswered, its page never got from the menus into a race with the late copy (docs/game-forks.md). Through the device thread, the main thread checks a
-  READBACK buffer at each replay and present once a copy into it is replayed, maps it when the browser has delivered
-  the data, and publishes the answer, which `isMapReady()` reads and `map()` waits for without waiting behind the
-  main thread's queue; a build without threads would need `-sJSPI` (or ASYNCIFY) to wait in place. A call that waits
-  for the main thread costs 50-120 µs from a pthread in a race, behind whatever is queued before it (RT64 asking at
-  each VI whether the late copy could land spent 2.3 s of 13 there in GoldenEye's Dam), a queued one ~0.4 µs, and a
-  100 µs sleep there ~1.9 ms.
-- A framebuffer the game reads back as textures line by line costs a render pass a line in the browser's CPU, not
-  its GPU. Perfect Dark's *Area 51 - Infiltration* opening cutscene is drawn through `bview_draw_film_interlace`
-  (its look on a console too): each of the view's ~220 lines is loaded from the back buffer as a texture and drawn
-  back. RT64 makes a tile copy of each region read, a draw into a texture of its own (`FramebufferManager::
-  recordOperations` sets each copy's framebuffer), plume's WebGPU backend begins a render pass for each framebuffer,
-  and every interpolated present redoes them: 204-226 passes a present there, ~180 of them 1312x32 tile copies at the
-  page's 1854x960 and 15-33 at the game's 320x32, one draw each, against 2-6 a present once Joanna is in control. The
-  GPU takes 0.25-0.34 ms a present for all of them (Chrome 155, `pass_probe.js`). Firefox 158 presents 59-110 a
-  second for the ~55 s (60-75 most of it, sound short up to 4,560 frames in 5 s) against 240 after, with the page's
-  threads waiting and its GPU process's CanvasRenderer thread, which carries out every WebGPU call, busy 0.62-0.73 of
-  a core against 0.36. A Gecko profile puts 279 ms a second of that thread in wgpu's `CommandEncoder::finish`, 107 of
-  them its texture tracker sized and cleared for each pass over every texture alive (`TextureStateSet::set_size`,
-  `TextureUsageScope::clear`; 3,900-4,100 alive in the cutscene against ~1,200 after, `webgpu_census.js`), 143 ms in
-  `writeBuffer`, each mapping a staging buffer of its own (2,100-2,700 calls and 260-340 MB a second), and ~55 ms
-  freeing D3D12 allocations: the page also makes and destroys 700-1,000 small textures a second there (4096x1
-  `r8uint`, a `copyBufferToTexture` each). Chrome 155 presents 137-183 a second there against 229-235 after. All of it
-  on an RTX 5080, an idle host, 1256x645, the page from N64 Hub (perfect-dark-recomp main afe1faf), plays.jsonl's pd
-  runs of 2026-10-23 noted "Area 51 - Infiltration's opening cutscene". The desktop build's rate there isn't measured:
-  it reaches the mission only from a game file that has it unlocked.
-  On the web each tile copy is now a texture copy (rt64 4e6c52e): 11-14 passes a present in the cutscene, the
-  regions ~182 copies of 1286x3 and ~30 of 320x1 at 1256x645. On its own that moved little (uncapped, Firefox 72-135
-  against 66-108, Chrome 150-204 against 142-183), and what was left was the uploads: `writeBuffer` wrote 4.0-5.7 MB a
-  present there, most of it two upload buffers of 14-16 MB written almost whole every fifth present. That is the TMEM
-  pool that stands in for descriptor indexing (rt64-0007): each new texture's 4 KB entry made the upload run from
-  the first changed entry to the last, and the cutscene makes ~1,850 TMEM textures a second. Uploading each run of
-  changed entries (rt64 343d64d) cut it to 0.8-1.8 MB a present. With both, uncapped, Firefox 158 presents 147-191 a
-  second in the cutscene against 74-112 (medians 177 and 181 against 93 and 110, gaps over 100 ms 4 and 4 against
-  16 and 24), the TMEM runs alone 112-149, and Chrome 155 303-347 against 172-225, the cutscene's shots alike and no
-  WebGPU errors (plays.jsonl, sets `pd-tilecopy-u1-*` and `pd-tilecopy-u2-*` of 2026-10-23, the page built
-  from perfect-dark-recomp main 036ed94). The textures alive and the TMEM textures made and destroyed stay as they
-  were. The A/B against Pages (`ab_pages.mjs`, Chrome uncapped at 3840x2000, a play from the file menu to Joanna's
-  control) read 208 presents a second for Pages' page and 331 for the build, its p99 gap 29 ms against 10, and
-  Banjo-Tooie's regular plan, which makes tile copies too, 357 against 358, both at the 360 cap.
+  patch of the screen, a row of depth), `set_render_to_ram_late` (rt64 73e9ca0) makes the copy land later instead, and
+  the list stops waiting: Conker's, GoldenEye's, Donkey Kong 64's, Perfect Dark's and Beetle Adventure Racing's pages
+  do. It landed when the next list started, which waited there for the GPU where the GPU took longer over a frame than
+  the game between lists (a phone's, at its lowest clock); since rt64 330f84a it lands at the first VI or list start
+  that finds the GPU done, or at the latest where the next list's draws are synced, before that list's RDP is done
+  (docs/phones.md, What holds a page back). Majora's Mask can't: it flushes its task queue and reads the pictograph and
+  the pause background at once, so it keeps the exact copy. Nor can a game that puts something in a framebuffer's memory
+  once the RDP is done: the copy lands while the game runs, and though it keeps every word the CPU changed (rt64
+  cb75c5c), a word written with the value it held looks untouched and gets the frame. Jet Force Gemini's CPU reworks its
+  shadows' render targets once the RDP has drawn them, and with the copy late they came out blurred or as dots, so its
+  page keeps the exact copy too. The console reports each write it kept, so a page run through a game's levels with the
+  late copy says whether its CPU touches a framebuffer with one pending. Turned off where nothing reads a frame, in
+  Chrome (uncapped at 3840x2000, the page Pages serves against the build, an interleaved pair, an RTX 2070): WWF No
+  Mercy, whose frames are drawn in several tasks each, went from 226 presents a second to 268, Rogue Squadron (its
+  fork's write-back off, with the late copy) from 273 to 301, and THPS2 from 330 to 335, within the noise. Space Station
+  Silicon Valley's late copy measured no faster (148 against 167, with Pages' own two plays at 178 and 157), so it keeps
+  the exact copy. Beetle Adventure Racing's went from 217 to 238, and its races from about 30 frames a second to 50-60,
+  once a yield its scheduler asks of a queued graphics task was answered: unanswered, its page never got from the menus
+  into a race with the late copy. Through the device thread, the main thread checks a READBACK buffer at each replay and
+  present once a copy into it is replayed, maps it when the browser has delivered the data, and publishes the answer,
+  which `isMapReady()` reads and `map()` waits for without waiting behind the main thread's queue; a build without
+  threads would need `-sJSPI` (or ASYNCIFY) to wait in place. A call that waits for the main thread costs 50-120 µs from
+  a pthread in a race, behind whatever is queued before it (RT64 asking at each VI whether the late copy could land
+  spent 2.3 s of 13 there in GoldenEye's Dam), a queued one ~0.4 µs, and a 100 µs sleep there ~1.9 ms.
+- A framebuffer the game reads back as textures line by line costs a render pass a line in the browser's CPU, not its
+  GPU. Perfect Dark's *Area 51 - Infiltration* opening cutscene is drawn through `bview_draw_film_interlace` (its look
+  on a console too): each of the view's ~220 lines is loaded from the back buffer as a texture and drawn back. RT64
+  makes a tile copy of each region read, a draw into a texture of its own (`FramebufferManager:: recordOperations` sets
+  each copy's framebuffer), plume's WebGPU backend begins a render pass for each framebuffer, and every interpolated
+  present redoes them: 204-226 passes a present there, ~180 of them 1312x32 tile copies at the page's 1854x960 and 15-33
+  at the game's 320x32, one draw each, against 2-6 a present once Joanna is in control. The GPU takes 0.25-0.34 ms a
+  present for all of them (Chrome 155, `pass_probe.js`). Firefox 158 presents 59-110 a second for the ~55 s (60-75 most
+  of it, sound short up to 4,560 frames in 5 s) against 240 after, with the page's threads waiting and its GPU process's
+  CanvasRenderer thread, which carries out every WebGPU call, busy 0.62-0.73 of a core against 0.36. A Gecko profile
+  puts 279 ms a second of that thread in wgpu's `CommandEncoder::finish`, 107 of them its texture tracker sized and
+  cleared for each pass over every texture alive (`TextureStateSet::set_size`, `TextureUsageScope::clear`; 3,900-4,100
+  alive in the cutscene against ~1,200 after, `webgpu_census.js`), 143 ms in `writeBuffer`, each mapping a staging
+  buffer of its own (2,100-2,700 calls and 260-340 MB a second), and ~55 ms freeing D3D12 allocations: the page also
+  makes and destroys 700-1,000 small textures a second there (4096x1 `r8uint`, a `copyBufferToTexture` each). Chrome 155
+  presents 137-183 a second there against 229-235 after. All of it on an RTX 5080, an idle host, 1256x645, the page from
+  N64 Hub (perfect-dark-recomp main afe1faf), 2026-10-23. The desktop build's rate there isn't measured: it reaches the
+  mission only from a game file that has it unlocked. On the web each tile copy is now a texture copy (rt64 4e6c52e):
+  11-14 passes a present in the cutscene, the regions ~182 copies of 1286x3 and ~30 of 320x1 at 1256x645. On its own
+  that moved little (uncapped, Firefox 72-135 against 66-108, Chrome 150-204 against 142-183), and what was left was the
+  uploads: `writeBuffer` wrote 4.0-5.7 MB a present there, most of it two upload buffers of 14-16 MB written almost
+  whole every fifth present. That is the TMEM pool that stands in for descriptor indexing (rt64-0007): each new
+  texture's 4 KB entry made the upload run from the first changed entry to the last, and the cutscene makes ~1,850 TMEM
+  textures a second. Uploading each run of changed entries (rt64 343d64d) cut it to 0.8-1.8 MB a present. With both,
+  uncapped, Firefox 158 presents 147-191 a second in the cutscene against 74-112 (medians 177 and 181 against 93 and
+  110, gaps over 100 ms 4 and 4 against 16 and 24), the TMEM runs alone 112-149, and Chrome 155 303-347 against 172-225,
+  the cutscene's shots alike and no WebGPU errors (2026-10-23, the page built from perfect-dark-recomp main 036ed94).
+  The textures alive and the TMEM textures made and destroyed stay as they were. The A/B against Pages (Chrome uncapped
+  at 3840x2000, a play from the file menu to Joanna's control) read 208 presents a second for Pages' page and 331 for
+  the build, its p99 gap 29 ms against 10, and Banjo-Tooie's regular plan, which makes tile copies too, 357 against 358,
+  both at the 360 cap.
 - Perfect Dark's night vision: with the goggles on (*dataDyne Central - Extraction*, the third mission, the player's
   `devicesactive` bit 0x01 set from the console), `bview_draw_nv_lens` reads the front buffer back row by row for its
   blur and then copies each of the back buffer's 240 rows: a LoadBlock of the 320-texel row into TMEM 0 and a one-row
-  texture rectangle drawn through a tile `bview_prepare_static_rgba16` sets to 513x9 texels of line 160. RT64 checks
-  the TMEM a tile could sample for a tile copy, and for that tile it is all of TMEM, at a line of 640 texels against
-  the row's 320, so no row found its tile copy: each was hashed and uploaded from RDRAM (~250 TMEM uploads a frame),
-  the framebuffer written back to RAM for them, two syncs a list. The game dropped from 60 to 30 the moment the goggles
-  came on, on an RTX 5080 too, and Chrome's GPU process grew 15-30 MB a second. With a row loaded whole at the tile's
-  own TMEM address sampling that row's tile copy (rt64 9b87e67, `FramebufferManager::checkRowTileCopy`), the game
-  keeps its 60 with the goggles on. Chrome uncapped at 3840x2000 (RTX 5080, an idle host, the page from Pages against
-  perfect-dark-recomp main 8fc4524 built with it, plays.jsonl): Pages' page went to 30 within 5 s of the goggles and
-  presented 271-306 a second there, its GPU process growing 2.75 -> 3.12 GB in 20 s; the build kept 60, presented
-  316-327 and its GPU process stayed at 2.38-2.48 GB; no WebGPU errors in either. Banjo-Tooie's regular plan read
-  354 a second for both, and the build played clean in Firefox with the goggles on. The goggles' rows are now drawn from
-  tile copies at the page's resolution, as RT64 draws any framebuffer it finds a tile copy for, where from RDRAM they
-  were the N64's 320x240 (and the HUD's text doubled). That left two syncs a frame, which on a GPU the page shares
-  (an RTX 5080 97% busy with another program) held the game at 15-16 frames a second with the goggles on against
-  28-30 off, and the goggles are what the mission's first minute in the dark is played with. One was the HUD's first
-  glyph after each of the goggles' passes: a glyph is 7 words of TMEM drawn through a 32x32 CI4 tile of line 1, whose
-  33 words reach the rest of the last row's region; RT64 checks what the tile could sample, not what the call's
-  texcoords do (rt64 dd45bdc leaves that sync to `fullSync()`, which knows them: 17-19). The other was the goggles'
-  second to last row, (0,218)-(320,219), which ends a pixel above the scissor: Fix LR with Scissor, on by default,
-  stretches it to the scissor, a second row that samples past the row's tile copy, so that row came from RDRAM (rt64
-  f99c2e4 judges a row's tile copy by the game's own rectangle). With both, no syncs with the goggles on, and the game
-  at 28-30 on that busy GPU, as with them off. Chrome uncapped at 3840x2000 on that GPU, interleaved (plays.jsonl):
-  Pages' v0.123.0 ran the game at 10-14 frames a second with the goggles on, the build at 24-29, both at 57-60 before
-  them; presents 155 and 121 a second for Pages, 136 and 132 for the build, which the other program's share of the
-  GPU decides. Banjo-Tooie's regular plan read 192 a second for Pages and 203 for the build, and the build played
-  clean in Firefox with the goggles on.
-  With both on a GPU of its own (v0.130.0, perfect-dark-recomp main 3dcd6d7, Chrome uncapped at 3840x2000, RTX 5080, a
-  host busy with a retest's builds, plays.jsonl's pd runs of 2026-10-27 noted "goggles in Extraction"), the game
-  holds 59-60 frames a second with the goggles on as off, at ~355 presents a second, the GPU 43-44% busy against
-  23%. Each pass costs about a tenth of the GPU: the goggles' patch with its blur left out read 34-35%, its scanlines
-  left out 31-32%, the lens left out 23%. What costs is the passes' draws over the whole 4570x2400 target at each
-  present, a third scene pass of it, 0.79 ms of GPU passes a present against 0.42 (`pass_probe.js`); the row copies
-  are 36 texture copies of 6 rows a frame. Drawing the lens a 6-row block at a time from the game's patches (one
-  rectangle a block, 37 loads of the view's 220 rows against 220), or both passes as one two-cycle draw a row, read
-  the same 42-44%, and the one pass 0.70 ms of passes against 0.79, so neither went in. With the CPU throttled 4 times,
-  uncapped, the game fell from 58 to 26-30 with the goggles on, with or without the block patch, and kept 58 with the
-  lens left out: the page's main thread, busy 0.93-0.98 either way, gave the lens's per-present work (RT64's copies
-  and draws through plume, `copyTextureToTexture` among them) the time its presents had. Capped, as a phone presents,
-  the throttled game read 53-57 with the goggles on and 52-56 off in two interleaved pairs, no worse. The goggles also
-  missed 8 shaders of the list, drawn through the ubershader until built (perfect-dark-recomp's list has them now): at
-  the same 43-44% busy on that GPU, and the throttled pairs read nothing either way.
+  texture rectangle drawn through a tile `bview_prepare_static_rgba16` sets to 513x9 texels of line 160. RT64 checks the
+  TMEM a tile could sample for a tile copy, and for that tile it is all of TMEM, at a line of 640 texels against the
+  row's 320, so no row found its tile copy: each was hashed and uploaded from RDRAM (~250 TMEM uploads a frame), the
+  framebuffer written back to RAM for them, two syncs a list. The game dropped from 60 to 30 the moment the goggles came
+  on, on an RTX 5080 too, and Chrome's GPU process grew 15-30 MB a second. With a row loaded whole at the tile's own
+  TMEM address sampling that row's tile copy (rt64 9b87e67, `FramebufferManager::checkRowTileCopy`), the game keeps its
+  60 with the goggles on. Chrome uncapped at 3840x2000 (RTX 5080, an idle host, the page from Pages against
+  perfect-dark-recomp main 8fc4524 built with it): Pages' page went to 30 within 5 s of the goggles and presented
+  271-306 a second there, its GPU process growing 2.75 -> 3.12 GB in 20 s; the build kept 60, presented 316-327 and its
+  GPU process stayed at 2.38-2.48 GB; no WebGPU errors in either. Banjo-Tooie's regular plan read 354 a second for both,
+  and the build played clean in Firefox with the goggles on. The goggles' rows are now drawn from tile copies at the
+  page's resolution, as RT64 draws any framebuffer it finds a tile copy for, where from RDRAM they were the N64's
+  320x240 (and the HUD's text doubled). That left two syncs a frame, which on a GPU the page shares (an RTX 5080 97%
+  busy with another program) held the game at 15-16 frames a second with the goggles on against 28-30 off, and the
+  goggles are what the mission's first minute in the dark is played with. One was the HUD's first glyph after each of
+  the goggles' passes: a glyph is 7 words of TMEM drawn through a 32x32 CI4 tile of line 1, whose 33 words reach the
+  rest of the last row's region; RT64 checks what the tile could sample, not what the call's texcoords do (rt64 dd45bdc
+  leaves that sync to `fullSync()`, which knows them: 17-19). The other was the goggles' second to last row,
+  (0,218)-(320,219), which ends a pixel above the scissor: Fix LR with Scissor, on by default, stretches it to the
+  scissor, a second row that samples past the row's tile copy, so that row came from RDRAM (rt64 f99c2e4 judges a row's
+  tile copy by the game's own rectangle). With both, no syncs with the goggles on, and the game at 28-30 on that busy
+  GPU, as with them off. Chrome uncapped at 3840x2000 on that GPU, interleaved: Pages' v0.123.0 ran the game at 10-14
+  frames a second with the goggles on, the build at 24-29, both at 57-60 before them; presents 155 and 121 a second for
+  Pages, 136 and 132 for the build, which the other program's share of the GPU decides. Banjo-Tooie's regular plan read
+  192 a second for Pages and 203 for the build, and the build played clean in Firefox with the goggles on. With both on
+  a GPU of its own (v0.130.0, perfect-dark-recomp main 3dcd6d7, Chrome uncapped at 3840x2000, RTX 5080, a host busy with
+  a retest's builds, 2026-10-27), the game holds 59-60 frames a second with the goggles on as off, at ~355 presents a
+  second, the GPU 43-44% busy against 23%. Each pass costs about a tenth of the GPU: the goggles' patch with its blur
+  left out read 34-35%, its scanlines left out 31-32%, the lens left out 23%. What costs is the passes' draws over the
+  whole 4570x2400 target at each present, a third scene pass of it, 0.79 ms of GPU passes a present against 0.42
+  (`pass_probe.js`); the row copies are 36 texture copies of 6 rows a frame. Drawing the lens a 6-row block at a time
+  from the game's patches (one rectangle a block, 37 loads of the view's 220 rows against 220), or both passes as one
+  two-cycle draw a row, read the same 42-44%, and the one pass 0.70 ms of passes against 0.79, so neither went in. With
+  the CPU throttled 4 times, uncapped, the game fell from 58 to 26-30 with the goggles on, with or without the block
+  patch, and kept 58 with the lens left out: the page's main thread, busy 0.93-0.98 either way, gave the lens's
+  per-present work (RT64's copies and draws through plume, `copyTextureToTexture` among them) the time its presents had.
+  Capped, as a phone presents, the throttled game read 53-57 with the goggles on and 52-56 off in two interleaved pairs,
+  no worse. The goggles also missed 8 shaders of the list, drawn through the ubershader until built
+  (perfect-dark-recomp's list has them now): at the same 43-44% busy on that GPU, and the throttled pairs read nothing
+  either way.
 - Perfect Dark's other full-screen effects copy the view a row at a time through `bview_copy_pixels` too, and all but
-  one load each row whole, which RT64 draws from tile copies as it does the goggles': in Defection with each on from
-  the console (Chrome uncapped at 3840x2000, RTX 5080, an idle host, Pages' main 3dcd6d7 on v0.123.0, plays.jsonl's pd
-  runs of 2026-10-27 noted "screen effects" and set pd-ir-202610271900), the game held 58.5 with the X-ray scanner's
-  zoom blur and 59-60 through Infiltration's intro (the film interlace and its static, which reads random RAM as I8,
-  no framebuffer) and Air Base's horizon scanner, as with them off. CamSpy's fisheye and the Slayer's interlace copy
-  whole rows at a zoom as the X-ray blur does (a Slayer rocket's view can't be set from the console: the game puts it
-  back without a rocket). So drawing them a block of rows at a time would buy what it bought the goggles, nothing. The
-  IR scanner fell to 1.9 frames a second, the GPU 65% busy against 17%: its lens draws a row that crosses its
-  semicircle in three pieces, each loaded alone from mid-row, at an x that isn't 4-pixel aligned and after a draw into
-  that row, and RT64 found no tile copy for them, so each waited for the framebuffer in RAM, whose stale contents
-  showed (a cyan crescent at the semicircle's edge). perfect-dark-recomp's `patches/ir_lens.c` loads such a row once
-  and draws the pieces from it: 60 with the IR scanner on, the semicircle its own red as the game's combiner makes it,
-  in an A/B against Pages interleaved. Of the three, the start mid-row lost the tile copy: RT64 gave a block's copy
-  the pixels to its row's end, wider than what was loaded, which `checkRowTileCopy()` turns down, so the two pieces
-  that end inside the row each waited; the unaligned start is a whole pixel, and made no difference. rt64 5a80f01
-  gives such a block a copy as wide as it loaded: on a build from before `ir_lens.c` (perfect-dark-recomp b6a5e60),
-  the IR scanner went from 1.8 to 30 against Pages, interleaved (plays.jsonl's set pd-irfix-1), the lens its own red,
-  0 syncs a frame. The third, a load after a draw into its row, costs the rest: each such piece ends the
+  one load each row whole, which RT64 draws from tile copies as it does the goggles': in Defection with each on from the
+  console (Chrome uncapped at 3840x2000, RTX 5080, an idle host, Pages' main 3dcd6d7 on v0.123.0, 2026-10-27), the game
+  held 58.5 with the X-ray scanner's zoom blur and 59-60 through Infiltration's intro (the film interlace and its
+  static, which reads random RAM as I8, no framebuffer) and Air Base's horizon scanner, as with them off. CamSpy's
+  fisheye and the Slayer's interlace copy whole rows at a zoom as the X-ray blur does (a Slayer rocket's view can't be
+  set from the console: the game puts it back without a rocket). So drawing them a block of rows at a time would buy
+  what it bought the goggles, nothing. The IR scanner fell to 1.9 frames a second, the GPU 65% busy against 17%: its
+  lens draws a row that crosses its semicircle in three pieces, each loaded alone from mid-row, at an x that isn't
+  4-pixel aligned and after a draw into that row, and RT64 found no tile copy for them, so each waited for the
+  framebuffer in RAM, whose stale contents showed (a cyan crescent at the semicircle's edge). perfect-dark-recomp's
+  `patches/ir_lens.c` loads such a row once and draws the pieces from it: 60 with the IR scanner on, the semicircle its
+  own red as the game's combiner makes it, in an A/B against Pages interleaved. Of the three, the start mid-row lost the
+  tile copy: RT64 gave a block's copy the pixels to its row's end, wider than what was loaded, which
+  `checkRowTileCopy()` turns down, so the two pieces that end inside the row each waited; the unaligned start is a whole
+  pixel, and made no difference. rt64 5a80f01 gives such a block a copy as wide as it loaded: on a build from before
+  `ir_lens.c` (perfect-dark-recomp b6a5e60), the IR scanner went from 1.8 to 30 against Pages, interleaved, the lens its
+  own red, 0 syncs a frame. The third, a load after a draw into its row, costs the rest: each such piece ends the
   framebuffer pair (`RDP::checkImageOverlap()` tests the rows of the pair's bounding box), 123 pairs a game frame
   against 4 with the scanner off, and the game drew 43-50 trying 60 and held 30; 18 in Firefox. rt64 635551d tests a
   load against the rects the pair drew (its newest 8, and the box of the older ones), byte by byte in the rows the load
   touches: on the same b6a5e60 build, 50 pairs a game frame with the scanner on and 4 off (`?frame-log`), and the game
-  58 against main's 30, interleaved (set pd-pairs-1), the picture the same. By the game's code the 46 more are the
-  semicircle's piece: a LoadBlock reads whole 8-byte words, so in most rows it reads 1-3 pixels into the piece right of
-  it, drawn just before, and those pixels are in TMEM, so the pair ends as it should.
+  58 against main's 30, interleaved, the picture the same. By the game's code the 46 more are the semicircle's piece: a
+  LoadBlock reads whole 8-byte words, so in most rows it reads 1-3 pixels into the piece right of it, drawn just before,
+  and those pixels are in TMEM, so the pair ends as it should.
 
 ## A page's thread in Chrome, throttled
 
@@ -1787,8 +1759,7 @@ part of it shared code could take out.
 
 rt64 cf8beb9 with plume 84b785f takes it out: a raster draw's index is its first instance, so its push constants stay
 the same from draw to draw and plume binds them once a pass (docs/forks.md). Measured with the census on an RTX 2070,
-Chrome 155, at 3840x2000 uncapped, builds of main and of the change from the same game commits (plays.jsonl, sets
-`firstinst-*`):
+Chrome 155, at 3840x2000 uncapped, builds of main and of the change from the same game commits:
 
 - Banjo-Tooie, Jinjo Village: `setBindGroup` 1.70 a draw to 0.93, and `writeBuffer` 1.02 KB a draw to 0.72-0.81,
   throttled 6 times (0.52 to 0.39 unthrottled). Throttled 6 times this host's slower CPU is past what the page can
@@ -1861,16 +1832,16 @@ desktop does the same at the display's rate: headless Chrome 155 (60 animation f
 2-6 presents over the plan's ~190 s of play (~440 more in the launcher, before the game), so the presents missing there
 are display frames with none, not drops, and not GPU load.
 
-A preload counted, at each animation frame, the canvas textures acquired since the last and how far the game's own
-clock (`0x800FD748`, in VIs) had moved. The game runs at 30 dropping to 20, and how often it drops varies from run to
-run. In the first run 1339 of its 4916 frames took 3 VIs and 20 took 4-6, and play presented 58.8 a second; in the
-second (plays.jsonl, its note names the preload) 525 of 5486 took 3 and 15 took 4-6, and play presented 59.2. In each
-5 s whose frames all took 2 VIs, 300 animation frames got 300 presents, the second run's 17 such windows missing 19 in
-all, at its loads. Those that mixed 2 and 3 missed 5-16 presents each, 161 in the second run's 22. That is what
-RT64_UNEVEN_FRAME_RATES (rt64 179adb8) leaves. It interpolates frames whose last three took uneven VIs (the slowest at
-most twice the fastest) at the fastest one's rate, so a 3-VI frame after 2-VI ones gets 2 presents and holds the last
-through the third display frame. Counting those display frames from the clock alone (it moves at the game's frame, not
-at its swap) gives 54-69% of the missing presents. Banjo-Tooie's 58.4-59.2 in Chrome on the laptop may be the same.
+A preload counted, at each animation frame, the canvas textures acquired since the last and how far the game's own clock
+(`0x800FD748`, in VIs) had moved. The game runs at 30 dropping to 20, and how often it drops varies from run to run. In
+the first run 1339 of its 4916 frames took 3 VIs and 20 took 4-6, and play presented 58.8 a second; in the second 525 of
+5486 took 3 and 15 took 4-6, and play presented 59.2. In each 5 s whose frames all took 2 VIs, 300 animation frames got
+300 presents, the second run's 17 such windows missing 19 in all, at its loads. Those that mixed 2 and 3 missed 5-16
+presents each, 161 in the second run's 22. That is what RT64_UNEVEN_FRAME_RATES (rt64 179adb8) leaves. It interpolates
+frames whose last three took uneven VIs (the slowest at most twice the fastest) at the fastest one's rate, so a 3-VI
+frame after 2-VI ones gets 2 presents and holds the last through the third display frame. Counting those display frames
+from the clock alone (it moves at the game's frame, not at its swap) gives 54-69% of the missing presents. Banjo-Tooie's
+58.4-59.2 in Chrome on the laptop may be the same.
 
 How many VIs a frame takes is known only at its swap, after RT64 has drawn its interpolated frames, so a page can't
 fill those display frames without waiting another game frame. A rate guessed from the frame before (rather than the
@@ -1887,58 +1858,56 @@ frame's VIs at the screen's swap to it (`pushFactor`) but picks the rate as the 
 it knows may end two frames back; at that lag the last frame's holds min(L, 2) and cuts up to 2.
 
 An RTX 5080 desktop doesn't show the case (its screen at 240 Hz; the pages from Pages, Jet Force Gemini's main 7f730ba
-and Banjo-Tooie's e8df837; 1920x945, their play plans; plays.jsonl). Headless Chrome 155 there runs the screen's 240
-animation frames, and Jet Force Gemini seldom takes 3 VIs: in two Chrome runs 260 of 5578 frames and 438 of 5462 (a
-quiet host), in Firefox held at 60 (`layout.frame_rate`, the host 82% busy at the start) 160 of 5439, nearly all in
-runs of 13-74 frames where the game runs at 20 for a second or so, the rest in nine runs of 1-6. Over each ~3.5 min
-of play, at a lag of 1 and 2, the fastest of three would hold 8-35 display frames and cut 5-22 frames, the last
-frame's hold 4-19 and cut 7-22, never fewer frames cut and at most 2 more: about 0.1 display frames a second, where
-the laptop misses 1.6. Too few to tell the lag from the animation frames with no present, most of them the launcher's
-and the loads'. Banjo-Tooie's plan's clock
-(`0x80127638`, its time in seconds) isn't a count of VIs: times 60 it moves by 1 and 3 where 2 is expected (81 moves of
-1, 87 lone 3s), and its other 3-VI frames came in three runs at 20 (118, 137 and 514 frames), where all three match
-and nothing is held. Its own VI count is still to find.
+and Banjo-Tooie's e8df837; 1920x945, their play plans). Headless Chrome 155 there runs the screen's 240 animation
+frames, and Jet Force Gemini seldom takes 3 VIs: in two Chrome runs 260 of 5578 frames and 438 of 5462 (a quiet host),
+in Firefox held at 60 (`layout.frame_rate`, the host 82% busy at the start) 160 of 5439, nearly all in runs of 13-74
+frames where the game runs at 20 for a second or so, the rest in nine runs of 1-6. Over each ~3.5 min of play, at a lag
+of 1 and 2, the fastest of three would hold 8-35 display frames and cut 5-22 frames, the last frame's hold 4-19 and cut
+7-22, never fewer frames cut and at most 2 more: about 0.1 display frames a second, where the laptop misses 1.6. Too few
+to tell the lag from the animation frames with no present, most of them the launcher's and the loads'. Banjo-Tooie's
+plan's clock (`0x80127638`, its time in seconds) isn't a count of VIs: times 60 it moves by 1 and 3 where 2 is expected
+(81 moves of 1, 87 lone 3s), and its other 3-VI frames came in three runs at 20 (118, 137 and 514 frames), where all
+three match and nothing is held. Its own VI count is still to find.
 
 So what decides the last frame's guess is the order of the frames where 10-27% take 3 VIs (a laptop, or a 60 Hz desktop
 that shows it, as above): a play there with the preload, read by the simulator. Runs mostly of 3 frames or more make a
 test build worth trying, to look at the motion; runs mostly of one put the guess in Ruled out beside the most common.
 
 A game that gives RT64 each frame's own rate (`gEXSetRefreshRate`) makes the last frame's guess at no lag, and on a
-display above the game's rate it costs more than a held frame: Perfect Dark's page did, at 60 with a frame of 2 VIs
-now and then (perfect-dark-recomp's docs/web.md, Frame rate). Each such frame got two VIs of presents and lost half
-when the next came a VI later, and pace() counted the drops as the GPU falling behind and paced to a multiple of the
-latest rate, flipping between 30, 60 and 120 about 130 times a play; on an RTX 5080 desktop's 240 Hz screen it held
-Defection at 61-62 presents a second in Chrome and 55-67 in Firefox, the game at 42-52 there. Given the fastest of
-the last three frames' rate instead, as RT64 guesses from the VIs, the same tree drew 116-117 in Chrome and 216-219 in
-Firefox, the game at 58 in both (whole GPU turns, an idle host, interleaved; plays.jsonl, set `pd-fps`). Chrome's 120
-there is the slot sleeps' (headless Chrome's pages pace to 114-120 on that screen).
+display above the game's rate it costs more than a held frame: Perfect Dark's page did, at 60 with a frame of 2 VIs now
+and then (perfect-dark-recomp's docs/web.md, Frame rate). Each such frame got two VIs of presents and lost half when the
+next came a VI later, and pace() counted the drops as the GPU falling behind and paced to a multiple of the latest rate,
+flipping between 30, 60 and 120 about 130 times a play; on an RTX 5080 desktop's 240 Hz screen it held Defection at
+61-62 presents a second in Chrome and 55-67 in Firefox, the game at 42-52 there. Given the fastest of the last three
+frames' rate instead, as RT64 guesses from the VIs, the same tree drew 116-117 in Chrome and 216-219 in Firefox, the
+game at 58 in both (whole GPU turns, an idle host, interleaved). Chrome's 120 there is the slot sleeps' (headless
+Chrome's pages pace to 114-120 on that screen).
 
 A game that mixes frames of 1 and 2 VIs (a game at 60 that a phone's CPU holds to 30-50) is the other case, and the
 fastest of three is at its worst there: at the fastest, the display's own 60, RT64 has nothing to interpolate, so each
 game frame got one drawn frame and a 2-VI frame held its last, and presents fell to about the game's rate
 (docs/phones.md, What a phone does differently). So rt64 7844c07 times a frame at the slowest of the last three while
 that took 3 or more of the last 8 frames. A frame timed longer than it lasts isn't cut short in RT64: the workload
-thread draws all of its frames unless they run past their share of the time, and the present thread presents each
-of them in turn, so the next game frame is shown a VI late, and a present that has the next queued behind it when
-the thread comes to it is dropped whole. Played in a model of the two threads, frames of 1 and 2 VIs in random order,
-30-70% of them 2: with the phone's 7 ms of setup and 9 ms a drawn frame the slowest-while-3-of-8 presented 55-59 a
-second against the fastest's 45-48 with half the judder (the displayed time's step against one VI), and both fell
-apart at 8 and 10 ms; on a desktop's mixes (2s now and then among 1s, 2 and 3 VIs at random, Jet Force Gemini's runs
-of 20) at 60 and 240 Hz it was within a few percent of the fastest or better. The slowest of three alone was smoother
-still on the phone's mixes and twice as rough as the fastest where 2s come now and then, so the share decides. On the
-phone, Rush 2049's race without its own hold presented 53 a second against 38-42 (docs/phones.md, Rush 2049 on a
-Galaxy S21), and on a desktop GPU uncapped 164.7 against Pages' 165.3.
+thread draws all of its frames unless they run past their share of the time, and the present thread presents each of
+them in turn, so the next game frame is shown a VI late, and a present that has the next queued behind it when the
+thread comes to it is dropped whole. Played in a model of the two threads, frames of 1 and 2 VIs in random order, 30-70%
+of them 2: with the phone's 7 ms of setup and 9 ms a drawn frame the slowest-while-3-of-8 presented 55-59 a second
+against the fastest's 45-48 with half the judder (the displayed time's step against one VI), and both fell apart at 8
+and 10 ms; on a desktop's mixes (2s now and then among 1s, 2 and 3 VIs at random, Jet Force Gemini's runs of 20) at 60
+and 240 Hz it was within a few percent of the fastest or better. The slowest of three alone was smoother still on the
+phone's mixes and twice as rough as the fastest where 2s come now and then, so the share decides. On the phone, Rush
+2049's race without its own hold presented 53 a second against 38-42 timed at the fastest (docs/phones.md, What holds a
+page back), and on a desktop GPU uncapped 164.7 against Pages' 165.3.
 
-A host fast enough to queue a game's next work early can also leave a frame with no in-between frames at all. Jet
-Force Gemini draws its characters' shadows (64x64) as an RSP task of their own before each frame, and on an RTX 5080
-desktop with 16 cores (headless Chrome uncapped, 3840x2000, its play plan) that task came before the present that
-waits for it. RT64_GAME_FRAME_WORKLOADS ended a frame of the shadow pass alone at that wait (`?frame-log`: every
-frame `end=wait` with the shadow pass alone, the frame before it `end=next`). That frame took the interpolated
-frames' counters with one present, and the next frame was matched against it, so Goldwood presented 59-62 a second
-where the launcher and menus read about 357 and a 12-core host 210-350. rt64 e549855 holds such a frame like one
-with too few workloads, and Goldwood then presented 346-356, every frame interpolated: the A/B read 353.6 against
-Pages' 62.5, its p99 gap 4.6 ms against 18.2, and Banjo-Kazooie's 360 against 359 (whole GPU turns, a host shared
-with other plays; plays.jsonl).
+A host fast enough to queue a game's next work early can also leave a frame with no in-between frames at all. Jet Force
+Gemini draws its characters' shadows (64x64) as an RSP task of their own before each frame, and on an RTX 5080 desktop
+with 16 cores (headless Chrome uncapped, 3840x2000, its play plan) that task came before the present that waits for it.
+RT64_GAME_FRAME_WORKLOADS ended a frame of the shadow pass alone at that wait (`?frame-log`: every frame `end=wait` with
+the shadow pass alone, the frame before it `end=next`). That frame took the interpolated frames' counters with one
+present, and the next frame was matched against it, so Goldwood presented 59-62 a second where the launcher and menus
+read about 357 and a 12-core host 210-350. rt64 e549855 holds such a frame like one with too few workloads, and Goldwood
+then presented 346-356, every frame interpolated: the A/B read 353.6 against Pages' 62.5, its p99 gap 4.6 ms against
+18.2, and Banjo-Kazooie's 360 against 359 (whole GPU turns, a host shared with other plays).
 
 ## A game at 30, uncapped
 
@@ -1947,23 +1916,23 @@ colour targets (rt64 8a2c6a7): each waits for the one drawn into its target befo
 drawn when the game's next frame ends are dropped (RT64_GAME_FRAME_WORKLOADS). How many a game frame gets then turns on
 how late the game's next frame comes, not on what a frame costs, and a change to the game's own timing moves the page's
 presents a second there with the cost the same. Turok: Dinosaur Hunter's page with render to RAM's exact copy, whose
-readback holds the game 5-6 ms a list, read 244-269 presents a second against 225-236 without it (Chrome, 3840x2000,
-an RTX 2070, whole GPU turns in pairs, a host 27-50% busy; plays.jsonl, set `t1-r2r-limit` and the A/B before it): RT64
-drew 8.9 frames a game frame with the copy and 7.8 without, the GPU's time a present 0.50 ms both ways, the present
-thread idle half of each second, and `?frame-log` showing the game the same both ways, one list of four framebuffer
-pairs a frame, each ended by the next, 33 ms apart. At `?uncapped=240`, where a game frame needs 8, both builds drew 7
-and presented 210.0. Games at 60 need 6 and read about 360 (Turok 3 and Rage Wars, 359 and 355-358 either way).
+readback holds the game 5-6 ms a list, read 244-269 presents a second against 225-236 without it (Chrome, 3840x2000, an
+RTX 2070, whole GPU turns in pairs, a host 27-50% busy): RT64 drew 8.9 frames a game frame with the copy and 7.8
+without, the GPU's time a present 0.50 ms both ways, the present thread idle half of each second, and `?frame-log`
+showing the game the same both ways, one list of four framebuffer pairs a frame, each ended by the next, 33 ms apart. At
+`?uncapped=240`, where a game frame needs 8, both builds drew 7 and presented 210.0. Games at 60 need 6 and read about
+360 (Turok 3 and Rage Wars, 359 and 355-358 either way).
 
 So a 30-frame game's uncapped number compares two builds' cost only where both draw what it needs. A change that moves
 when the game's frames end (render to RAM, a late copy, a wait in the game's loop) is played at `?uncapped=240` too
 (`play_page.mjs --uncapped --query "?uncapped=240"`), and `?present-stats` says what RT64 drew a game frame and what
 rate it timed the game at.
 
-That rate is the other thing such a change can move. Turok 2's levels run at 30 either way, and with the exact copy
-RT64 timed them at 60 ("the game reports 60"), so it drew too few frames between them: at the display's rate none,
-30.2 frames a second against 55-56 without the copy (headless Chrome with no display, its frames at about 56; set
-`t2-r2r-display`), and at 240 about 113 against 211. Uncapped at 360 the copy still read higher (281-282 against
-226-255) for the reason above. Without the copy RT64 times them at 30, as it does Turok: Dinosaur Hunter's either way.
+That rate is the other thing such a change can move. Turok 2's levels run at 30 either way, and with the exact copy RT64
+timed them at 60 ("the game reports 60"), so it drew too few frames between them: at the display's rate none, 30.2
+frames a second against 55-56 without the copy (headless Chrome with no display, its frames at about 56), and at 240
+about 113 against 211. Uncapped at 360 the copy still read higher (281-282 against 226-255) for the reason above.
+Without the copy RT64 times them at 30, as it does Turok: Dinosaur Hunter's either way.
 
 The copy was counted as a frame of its own. Turok 2 draws each frame in two lists, the second into the framebuffer the
 VI already shows, and that list's exact copy lands in its RAM a VI after the swap. RT64 takes a change to the shown
@@ -1971,24 +1940,23 @@ framebuffer's RAM with no swap for a frame the CPU drew: it queued a second pres
 a game frame, the old framebuffer's and the new one's) and counted the VIs since the swap as a frame of one
 (`pushFactor`), so every game frame read as two of one VI and logicalRateFromFactors() said 60. rt64 32e204c leaves a
 change to what render to RAM wrote out of both, as with the copy off: Turok 2 at d8f0446 (the exact copy) then read 30
-in its levels, one present a game frame, 53-56 frames drawn a second against 30.2 (set `r2r-screen-copy`). Played from
-Pages at the display's rate with `?present-stats` (set `r2r-rate-survey`), the other pages that keep the exact copy
-time their games right: Dinosaur Planet, Space Station Silicon Valley, Mario Kart 64 and Pokémon Snap at 30 with 45-56
-frames drawn, Jet Force Gemini at 30-38 timed at 30, Paper Mario at 27-30 with 46-56, Majora's Mask at 20 with 54-56,
-Ocarina of Time at 20, 30 and 60 by its scene, Rayman 2, Goin' Quackers and Super Smash Bros. at their 60, Beetle
-Adventure Racing's race at 50-60. Beetle's logos after Start read 30 timed as 60 for 10-20 s with the change too, and
-they are the game's own: its VI swaps between two framebuffers every VI while RT64 takes the two lists of a pair for a
-game frame, so 60 is the screen's rate there. A game at 60 held up by a load reads 60 for one 5 s sample too, its
-frames drawn its game frames, which is no frame lost.
+in its levels, one present a game frame, 53-56 frames drawn a second against 30.2. Played from Pages at the display's
+rate with `?present-stats`, the other pages that keep the exact copy time their games right: Dinosaur Planet, Space
+Station Silicon Valley, Mario Kart 64 and Pokémon Snap at 30 with 45-56 frames drawn, Jet Force Gemini at 30-38 timed at
+30, Paper Mario at 27-30 with 46-56, Majora's Mask at 20 with 54-56, Ocarina of Time at 20, 30 and 60 by its scene,
+Rayman 2, Goin' Quackers and Super Smash Bros. at their 60, Beetle Adventure Racing's race at 50-60. Beetle's logos
+after Start read 30 timed as 60 for 10-20 s with the change too, and they are the game's own: its VI swaps between two
+framebuffers every VI while RT64 takes the two lists of a pair for a game frame, so 60 is the screen's rate there. A
+game at 60 held up by a load reads 60 for one 5 s sample too, its frames drawn its game frames, which is no frame lost.
 
-In the A/B (Chrome, 3840x2000, whole GPU turns in pairs, a host 34-63% busy; sets `r2r-screen-copy-*`) the change
-moved only what it fixes. Turok 2 at d8f0446 presented 56.0 a second at the display's rate against 54.8 from Pages,
-which had meanwhile taken Turok 2's copy off, and uncapped 273-285 against Pages' 233-248, the copy's 5-6 ms waits
-now beside the frames a game at 30 needs: there the build's sound was 2,700-42,500 frames short where Pages' was
-whole, which a page at the display's rate isn't (0 short) and Turok 2's page without the copy doesn't pay. Beetle,
-which the change doesn't touch past its logos, read 56.9 against 57.2 and uncapped 204-226 against 173-209. Its
-build's first uncapped play stopped 19 s in on "memory access out of bounds" as the game set up its heap, and the
-replayed series ran whole: Beetle's own fault, not this change, which no game thread reaches.
+In the A/B (Chrome, 3840x2000, whole GPU turns in pairs, a host 34-63% busy) the change moved only what it fixes. Turok
+2 at d8f0446 presented 56.0 a second at the display's rate against 54.8 from Pages, which had meanwhile taken Turok 2's
+copy off, and uncapped 273-285 against Pages' 233-248, the copy's 5-6 ms waits now beside the frames a game at 30 needs:
+there the build's sound was 2,700-42,500 frames short where Pages' was whole, which a page at the display's rate isn't
+(0 short) and Turok 2's page without the copy doesn't pay. Beetle, which the change doesn't touch past its logos, read
+56.9 against 57.2 and uncapped 204-226 against 173-209. Its build's first uncapped play stopped 19 s in on "memory
+access out of bounds" as the game set up its heap, and the replayed series ran whole: Beetle's own fault, not this
+change, which no game thread reaches.
 
 ## Interpolated frames and the game's full sync
 
@@ -1999,14 +1967,15 @@ copy landing, the draw data's uploads. Meanwhile the workload thread draws the l
 each of which redraws every framebuffer pair of that frame, and the list's waits wait for all of them.
 
 Mario Tennis' page syncs to RAM in each of its lists (its rt64 patch reads the small images it draws and then samples,
-its shadows among them, from RDRAM: docs/game-forks.md), about 55 framebuffer pairs a frame in a match. Uncapped at 360
-from Pages (v0.209.0, 1256x645, Chrome, an RTX 2070, `?frame-log` with timing lines of a test build's own), RT64 drew
-12-22 interpolated frames a game frame there, each list's readbacks took 30-90 ms behind them and its draw data's
-uploads 18-66 ms, and its matches played at 11-16 game frames a second against their 30: the frames' rate fell with them
-(the time window RT64 interpolates in), so each game frame got more interpolated frames still, and the sound ran short
-all match long. Capped at the display's 59 Hz, with one interpolated frame a game frame, the match played at 30 with no
-sound short. This is what W5 failed on, from Pages, in Chrome (279 ms short after the hidden tab) and Firefox (20.4 s,
-its page's thread stalled 60-100 ms every few hundred ms by the same readbacks): its backcheck plays uncapped.
+its shadows among them, from RDRAM), about 55 framebuffer pairs a frame in a match. Uncapped at 360 from Pages
+(v0.209.0, 1256x645, Chrome, an RTX 2070, `?frame-log` with timing lines of a test build's own), RT64 drew 12-22
+interpolated frames a game frame there, each list's readbacks took 30-90 ms behind them and its draw data's uploads
+18-66 ms, and its matches played at 11-16 game frames a second against their 30: the frames' rate fell with them (the
+time window RT64 interpolates in), so each game frame got more interpolated frames still, and the sound ran short all
+match long. Capped at the display's 59 Hz, with one interpolated frame a game frame, the match played at 30 with no
+sound short. This is why its sound fell short from Pages in play_page's `--backcheck`, in Chrome (279 ms short after the
+hidden tab) and Firefox (20.4 s, its page's thread stalled 60-100 ms every few hundred ms by the same readbacks): the
+backcheck plays uncapped.
 
 rt64 1f14ebb has the workload thread start no interpolated frame while the game's list is in its full sync (a
 ListGPUWait, from the sync's start to the workload's queueing), 2f08dd3 lets that wait last 200 ms at most, and e0efea6,
@@ -2031,36 +2000,36 @@ With 50 ms the wait ran out in most lists at 3840x2000 (and in a twentieth at 12
 held the sync's later readbacks again.
 
 The backchecks (1256x645 uncapped) of 35f21fc's build and 10e2b34's (rt64 a365318), interleaved, play alike: in Chrome
-each passed W5 once and once fell short after the hidden tab, 1.9 s and 6.0 s, where the hide (176-190 s in, as fast as
-the game got there) fell in the scene below, which the page was already short in before the hide. In Firefox 35f21fc's
-lost none in the boot, against Pages' 444 ms, and 2.3 s after the show (10e2b34's 1.7 s), against Pages' 20.4 s, and
-that was the game's own: hidden, the game came to its tournament section 14 s in, where Firefox built 88 prebuilt
+each kept its sound whole once and once fell short after the hidden tab, 1.9 s and 6.0 s, where the hide (176-190 s in,
+as fast as the game got there) fell in the scene below, which the page was already short in before the hide. In Firefox
+35f21fc's lost none in the boot, against Pages' 444 ms, and 2.3 s after the show (10e2b34's 1.7 s), against Pages' 20.4
+s, and that was the game's own: hidden, the game came to its tournament section 14 s in, where Firefox built 88 prebuilt
 shaders for 5.0 s with the game waiting (a section's wait, as Paper Mario's in A page in a hidden tab), then to a scene
 that syncs to RAM 33-39 times a list, and that played at 11 game frames a second across the show (a probe build's
 `?frame-log`). Each of those syncs is a readback the list's next pairs wait for, since the patch has the game sample
 those images from RDRAM: a round trip to the GPU of 1.8 ms in Firefox, 1.3-1.6 ms in Chrome at any canvas size, so a
 list of 40 takes 55-75 ms, as the match's heaviest scenes do in Chrome capped (35-45 a list). Firefox's smoke play at
-3840x2000 ran short through the match that way, visible (`mt-35f21fc-smoke2-mt`).
+3840x2000 ran short through the match that way, visible.
 
 The A/B reads such a change as worse: it judges presents a second, and the change is fewer presents. Pages presented
-195-214 a second there with the game at 9, the build 114-129 with it at 24-27 (set `mt-35f21fc-ab2-mt`), and their
-sound ran 2.5-3.0 million frames short over the play against the build's 0.23-0.57 million: a present there was an
-interpolated frame of a game held up. Majora's Mask, whose page keeps the exact copy, read 299 against Pages' 307
-(`mm-35f21fc-ab2-mm`), none short either way. Like a change to the game's own timing (A game at 30, uncapped), a change
-that trades interpolated frames for the game's own frames is read by the game's frames a second (`?frame-log`'s GF
-lines, `?present-stats`) and its sound beside the presents.
+195-214 a second there with the game at 9, the build 114-129 with it at 24-27, and their sound ran 2.5-3.0 million
+frames short over the play against the build's 0.23-0.57 million: a present there was an interpolated frame of a game
+held up. Majora's Mask, whose page keeps the exact copy, read 299 against Pages' 307, none short either way. Like a
+change to the game's own timing (A game at 30, uncapped), a change that trades interpolated frames for the game's own
+frames is read by the game's frames a second (`?frame-log`'s GF lines, `?present-stats`) and its sound beside the
+presents.
 
 Most of those syncs weren't the game's small images. In a heavy list (a probe build's count of each pair's reason), 31
-came from rectangles drawn through a 32x32 tile over a 16x16 block of a framebuffer the game loads at its TMEM
-address, whose tile copy checkRegionsTMEM() turned down for being smaller than the tile (rt64 99876c6 samples it,
-fullSync() checking the texcoords), and 15-30 from palette loads that begin just below a small image no pair of the
-list has drawn yet, whose empty range the overlap test took as overlapping (rt64 e102359). Chrome at 1256x645 uncapped,
-interleaved whole GPU turns of one probe build with both changes and with neither (set `mt-syncs-ab-mt`): 6.27-6.28
-syncs a list against 6.37-6.99, 43-50 lists of 30 or more against 85-128, the slowest tenth of the 5 s
-windows at 18.4-20.6 game frames a second against 12.2-14.6 and the slowest at 12.6-13.8 against 8.6-9.6, and the
-sound 0.26-0.33 million frames short over the play against 0.46-0.60. What syncs still are the game's own small
-images, which the patch has it sample from RDRAM. Perfect Dark's page, where neither change ever applied, played
-alike with them and without (350-356 presents a second, none short, set `mt-syncs-ab-pd`).
+came from rectangles drawn through a 32x32 tile over a 16x16 block of a framebuffer the game loads at its TMEM address,
+whose tile copy checkRegionsTMEM() turned down for being smaller than the tile (rt64 99876c6 samples it, fullSync()
+checking the texcoords), and 15-30 from palette loads that begin just below a small image no pair of the list has drawn
+yet, whose empty range the overlap test took as overlapping (rt64 e102359). Chrome at 1256x645 uncapped, interleaved
+whole GPU turns of one probe build with both changes and with neither: 6.27-6.28 syncs a list against 6.37-6.99, 43-50
+lists of 30 or more against 85-128, the slowest tenth of the 5 s windows at 18.4-20.6 game frames a second against
+12.2-14.6 and the slowest at 12.6-13.8 against 8.6-9.6, and the sound 0.26-0.33 million frames short over the play
+against 0.46-0.60. What syncs still are the game's own small images, which the patch has it sample from RDRAM. Perfect
+Dark's page, where neither change ever applied, played alike with them and without (350-356 presents a second, none
+short).
 
 Rush 2049's page keeps 100 ms of sound queued (its docs/web.md), and Mario Tennis' sound didn't need it: it ran short
 because the game ran at a third or half its rate, making that much of its sound, which no queue covers.
@@ -2068,9 +2037,8 @@ because the game ran at a third or half its rate, making that much of its sound,
 ## A frame drawn in many workloads
 
 Mario Party 2's Tile Driver (minigame 0x46, its overlay 0x37) draws each game frame in 16 workloads, and
-RT64_GAME_FRAME_WORKLOADS draws all 16 again for each interpolated frame. Chrome 155 on an RTX 2070, 3840x2000
-uncapped, a present counter preloaded, whole GPU turns on an idle host (plays.jsonl, sets `mp2-many-workloads-*` and
-`mp2-rsp-copies-throttled`):
+RT64_GAME_FRAME_WORKLOADS draws all 16 again for each interpolated frame. Chrome 155 on an RTX 2070, 3840x2000 uncapped,
+a present counter preloaded, whole GPU turns on an idle host:
 
 - v0.143.0 presented 45 a second there, at the game's 30 frames. v0.145.0 presents 162-176 (rt64 e4f59dc and 3313c77):
   past that, the wall is Chrome's GPU process, whose main thread runs the page's WebGPU commands, about 1.3 cores, the
@@ -2089,13 +2057,12 @@ uncapped, a present counter preloaded, whole GPU turns on an idle host (plays.js
 
 rt64's automatic vertex interpolation (docs/forks.md, rt64 a03baa2) pairs two frames' vertices under a transform by
 their order. Rush 2049's start-line flags, keyframed meshes whose vertices change order from frame to frame, broke into
-shards between the game's frames until its scene nodes got matrix ids (docs/new-recomp.md, item 2). To find the same in
-other games, a logging-only rt64 build counted, on each frame where it moves a transform's vertices, those that a
-pairing by order sends further than four times the distance to the nearest vertex of the frame before. Where 3 or more
-did, and at least one vertex in 20, it measured each triangle's longest edge in the two frames, a vertex index each:
-on a mesh that only bends, a triangle keeps its size, and on a mispaired one it stretches. Each game was played in
-Chrome by its regular plan, uncapped at 3840x2000 on a busy host (plays.jsonl, "keyframe backcheck"), the logs held to
-300 lines, so a count past that is a lower bound:
+shards between the game's frames until its scene nodes got matrix ids. To find the same in other games, a logging-only
+rt64 build counted, on each frame where it moves a transform's vertices, those that a pairing by order sends further
+than four times the distance to the nearest vertex of the frame before. Where 3 or more did, and at least one vertex in
+20, it measured each triangle's longest edge in the two frames, a vertex index each: on a mesh that only bends, a
+triangle keeps its size, and on a mispaired one it stretches. Each game was played in Chrome by its regular plan,
+uncapped at 3840x2000 on a busy host, the logs held to 300 lines, so a count past that is a lower bound:
 
 - Rush 2049 before its fix: one 68-vertex mesh, the flags, stretched in 61 of the 109 frames logged on it over 30 s,
   1402 of 11772 triangles more than twice their length, up to 6.3 times. That is what a game that shows it looks
@@ -2148,18 +2115,18 @@ desktop build, each reached by a replay of a course from a fresh save, on an RTX
   its own work, and the rest to waiting for the game's next list, while the game's threads wait on messages. The
   checks of framebuffers the CPU rewrote (`State::checkRDRAM`, the slow-frame report's `fb`) took 1% in the trace.
 
-Timers in a test build's display-list call (the same plan held 25 s at the count, headless Chrome uncapped, an RTX
-2070, a busy host) split a thumbnail's list of about 155 ms otherwise. Its render to RAM syncs, 10 a list and each
-needed (a depth buffer whose format changed, or one sampled as a texture), wait about 22 ms a list for their
-readbacks, 3.3 ms each at the median. The larger part, 44-56 ms, is `State::checkRDRAM` at the list's start: the CPU
-rewrites the thumbnail's 16 framebuffers between lists, each drawn and copied to RAM in the list before, and the count
-of each one's changed pixels was made on the GPU, an execute, a wait and a readback of one word apiece, since rt64
-254dee3's count on the CPU knew nothing of a buffer render to RAM had drawn into. The trace's maps were those counts'
-as much as the syncs'. Since rt64 d18a5ad what render to RAM reads back goes into the CPU's copy, none of the count's
-16 goes to the GPU, `checkRDRAM` there takes 1.1 s of the count's time against 7.6 s, and a thumbnail's list about
-101 ms (docs/forks.md). What it still waits for is one execute of the upload a list and the syncs' readbacks. Read
-from a shot a second at 3840x2000, a page with it counts from 7 to 47 in 4 s, about 100 ms a photo, all 55 in 8 s,
-where Pages' page from v0.162.0 (before 71e67b4 and 33d3125 too) counted 1 to 20 in 15 s (an RTX 2070, plays.jsonl).
+Timers in a test build's display-list call (the same plan held 25 s at the count, headless Chrome uncapped, an RTX 2070,
+a busy host) split a thumbnail's list of about 155 ms otherwise. Its render to RAM syncs, 10 a list and each needed (a
+depth buffer whose format changed, or one sampled as a texture), wait about 22 ms a list for their readbacks, 3.3 ms
+each at the median. The larger part, 44-56 ms, is `State::checkRDRAM` at the list's start: the CPU rewrites the
+thumbnail's 16 framebuffers between lists, each drawn and copied to RAM in the list before, and the count of each one's
+changed pixels was made on the GPU, an execute, a wait and a readback of one word apiece, since rt64 254dee3's count on
+the CPU knew nothing of a buffer render to RAM had drawn into. The trace's maps were those counts' as much as the
+syncs'. Since rt64 d18a5ad what render to RAM reads back goes into the CPU's copy, none of the count's 16 goes to the
+GPU, `checkRDRAM` there takes 1.1 s of the count's time against 7.6 s, and a thumbnail's list about 101 ms
+(docs/forks.md). What it still waits for is one execute of the upload a list and the syncs' readbacks. Read from a shot
+a second at 3840x2000, a page with it counts from 7 to 47 in 4 s, about 100 ms a photo, all 55 in 8 s, where Pages' page
+from v0.162.0 (before 71e67b4 and 33d3125 too) counted 1 to 20 in 15 s (an RTX 2070).
 
 `set_render_to_ram_late` at the count would spare only the last batch's readback a list, about 3 ms, for the risk of
 the album and the grading reading a thumbnail one list old, so Snap keeps it to its title film and attract demo.
@@ -2167,33 +2134,32 @@ the album and the grading reading a thumbnail one list old, so Snap keeps it to 
 ## Faults
 
 `play_page.mjs --fault resize,hidden,audio,device,reload` (its header), played from Pages on an RTX 5080 (headless
-Chrome 155 at a 240 Hz animation-frame clock, Firefox 158 off the desktop at 60-63), Mario Kart 64 mid-race and Star
-Fox 64 mid-Corneria, each fault in turn in one visit, every run in plays.jsonl:
+Chrome 155 at a 240 Hz animation-frame clock, Firefox 158 off the desktop at 60-63), Mario Kart 64 mid-race and Star Fox
+64 mid-Corneria, each fault in turn in one visit:
 
-- A resized window (60% as wide and high for 10 s): both pages in both browsers drew at the new canvas size
-  (754x387) and back, no error, the rate unchanged.
-  Mario Party 2's page froze for good at about one resize in 30 (headless Chrome, 3840x2000 uncapped, on a board or
-  just booted to Mario Land), presents at 0, no sound and no error: RT64_GAME_FRAME_WORKLOADS's change of size waited
-  until the current set of interpolated frame counters had been presented, which no present may do since a present
-  can take the other set, and the present that would was waiting for that very workload. Since rt64 756daf5 it waits
-  only while a present holds a set, and 63 resizes in 21 boots came through on an RTX 2070, a busy host (plays.jsonl).
-  The same page froze the same way at about one boot in 25 with no fault at all, 5-10 s after Start Game: the game's
-  own race, not RT64's. Its controllers' setup has the thread that reads them start the reads at each retrace before
-  it makes the lock they take, and a retrace between the two leaves that thread waiting for good on a queue that
-  osCreateMesgQueue then empties of its waiters, as libultra's does. A console gets there in microseconds; the
-  runtime runs the setup's thread, the game's lowest in priority, only once every other has waited. With the setup
-  made to wait 50 ms between the two, 3 boots of 3 froze, and 4 of 4 came through with the lock made first, which is
-  mario-party-engine's `patches/pad.c` in all three Mario Party games (its README).
+- A resized window (60% as wide and high for 10 s): both pages in both browsers drew at the new canvas size (754x387)
+  and back, no error, the rate unchanged. Mario Party 2's page froze for good at about one resize in 30 (headless
+  Chrome, 3840x2000 uncapped, on a board or just booted to Mario Land), presents at 0, no sound and no error:
+  RT64_GAME_FRAME_WORKLOADS's change of size waited until the current set of interpolated frame counters had been
+  presented, which no present may do since a present can take the other set, and the present that would was waiting for
+  that very workload. Since rt64 756daf5 it waits only while a present holds a set, and 63 resizes in 21 boots came
+  through on an RTX 2070, a busy host. The same page froze the same way at about one boot in 25 with no fault at all,
+  5-10 s after Start Game: the game's own race, not RT64's. Its controllers' setup has the thread that reads them start
+  the reads at each retrace before it makes the lock they take, and a retrace between the two leaves that thread waiting
+  for good on a queue that osCreateMesgQueue then empties of its waiters, as libultra's does. A console gets there in
+  microseconds; the runtime runs the setup's thread, the game's lowest in priority, only once every other has waited.
+  With the setup made to wait 50 ms between the two, 3 boots of 3 froze, and 4 of 4 came through with the lock made
+  first, which is mario-party-engine's `patches/pad.c` in all three Mario Party games (its README).
 - A suspended AudioContext (10 s): the game ran on, and once resumed the sound came up short for a few seconds
   (201-1,304 frames) and then played as before.
-- A lost WebGPU device (`device.destroy()`): in both browsers both pages froze on their last frame and never asked for
-  a new device; they still call `getCurrentTexture` each frame, so a count of presents doesn't show it: the
-  screenshots do. A reload brought each back. Since plume 21dc1de, rt64 e9af13c and RecompFrontend c0c49c6 the page
-  asks for a new device and RT64 starts again on it, the game carrying on (frontend/shell.html says how; its notice to
-  reload is left for a device that isn't replaced). Mario Kart 64 mid-race on an RTX 2070, a busy host: within a
-  second of the loss a new device drew the race on, after a wait of 0.0 s (Chrome, its pipelines in the browser's
-  cache) or 0.4 s and 1.6 s (Firefox) for Luigi Raceway's prebuilt shaders, no WebGPU error and no notice, and 352
-  presents a second after against 333 before in Chrome, 241 against 179 in Firefox (plays.jsonl).
+- A lost WebGPU device (`device.destroy()`): in both browsers both pages froze on their last frame and never asked for a
+  new device; they still call `getCurrentTexture` each frame, so a count of presents doesn't show it: the screenshots
+  do. A reload brought each back. Since plume 21dc1de, rt64 e9af13c and RecompFrontend c0c49c6 the page asks for a new
+  device and RT64 starts again on it, the game carrying on (frontend/shell.html says how; its notice to reload is left
+  for a device that isn't replaced). Mario Kart 64 mid-race on an RTX 2070, a busy host: within a second of the loss a
+  new device drew the race on, after a wait of 0.0 s (Chrome, its pipelines in the browser's cache) or 0.4 s and 1.6 s
+  (Firefox) for Luigi Raceway's prebuilt shaders, no WebGPU error and no notice, and 352 presents a second after against
+  333 before in Chrome, 241 against 179 in Firefox.
 - A hidden tab (30 s) in Chrome: the pages presented ~60 a second while hidden, but Star Fox 64's sound came up
   3,000-7,000 frames short every 5 s, and back in front both presented below their rate before (60, then 89 against
   147; 60 for ~80 s against 114), until plume 08f9327 and rt64 52ec88f (A page in a hidden tab). Firefox played both
@@ -2205,10 +2171,9 @@ Fox 64 mid-Corneria, each fault in turn in one visit, every run in plays.jsonl:
 
 Super Mario 64's page exited now and then in Firefox at aspMain's dispatch ("Unhandled jump target 0x128F in microcode
 aspMain_run", then "RSP ucode 2 exited unexpectedly" and "Failed to execute task type: 2"): 2 of 7 plays in Bob-omb
-Battlefield on an RTX 5080, Pages' v0.86.0 at 132.8 s and a v0.93.0 build at 151.6 s (target 0x015D; plays.jsonl sets
-sm64-v0.93.0-sm64-smoke and sm64-v0.93.0-sm64-rep). The target is the halfword aspMain reads from its jump table at
-DMEM 0x10 by the command's opcode, and no opcode reads either value from the table the ROM loads there: the table had
-been written over during the task.
+Battlefield on an RTX 5080, Pages' v0.86.0 at 132.8 s and a v0.93.0 build at 151.6 s (target 0x015D). The target is the
+halfword aspMain reads from its jump table at DMEM 0x10 by the command's opcode, and no opcode reads either value from
+the table the ROM loads there: the table had been written over during the task.
 
 The game's sound thread builds an audio command list each VI into one of two buffers, its OSTask beside it, and
 dispatches it without waiting: the scheduler starts it at the next VI, and two VIs after the last the same buffer and
@@ -2253,13 +2218,13 @@ under WSL runs on lavapipe (CLAUDE.md, Playing a page).
 ## A desktop build on Mesa's lavapipe
 
 Every recomp's Linux release crashed on lavapipe (Vulkan on the CPU) seconds into its game: Perfect Dark's v0.1.12 in
-its intro at 32 s, Rush 2049's v0.1.65 in its attract races at 59 s, booted in `tools/boot_release.Dockerfile`'s
-Ubuntu 24.04 (Mesa 25.2.8). Ubuntu 25.10's Mesa 25.2.8, 26.04's 26.0.8 and 26.10's 26.2.4 crashed alike. Under gdb an
-llvmpipe rasterizer thread faulted in a fragment shader's compiled code, in the loop gallivm builds over the lanes of a
-non-uniformly indexed texture array (RT64's `gTextures[NonUniformResourceIndex(...)]`, TextureSampler.hlsli): the
-descriptor set's address was 0 in lanes 0-3 and the set's own in lanes 4-7, and the loop took lane 0's, reading
-texture 654's descriptor from address 0xa3b8. The validation layer (through a `vk_layer_settings.txt`: its
-`VK_KHRONOS_VALIDATION_*` variables were ignored), GPU-assisted validation included, reported nothing up to the crash.
+its intro at 32 s, Rush 2049's v0.1.65 in its attract races at 59 s, booted in a container of Ubuntu 24.04 (Mesa
+25.2.8). Ubuntu 25.10's Mesa 25.2.8, 26.04's 26.0.8 and 26.10's 26.2.4 crashed alike. Under gdb an llvmpipe rasterizer
+thread faulted in a fragment shader's compiled code, in the loop gallivm builds over the lanes of a non-uniformly
+indexed texture array (RT64's `gTextures[NonUniformResourceIndex(...)]`, TextureSampler.hlsli): the descriptor set's
+address was 0 in lanes 0-3 and the set's own in lanes 4-7, and the loop took lane 0's, reading texture 654's descriptor
+from address 0xa3b8. The validation layer (through a `vk_layer_settings.txt`: its `VK_KHRONOS_VALIDATION_*` variables
+were ignored), GPU-assisted validation included, reported nothing up to the crash.
 
 plume a8e74eb reports no descriptor indexing on a device with Mesa's vendor ID, so RT64 binds each draw's textures as
 on WebGPU and no shader indexes a texture array. Both builds with it ran 240 s on lavapipe and drew as before. Perfect
@@ -2350,18 +2315,16 @@ What CLAUDE.md's Ruled out rests on.
 
 - RT64's workload thread waiting for a frame's workloads once, after its last, not after each, for a frame drawn in many
   workloads (A frame drawn in many workloads): on v0.143.0 it took Tile Driver from 45 presents a second to 75-77, and
-  on v0.145.0 it moved nothing (162-164 against 162). With Chrome's page thread throttled 4 times, with rt64 cbe7e09
-  and plume's cuts, Tile Driver drew 50.1 and 41.0 presents a second but 15.3 and 14.0 game frames, against v0.145.0's
-  29.6 and 29.7 presents at 29.3 and 29.7 game frames: half the game's own rate, where those changes alone kept it
-  (sets `mp2-many-workloads-throttled` and `mp2-rsp-copies-throttled` in plays.jsonl).
+  on v0.145.0 it moved nothing (162-164 against 162). With Chrome's page thread throttled 4 times, with rt64 cbe7e09 and
+  plume's cuts, Tile Driver drew 50.1 and 41.0 presents a second but 15.3 and 14.0 game frames, against v0.145.0's 29.6
+  and 29.7 presents at 29.3 and 29.7 game frames: half the game's own rate, where those changes alone kept it.
 
-- wasm SIMD for RT64's TMEM loads and CI4 hashes, the 11.5% of a phone's display list thread that fullSync's tiles
-  took in Conker (docs/phones.md, Conker's Bad Fur Day on a Galaxy S21): two TMEM words in one i8x16 shuffle and a CI4
-  texture's palette indices by i8x16 swizzle lookups, the same bytes and hashes in a test of random loads, made the
-  loads up to 9 times as fast alone in V8 and the hashes 1.1-1.5 times, and no page faster: on a phone at 1.04 GHz
-  Conker's attract drew 25.8 and 23.3 game frames a second against 25.7 and 24.9 without it, and on a desktop GPU
-  Conker presented 136-177 a second against 169-189 and GoldenEye 155 against 152-155 (interleaved, a busy host, sets
-  `cbfd-simd-ab` and `ge-simd-ab` in plays.jsonl).
+- wasm SIMD for RT64's TMEM loads and CI4 hashes, the 11.5% of a phone's display list thread that fullSync's tiles took
+  in Conker (docs/phones.md, What holds a page back): two TMEM words in one i8x16 shuffle and a CI4 texture's palette
+  indices by i8x16 swizzle lookups, the same bytes and hashes in a test of random loads, made the loads up to 9 times as
+  fast alone in V8 and the hashes 1.1-1.5 times, and no page faster: on a phone at 1.04 GHz Conker's attract drew 25.8
+  and 23.3 game frames a second against 25.7 and 24.9 without it, and on a desktop GPU Conker presented 136-177 a second
+  against 169-189 and GoldenEye 155 against 152-155 (interleaved, a busy host).
 - The most common of a game's last three or five frames' VIs as RT64_UNEVEN_FRAME_RATES's guess at a frame's length,
   in place of the fastest of three: late at both ends of a run of 3-VI frames, at no run's length does it judder less.
   At a lag of 1 the most common of three holds min(L, 2) display frames and cuts 2 frames after a run of 2 or more,
@@ -2397,17 +2360,16 @@ What CLAUDE.md's Ruled out rests on.
   desktop build on Windows has them, 13 frames of 132-134 ms in the first 60 s of Defection's cutscene (an idle host,
   RTX 5080, each frame's length read from outside the process). The page has them at the same moments: Chrome 155
   headless, traced, on a page linked with `--profiling-funcs` (perfect-dark-recomp main on v0.93.0). There the gaps
-  between the frames are 2.4, 1.5, 1.0, 1.5, 1.1 and 7.4 s, as on the desktop. In every one the game's main thread
-  waits from start to end in `joy_disable_cyclic_polling` and `joy_enable_cyclic_polling`, called by
-  `player_start_cutscene2` → `paks_stop(true)` → `joy_stop_rumble` as each of the cutscene's shots starts. For each
-  of the 4 controller ports that holds no memory or Game Boy pak, `joy_stop_rumble` stops the joy's cyclic polling,
-  stops the port's rumble and starts the polling again. Each stop and each start waits for the scheduler's next retrace
-  (`joys_handle_retrace` answers both), so that is 8 retraces whatever the hardware. Missions' gameplay starts no shots,
-  so it doesn't have them. The runtime's motor calls answer at once beside the polling, so perfect-dark-recomp's
-  `patches/paks.c` now stops the rumble without stopping it: in the page built with it, against the page Pages served,
-  Defection's cutscene watched for 60 s had no frame of 7-8 VIs against 17 and 14, and 1 present gap over 100 ms (the
-  mission's load) against 10 and 12 (Chrome 155 headless, RTX 5080, Pages, build, build, Pages in whole GPU turns;
-  `plays.jsonl`, set `pd-cutscene-rumble`).
+  between the frames are 2.4, 1.5, 1.0, 1.5, 1.1 and 7.4 s, as on the desktop. In every one the game's main thread waits
+  from start to end in `joy_disable_cyclic_polling` and `joy_enable_cyclic_polling`, called by `player_start_cutscene2`
+  → `paks_stop(true)` → `joy_stop_rumble` as each of the cutscene's shots starts. For each of the 4 controller ports
+  that holds no memory or Game Boy pak, `joy_stop_rumble` stops the joy's cyclic polling, stops the port's rumble and
+  starts the polling again. Each stop and each start waits for the scheduler's next retrace (`joys_handle_retrace`
+  answers both), so that is 8 retraces whatever the hardware. Missions' gameplay starts no shots, so it doesn't have
+  them. The runtime's motor calls answer at once beside the polling, so perfect-dark-recomp's `patches/paks.c` now stops
+  the rumble without stopping it: in the page built with it, against the page Pages served, Defection's cutscene watched
+  for 60 s had no frame of 7-8 VIs against 17 and 14, and 1 present gap over 100 ms (the mission's load) against 10 and
+  12 (Chrome 155 headless, RTX 5080, Pages, build, build, Pages in whole GPU turns).
 - Chrome's list build behind the game: on v0.50.0 it cost Conker's page at 3840x2000 a little (57.0-57.9 presents a
   second against 58.7-58.8 with nothing built behind it, the low after its intro's second scene 50-56 against 58-59),
   and on rt64 c89ced0's present timeline nothing: no present dropped while it built, and the page drew 58.6-60.0 either
@@ -2443,19 +2405,19 @@ What CLAUDE.md's Ruled out rests on.
   presented at the frames' 225; a 100 us try before every frame wait while judged late, to see them come back, cost a
   sixth (Snap's and Star Fox 64's pages 183 a second, 207-232 on the frames) and never saw one on time (Pokémon Snap's
   timed waits in Firefox).
-- A list started with the list before's late copy still pending (render to RAM's late copy landing at a VI once the
-  GPU has it, or before the list after next, the readback buffers it waits on kept through the next list's history),
-  for Perfect Dark's page held at 30 in its levels: with its prebuilt list the page draws Defection at 29-31 frames a
-  second either way, in every play, uncapped (presents 269 and 281 a second against 300 and 283) and capped at headless
+- A list started with the list before's late copy still pending (render to RAM's late copy landing at a VI once the GPU
+  has it, or before the list after next, the readback buffers it waits on kept through the next list's history), for
+  Perfect Dark's page held at 30 in its levels: with its prebuilt list the page draws Defection at 29-31 frames a second
+  either way, in every play, uncapped (presents 269 and 281 a second against 300 and 283) and capped at headless
   Chrome's ~174 animation frames a second (75 and 73 against 74 and 76), interleaved, its regular plan at 1256x645, an
-  RTX 5080, an idle host (`tools/frame_lengths.js` on `g_Vars.lvframe60`, set `pd-late2` in plays.jsonl). A Chrome
-  trace of the change's build over 30 s of Defection, uncapped: RT64's Gfx thread waits for a list 90% of the time,
-  `send_dl` 8%, the copy's readback 3%; the game's main thread spends all of it in `main_tick > joy_debug_joy`, half in
-  `joy_disable_cyclic_polling` and half in `joy_enable_cyclic_polling`, each waiting in `osRecvMesg` for the scheduler's
-  next retrace: a tick that finds no controller sample newer than the last one restarts the polling and takes two VIs
-  (Perfect Dark's docs/web.md says so of its menus). Its desktop build draws its levels at 30 too. The Gfx thread's 85%
-  in the late copy's wait came from a play without the prebuilt list. On a phone, where the wait was the GPU's own
-  time over a frame, a list that goes ahead of its copy draws more game frames (rt64 330f84a, docs/phones.md).
+  RTX 5080, an idle host (`tools/frame_lengths.js` on `g_Vars.lvframe60`). A Chrome trace of the change's build over 30
+  s of Defection, uncapped: RT64's Gfx thread waits for a list 90% of the time, `send_dl` 8%, the copy's readback 3%;
+  the game's main thread spends all of it in `main_tick > joy_debug_joy`, half in `joy_disable_cyclic_polling` and half
+  in `joy_enable_cyclic_polling`, each waiting in `osRecvMesg` for the scheduler's next retrace: a tick that finds no
+  controller sample newer than the last one restarts the polling and takes two VIs (Perfect Dark's docs/web.md says so
+  of its menus). Its desktop build draws its levels at 30 too. The Gfx thread's 85% in the late copy's wait came from a
+  play without the prebuilt list. On a phone, where the wait was the GPU's own time over a frame, a list that goes ahead
+  of its copy draws more game frames (rt64 330f84a, docs/phones.md).
 - A missed shader built in line with the device in Firefox as what stops Perfect Dark's page answering at Defection
   (A page that stops answering): the page kept drawing through the stop, and Firefox's own process answered every
   BiDi command 11-37 s late, `browsingContext.getTree` and `session.status` too, which never reach the page.

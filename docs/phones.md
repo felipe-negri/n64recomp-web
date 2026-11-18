@@ -24,7 +24,7 @@ playing a page, and docs/findings.md what was measured on desktops and laptops.
 - The phone's clock is not the computer's: the console's timestamps ran 11.1-11.8 s ahead. play_phone.mjs reads the
   lead at the start and takes it off.
 - Keep the screen on while a computer drives it: `adb shell svc power stayon true` and a long
-  `settings put system screen_off_timeout <ms>`, left so after (Sharing a phone).
+  `settings put system screen_off_timeout <ms>`, left so after.
 
 ## Driving a page
 
@@ -42,13 +42,12 @@ playing a page, and docs/findings.md what was measured on desktops and laptops.
   `MSYS_NO_PATHCONV=1`, or `/sdcard/...` becomes a Windows path.
 - A ROM gets onto the phone with `adb push <rom> /sdcard/Download/`. The page's Load ROM opens Android's chooser
   (Camera, Camcorder, Photos & videos), since the input asks for no type; Photos & videos opens the system's file
-  picker, whose search finds the file. A turn of phone_turn.mjs needs none of it: its preload answers the page's
-  picker with the ROM from the computer.
-- A fresh origin, with nothing stored and nothing cached (phone_turn.mjs's proxy, emptied with
-  `Storage.clearDataForOrigin` before and after a play): serve the site at `http://localhost:<port>` on the computer
-  (a proxy of the published hub that also serves its README.md, which the hub reads from its own origin on
-  localhost), and `adb reverse tcp:<port> tcp:<port>` makes it the phone's localhost too, a secure context, so WebGPU
-  and the service worker work there. The phone's other origins keep their saves and ROMs.
+  picker, whose search finds the file.
+- A fresh origin, with nothing stored and nothing cached (emptied with `Storage.clearDataForOrigin` before and after a
+  play): serve the site at `http://localhost:<port>` on the computer (a proxy of the published hub that also serves its
+  README.md, which the hub reads from its own origin on localhost), and `adb reverse tcp:<port> tcp:<port>` makes it
+  the phone's localhost too, a secure context, so WebGPU and the service worker work there. The phone's other origins
+  keep their saves and ROMs.
 - Chrome's command line on a phone that isn't rooted: chrome://flags `#enable-command-line-on-non-rooted-devices`,
   then `adb shell 'echo "_ <flags>" > /data/local/tmp/chrome-command-line'`, and Chrome stopped and started twice
   (`am force-stop com.android.chrome`, then `monkey -p com.android.chrome -c android.intent.category.LAUNCHER 1`)
@@ -100,13 +99,13 @@ while game frames fall. Telling them apart:
   compares a byte at a time, and one over 6 MB a frame took 5 ms; a byte-at-a-time copy (RT64's TMEM loads) is slow
   where a word at a time vectorizes; a wait for the page's thread (plume's device thread) waits behind everything
   queued there, which on a phone is milliseconds; and a wait for the GPU that a desktop's has long finished, such as
-  render to RAM's late copy landing at the next list's start, which was a quarter of Conker's display list thread
-  (Conker's Bad Fur Day on a Galaxy S21); and work that grows as the square of a game's calls, such as RT64's frame
-  matching before rt64 9086c93, 18-23 ms of Banjo-Tooie's game frames (Banjo-Tooie on a Galaxy S21).
+  render to RAM's late copy landing at the next list's start, which was a quarter of Conker's display list thread;
+  and work that grows as the square of a game's calls, such as RT64's frame matching before rt64 9086c93, 18-23 ms of
+  Banjo-Tooie's game frames.
 - A thread a profile shows 100% busy in its own function, with nothing called below it, can be waiting: a wait inlined
   into its loop is put down to the loop (docs/findings.md). `timer_thread` reads so on every game's page, and a build
   that counted its loop's passes printed none in 75 s of 1080° Snowboarding's demo, so the thread sat in one wait all
-  through (1080° Snowboarding on a Galaxy S21).
+  through.
 - Presents short of the display with neither the game's frames nor the GPU behind are RT64's interpolated frames:
   with present-stats, frames drawn a second under twice the game frames of a game interpolated at 30 is RT64
   skipping a game frame's later frames, which it does when its workload thread runs past each frame's share of the
@@ -116,10 +115,10 @@ while game frames fall. Telling them apart:
   7844c07), the display's own 60 leaves RT64 nothing to interpolate, so it drew one frame for each game frame and
   presents fell to about the game's rate. Now, where the shorter is one VI and the longer took 3 of the last 8 frames,
   a frame is timed at the longer and gets two: Rush 2049's race without its own hold presented 53 a second against
-  38-42 (below). A game at 30 mixing frames of 2 and 3 VIs or more is timed at the shorter, as before: timed at the
-  longer, each frame was set three or more, and RT64 skipped them (Other games on a Galaxy S21). The same
-  game held to 30 gets two for each frame and drops none, and still presents a few more, so such a game's own code
-  holds it to 30 on a page while it can't keep 60 up (Rush 2049 and Perfect Dark below).
+  38-42 timed at the shortest. A game at 30 mixing frames of 2 and 3 VIs or more is timed at the shorter, as before:
+  timed at the longer, each frame was set three or more, and RT64 skipped them. The same game held to 30 gets two for
+  each frame and drops none, and still presents a few more, so such a game's own code holds it to 30 on a page while
+  it can't keep 60 up (Rush 2049's and Perfect Dark's do).
 - A GPU's load says little on a phone: its clock follows the load, so a lighter frame (resolution Original) ran the
   Mali-G78 at 130 MHz, still 60-80% busy, and presented no more.
 - Nor does the time from a present to its end on the GPU: the Mali-G78's governor (Interactive, in
