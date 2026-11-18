@@ -52,13 +52,14 @@
 // answer times the picture's answer to a press: it reads the window's pixels from Xvfb's screen (-fbdir) every few
 // milliseconds, so it needs nothing of the build (old releases have no RT64_FRAME_DUMP), for a second, then sets
 // <control> to <value> (a pad's control, or key:<key> for a key through XTEST), holds it <hold s>, lets go and reads
-// on for 2.5 s. The picture has answered at the first read after the press that changes more of a grid of its pixels
-// than twice the most a read changed in the second before (and at least 2%), and is still once no read changes that
-// much again before the end. It fails when the answer comes later than <press ms> (250) after the press, or none comes,
-// or the picture is still moving later than <still ms> (250) after the release: a game whose view eases towards the
-// stick and springs back when it is let go (Turok 2's look before v0.2.8, about a second either way) fails the second.
+// on for 2.5 s. The picture has answered at the first read after the press that differs from the picture at the press
+// by more than the scene drifted by itself in the second before (judge() says how), and has settled once no later read
+// differs from it by that much. It fails when the answer comes later than <press ms> (250) after the press, or none
+// comes, or the picture settles later than <still ms> (250) after the release, '-' leaving settling out: a game whose
+// view eases towards the stick and springs back when it is let go (Turok 2's look before v0.2.8) fails the second.
+// An until's or find's key may be pad:<button>, the stand-in pad's button pressed instead of a key.
 // Each answer is a line in <out>/<run>/answers.txt and in the output, the press and release timed by when the pad
-// applied them (the shim's log, <run>/pad.log). Pick a still scene and a control that moves the picture at once: a
+// applied them (the shim's log, <run>/pad.log), its reads in <run>/answer-<name>.json to judge again. Pick a still scene and a control that moves the picture at once: a
 // menu's cursor, the view turning. A pad plugged in again answering a press is item 4c's check on a desktop build.
 // --no-dump leaves RT64_FRAME_DUMP and frame_check out, for a plan that checks only its answers.
 //
@@ -90,7 +91,8 @@ const plan = fs.readFileSync(planFile, 'utf8').split('\n').map((l) => l.trim()).
   .map((l) => l.split(/\s+/));
 const noDump = flag('--no-dump');
 const answers = plan.some((p) => p[1] === 'answer');
-const usesPad = plan.some((p) => ['pad', 'unplug', 'replug'].includes(p[1]) || (p[1] === 'answer' && !p[3].startsWith('key:')));
+const usesPad = plan.some((p) => ['pad', 'unplug', 'replug'].includes(p[1]) || (p[1] === 'answer' && !p[3].startsWith('key:')) ||
+  (['until', 'find'].includes(p[1]) && p[p[1] === 'until' ? 6 : 5]?.startsWith('pad:')));
 let answersFailed = 0;
 
 // The X server every run draws into, larger than any window a plan asks for. With answer steps its screen is also a
@@ -145,21 +147,32 @@ function signature(scr, g) {
 const changed = (a, b) => { let n = 0; for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > 12) n++; return n / a.length; };
 
 // An answer's verdict from its reads ({ t, sig }), the press's and release's times and its limits.
+// Each read is compared with a picture, never only with the read before: a scene's own motion (water, fire, a flag)
+// changes a share of the grid from read to read without the view moving, so what counts is how far the picture strays
+// from where it was. drift is the most the picture strayed from the first read by itself in the second before the press,
+// and a read has moved once it differs from the picture at the press by over drift + 10% of the grid (5% at least).
+// The picture has settled at the first read after the release that no later read (one each 20 ms) differs from by that
+// much: a view that springs back, or eases on towards where the stick left it, settles only once that ends. maxStill
+// '-' leaves settling out (a car that coasts on).
 function judge(samples, pressed, released, maxPress, maxStill) {
-  const d = samples.slice(1).map((s, i) => ({ t: s.t, c: changed(samples[i].sig, s.sig) }));
-  const noise = Math.max(0, ...d.filter((x) => x.t < pressed).map((x) => x.c));
-  const threshold = Math.max(0.02, 2 * noise);
-  const reads = d.length / ((d.at(-1).t - d[0].t) / 1000);
-  const first = d.find((x) => x.t > pressed && x.c > threshold);
-  const last = d.findLast((x) => x.t > released && x.c > threshold);
-  const end = d.at(-1).t - released;
-  const r = { noise, threshold, reads, answer: first ? first.t - pressed : null, still: last ? last.t - released : 0 };
+  const before = samples.filter((s) => s.t < pressed);
+  const drift = Math.max(0, ...before.map((s) => changed(before[0].sig, s.sig)));
+  const threshold = Math.min(0.9, Math.max(0.05, drift + 0.1));
+  const atPress = before.at(-1);
+  const reads = samples.length / ((samples.at(-1).t - samples[0].t) / 1000);
+  const first = samples.find((s) => s.t > pressed && changed(atPress.sig, s.sig) > threshold);
+  const probe = [];
+  for (const s of samples) if (s.t >= released && (!probe.length || s.t - probe.at(-1).t >= 20)) probe.push(s);
+  let settled = probe.length - 1;
+  for (let i = probe.length - 2; i >= 0 && probe.slice(i + 1).every((s) => changed(probe[i].sig, s.sig) <= threshold); i--) settled = i;
+  const r = { drift, threshold, reads, answer: first ? first.t - pressed : null, still: probe[settled].t - released };
   const why = [];
-  if (noise >= 0.25) why.push(`the picture wasn't still before the press (${(noise * 100).toFixed(0)}% of it changed in a read)`);
+  if (drift >= 0.5) why.push(`the picture wasn't still before the press (${(drift * 100).toFixed(0)}% of it changed by itself)`);
   if (r.answer === null) why.push('the picture never answered the press');
   else if (r.answer > maxPress) why.push(`the picture answered ${r.answer} ms after the press, over ${maxPress}`);
-  if (last && end - r.still < 500) why.push(`the picture was still moving ${r.still} ms after the release, at the end of the reads`);
-  else if (r.still > maxStill) why.push(`the picture was still moving ${r.still} ms after the release, over ${maxStill}`);
+  if (maxStill === '-') r.still = null;
+  else if (probe.at(-1).t - probe[settled].t < 500) why.push(`the picture hadn't settled at the end of the reads, ${probe.at(-1).t - released} ms after the release`);
+  else if (r.still > Number(maxStill)) why.push(`the picture settled ${r.still} ms after the release, over ${maxStill}`);
   return { ...r, why };
 }
 
@@ -291,7 +304,11 @@ async function playRun(i, size, signal, config) {
               }
             } catch (e) { if (e instanceof RunFailed && /no RDRAM/.test(e.message)) rdram = null; else throw e; }
             if (met) break;
-            if (key && t() - pressed >= 1.5) { pressed = t(); await press(key); }
+            if (key && t() - pressed >= 1.5) {
+              pressed = t();
+              if (key.startsWith('pad:')) { await pad(`${key.slice(4)} 1`); await sleep(120); await pad(`${key.slice(4)} 0`); }
+              else await press(key);
+            }
             await sleep(p[1] === 'until' ? 20 : 500);
           }
           shift += t() - began;
@@ -326,10 +343,13 @@ async function playRun(i, size, signal, config) {
             await readFor(Number(hold) * 1000 - (Date.now() - pressed));
             const released = await set(0);
             await readFor(2500 - (Date.now() - released));
-            const r = judge(samples, pressed, released, Number(maxPress), Number(maxStill));
+            const r = judge(samples, pressed, released, Number(maxPress), maxStill);
+            fs.writeFileSync(path.join(dir, `answer-${label}.json`), JSON.stringify({ pressed, released, grid: [GW, GH],
+              t: samples.map((s) => s.t), sigs: Buffer.concat(samples.map((s) => s.sig)).toString('base64') }));
             const text = `answer ${label}: ${control} ${value} for ${hold} s: ` +
-              `${r.answer === null ? 'no answer' : `answered in ${r.answer} ms`}, still ${r.still} ms after the release ` +
-              `(${r.reads.toFixed(0)} reads a second, noise ${(r.noise * 100).toFixed(1)}%, moved over ${(r.threshold * 100).toFixed(1)}%)` +
+              `${r.answer === null ? 'no answer' : `answered in ${r.answer} ms`}` +
+              `${r.still === null ? '' : `, settled ${r.still} ms after the release`} ` +
+              `(${r.reads.toFixed(0)} reads a second, drift ${(r.drift * 100).toFixed(1)}%, moved over ${(r.threshold * 100).toFixed(1)}%)` +
               (r.why.length ? `: FAILS: ${r.why.join('; ')}` : ': passes');
             if (r.why.length) answersFailed++;
             results.push(text);
