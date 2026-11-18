@@ -171,8 +171,12 @@ const CUT = 8; // the mean difference of two of the game's frames in a row, of 2
 const CUT_JUMP = 2; // ... and how many times the game's frames either side of them differ, at the least
 const CUT_PARTWAY = 0.3; // a frame between a cut's two as unlike both, against how unlike they are: the camera partway
 const CUT_WHOLE = 0.5; // ... and the share of the new frame's blocks the old one has nothing like: a new shot
-const CUT_LONE = 3; // ... or, where the game's frames either side of them differ this many times less, at the least,
+const CUT_LONE = 10; // ... or, where the game's frames either side of them differ this many times less, at the least,
 const CUT_PART = 0.1; // ... this share of the new frame's blocks: a new shot much like the old one
+const CUT_STILL = 2; // ... unless this share of the rest of it, where something is drawn (FLAT), is where it was: no cut
+const FLAT = 4; // a block's mean difference from its own mean, of 255, under which nothing is drawn in it
+const STIR = 0.1; // a frame of fewer than MIN_BLOCKS counts only where its neighbours match each other in place around
+                  // it (within NEAR_BLOCKS) in all but this share of the blocks: no redrawn sparkle field
 const NEAR = 0.2; // the share, at the least, of something passing near the camera: frames between not counted
 const P = 2; // a pixel's search about its block's best place, in grey pixels (eitherDiff())
 const M = 2; // the quarter pixels around a block that its own shift is found over (placesOf())
@@ -448,23 +452,32 @@ function explain(a, b, gw, gh, places) {
     return best;
 }
 
-// Block k of c against a and b each about its best place (explain()'s), each pixel against the closest pixel of either
-// within P of there: a block half one picture and half the other (the edge of a wipe that moved between them), or
-// stretched a little (a wipe that scales), is explained, a model where neither has anything like it nearby isn't.
+// Block k of c against a and b each about its best place (explain()'s) and about its own unmoved place, each pixel
+// against the closest pixel of either within P of there: a block half one picture and half the other (the edge of a
+// wipe that moved between them), stretched a little (a wipe that scales), or half something fixed on the screen and half
+// what moves behind it (a HUD's edge over a moving world) is explained, a model where neither has anything like it
+// nearby isn't.
 function eitherDiff(c, a, b, ea, eb, k, gw, gh) {
     const bw = gw / B | 0;
     const by = Math.floor(k / bw), bx = k % bw;
-    const ady = ea.dy[k], adx = ea.dx[k], bdy = eb.dy[k], bdx = eb.dx[k];
+    const places = [[a, ea.dy[k], ea.dx[k]], [b, eb.dy[k], eb.dx[k]]];
+    for (const n of [a, b]) {
+        if (places.every(([m, dy, dx]) => (m !== n) || dy || dx)) {
+            places.push([n, 0, 0]);
+        }
+    }
     const clampY = (y) => Math.min(Math.max(y, 0), gh - 1), clampX = (x) => Math.min(Math.max(x, 0), gw - 1);
     let s = 0;
     for (let y = by * B; y < (by + 1) * B; y++) {
         for (let x = bx * B; x < (bx + 1) * B; x++) {
             const v = c[y * gw + x];
             let m = Infinity;
-            for (let py = -P; py <= P; py++) {
-                const ya = clampY(y + ady + py) * gw, yb = clampY(y + bdy + py) * gw;
-                for (let px = -P; px <= P; px++) {
-                    m = Math.min(m, Math.abs(v - a[ya + clampX(x + adx + px)]), Math.abs(v - b[yb + clampX(x + bdx + px)]));
+            for (const [n, dy, dx] of places) {
+                for (let py = -P; py <= P; py++) {
+                    const yn = clampY(y + dy + py) * gw;
+                    for (let px = -P; px <= P; px++) {
+                        m = Math.min(m, Math.abs(v - n[yn + clampX(x + dx + px)]));
+                    }
                 }
             }
             s += m;
@@ -644,6 +657,7 @@ if (saveDir) {
 // window, a screen the game draws at another size starts a run), repeats left out. Each one's result comes back from
 // its worker in its own time: middles keeps them in the frames' order.
 const middles = [];
+const owns = []; // each kept frame's own.game: whether it is the game's own picture
 const flagged = [];
 let checked = 0, repeats = 0, dropped = 0, presented = 0, between = 0, first = null, last = null, run = null;
 let untested = false;
@@ -670,11 +684,11 @@ function checkPresent(e, run) {
         const { gw, gh } = run, qw = gw >> 2, qh = gh >> 2, a = run.game;
         const s = shiftOf(a.q, e.q, qw, qh);
         const D = shiftedDiff(a.g, e.g, gw, gh, s[0], s[1]);
-        const p = { f, D, partway: 0, whole: 0, frames: null };
+        const p = { f, D, partway: 0, whole: 0, still: 0, frames: null };
         if (D >= CUT) {
             const between = run.between;
-            p.ready = pool.run('cut', gw, gh, [a, e, ...between]).then(({ partway, whole, worst }) => {
-                Object.assign(p, { partway, whole, frames: (worst >= 0) ? [a.f, between[worst].f, f] : null });
+            p.ready = pool.run('cut', gw, gh, [a, e, ...between]).then(({ partway, whole, still, worst }) => {
+                Object.assign(p, { partway, whole, still, frames: (worst >= 0) ? [a.f, between[worst].f, f] : null });
             });
         }
         moved.set(f.presentId, p);
@@ -714,6 +728,35 @@ function cutParts(gw, gh, a, e, ...between) {
     const ae = explain(e.g, a.g, gw, gh, placesOf(e.q, a.q, qw, qh, bw, bh));
     const apart = Math.max(inner(ae), 1);
     const whole = inner(ae.map((x) => +(x > BAD)));
+    // Of the new frame's blocks with something drawn in them (not flat) that the old one has near, the share it has in
+    // the same place.
+    let kept = 0, inPlace = 0;
+    for (let by = 1; by < bh - 1; by++) {
+        for (let bx = 1; bx < bw - 1; bx++) {
+            if (ae[by * bw + bx] > BAD) {
+                continue;
+            }
+            let sum = 0;
+            for (let y = by * B; y < (by + 1) * B; y++) {
+                for (let x = bx * B; x < (bx + 1) * B; x++) {
+                    sum += e.g[y * gw + x];
+                }
+            }
+            const mean = sum / (B * B);
+            let dev = 0, d = 0;
+            for (let y = by * B; y < (by + 1) * B; y++) {
+                for (let x = bx * B; x < (bx + 1) * B; x++) {
+                    dev += Math.abs(e.g[y * gw + x] - mean);
+                    d += Math.abs(e.g[y * gw + x] - a.g[y * gw + x]);
+                }
+            }
+            if (dev / (B * B) >= FLAT) {
+                kept++;
+                inPlace += +(d / (B * B) <= BAD);
+            }
+        }
+    }
+    const still = inPlace / Math.max(kept, 1);
     let partway = 0, worst = -1;
     between.forEach((c, k) => {
         const ea = explain(c.g, a.g, gw, gh, placesOf(c.q, a.q, qw, qh, bw, bh));
@@ -727,7 +770,7 @@ function cutParts(gw, gh, a, e, ...between) {
             worst = k;
         }
     });
-    return { partway, whole, worst };
+    return { partway, whole, still, worst };
 }
 
 // A cut: the game's two frames in a row far apart where the frames before and after them move little, the camera
@@ -737,6 +780,10 @@ function cutParts(gw, gh, a, e, ...between) {
 function checkCut([before, p, after]) {
     p.jump = p.D / Math.max(before.D, after.D, 0.1);
     if ((p.D < CUT) || (p.jump < CUT_JUMP) || ((p.whole < CUT_WHOLE) && ((p.jump < CUT_LONE) || (p.whole < CUT_PART)))) {
+        return;
+    }
+    // Something opening over a scene that stays where it was (a dialog box) changes part of the picture as alone.
+    if (p.still >= CUT_STILL) {
         return;
     }
     cuts.push(p);
@@ -789,26 +836,59 @@ function middleBad(gw, gh, a, c, b) {
             }
         }
     }
-    return bad;
+    // A few blocks: the share of the blocks within NEAR_BLOCKS of them where a and b don't match each other in place
+    // (within R of no shift), for the recurring rule.
+    let stir = 0;
+    if (bad.length && (bad.length < MIN_BLOCKS)) {
+        let n = 0;
+        for (let by = 1; by < bh - 1; by++) {
+            for (let bx = 1; bx < bw - 1; bx++) {
+                if (!bad.some((k) => (Math.abs(k % bw - bx) <= NEAR_BLOCKS) && (Math.abs(Math.floor(k / bw) - by) <= NEAR_BLOCKS))) {
+                    continue;
+                }
+                n++;
+                let best = Infinity;
+                for (let dy = -R; (dy <= R) && (best > BAD); dy++) {
+                    for (let dx = -R; (dx <= R) && (best > BAD); dx++) {
+                        let s = 0;
+                        for (let y = by * B; y < (by + 1) * B; y++) {
+                            for (let x = bx * B; x < (bx + 1) * B; x++) {
+                                s += Math.abs(a.g[y * gw + x] - b.g[(y + dy) * gw + x + dx]);
+                            }
+                        }
+                        best = Math.min(best, s / (B * B));
+                    }
+                }
+                stir += +(best > BAD);
+            }
+        }
+        stir /= Math.max(n, 1);
+    }
+    return { bad, stir };
 }
 
 function checkMiddle({ gw, gh, kept }) {
     const bw = gw / B | 0, bh = gh / B | 0;
     const [a, c, b] = kept;
     checked++;
-    middles.push(pool.run('middle', gw, gh, kept).then((bad) => {
+    middles.push(pool.run('middle', gw, gh, kept).then(({ bad, stir }) => {
         const small = bad.length < MIN_BLOCKS;
-        if (small && (!bad.length || (c.f.index === c.f.count - 1))) {
+        if (!bad.length) {
             return null;
         }
+        const name = `${small ? 'small' : 'unlike'}-${String(c.f.n).padStart(5, '0')}.png`;
         if (saveDir) {
-            saveTriplet(`${small ? 'small' : 'unlike'}-${String(c.f.n).padStart(5, '0')}.png`, [a.f, c.f, b.f], bad, gw);
+            saveTriplet(name, [a.f, c.f, b.f], bad, gw);
         }
         const ca = meanDiff(c.g, a.g), cb = meanDiff(c.g, b.g);
-        const lone = !small && (c.f.index < c.f.count - 1) && (Math.min(ca, cb) >= Math.max(LONE, LONE_RATIO * meanDiff(a.g, b.g)));
-        return { c: { f: { ...c.f, rgb: null } }, bad, bw, bh, small, lone };
+        const unlikeWhole = Math.min(ca, cb) >= Math.max(LONE, LONE_RATIO * meanDiff(a.g, b.g));
+        // Whether each of the three is the game's own picture is known once the frames after b are read (own()).
+        return { c: { f: { ...c.f, rgb: null } }, bad, bw, bh, small, stir, unlikeWhole, own: [a.own, c.own, b.own], name };
     }));
 }
+// A kept frame is the game's own picture where it is the last of its present, or where that last frame repeats it: a
+// frame between drawn as the game's frame after it, nothing moved between.
+const own = (f) => f.index === f.count - 1;
 for (const f of readFrames()) {
     presented++;
     first ??= f;
@@ -821,20 +901,38 @@ for (const f of readFrames()) {
             between: [], presents: [] };
     }
     const g = grey(f, run.gw, run.gh);
-    const entry = { f, g, q: quarter(g, run.gw, run.gh) };
+    const entry = { f, g, q: quarter(g, run.gw, run.gh), own: { game: own(f) } };
     checkPresent(entry, run);
-    if (run.kept.length && (meanDiff(g, run.kept[run.kept.length - 1].g) < 0.05)) {
+    const prev = run.kept[run.kept.length - 1];
+    if (prev && (meanDiff(g, prev.g) < 0.05)) {
         repeats++;
+        if (own(f) && (prev.f.presentId === f.presentId)) {
+            prev.own.game = true;
+        }
         continue;
     }
     run.kept.push(entry);
+    owns.push(entry.own);
     if (run.kept.length === 3) {
         checkMiddle(run);
         run.kept.shift();
     }
     await pool.room();
 }
-const found = (await Promise.all(middles)).filter(Boolean);
+// Left out: a few blocks of the game's own picture, and a frame whose neighbours are the game's own pictures as it is,
+// nothing drawn between them. Of the rest, a frame between unlike the whole picture either side of it is a fault alone.
+const found = [];
+for (const u of (await Promise.all(middles)).filter(Boolean)) {
+    // A few blocks count only where the neighbours match each other around them (STIR).
+    if ((u.small && (u.own[1].game || (u.stir >= STIR))) || u.own.every((o) => o.game)) {
+        if (saveDir) {
+            fs.rmSync(path.join(saveDir, u.name));
+        }
+        continue;
+    }
+    u.lone = !u.small && !u.own[1].game && u.unlikeWhole;
+    found.push(u);
+}
 flagged.push(...found.filter((u) => !u.small));
 // Small ones drawn between that recur in one place.
 const small = found.filter((u) => u.small);
@@ -857,8 +955,13 @@ flagged.sort((u, v) => u.c.f.t - v.c.f.t);
 await Promise.all(cutChecks);
 cuts.sort((x, y) => x.f.n - y.f.n);
 if (presented >= 3) {
+    checked = Math.max(checked, 1);
+    // Frames drawn between the game's own pictures, repeats of them left out: under 1 in 100 of those matched, the
+    // game's own frames' neighbours are the game's too, and what they flag is the game's own motion.
+    const drawn = owns.filter((o) => !o.game).length;
+    const few = drawn * 100 < checked;
     const passing = flagged.filter(({ c }) => nearPass(c));
-    const counted = flagged.filter(({ c }) => !nearPass(c));
+    const counted = flagged.filter(({ c, own: [, o] }) => !nearPass(c) && !(few && o.game));
     // 3 or more flagged frames within a second, anywhere.
     let burst = 0;
     for (let i = 0, j = 0; i < counted.length; i++) {
@@ -867,16 +970,16 @@ if (presented >= 3) {
         }
         burst = Math.max(burst, i - j + 1);
     }
-    checked = Math.max(checked, 1);
     const lone = counted.filter((u) => u.lone);
     const fail = (counted.length * 100 > checked) || (burst >= 3) || (lone.length > 0);
     failed ||= fail;
     console.log(`frames: ${presented} presented over ${(last.t - first.t).toFixed(1)} s, ${between} of them between the` +
-        ` game's own (${repeats} repeats, ${dropped} dropped by the dump), ${[...sizes].join(', ')}`);
-    if (!between) {
+        ` game's own (${repeats} repeats, ${dropped} dropped by the dump; ${drawn} drawn unlike the game's own), ${[...sizes].join(', ')}`);
+    if (few) {
         untested = true;
-        console.log('frames: none presented between the game\'s own, so nothing tests how they are paired: dump at' +
-            ' Framerate Display on a display faster than the game');
+        console.log(`frames: ${drawn ? `only ${drawn} of ${checked}` : 'none'} drawn between the game's own, so too few test how` +
+            ' they are paired (the game\'s own frames flagged are left out): dump at Framerate Display on a display faster' +
+            ' than the game');
     }
     console.log(`unlike both neighbours: ${counted.length} of ${checked} frames, at most ${burst} within a second` +
         (lone.length ? `, ${lone.length} between the game's own unlike the whole picture either side of it` : '') + ': ' +
@@ -903,7 +1006,7 @@ if (presented >= 3) {
     if (!quiet) {
         for (const p of cuts) {
             console.log(`  present ${p.f.presentId} at ${p.f.t.toFixed(2)} s (frame ${p.f.n}): ${p.D.toFixed(1)} apart, ` +
-                `${p.jump.toFixed(1)} times either side, ${p.whole.toFixed(2)} of its blocks, between them ${p.partway.toFixed(2)} of that unlike both` + ((p.partway >= CUT_PARTWAY) ? ', PARTWAY' : ''));
+                `${p.jump.toFixed(1)} times either side, ${p.whole.toFixed(2)} of its blocks (${p.still.toFixed(2)} of the rest in place), between them ${p.partway.toFixed(2)} of that unlike both` + ((p.partway >= CUT_PARTWAY) ? ', PARTWAY' : ''));
         }
     }
 }
