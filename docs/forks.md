@@ -1264,6 +1264,15 @@ rt64 696a70d           RT64_FRAME_DUMP_RATE's swapChainCreated() after the swap 
                        apply over 3f0181c
 rt64 4de3122           9adecdf (sides.tsv's count of model matrices drawn wholly past the view's sides) reverted: the
                        pin carries both, so nothing changes
+rt64 9ed78c7           a framebuffer's pixels are shaped as the TV shows them (VI::pixelAspect(), from the VI's x and y
+                       scales): the ratios the TV shows (the window's under Expand, Manual's targets) are divided by it,
+                       and without black borders SD space is the framebuffer's width times it. Excitebike 64 draws at
+                       512x240 (x scale 0x333), shown at 2.13:1 and widened from there; it is 4:3 now. A square
+                       framebuffer's is 1, so every other game draws as before
+N64ModernRuntime       an event no queue was set for (osSetEventMesg never called for it) sends nothing, as libultra's
+d6eacda, d659ead       dispatch skips it: the thread that took a message with a null queue crashed reading its count.
+                       Excitebike 64's scheduler sets no queue for OS_EVENT_SP, and its first RSP task crashed the game.
+                       It is dropped in do_send, where every message reaches its queue in every runtime version
 rt64 5e93849           RT64_TILE_COPY_TMEM_FALLBACK: a tile copy the call's texcoords reach past samples the tile's
                        texture from TMEM, not the empty texture its copy's ID got as a TMEM hash, so Mario Golf's Ring
                        Shot rings, which sample a map of the scene the game redraws only in part each frame, no longer
