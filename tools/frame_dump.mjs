@@ -2,7 +2,7 @@
 // tools/remote_frame_dump.sh starts on a Linux host with an NVIDIA GPU: the dumps and
 // tools/frame_check.mjs on them, made on that host's GPU and CPU instead of the machine a person or an agent works on.
 // A dump is ~20 MB a second of frames, too much to bring back over a slow link, so only the check's text, the
-// program's logs, the plan's shots and frame_check's flagged frames stay; the dumps are deleted unless --keep.
+// program's logs, the plan's steps and shots and frame_check's flagged frames stay; the dumps are deleted unless --keep.
 //
 //   node tools/frame_dump.mjs --game <dir> --exe <name> --game-id <id> --rom <file> --plan <file> --out <dir>
 //       [--window <w>x<h>[,<w>x<h>,<w>x<h>]] [--rate <hz>] [--seconds <from>-<to>] [--args "<program args>"]
@@ -126,7 +126,9 @@ async function playRun(i, size, signal, config) {
   let exited = null;
   proc.on('exit', (code, sig) => { exited = sig ?? code; });
   const t = () => (Date.now() - started) / 1000;
-  const say = (s) => log(`${name} ${t().toFixed(1).padStart(6)}s ${s}`);
+  // Each step as it is done, printed and in <run>/plan.log, which stays with the dump: when a reused dump's run had
+  // its plan reach a scene.
+  const say = (s) => { const l = `${name} ${t().toFixed(1).padStart(6)}s ${s}`; log(l); fs.appendFileSync(path.join(dir, 'plan.log'), `${l}\n`); };
   say(`started ${exe} ${progArgs.join(' ')}`);
   let win = null, mem = null, rdram = null, shift = 0;
   const names = {};
