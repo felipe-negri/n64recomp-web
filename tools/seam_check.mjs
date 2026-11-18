@@ -27,16 +27,21 @@
 //   NEAR of their place there (one pixel thick at the console's resolution, differing from both sides by STEP / 2). The
 //   game's own picture comes out the same at any resolution; a seam is a fraction of a pixel on a console.
 //
-// It fails where frames with a seam make up SHARE or more of the frames in any second (the dump's own clock), RUN
-// seconds in a row or more: a seam of a scene shows for as long as the scene is on screen (Mario Golf's v0.1.10 in
-// 9 of 10 seconds of its flyover), where a lone frame's line can be anything, a frame paired with the wrong low one
-// or a flash. Measured on Mario Golf's builds by one plan through its title, menus, course select and hole 1's flyover
-// and first shot (a 1280x960 dump of 35 s against a 320x240 one): see the numbers at the end of this header.
+// It fails where frames with a seam come in RUN or more seconds in a row (the dump's own clock), one a second or more:
+// a seam belongs to a scene and comes back for as long as the scene is on screen, every frame of a flyover or once a
+// bob of a sign that moves, where a lone second's lines are a frame paired with the wrong low one or a flash. Mario
+// Golf's builds by one plan, a dump of 1280x960 against one of 320x240 in the same windows:
+//   - Through the title, the menus and hole 1's flyover to the first shot (35 s): v0.1.10, with issue 33's cracks,
+//     in 9 seconds, 6 in a row (120 of 990 frames); v0.1.11 in 1 (1 of 1103). v0.1.26 and v0.1.27 in 5 and 3, at most
+//     2 in a row: this plan leaves the main menu in a second.
+//   - Its main menu held 15 s: v0.1.26, whose bobbing MAIN MENU sign showed a line of sky across it in a frame drawn
+//     between the game's own (issue 76; rt64-web 0571b69 fixed it), in 12 seconds, all in a row (14 of 886 frames, one
+//     a bob); v0.1.27 in 1 (3 of 787, the ONE above, paired with a low frame where it differed).
 //
 // --from and --to keep the high dump's frames between those seconds, counted from its first; --save writes, for each
-// second that fails, its frame with the most seam pixels as a PNG with its seams marked magenta (<t>-marked.png) and as
-// it was (<t>.png). It exits 0 when it passes, 1 when it fails, 2 on a bad dump or arguments, or a pair of dumps whose
-// resolutions don't differ by 2 or more console pixels a dump pixel.
+// second with a seam, its frame with the most seam pixels as a PNG with its seams marked magenta (<t>-marked.png) and
+// as it was (<t>.png). It exits 0 when it passes, 1 when it fails, 2 on a bad dump or arguments, or a pair of dumps
+// whose resolutions differ by under 2 dump pixels a console pixel.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -71,8 +76,7 @@ const RMS = 0.8; // pixels its pixels lie from a straight line through them, at 
 const PAIR_W = 64; // the grey copy frames are paired by
 const NEAR = 1; // pixels around a line's place in the low frame a line of its own is looked for
 const HAVE = 0.5; // the share of a line's pixels the low frame has a line beside, from which it is the game's own
-const SHARE = 0.25; // the share of a second's frames with a seam that counts that second
-const RUN = 2; // seconds in a row that fail
+const RUN = 4; // seconds in a row, each with a frame with a seam, that fail
 
 // A dump's frames between --from and --to (or all for the low one): each { t, o, w, h }, o its pixels' offset.
 function framesOf(d, all) {
@@ -285,9 +289,9 @@ for (const f of high.frames) {
     seconds.set(sec, s);
 }
 
-const failing = [...seconds].filter(([, s]) => s.seamed >= SHARE * s.frames).map(([sec]) => sec).sort((a, b) => a - b);
+const seamSeconds = [...seconds].filter(([, s]) => s.seamed).map(([sec]) => sec).sort((a, b) => a - b);
 let run = 0, longest = 0, prev = null;
-for (const sec of failing) {
+for (const sec of seamSeconds) {
     run = (prev === sec - 1) ? run + 1 : 1;
     longest = Math.max(longest, run);
     prev = sec;
@@ -297,19 +301,18 @@ const seamed = [...seconds.values()].reduce((s, v) => s + v.seamed, 0);
 if (!quiet) {
     for (const [sec, s] of [...seconds].sort((a, b) => a[0] - b[0])) {
         if (s.seamed) {
-            console.log(`  ${String(sec).padStart(4)} s: ${s.seamed} of ${s.frames} frames with a seam` +
-                (failing.includes(sec) ? ' *' : ''));
+            console.log(`  ${String(sec).padStart(4)} s: ${s.seamed} of ${s.frames} frames with a seam`);
         }
     }
 }
 console.log(`seams: ${seamed} of ${high.frames.length} frames (${seamPixels} pixels; ${ownLines} lines the low dump has too, the game's own), ` +
-    `${failing.length} seconds with them in ${SHARE * 100}% of frames or more, ${longest} in a row` +
-    (fails ? `: FAILS, a seam stays ${longest} s` : ''));
+    `in ${seamSeconds.length} seconds, ${longest} in a row` +
+    (fails ? `: FAILS, a seam comes back for ${longest} s` : ''));
 
-if (saveDir && failing.length) {
+if (saveDir && seamed) {
     fs.mkdirSync(saveDir, { recursive: true });
-    for (const sec of failing) {
-        const { t, f, seams } = seconds.get(sec).best;
+    for (const [, { best }] of [...seconds].filter(([, v]) => v.best)) {
+        const { t, f, seams } = best;
         const p = pixels(high.fd, f), m = Buffer.from(p);
         for (const l of seams) {
             for (const q of l.px) {
