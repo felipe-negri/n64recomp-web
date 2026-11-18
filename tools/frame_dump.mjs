@@ -21,10 +21,19 @@
 // tools/sound_check.mjs checks the first run's after frame_check, against --sound-reference's if given (a run's folder
 // of an earlier dump, by the same plan, of a build whose sound is right), its text in sound_check.txt. The recording
 // stays (about 23 MB a minute) for a later check against another.
-// RT64's refresh rate is set to Manual at --rate (240) in its graphics.json, made by a first start of the program
+// RT64's refresh rate is set to Manual at --rate (60) in its graphics.json, made by a first start of the program
 // when --config has none: Xvfb has no refresh rate of its own, and at Display the program presents only the game's own
-// frames, which test nothing of the frames between. It presents as fast as it draws below that rate (Mario Golf's
-// title at 1280x720: ~69 a second with the dump on, on an RTX 5090).
+// frames, which test nothing of the frames between. 60 is a 60 Hz display's, where a game of 30 shows each frame twice,
+// once between, as on Windows, where the checks were measured; a game of 60 needs 120. A rate the presents can't keep
+// up with doesn't slow the game: RT64 skips a present whose next one is already queued, so the dump keeps only some of
+// the game's frames, each at its pace, and the checks read its motion 0.1-0.5 s apart. Mario Golf's at Manual 240 in a
+// 1280x960 window, under Xvfb on an RTX 5090 a training job held, presented 31 a second (157 at 320x240), so 12 of the
+// 25 presents a second its game queued and 3.3 of its own frames a second, each shown 7 times, came out, against 22 of
+// 30 at Manual 60 and all 30 at Manual 30 (none between). What a present costs there goes with the window's size, not
+// with what RT64 draws: at Original in the 1280x960 window (its targets 320x240) it presented 32.5 a second, so a large
+// window falls behind at any rate with frames between. Each run's line says how fast its dump came: presents and the
+// game's own frames a second, and the presents the game queued against those in the dump, and frame_check leaves a
+// dump that lacks over a tenth of them untested (exit 2).
 //
 // --window gives each run's window: one size is one run, frame_check reading its dump alone; three are three runs of
 // the plan, the first checked with the second as --narrower (a 4:3 window) and the third as --wider (32:9), the check
@@ -106,7 +115,7 @@ const need = (name) => opt(name) ?? (console.error(`frame_dump: ${name} is requi
 const game = path.resolve(need('--game')), exe = need('--exe'), gameId = need('--game-id');
 const rom = path.resolve(need('--rom')), planFile = path.resolve(need('--plan')), out = path.resolve(need('--out'));
 const windows = opt('--window') ? opt('--window').split(',').map((s) => s.split('x').map(Number)) : null;
-const rate = Number(opt('--rate', 240));
+const rate = Number(opt('--rate', 60));
 const restart = flag('--restart');
 const here = path.dirname(new URL(import.meta.url).pathname);
 const runNames = windows?.length === 2 ? ['main', 'low'] : ['main', 'narrower', 'wider'];
@@ -318,7 +327,42 @@ async function playRun(name, size, signal, { config, work: keptWork }) {
   const crash = fs.readFileSync(path.join(dir, 'stderr.log'), 'utf8').match(/^.*Crash:.*$/m);
   if (crash) throw new RunFailed(`the program crashed: ${crash[0]}`);
   fs.writeFileSync(path.join(dir, 'dump.done'), '');
+  const pace = paceOf(path.join(dir, 'dump'));
+  if (pace) say(pace);
   return path.join(dir, 'dump');
+}
+
+// How fast a dump's frames came, from frames.bin's headers (rt64_frame_dump.h's FrameHeader, 40 bytes before each
+// frame's 8-bit RGB): presents a second, the game's own frames a second (a game frame is the last of its present's
+// frames, its index the count less 1; the rest RT64 draws between), and the presents the game queued (State's
+// present ids, one a screen update) against those the dump has: RT64 skips a present whose next one is already queued,
+// and shows nothing for one whose game frame it has shown, so the ids the dump lacks are the presents that showed nothing.
+function paceOf(dump) {
+  const file = path.join(dump, 'frames.bin');
+  if (!fs.existsSync(file)) return null;
+  const fd = fs.openSync(file, 'r'), size = fs.fstatSync(fd).size, h = Buffer.alloc(40);
+  let frames = 0, own = 0, dropped = 0, first = null, last = null, firstId = null, lastId = null;
+  const counts = [], ids = new Set();
+  for (let o = 0; o + 40 <= size; frames++) {
+    fs.readSync(fd, h, 0, 40, o);
+    if (h.readUInt32LE(0) !== 0x44465452) break; // rt64_frame_dump.h's FrameDump::Magic
+    const w = h.readUInt32LE(4), ht = h.readUInt32LE(8), index = h.readUInt32LE(12), count = h.readUInt32LE(16);
+    if (o + 40 + w * ht * 3 > size) break;
+    if (index === count - 1) { own++; counts.push(count); }
+    dropped += h.readUInt32LE(20);
+    const id = Number(h.readBigUInt64LE(24));
+    ids.add(id); lastId = id; firstId ??= id;
+    last = Number(h.readBigUInt64LE(32)); first ??= last;
+    o += 40 + w * ht * 3;
+  }
+  fs.closeSync(fd);
+  const s = (last - first) / 1000;
+  if (!(s > 0)) return null;
+  counts.sort((a, b) => a - b);
+  const a = (n) => (n / s).toFixed(1);
+  return `dump: ${frames} frames in ${s.toFixed(1)} s, ${a(frames)} presented a second, ${a(own)} of the game's own ` +
+    `(each shown ${counts[counts.length >> 1] ?? 0} times, median), ${a(lastId - firstId + 1)} presents queued a second ` +
+    `(${a(ids.size)} in the dump), ${dropped} frames dropped by the writer`;
 }
 
 // graphics.json for every run: --config's, or the one a first start of the program writes, at Manual --rate.
