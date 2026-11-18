@@ -1274,7 +1274,9 @@ const extOf = (aspect) => (aspect / (4 / 3) - 1) / 2; // a picture's strip past 
 // Two workloads draw the same shot where their bands inside the view differ by at most this share of their triangles.
 const SIDES_MATCH = 0.1;
 const sides = sidesOf(dir);
-if (widerDir || narrowerDir) {
+// A sides check that can't be made (a dump with no 3D, or of a build whose RT64 writes no sides.tsv: Mario Golf's
+// v0.1.6) leaves the middle below to be checked: it reads the frames alone.
+sides: if (widerDir || narrowerDir) {
     if (!widerDir || !narrowerDir) {
         console.error('sides: the culling check takes two dumps, --narrower <a dump of the same plan in a 4:3 window> ' +
             '--wider <one at 32:9>');
@@ -1284,19 +1286,22 @@ if (widerDir || narrowerDir) {
     for (const [d, s] of [[narrowerDir, narrower], [widerDir, wider]]) {
         if (!s || !s.n) {
             console.error(`sides: no 3D in ${d}'s dump between those seconds`);
-            process.exit(2);
+            untested = true;
+            break sides;
         }
     }
     // A 4:3 window's frames are the game's own target, which can be a little off 4:3 (Rush 2049's 640x440): a 16:9 one isn't.
     if (narrower.aspect > 1.6) {
         console.error(`sides: ${narrowerDir}'s picture is ${narrower.aspect.toFixed(2)}:1: dump it in a 4:3 window, where ` +
             'a game culling to the picture draws what one culled to its 4:3 view does');
-        process.exit(2);
+        untested = true;
+        break sides;
     }
     const b = Math.min(extOf(wider.aspect), 1);
     if (b < 0.5) {
         console.error(`sides: ${widerDir}'s picture (${wider.aspect.toFixed(2)}:1) is too little wider than 4:3: dump it at 32:9`);
-        process.exit(2);
+        untested = true;
+        break sides;
     }
     // Each of the wider dump's workloads paired with the 4:3 one's that draws the same inside the view: the same shot,
     // whenever each run came to it, since two runs of a plan don't keep step (Mario Golf's flyover, a race).
@@ -1327,7 +1332,8 @@ if (widerDir || narrowerDir) {
     if (n < Math.max(30, 0.1 * wider.n)) {
         console.error(`sides: ${n} of ${widerDir}'s ${wider.n} workloads draw what one of ${narrowerDir}'s does inside the ` +
             '4:3 view: not the same scene, so play the same plan and seconds in both');
-        process.exit(2);
+        untested = true;
+        break sides;
     }
     pastA /= n;
     pastB /= n;
@@ -1547,5 +1553,233 @@ for (const d of new Set([sidesOnly ? null : dir, narrowerDir, widerDir].filter(B
             `${p.seam[1]} of ${p.moving} frames where the scene moves` +
             (seamFails ? ': FAILS, something cut short of the picture\'s side' : '') :
             `no straight line along the view's sides in ${p.moving} frames where the scene moves`));
+}
+// The middle of a wider picture against the 4:3 window's (middleCheck()): RT64's Expand widens a picture at the sides
+// and leaves its middle the 4:3 view, so at the same height the middle of a 16:9 or 32:9 frame is the 4:3 window's
+// frame of the same moment.
+const MID_W = 128, MID_H = 96; // the grey copy of a frame's middle 4:3
+const MID_B = 8; // its blocks
+const MID_BAD = 24; // a block's mean difference to the 4:3 frame's, of 255, that differs
+const MID_SHARE = 0.15; // the share of a frame's blocks that differ, from which it is unlike the 4:3 window's
+const MID_RUN = 0.5; // seconds in a row of such frames that fail
+// A dump's frames between --from and --to, each { t, p, g }: a grey MID_W x MID_H copy of its picture's middle 4:3, at
+// the picture's full height. Every frame, the frames drawn between the game's too: a wide window's frame between is the
+// 4:3 window's at the same point between, and the game's own reach a dump far sparser than its presents (Mario Golf's
+// 16:9 dump of 90 s held 584 of 3555 frames, under 7 a second, so a fast scene had no 4:3 frame near its moment).
+function middleFrames(d) {
+    const file = path.join(d, 'frames.bin');
+    const shape = fs.existsSync(file) && pictureBox(d);
+    if (!shape) {
+        return [];
+    }
+    const vw = Math.min(Math.round(shape.h * 4 / 3), shape.w), x0 = Math.floor((shape.w - vw) / 2);
+    const fd = fs.openSync(file, 'r');
+    const size = fs.fstatSync(fd).size;
+    const head = Buffer.alloc(HEADER);
+    const out = [];
+    let startMs = null;
+    for (let o = 0; o + HEADER <= size;) {
+        fs.readSync(fd, head, 0, HEADER, o);
+        const w = head.readUInt32LE(4), h = head.readUInt32LE(8);
+        if ((head.readUInt32LE(0) !== MAGIC) || (o + HEADER + w * h * 3 > size)) {
+            break;
+        }
+        const timeMs = Number(head.readBigUInt64LE(32));
+        startMs ??= timeMs;
+        const t = (timeMs - startMs) / 1000;
+        if (t > to) {
+            break;
+        }
+        if ((t >= from) && (w >= shape.w) && (h >= shape.h)) {
+            const rows = Buffer.allocUnsafe(w * shape.h * 3);
+            fs.readSync(fd, rows, 0, rows.length, o + HEADER);
+            const g = new Uint8Array(MID_W * MID_H);
+            const sx = vw / MID_W, sy = shape.h / MID_H;
+            for (let y = 0; y < MID_H; y++) {
+                const ya = Math.floor(y * sy), yb = Math.max(Math.floor((y + 1) * sy), ya + 1);
+                for (let x = 0; x < MID_W; x++) {
+                    const xa = x0 + Math.floor(x * sx), xb = Math.max(x0 + Math.floor((x + 1) * sx), xa + 1);
+                    let sum = 0;
+                    for (let yy = ya; yy < yb; yy++) {
+                        for (let xx = xa, p = (yy * w + xa) * 3; xx < xb; xx++, p += 3) {
+                            sum += rows[p] * 0.299 + rows[p + 1] * 0.587 + rows[p + 2] * 0.114;
+                        }
+                    }
+                    g[y * MID_W + x] = sum / ((yb - ya) * (xb - xa));
+                }
+            }
+            out.push({ t, p: Number(head.readBigUInt64LE(24)), g });
+        }
+        o += HEADER + w * h * 3;
+    }
+    fs.closeSync(fd);
+    return out;
+}
+const midMean = (a, b) => {
+    let s = 0;
+    for (let i = 0; i < a.length; i++) {
+        s += Math.abs(a[i] - b[i]);
+    }
+    return s / a.length;
+};
+// The share of a's blocks whose mean difference to b's is MID_BAD or more, and those blocks. The outer column of
+// blocks at each side isn't compared: the 4:3 window shows the game's own border there (Mario Golf's 8 of 320
+// pixels), where the wider picture goes on with the world, and 0.12 of every frame of Mario Golf's opening differed
+// in it alone.
+function midBlocks(a, b) {
+    const bad = [];
+    for (let by = 0; by < MID_H / MID_B; by++) {
+        for (let bx = 1; bx < MID_W / MID_B - 1; bx++) {
+            let s = 0;
+            for (let y = by * MID_B; y < (by + 1) * MID_B; y++) {
+                for (let x = bx * MID_B, i = y * MID_W + x; x < (bx + 1) * MID_B; x++, i++) {
+                    s += Math.abs(a[i] - b[i]);
+                }
+            }
+            if (s / (MID_B * MID_B) >= MID_BAD) {
+                bad.push(by * (MID_W / MID_B) + bx);
+            }
+        }
+    }
+    return bad;
+}
+// Each of a wider dump's frames matched to the 4:3 dump's nearest in picture, anywhere in it: two runs of a plan
+// don't keep step, in seconds or in the game's frames (a wider window draws slower, so Mario Golf's opening at 32:9
+// was 13 s behind the 4:3 run's after 44 s, and a plan's keys, timed in seconds, then land at other moments of the
+// game in each run), and following a step through them paired Golf's main menu at 16:9 with its tee at 4:3. A coarse
+// copy of each frame (its blocks' means) picks the MID_CANDIDATES nearest, and of those the match is the one whose
+// blocks differ least, the wider frame's middle taken at its own size and MID_SCALE larger and smaller about its
+// middle: Mario Golf scales its title and menus by 240/224 in a wide window and by 320/304 in a 4:3 one (its
+// src/game/screen.cpp), by design 1.8% apart. A frame whose middle differs from its match in MID_SHARE of its blocks
+// or more is unlike it, and MID_RUN s of them in a row fail: the middle drawn elsewhere or at another size than at 4:3.
+const MID_CANDIDATES = 8;
+const MID_SCALE = 0.018;
+const midCoarse = (g) => {
+    const c = new Float32Array((MID_W / MID_B) * (MID_H / MID_B));
+    for (let y = 0; y < MID_H; y++) {
+        for (let x = 0; x < MID_W; x++) {
+            c[(y >> 3) * (MID_W / MID_B) + (x >> 3)] += g[y * MID_W + x];
+        }
+    }
+    return c;
+};
+// g scaled by s about its middle, bilinear.
+function midScaled(g, s) {
+    const out = new Uint8Array(MID_W * MID_H);
+    for (let y = 0; y < MID_H; y++) {
+        const sy = Math.min(Math.max((y + 0.5 - MID_H / 2) / s + MID_H / 2 - 0.5, 0), MID_H - 1);
+        const y0 = Math.floor(sy), y1 = Math.min(y0 + 1, MID_H - 1), fy = sy - y0;
+        for (let x = 0; x < MID_W; x++) {
+            const sx = Math.min(Math.max((x + 0.5 - MID_W / 2) / s + MID_W / 2 - 0.5, 0), MID_W - 1);
+            const x0 = Math.floor(sx), x1 = Math.min(x0 + 1, MID_W - 1), fx = sx - x0;
+            out[y * MID_W + x] = (g[y0 * MID_W + x0] * (1 - fx) + g[y0 * MID_W + x1] * fx) * (1 - fy) +
+                (g[y1 * MID_W + x0] * (1 - fx) + g[y1 * MID_W + x1] * fx) * fy;
+        }
+    }
+    return out;
+}
+function middleCheck(wideDir, narrow) {
+    const wide = middleFrames(wideDir);
+    if (!wide.length || !narrow.length) {
+        return null;
+    }
+    const shareOf = (bad) => bad.length / ((MID_W / MID_B - 2) * (MID_H / MID_B));
+    narrow.forEach((u) => { u.c ??= midCoarse(u.g); });
+    const rows = [];
+    let unlike = 0, longest = 0, runFrom = null, worst = null;
+    for (const f of wide) {
+        const c = midCoarse(f.g);
+        const near = narrow.map((u, k) => {
+            let d = 0;
+            for (let i = 0; i < c.length; i++) {
+                d += Math.abs(c[i] - u.c[i]);
+            }
+            return [d, k];
+        }).sort((a, b) => a[0] - b[0]).slice(0, MID_CANDIDATES);
+        const views = [1, 1 + MID_SCALE, 1 / (1 + MID_SCALE)].map((s) => (s === 1 ? f.g : midScaled(f.g, s)));
+        let best = null;
+        for (const [, k] of near) {
+            for (const g of views) {
+                const bad = midBlocks(g, narrow[k].g);
+                if (!best || (bad.length < best.bad.length)) {
+                    best = { bad, match: narrow[k], g };
+                }
+            }
+        }
+        const { bad, match } = best;
+        const share = shareOf(bad);
+        if (sampleEvery && (f.t >= nextSample)) {
+            savePair(`middle-${path.basename(path.dirname(wideDir))}-${f.t.toFixed(1)}.png`, best.g, match.g, bad);
+            nextSample = f.t + sampleEvery;
+        }
+        rows.push(`${f.t.toFixed(3)}\t${match.t.toFixed(3)}\t${midMean(best.g, match.g).toFixed(1)}\t${share.toFixed(3)}`);
+        if (share >= MID_SHARE) {
+            unlike++;
+            runFrom ??= f.t;
+            longest = Math.max(longest, f.t - runFrom);
+            if (!worst || (share > worst.share)) {
+                worst = { share, t: f.t, mt: match.t, f: { g: best.g }, match, bad };
+            }
+        } else {
+            runFrom = null;
+        }
+    }
+    return { n: rows.length, unlike, longest, worst, rows };
+}
+// --middle-samples <s>: a pair saved (--save) every that many seconds, to see what the check compares.
+const sampleEvery = Number(opt('--middle-samples', 0));
+let nextSample = 0;
+// A frame's middle beside its 4:3 match, grey, its unlike blocks marked red at their top and bottom.
+function savePair(name, a, b, bad) {
+    if (!saveDir) {
+        return;
+    }
+    fs.mkdirSync(saveDir, { recursive: true });
+    const rgb = Buffer.alloc(MID_W * 2 * MID_H * 3);
+    for (const [k, g] of [[0, a], [1, b]]) {
+        for (let y = 0; y < MID_H; y++) {
+            for (let x = 0; x < MID_W; x++) {
+                const p = (y * MID_W * 2 + k * MID_W + x) * 3;
+                rgb[p] = rgb[p + 1] = rgb[p + 2] = g[y * MID_W + x];
+            }
+        }
+    }
+    for (const blk of bad) {
+        const bx = blk % (MID_W / MID_B), by = Math.floor(blk / (MID_W / MID_B));
+        for (const y of [by * MID_B, (by + 1) * MID_B - 1]) {
+            for (let x = bx * MID_B; x < (bx + 1) * MID_B; x++) {
+                const p = (y * MID_W * 2 + x) * 3;
+                rgb[p] = 255;
+                rgb[p + 1] = rgb[p + 2] = 0;
+            }
+        }
+    }
+    fs.writeFileSync(path.join(saveDir, name), png(MID_W * 2, MID_H, rgb));
+}
+if (narrowerDir) {
+    const narrow = middleFrames(narrowerDir);
+    for (const d of [dir, widerDir].filter(Boolean)) {
+        nextSample = 0;
+        const m = middleCheck(d, narrow);
+        if (!m || !m.n) {
+            console.log(`middle (${d}): no frames to match with ${narrowerDir}'s`);
+            continue;
+        }
+        const fail = m.longest >= MID_RUN;
+        failed ||= fail;
+        if (saveDir) {
+            fs.mkdirSync(saveDir, { recursive: true });
+            fs.writeFileSync(path.join(saveDir, `middle-${path.basename(path.dirname(d))}.tsv`),
+                't\t4:3 t\tmean\tshare\n' + m.rows.join('\n') + '\n');
+            if (m.worst) {
+                savePair(`middle-${path.basename(path.dirname(d))}-worst.png`, m.worst.f.g, m.worst.match.g, m.worst.bad);
+            }
+        }
+        console.log(`middle (${d}): ${m.unlike} of ${m.n} frames unlike the 4:3 window's in ` +
+            `${MID_SHARE} of their middle or more, at most ${m.longest.toFixed(1)} s in a row` +
+            (m.worst ? ` (the most at ${m.worst.t.toFixed(1)} s, ${m.worst.share.toFixed(2)}, against 4:3's ` +
+                `${m.worst.mt.toFixed(1)} s)` : '') +
+            (fail ? ': FAILS, the middle drawn otherwise than at 4:3' : ''));
+    }
 }
 process.exit(failed ? 1 : (untested ? 2 : 0));

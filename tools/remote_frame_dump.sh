@@ -21,6 +21,8 @@
 # the rest) and $FRAME_DUMP_MEMORY of its memory (2g: a game's dumps held 0.3-0.6 GB, frame_check 0.6), which is also
 # the host memory each of its jobs asks the queue for, so several fit beside each other. Its files are in $FRAME_DUMP_DIR/<out dir's name> under the host's home
 # (frame-dumps), deleted when it ends unless --keep is given (which keeps the dumps too, for another check there).
+# --recheck runs frame_check again on the dumps a --keep run of the same <out dir> left there, with this checkout's
+# frame_check.mjs and no play (tools/frame_dump.mjs's --recheck), and keeps them for the next.
 #
 # A host whose GPU is shared through a queue: FRAME_DUMP_QUEUE_CLIENT names a JavaScript module here that exports
 # gpuRun(spec, run), sent with the run, and the dumps then wait for a turn as one job and frame_check as another
@@ -46,8 +48,8 @@ out="$(cd "$out" && pwd)"
 name="$(basename "$out")"
 dir="${FRAME_DUMP_DIR:-frame-dumps}/$name"
 image="frame-dump:$(git hash-object "$here/frame_dump.Dockerfile" | cut -c1-12)"
-keep=""
-for a in "$@"; do [[ "$a" == --keep ]] && keep=1; done
+keep="" recheck=""
+for a in "$@"; do [[ "$a" == --keep ]] && keep=1; [[ "$a" == --recheck ]] && keep=1 recheck=1; done
 remote() { ssh -o BatchMode=yes "$host" "$@"; }
 
 remote "docker image inspect $image >/dev/null 2>&1 || docker build -q -t $image - >/dev/null" \
@@ -66,7 +68,11 @@ if [[ -n "${FRAME_DUMP_QUEUE_CLIENT:-}" ]]; then
     queue=(--queue /work/queue.mjs)
     [[ -n "${FRAME_DUMP_JOB_URL:-}" ]] && queue+=(--url "$FRAME_DUMP_JOB_URL")
 fi
-remote "rm -rf $dir && mkdir -p $dir/home"
+if [[ -n "$recheck" ]]; then
+    remote "test -d $dir/out" || { echo "--recheck: nothing kept in $host:$dir (dump it with --keep first)" >&2; exit 3; }
+else
+    remote "rm -rf $dir && mkdir -p $dir/home"
+fi
 tar -C "$stage" -cf - . | remote "tar -C $dir -xf -"
 
 # The command the host runs, each argument quoted for its shell.

@@ -7,7 +7,7 @@
 //   node tools/frame_dump.mjs --game <dir> --exe <name> --game-id <id> --rom <file> --plan <file> --out <dir>
 //       [--window <w>x<h>[,<w>x<h>,<w>x<h>]] [--rate <hz>] [--seconds <from>-<to>] [--args "<program args>"]
 //       [--env K=V,...] [--config <dir>] [--check "<frame_check args>"] [--workers <n>] [--keep]
-//       [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>]
+//       [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>] [--recheck]
 //
 // --game is the folder of a recomp's Linux build (its release archive unpacked, or its build folder with assets/),
 // --exe the program in it, --game-id the name its runtime stores the ROM under (<game id>.z64, as Load ROM does). Each
@@ -42,6 +42,11 @@
 // --workers is frame_check's (a third of the cores it sees unless given), for a container held to fewer cores than
 // the host has.
 //
+// --recheck plays nothing: it runs frame_check again on the dumps an earlier run with --keep left in --out (main/dump,
+// and narrower/dump and wider/dump with three --window sizes), as the frame-check job alone, and keeps them. A change
+// to frame_check is tried on the same dumps in a minute or two of CPU, where dumping them again takes the GPU's turn
+// and several minutes, and its verdicts differ only by the check.
+//
 // Exit: frame_check's own (0 passes, 1 fails, 2 has nothing to test), 3 when a run failed (the program exited or
 // crashed, an until or find unmet, no window), 75 when the queue asked it to stop.
 import { spawn, execFileSync } from 'node:child_process';
@@ -59,6 +64,14 @@ const windows = opt('--window') ? opt('--window').split(',').map((s) => s.split(
 const rate = Number(opt('--rate', 240));
 const here = path.dirname(new URL(import.meta.url).pathname);
 const runNames = ['main', 'narrower', 'wider'];
+const recheck = flag('--recheck');
+// The dumps a --recheck checks again: an earlier run's, kept in --out.
+function kept() {
+  const made = (windows ? runNames.slice(0, windows.length) : ['main']).map((n) => path.join(out, n, 'dump'));
+  const gone = made.filter((d) => !fs.existsSync(path.join(d, 'frames.bin')));
+  if (gone.length) throw new RunFailed(`--recheck: no dump kept in ${gone.join(', ')} (dump them first with --keep)`);
+  return made;
+}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (s) => console.log(s);
 
@@ -283,14 +296,15 @@ try {
       ...(vramMiB === 'auto' ? { guessMiB: 1024 } : {}), ramMiB: capMiB(),
       url: opt('--url') || undefined, ref: process.env.HOSTNAME,
       onUpdate: (j) => j.state === 'waiting' && log(`queue: ${type} waiting, ${j.ahead} ahead: ${j.why?.text ?? 'going next'}`) });
-    const made = await gpuRun(spec('frame-dump', `Frame dump: ${gameId}`, opt('--vram', 'auto') === 'auto' ? 'auto' : Number(opt('--vram'))), (signal) => dumps(signal));
+    const made = recheck ? kept() :
+      await gpuRun(spec('frame-dump', `Frame dump: ${gameId}`, opt('--vram', 'auto') === 'auto' ? 'auto' : Number(opt('--vram'))), (signal) => dumps(signal));
     code = await gpuRun(spec('frame-check', `frame_check: ${gameId}`, 0), async () => check(made));
-  } else code = check(await dumps(null));
+  } else code = check(recheck ? kept() : await dumps(null));
 } catch (e) {
   log(`frame_dump: ${e instanceof RunFailed ? e.message : e?.stack ?? e}`);
   code = stopped ? 75 : 3;
 }
-if (!flag('--keep')) for (const n of [...runNames, 'first-start']) {
+if (!flag('--keep') && !recheck) for (const n of [...runNames, 'first-start']) {
   fs.rmSync(path.join(out, n, 'dump'), { recursive: true, force: true });
   fs.rmSync(path.join(out, n, 'run'), { recursive: true, force: true });
 }
