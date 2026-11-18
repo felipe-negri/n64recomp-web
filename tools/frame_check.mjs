@@ -80,13 +80,16 @@
 //   texture): block by block, each to its best place in either, one unlike both by 0.3 or more of how unlike the two
 //   are to each other fails. A game camera that moves that far in one frame and that little either side is a cut,
 //   whatever the game meant by it, if it is a new shot: half or more of the new frame's blocks (the picture's edge left
-//   out) match nothing near them in the old, or a tenth or more where it jumps 3 times as far as the game's frames
+//   out) match nothing near them in the old, or a tenth or more where it jumps 5 times as far as the game's frames
 //   either side or more, unless 0.8 or more of the rest of the new frame's blocks where something is drawn (not flat)
 //   are just where they were in the old: something opening over a scene that stays put (Super Mario 64's dialog
 //   boxes, 0.13-0.16 of the picture, 0.94-0.98 of the rest in place, 29-37 times either side), where a cut moves its
-//   rest (0.00-0.17). Super Smash Bros.' camera zooming fast onto a fighter reads as a cut, 0.12 of the picture at 3.3
-//   times either side and 0.63 in place, as F-Zero X's cut drawn partway on its build without its pairing fix does at
-//   0.12, 3.2 and 0.56: nothing here tells them apart, so its frame between fails as that one's does. A near object
+//   rest (0.00-0.17). The cuts measured that change under half of the picture jump 9.2 times as far as either side
+//   or more (Mario Party 2's partway at 9.2, Mario Golf's 24, Turok 2's 49 and 58). A camera moving fast changes as
+//   much of it, its jumps uneven but never that lone: Super Smash Bros.' zooming onto a fighter reads 0.12 of the
+//   picture at 3.3 times either side, its frame between rightly halfway, and is no cut. Under 5 times are also F-Zero
+//   X's 3.2 and Paper Mario's 3.4-4.3 on their builds without their pairing fixes, which are no cuts either but that
+//   fault drawn in a frame where the game jolted, and which the check above fails in every frame between. A near object
 //   passing the camera changes the picture as much and only in part, and its frames
 //   between are the camera's own, rightly drawn: Turok: Dinosaur Hunter's title fly-over goes through a leaf between
 //   two of the game's frames, changing 0.35 of the picture, 2.4 times as far as either side, and the frame drawn between
@@ -221,7 +224,7 @@ const CUT = 8; // the mean difference of two of the game's frames in a row, of 2
 const CUT_JUMP = 2; // ... and how many times the game's frames either side of them differ, at the least
 const CUT_PARTWAY = 0.3; // a frame between a cut's two as unlike both, against how unlike they are: the camera partway
 const CUT_WHOLE = 0.5; // ... and the share of the new frame's blocks the old one has nothing like: a new shot
-const CUT_LONE = 3; // ... or, where the game's frames either side of them differ this many times less, at the least,
+const CUT_LONE = 5; // ... or, where the game's frames either side of them differ this many times less, at the least,
 const CUT_PART = 0.1; // ... this share of the new frame's blocks: a new shot much like the old one
 const CUT_STILL = 0.8; // ... unless this share of the rest of it, where something is drawn (FLAT), is where it was
 const FLAT = 4; // a block's mean difference from its own mean, of 255, under which nothing is drawn in it
