@@ -6,8 +6,8 @@
 //
 //   node tools/frame_dump.mjs --game <dir> --exe <name> --game-id <id> --rom <file> --plan <file> --out <dir>
 //       [--window <w>x<h>[,<w>x<h>,<w>x<h>]] [--rate <hz>] [--seconds <from>-<to>] [--args "<program args>"]
-//       [--env K=V,...] [--config <dir>] [--check "<frame_check args>"] [--keep]
-//       [--queue <module>] [--vram <MiB>] [--priority low] [--url <url>]
+//       [--env K=V,...] [--config <dir>] [--check "<frame_check args>"] [--workers <n>] [--keep]
+//       [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>]
 //
 // --game is the folder of a recomp's Linux build (its release archive unpacked, or its build folder with assets/),
 // --exe the program in it, --game-id the name its runtime stores the ROM under (<game id>.z64, as Load ROM does). Each
@@ -31,9 +31,14 @@
 // captures, which the dump replaces: they are skipped. drag, Windows' move loop, has no counterpart and fails the run.
 //
 // --queue names a JavaScript module exporting gpuRun(spec, run) of a GPU queue the host's GPU work takes turns in: the
-// runs then go as one job of type frame-dump asking --vram MiB (4096), and frame_check as a second, frame-check,
-// asking none (its work is the CPU's), both at --priority (low) and linked to --url. A stop the queue asks for ends
+// runs then go as one job of type frame-dump and frame_check as a second, frame-check, asking no GPU memory (its
+// work is the CPU's), both at --priority (low), linked to --url and naming --game-id as their model, so the queue sizes
+// each game's jobs from that game's own runs: the dumps ask --vram MiB, or by default what the queue reads off them
+// (2048 before it has any; Mario Golf's three windows held 662), so many runs fit on one GPU side by side. A stop the queue asks for ends
 // the run in progress, and the tool, with 75. Without --queue it runs at once.
+//
+// --workers is frame_check's (a third of the cores it sees unless given), for a container held to fewer cores than
+// the host has.
 //
 // Exit: frame_check's own (0 passes, 1 fails, 2 has nothing to test), 3 when a run failed (the program exited or
 // crashed, an until or find unmet, no window), 75 when the queue asked it to stop.
@@ -237,6 +242,7 @@ async function dumps(signal) {
 function check(made) {
   const a = [path.join(here, 'frame_check.mjs'), made[0]];
   if (made.length === 3) a.push('--narrower', made[1], '--wider', made[2]);
+  if (opt('--workers')) a.push('--workers', opt('--workers'));
   a.push('--save', path.join(out, 'flagged'), ...(opt('--check') ?? '').split(/\s+/).filter(Boolean));
   log(`frame_check ${a.slice(1).join(' ')}`);
   let code = 0, text;
@@ -253,10 +259,11 @@ try {
   await sleep(500);
   if (opt('--queue')) {
     const { gpuRun } = await import(pathToFileURL(path.resolve(opt('--queue'))).href);
-    const spec = (type, label, vramMiB) => ({ type, label, vramMiB, priority: opt('--priority', 'low'),
+    const spec = (type, label, vramMiB) => ({ type, label, vramMiB, model: gameId, priority: opt('--priority', 'low'),
+      ...(vramMiB === 'auto' ? { guessMiB: 2048 } : {}),
       url: opt('--url') || undefined, ref: process.env.HOSTNAME,
       onUpdate: (j) => j.state === 'waiting' && log(`queue: ${type} waiting, ${j.ahead} ahead: ${j.why?.text ?? 'going next'}`) });
-    const made = await gpuRun(spec('frame-dump', `Frame dump: ${gameId}`, Number(opt('--vram', 4096))), (signal) => dumps(signal));
+    const made = await gpuRun(spec('frame-dump', `Frame dump: ${gameId}`, opt('--vram', 'auto') === 'auto' ? 'auto' : Number(opt('--vram'))), (signal) => dumps(signal));
     code = await gpuRun(spec('frame-check', `frame_check: ${gameId}`, 0), async () => check(made));
   } else code = check(await dumps(null));
 } catch (e) {
