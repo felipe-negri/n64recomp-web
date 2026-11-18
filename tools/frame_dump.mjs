@@ -7,7 +7,7 @@
 //   node tools/frame_dump.mjs --game <dir> --exe <name> --game-id <id> --rom <file> --plan <file> --out <dir>
 //       [--window <w>x<h>[,<w>x<h>,<w>x<h>]] [--rate <hz>] [--seconds <from>-<to>] [--args "<program args>"]
 //       [--env K=V,...] [--config <dir>] [--check "<frame_check args>"] [--workers <n>] [--keep]
-//       [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>]
+//       [--reuse] [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>]
 //
 // --game is the folder of a recomp's Linux build (its release archive unpacked, or its build folder with assets/),
 // --exe the program in it, --game-id the name its runtime stores the ROM under (<game id>.z64, as Load ROM does). Each
@@ -38,6 +38,12 @@
 // the host memory of the container's cap (its docker run's --memory, read from its cgroup; a game's dumps held
 // 0.3-0.6 GB, frame_check 0.6), never the queue's 8 GiB for a game it hasn't measured. A stop the queue asks for ends
 // the run in progress, and the tool, with 75. Without --queue it runs at once.
+//
+// --reuse checks the dumps a run before with --keep left in --out, and makes only those it lacks (a run that didn't
+// finish leaves none): a change to frame_check is checked against dumps already made, a check's worth of CPU instead
+// of a dump's turn on the GPU and minutes of play. With every dump there it files no frame-dump job, only frame-check.
+// The plan, --window, --seconds, --rate and the build must be the ones the dumps were made with; the caller keys --out
+// by them.
 //
 // --workers is frame_check's (a third of the cores it sees unless given), for a container held to fewer cores than
 // the host has.
@@ -97,8 +103,12 @@ function rdramOf(pid) {
   return merged ? merged.end - size : null;
 }
 
+const runName = (i) => (windows ? runNames[i] : 'main');
+// A dump a finished run left (--keep), for --reuse.
+const kept = (i) => fs.existsSync(path.join(out, runName(i), 'dump.done'));
+
 async function playRun(i, size, signal, config) {
-  const name = windows ? runNames[i] : 'main';
+  const name = runName(i);
   const dir = path.join(out, name), work = path.join(dir, 'run');
   fs.rmSync(dir, { recursive: true, force: true });
   fs.cpSync(game, work, { recursive: true });
@@ -213,6 +223,7 @@ async function playRun(i, size, signal, config) {
   }
   const crash = fs.readFileSync(path.join(dir, 'stderr.log'), 'utf8').match(/^.*Crash:.*$/m);
   if (crash) throw new RunFailed(`the program crashed: ${crash[0]}`);
+  fs.writeFileSync(path.join(dir, 'dump.done'), '');
   return path.join(dir, 'dump');
 }
 
@@ -243,10 +254,17 @@ async function makeConfig() {
   return config;
 }
 
+const runs = windows ?? [null];
+const reusing = () => flag('--reuse') && runs.every((_, i) => kept(i));
+
 async function dumps(signal) {
-  const config = await makeConfig();
   const made = [];
-  for (const [i, size] of (windows ?? [null]).entries()) made.push(await playRun(i, size, signal, config));
+  let config = null;
+  for (const [i, size] of runs.entries()) {
+    if (flag('--reuse') && kept(i)) { log(`${runName(i)} reused`); made.push(path.join(out, runName(i), 'dump')); continue; }
+    config ??= await makeConfig();
+    made.push(await playRun(i, size, signal, config));
+  }
   return made;
 }
 
@@ -254,6 +272,7 @@ function check(made) {
   const a = [path.join(here, 'frame_check.mjs'), made[0]];
   if (made.length === 3) a.push('--narrower', made[1], '--wider', made[2]);
   if (opt('--workers')) a.push('--workers', opt('--workers'));
+  fs.rmSync(path.join(out, 'flagged'), { recursive: true, force: true });
   a.push('--save', path.join(out, 'flagged'), ...(opt('--check') ?? '').split(/\s+/).filter(Boolean));
   log(`frame_check ${a.slice(1).join(' ')}`);
   let code = 0, text;
@@ -283,15 +302,15 @@ try {
       ...(vramMiB === 'auto' ? { guessMiB: 1024 } : {}), ramMiB: capMiB(),
       url: opt('--url') || undefined, ref: process.env.HOSTNAME,
       onUpdate: (j) => j.state === 'waiting' && log(`queue: ${type} waiting, ${j.ahead} ahead: ${j.why?.text ?? 'going next'}`) });
-    const made = await gpuRun(spec('frame-dump', `Frame dump: ${gameId}`, opt('--vram', 'auto') === 'auto' ? 'auto' : Number(opt('--vram'))), (signal) => dumps(signal));
+    const made = reusing() ? await dumps(null) : await gpuRun(spec('frame-dump', `Frame dump: ${gameId}`, opt('--vram', 'auto') === 'auto' ? 'auto' : Number(opt('--vram'))), (signal) => dumps(signal));
     code = await gpuRun(spec('frame-check', `frame_check: ${gameId}`, 0), async () => check(made));
   } else code = check(await dumps(null));
 } catch (e) {
   log(`frame_dump: ${e instanceof RunFailed ? e.message : e?.stack ?? e}`);
   code = stopped ? 75 : 3;
 }
-if (!flag('--keep')) for (const n of [...runNames, 'first-start']) {
-  fs.rmSync(path.join(out, n, 'dump'), { recursive: true, force: true });
+for (const n of [...runNames, 'first-start']) {
+  if (!flag('--keep')) fs.rmSync(path.join(out, n, 'dump'), { recursive: true, force: true });
   fs.rmSync(path.join(out, n, 'run'), { recursive: true, force: true });
 }
 xvfb.kill();
