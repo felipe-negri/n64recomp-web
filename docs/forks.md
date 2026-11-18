@@ -1214,4 +1214,8 @@ rt64 b24056f           RT64_SKIP_CAMERA_CUTS: the turn is the whole rotation bet
                        the trace, the three axes' cosines less 1, halved), so a roll about the way the camera looks
                        counts: Rush 2049's attract race cuts between overhead cameras by rolling the picture 86-180
                        degrees, and the frames between swung it round. Rush 2049 carried it as runtime-patches/rt64-0017
+rt64 f0da42b           a present that takes a game frame whose frames a present has shown presents nothing, and the
+                       screen holds its last frame: the VI showing a frame again showed them all again, the frame
+                       between the game's first, from targets the next game frame was already drawn into, so
+                       Mario Golf's menus now and then showed a character with a forearm gone for one frame
 ```
