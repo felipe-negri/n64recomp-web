@@ -140,7 +140,7 @@
 // Windows is the adapter the page draws with, from Windows' counters (the one the browser's own 3D load lands on, by
 // LUID, since a laptop's nvidia-smi GPU 0 can be its idle second GPU): its 3D engines' utilization summed over every
 // process, as Task Manager's, and its dedicated and shared memory (GPU Adapter Memory), with nvidia-smi's GPU 0 beside
-// it (utilization and power); elsewhere nvidia-smi's utilization, power, clock and memory. A summary at the end covers
+// it (utilization and power); elsewhere nvidia-smi's utilization, power, clock and memory, with its name. A summary at the end covers
 // the "play" steps: median presents a second and the range, the gaps between presents (the longest ten over 100 ms with
 // when each came, to the sample: where a long play stuttered), the median animation frames a
 // second (in Chrome on Windows ~55.6 when the display gives it no vblank, a monitor that is off: then a page that
@@ -184,7 +184,7 @@
 // each sample's presents, sound short and GPU load, every shader miss ({at, section, shader}, at in seconds since the
 // start, to the sample's 5), the page, the query and the host's processor load over the play.
 //
-// A run without --note is then compared with the file's last 5 like it: the same game, browser, size, play,
+// A run without --note is then compared with the file's last 5 like it: the same game, browser, size, play, platform (a run off Windows records its own, linux),
 // freshness of profile, uncapped the same way or not and on screen or not, none with a note or a host reading of a build or
 // another job on the GPU, failed or without a frame (one with
 // no play or profile recorded, as a line recovered from a log, matches any). It is flagged as a regression, "regression: ..." and exit code 3 (1 if it
@@ -441,12 +441,13 @@ let adapterGpu = null;
 let countersAnswered = false;
 const adapterLoad = {};
 const gpuNow = () => countersAnswered ? adapterGpu : smiGpu;
-const smi = spawn('nvidia-smi', ['-i', '0', '--query-gpu=utilization.gpu,power.draw,clocks.gr,memory.used',
+const smi = spawn('nvidia-smi', ['-i', '0', '--query-gpu=utilization.gpu,power.draw,clocks.gr,memory.used,name',
   '--format=csv,noheader,nounits', '-lms', String(interval * 1000)], { stdio: ['ignore', 'pipe', 'ignore'] });
 smi.on('error', () => {});
 eachLine(smi.stdout, (text) => {
   const [busy, watts, mhz, mib] = text.split(',').map(Number);
-  if (![busy, watts, mhz, mib].some(Number.isNaN)) smiGpu = { busy, watts, mhz, mib };
+  const name = text.split(',')[4]?.trim();
+  if (![busy, watts, mhz, mib].some(Number.isNaN)) smiGpu = { busy, watts, mhz, mib, ...(name ? { name } : {}) };
 });
 let counters = null;
 if (process.platform === 'win32') {
@@ -1089,8 +1090,8 @@ const longGaps = during.flatMap((s) => (s.gaps ?? []).filter((g) => g > 100).map
 const gpuMedians = (key) => {
   const m = Object.fromEntries(['busy', 'watts', 'mib', 'sharedMib']
     .map((k) => [k, median(during.map((s) => s[key]?.[k] ?? null))]).filter(([, v]) => v !== null));
-  const adapter = during.find((s) => s[key]?.adapter)?.[key].adapter;
-  return Object.keys(m).length ? { ...m, ...(adapter ? { adapter } : {}) } : null;
+  const adapter = during.find((s) => s[key]?.adapter)?.[key].adapter, name = during.find((s) => s[key]?.name)?.[key].name;
+  return Object.keys(m).length ? { ...m, ...(adapter ? { adapter } : {}), ...(name ? { name } : {}) } : null;
 };
 // The GPU process's private bytes from the first sample of the play to the last: flat, or a leak's MB a second.
 const memory = during.filter((s) => s.gpuProcessMB);
@@ -1133,7 +1134,7 @@ console.log(`  shader misses ${shaderMisses.length}${shaderMisses.length ? ', by
   Object.entries(bySection).map(([section, n]) => `${n} in ${section}`).join(', ') : ''}`);
 console.log(`  WebGPU errors ${playErrors.length}${playErrors.length ? ': ' + [...new Set(playErrors)].slice(0, 5).join(' | ') : ''}, exceptions ${playExceptions}`);
 if (summary.gpu?.adapter) console.log(`  GPU ${summary.gpu.busy}% busy (3D), ${summary.gpu.mib} MiB, ${summary.gpu.sharedMib} MiB shared (medians, the page's adapter ${summary.gpu.adapter})`);
-else if (summary.gpu) console.log(`  GPU ${summary.gpu.busy}% busy, ${summary.gpu.watts} W (medians, the whole GPU)`);
+else if (summary.gpu) console.log(`  GPU ${summary.gpu.busy}% busy, ${summary.gpu.watts} W (medians, the whole ${summary.gpu.name ?? 'GPU'})`);
 if (summary.nvidia) console.log(`  nvidia-smi's GPU 0 ${summary.nvidia.busy}% busy, ${summary.nvidia.watts} W (medians)`);
 if (summary.cores) console.log(`  GPU process ${r(summary.cores.gpuProcess, 2)} cores, browser ${r(summary.cores.browser, 2)} (medians)`);
 if (summary.gpuProcessMB) console.log(`  GPU process private bytes ${summary.gpuProcessMB.first} -> ${summary.gpuProcessMB.last} MB, ` +
@@ -1148,6 +1149,7 @@ if (recordFile) {
   const run = {
     time: new Date(t0).toISOString(), game, build, note, ...(set ? { set } : {}), ...(role ? { role } : {}), ...(hostReading ? { hostReading } : {}), browser, page: pageUrl, size: summary.size,
     ...(onScreen ? { onScreen } : {}), ...(summary.devicePixelRatio ? { devicePixelRatio: summary.devicePixelRatio } : {}), freshProfile, ...(uncapped ? { uncapped: uncappedAs } : {}), ...(cpuThrottle > 1 ? { cpuThrottle } : {}),
+    ...(process.platform !== 'win32' ? { platform: process.platform } : {}),
     ...(affinity ? { affinity } : {}), ...(fallbackAdapter ? { fallbackAdapter } : {}),
     ...(Object.keys(firefoxPrefs).length ? { firefoxPrefs } : {}), ...(chromeFlags.length ? { chromeFlags } : {}), play: section ? `section ${section}` : playFor ? `${playFor} s` : 'plan', seconds: during.length * interval,
     presents: summary.presents && Object.fromEntries(Object.entries(summary.presents).map(([k, v]) => [k, Math.round(v * 10) / 10])),
@@ -1176,7 +1178,7 @@ await finish(failure ? 1 : regressions.length ? 3 : faultResults.some((f) => !f.
 function compare(run, lines) {
   const like = (a, b) => a === null || a === undefined || b === null || b === undefined || a === b;
   const before = lines.split('\n').filter((l) => l.trim()).map((l) => { try { return JSON.parse(l); } catch { return null; } })
-    .filter((p) => p && !p.note && !p.hostReading?.building && !p.hostReading?.gpuOthers && !p.failed && p.presents?.median > 0 && p.game === run.game && p.browser === run.browser && p.size === run.size &&
+    .filter((p) => p && !p.note && !p.hostReading?.building && !p.hostReading?.gpuOthers && !p.failed && p.presents?.median > 0 && p.game === run.game && p.browser === run.browser && p.size === run.size && (p.platform ?? 'win32') === (run.platform ?? 'win32') &&
       like(p.play, run.play) && like(p.freshProfile, run.freshProfile) && (p.uncapped ?? false) === (run.uncapped ?? false) && !p.onScreen === !run.onScreen &&
       (p.cpuThrottle ?? 1) === (run.cpuThrottle ?? 1) && (p.affinity ?? 0) === (run.affinity ?? 0) && !p.fallbackAdapter === !run.fallbackAdapter && (run.onScreen || (p.devicePixelRatio ?? 1) === (run.devicePixelRatio ?? 1)) && JSON.stringify(p.firefoxPrefs ?? {}) === JSON.stringify(run.firefoxPrefs ?? {}) && JSON.stringify(p.chromeFlags ?? []) === JSON.stringify(run.chromeFlags ?? []))
     .slice(-5);
