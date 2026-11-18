@@ -11,13 +11,20 @@
 # commit's workflow has them, run again over a checkout of BASE (a PR's base, a push's commit before it), in a temporary
 # directory of their own, with the other repo's main as it is now. Red there too: main is already red, not because of
 # this change, which passes with a warning that names the job (that job's work is fixing it where the job says, in the
-# other repo). Green there: this change made it red, and it fails. A base that can't be checked out fails it too.
+# other repo). Green there: this change made it red, and it fails. A base that can't be fetched (retried) or checked
+# out fails it too.
 set -u
 job="$1"
 workflow="$GITHUB_WORKSPACE/.github/workflows/ci.yml"
 fail() { echo "::error::$job: $1"; exit 1; }
 [[ -n "${BASE:-}" ]] || fail "no base commit to compare with: the change's own failure stands"
-git -C "$GITHUB_WORKSPACE" fetch -q --depth 1 origin "$BASE" || fail "can't fetch the base $BASE: the change's own failure stands"
+# Retried: a 403 or a 504 from GitHub for a minute or two shouldn't leave a failure that is GitHub's standing.
+for wait in 15 30 60 120 0; do
+  git -C "$GITHUB_WORKSPACE" fetch -q --depth 1 origin "$BASE" && break
+  [[ $wait == 0 ]] && fail "can't fetch the base $BASE: the change's own failure stands"
+  echo "::warning::$job: fetching the base $BASE failed: again in $wait s"
+  sleep "$wait"
+done
 base="$(mktemp -d)/base" temp="$(mktemp -d)"
 git -C "$GITHUB_WORKSPACE" worktree add -q --detach "$base" "$BASE" || fail "can't check out the base $BASE"
 steps="$(mktemp -d)"

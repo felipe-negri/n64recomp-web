@@ -34,7 +34,11 @@ options; `docs/findings.md` has what was measured this way.
   the build it starts. frame_check reads one dump for frames drawn for themselves alone between two that agree and for
   a picture cut short at the 4:3 view's sides, and a
   dump of the same plan in a 4:3 window with one at 32:9 (`--narrower`, `--wider`) for a world culled at the 4:3
-  view's sides.
+  view's sides. Where a Linux host with an NVIDIA GPU is at hand, the dumps and the check are made there and not on
+  the machine that works on the game: `tools/remote_frame_dump.sh` plays the game's Linux build by the same plan in
+  all three windows, runs frame_check there and brings back only its text, the logs, the plan's shots and the flagged
+  frames (its header and `tools/frame_dump.mjs`'s say how), since a dump is too big to move and the check holds a
+  third of a machine's cores for minutes. Its verdicts match a dump made on Windows by `capture_window.ps1`.
 
 ## Plans
 
@@ -105,7 +109,10 @@ A change is played by what it can break, before it merges (CLAUDE.md, Changing i
   `exceptions` in play_page's `--json`), never for its presents. No second game, no Pages pair.
 - Can move speed or timing (a fork's renderer, its device thread, present or wait path, the runtime's threads and
   messages, `frontend/`'s timing, a build option): the A/B, `tools/ab_pages.mjs` on its game and one other, and the
-  smoke play in Firefox of each (`ab_pages.mjs --smoke`).
+  smoke play in Firefox of each (`ab_pages.mjs --smoke`). A renderer fix to what a frame shows rather than what it
+  costs (which of the game's frames one drawn between them pairs, a cut, how far past the view it draws) is the smoke
+  play's. An A/B whose first game came back no worse, on a change that costs every game alike, gives the second the
+  smoke play: its whole turn waits on a busy host and then measures the host.
 - Can crash or leak only over time (memory, a cache, a timing bug that takes minutes to show): a soak, played only for
   a card that says why.
 
