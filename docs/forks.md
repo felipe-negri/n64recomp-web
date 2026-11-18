@@ -1225,6 +1225,11 @@ rt64 21ed4b9           RT64_SKIP_PLACE_SWAPS: nor a pair of a transform whose ve
                        a frame
 rt64 3c875ec           TransformMap's verticesStill moved after its rigidBody: WWF No Mercy's rt64 adds fields after
                        mapped, and a field there too was its three-way merge's conflict (wwf-patches). It does the same
+rt64 5c90244           a scissor's left and right sides are on the pixel nearest them, as a rect's are and as its own
+                       top and bottom were, not floored and ceiled: where the picture's scale left an x off a whole
+                       pixel, the scissor took in a column on each side that a rect over the same x leaves out, and
+                       Mario Golf's course showed in a line down each side of the black screen its closed iris wipe
+                       draws in a wide window (x 8 on 56.9 of 2276). It takes in ae0a708's case
 rt64 3f0181c           RT64_FRAME_DUMP_RATE=<Hz>, beside RT64_FRAME_DUMP: the swap chain's vsync off and its rate taken
                        as that one wherever RT64 sets it, so Framerate Display presents and interpolates at it whatever
                        the display's: a game of 60 on a 59-60 Hz display presented no frame between the game's, and
@@ -1232,4 +1237,6 @@ rt64 3f0181c           RT64_FRAME_DUMP_RATE=<Hz>, beside RT64_FRAME_DUMP: the sw
 rt64 696a70d           RT64_FRAME_DUMP_RATE's swapChainCreated() after the swap chain's rate is first set, away from
                        createSwapChain(): Diddy Kong Racing's own RT64 change adds a check right after it, and didn't
                        apply over 3f0181c
+rt64 4de3122           9adecdf (sides.tsv's count of model matrices drawn wholly past the view's sides) reverted: the
+                       pin carries both, so nothing changes
 ```
