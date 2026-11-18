@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Dumps a recomp's frames by a plan and checks them with tools/frame_check.mjs on a Linux host with an NVIDIA GPU over
-# ssh ($DUMP_HOST, a host name ssh knows), in one command, and brings back only the results: docs/new-recomp.md item
-# 2a's check made on that host's GPU and CPU, not on the machine you run this from. A dump is ~20 MB a second, too
-# much to bring back over a slow link, so the dumps are made, checked and deleted there.
+# ssh ($DUMP_HOST, a host name ssh knows), in one command, and brings back only the results: the check made on that
+# host's GPU and CPU, not on the machine you run this from. A dump is ~20 MB a second, too much to bring back over a
+# slow link, so the dumps are made, checked and deleted there.
 #
 #   DUMP_HOST=<host> tools/remote_frame_dump.sh [-c <config dir>] <game dir> <exe> <game id> <rom> <plan> <out dir>
 #       [tools/frame_dump.mjs options: --window 1280x720,960x720,2560x720 --seconds 10-70 --args "..." --check "..."]

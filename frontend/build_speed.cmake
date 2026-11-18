@@ -20,8 +20,8 @@
 # - Paths compiled into the page are relative to the recomp's checkout (-ffile-prefix-map). An assert's __FILE__ put
 #   the build machine's path into the .wasm's data, so two checkouts of one commit built different pages (the data
 #   moves, and the .js's addresses into it with it), and a ccache hit carried the path of whichever checkout compiled
-#   that file first. Now a commit builds the same page, byte for byte, in any checkout (tools/publish_pages.sh relies
-#   on it): Rush 2049's page, in two copies of one commit on 2026-10-15, the second with 637 of 638 compiles ccache
+#   that file first. Now a commit builds the same page, byte for byte, in any checkout (a publish that
+#   skips unchanged pages relies on it): Rush 2049's page, in two copies of one commit on 2026-10-15, the second with 637 of 638 compiles ccache
 #   hits. The checkout is the git work tree holding the source dir, so a recomp whose CMake project is a folder in it
 #   (Conker's host/) gets it too, and it is the ccache base dir as well.
 #

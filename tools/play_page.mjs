@@ -13,7 +13,7 @@
 // --profile the build dir is served on 8937 unless --port, since the ROM and saves a kept profile holds are kept per
 // origin, port included. A URL is where
 // the page is, a GitHub Pages one say, and plan.page is taken relative to it, unless the URL names an .html itself
-// (publish_page.sh puts a fork's <name>.html up as index.html, so give .../index.html for it). A build dir is served and
+// (a page published as index.html, say: give .../index.html for it). A build dir is served and
 // plan.page played from it, or, when the dir has no such file (a plan whose page is index.html, which Pages has and a
 // build hasn't), the dir's one .html: a dir with several names them and stops, and <dir>/<name>.html plays that page
 // whatever plan.page says. The browser starts with
@@ -58,7 +58,7 @@
 // Load ROM stays the mouse's: a browser opens a file picker only for a click or a key. A key with no pad button stays
 // the keyboard's and is named in the summary's pad, with the presses that went to the pad and what reached its rumble
 // (padRumbles()). Keys an eval or evalFile step dispatches itself are the keyboard's.
-// --backcheck plays the web port list's W2, W5, W6 and W7 (docs/new-recomp.md) in one visit and prints a verdict line
+// --backcheck plays four checks of a web port, W2, W5, W6 and W7, in one visit and prints a verdict line
 // for each ("backcheck W5 pass: ..."), recorded as the run's backcheck. In Chrome: --scale 2, --pad, --fault
 // hidden,reload,reopen and --chrome-flag --disable-audio-output unless given: W2 is Load ROM opening the picker at its
 // first click at 2 device pixels a CSS pixel (not played where the plan's Load ROM is a key); W5 no sound frame short in
@@ -140,7 +140,7 @@
 // Windows is the adapter the page draws with, from Windows' counters (the one the browser's own 3D load lands on, by
 // LUID, since a laptop's nvidia-smi GPU 0 can be its idle second GPU): its 3D engines' utilization summed over every
 // process, as Task Manager's, and its dedicated and shared memory (GPU Adapter Memory), with nvidia-smi's GPU 0 beside
-// it (utilization and power); elsewhere nvidia-smi's utilization, power, clock and memory. A summary at the end covers
+// it (utilization and power); elsewhere nvidia-smi's utilization, power, clock and memory, with its name. A summary at the end covers
 // the "play" steps: median presents a second and the range, the gaps between presents (the longest ten over 100 ms with
 // when each came, to the sample: where a long play stuttered), the median animation frames a
 // second (in Chrome on Windows ~55.6 when the display gives it no vblank, a monitor that is off: then a page that
@@ -149,7 +149,7 @@
 // missed: true), WebGPU errors and exceptions, the GPU and the cores, and
 // the GPU process's private bytes from the first sample to the last and MB a second between them (a leak's rate), in
 // Firefox with its own report of which part grew (page_driver.mjs's gpuProcessMemory); --json writes it as JSON too, a
-// failed run's with "failed" (tools/ab_pages.mjs reads it).
+// failed run's with "failed".
 // A run the host slept through (its clock jumped more than 30 s between two of play_page's 1 s ticks) is stopped and
 // fails: its samples would span the sleep, and one such run read as a clean one in an update's plays.
 // The GPU readings are the whole adapter's, so note what else ran beside a number.
@@ -168,9 +168,9 @@
 // the list's size, from RT64's "RT64: <n> prebuilt shaders, ..." line, is the summary's and the run's prebuiltShaders,
 // and a play whose page presented without that line fails, unless its --query asks for ?record-shaders (none built).
 //
-// --record appends the run to a file of runs, one JSON line each, a run that fails too (with "failed"): this repo's
-// plays.jsonl, the history of how each game's page plays. --game is publish_pages.sh's name for the game (rush, ge,
-// mm, banjo, cbfd, dk64, wr, pw, bt, mk64, sf64, oot, dkr, jfg, snap, rush2, 1080, sssv, pd, sm64), --build what the page was built from (a tag of this repo, or Pages),
+// --record appends the run to a file of runs, one JSON line each, a run that fails too (with "failed"): the history
+// of how each game's page plays. --game is a short name for the game (lowercase letters and digits), --build what the
+// page was built from (a tag of this repo, or Pages),
 // and --note anything that makes the run unlike a player's visit (a preload, a test build, another page beside it). A
 // run's conditions are fields of their own, for a script to read without parsing the note: --set an id shared by the runs
 // of one interleaved set (the page Pages serves and a new build, played in turn), --role which side of it the run is
@@ -184,14 +184,14 @@
 // each sample's presents, sound short and GPU load, every shader miss ({at, section, shader}, at in seconds since the
 // start, to the sample's 5), the page, the query and the host's processor load over the play.
 //
-// A run without --note is then compared with the file's last 5 like it: the same game, browser, size, play,
+// A run without --note is then compared with the file's last 5 like it: the same game, browser, size, play, platform (a run off Windows records its own, linux),
 // freshness of profile, uncapped the same way or not and on screen or not, none with a note or a host reading of a build or
 // another job on the GPU, failed or without a frame (one with
 // no play or profile recorded, as a line recovered from a log, matches any). It is flagged as a regression, "regression: ..." and exit code 3 (1 if it
 // failed), when it fails where they didn't, has WebGPU errors where the last had none, presents a second more than 3
 // below the lowest of theirs, a 99th percentile gap between presents over 50 ms and half again the longest of theirs,
 // or waits for shaders over 2 s and half again longer than the longest of theirs: outside
-// the runs' own noise, but a busy host reads the same, so a flag is a reason to look again (docs/publishing.md, Updating games).
+// the runs' own noise, but a busy host reads the same, so a flag is a reason to look again.
 // Presents aren't compared for a run at the display's rate whose browser drew fewer than 57 animation frames a second:
 // the host had no display to pace them, and every page that interpolates reads the same.
 import fs from 'fs';
@@ -253,7 +253,7 @@ const chromeFlags = [];
 for (let flag; (flag = option(args, '--chrome-flag', null)) !== null;) chromeFlags.push(flag);
 if (chromeBackcheck && !chromeFlags.includes('--disable-audio-output')) chromeFlags.push('--disable-audio-output');
 if (recordFile && !/^[a-z0-9]+$/.test(game ?? '')) {
-  console.error('--record needs --game <name>: rush, ge, mm, banjo, cbfd, dk64, wr, pw, bt, mk64, sf64, oot, dkr, jfg, snap, rush2, pd, sm64 (publish_pages.sh\'s names)');
+  console.error('--record needs --game <name>, a short name for the game in lowercase letters and digits');
   process.exit(1);
 }
 if (role !== null && (!['baseline', 'candidate'].includes(role) || set === null)) {
@@ -441,12 +441,13 @@ let adapterGpu = null;
 let countersAnswered = false;
 const adapterLoad = {};
 const gpuNow = () => countersAnswered ? adapterGpu : smiGpu;
-const smi = spawn('nvidia-smi', ['-i', '0', '--query-gpu=utilization.gpu,power.draw,clocks.gr,memory.used',
+const smi = spawn('nvidia-smi', ['-i', '0', '--query-gpu=utilization.gpu,power.draw,clocks.gr,memory.used,name',
   '--format=csv,noheader,nounits', '-lms', String(interval * 1000)], { stdio: ['ignore', 'pipe', 'ignore'] });
 smi.on('error', () => {});
 eachLine(smi.stdout, (text) => {
   const [busy, watts, mhz, mib] = text.split(',').map(Number);
-  if (![busy, watts, mhz, mib].some(Number.isNaN)) smiGpu = { busy, watts, mhz, mib };
+  const name = text.split(',')[4]?.trim();
+  if (![busy, watts, mhz, mib].some(Number.isNaN)) smiGpu = { busy, watts, mhz, mib, ...(name ? { name } : {}) };
 });
 let counters = null;
 if (process.platform === 'win32') {
@@ -1089,8 +1090,8 @@ const longGaps = during.flatMap((s) => (s.gaps ?? []).filter((g) => g > 100).map
 const gpuMedians = (key) => {
   const m = Object.fromEntries(['busy', 'watts', 'mib', 'sharedMib']
     .map((k) => [k, median(during.map((s) => s[key]?.[k] ?? null))]).filter(([, v]) => v !== null));
-  const adapter = during.find((s) => s[key]?.adapter)?.[key].adapter;
-  return Object.keys(m).length ? { ...m, ...(adapter ? { adapter } : {}) } : null;
+  const adapter = during.find((s) => s[key]?.adapter)?.[key].adapter, name = during.find((s) => s[key]?.name)?.[key].name;
+  return Object.keys(m).length ? { ...m, ...(adapter ? { adapter } : {}), ...(name ? { name } : {}) } : null;
 };
 // The GPU process's private bytes from the first sample of the play to the last: flat, or a leak's MB a second.
 const memory = during.filter((s) => s.gpuProcessMB);
@@ -1133,7 +1134,7 @@ console.log(`  shader misses ${shaderMisses.length}${shaderMisses.length ? ', by
   Object.entries(bySection).map(([section, n]) => `${n} in ${section}`).join(', ') : ''}`);
 console.log(`  WebGPU errors ${playErrors.length}${playErrors.length ? ': ' + [...new Set(playErrors)].slice(0, 5).join(' | ') : ''}, exceptions ${playExceptions}`);
 if (summary.gpu?.adapter) console.log(`  GPU ${summary.gpu.busy}% busy (3D), ${summary.gpu.mib} MiB, ${summary.gpu.sharedMib} MiB shared (medians, the page's adapter ${summary.gpu.adapter})`);
-else if (summary.gpu) console.log(`  GPU ${summary.gpu.busy}% busy, ${summary.gpu.watts} W (medians, the whole GPU)`);
+else if (summary.gpu) console.log(`  GPU ${summary.gpu.busy}% busy, ${summary.gpu.watts} W (medians, the whole ${summary.gpu.name ?? 'GPU'})`);
 if (summary.nvidia) console.log(`  nvidia-smi's GPU 0 ${summary.nvidia.busy}% busy, ${summary.nvidia.watts} W (medians)`);
 if (summary.cores) console.log(`  GPU process ${r(summary.cores.gpuProcess, 2)} cores, browser ${r(summary.cores.browser, 2)} (medians)`);
 if (summary.gpuProcessMB) console.log(`  GPU process private bytes ${summary.gpuProcessMB.first} -> ${summary.gpuProcessMB.last} MB, ` +
@@ -1148,6 +1149,7 @@ if (recordFile) {
   const run = {
     time: new Date(t0).toISOString(), game, build, note, ...(set ? { set } : {}), ...(role ? { role } : {}), ...(hostReading ? { hostReading } : {}), browser, page: pageUrl, size: summary.size,
     ...(onScreen ? { onScreen } : {}), ...(summary.devicePixelRatio ? { devicePixelRatio: summary.devicePixelRatio } : {}), freshProfile, ...(uncapped ? { uncapped: uncappedAs } : {}), ...(cpuThrottle > 1 ? { cpuThrottle } : {}),
+    ...(process.platform !== 'win32' ? { platform: process.platform } : {}),
     ...(affinity ? { affinity } : {}), ...(fallbackAdapter ? { fallbackAdapter } : {}),
     ...(Object.keys(firefoxPrefs).length ? { firefoxPrefs } : {}), ...(chromeFlags.length ? { chromeFlags } : {}), play: section ? `section ${section}` : playFor ? `${playFor} s` : 'plan', seconds: during.length * interval,
     presents: summary.presents && Object.fromEntries(Object.entries(summary.presents).map(([k, v]) => [k, Math.round(v * 10) / 10])),
@@ -1176,7 +1178,7 @@ await finish(failure ? 1 : regressions.length ? 3 : faultResults.some((f) => !f.
 function compare(run, lines) {
   const like = (a, b) => a === null || a === undefined || b === null || b === undefined || a === b;
   const before = lines.split('\n').filter((l) => l.trim()).map((l) => { try { return JSON.parse(l); } catch { return null; } })
-    .filter((p) => p && !p.note && !p.hostReading?.building && !p.hostReading?.gpuOthers && !p.failed && p.presents?.median > 0 && p.game === run.game && p.browser === run.browser && p.size === run.size &&
+    .filter((p) => p && !p.note && !p.hostReading?.building && !p.hostReading?.gpuOthers && !p.failed && p.presents?.median > 0 && p.game === run.game && p.browser === run.browser && p.size === run.size && (p.platform ?? 'win32') === (run.platform ?? 'win32') &&
       like(p.play, run.play) && like(p.freshProfile, run.freshProfile) && (p.uncapped ?? false) === (run.uncapped ?? false) && !p.onScreen === !run.onScreen &&
       (p.cpuThrottle ?? 1) === (run.cpuThrottle ?? 1) && (p.affinity ?? 0) === (run.affinity ?? 0) && !p.fallbackAdapter === !run.fallbackAdapter && (run.onScreen || (p.devicePixelRatio ?? 1) === (run.devicePixelRatio ?? 1)) && JSON.stringify(p.firefoxPrefs ?? {}) === JSON.stringify(run.firefoxPrefs ?? {}) && JSON.stringify(p.chromeFlags ?? []) === JSON.stringify(run.chromeFlags ?? []))
     .slice(-5);

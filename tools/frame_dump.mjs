@@ -1,5 +1,5 @@
 // Dumps a recomp's frames by a plan on Linux and checks them, in the container of tools/frame_dump.Dockerfile, which
-// tools/remote_frame_dump.sh starts on a Linux host with an NVIDIA GPU: docs/new-recomp.md item 2a's dumps and
+// tools/remote_frame_dump.sh starts on a Linux host with an NVIDIA GPU: the dumps and
 // tools/frame_check.mjs on them, made on that host's GPU and CPU instead of the machine a person or an agent works on.
 // A dump is ~20 MB a second of frames, too much to bring back over a slow link, so only the check's text, the
 // program's logs, the plan's shots and frame_check's flagged frames stay; the dumps are deleted unless --keep.
@@ -21,7 +21,7 @@
 //
 // --window gives each run's window: one size is one run, frame_check reading its dump alone; three are three runs of
 // the plan, the first checked with the second as --narrower (a 4:3 window) and the third as --wider (32:9), the check
-// item 2a asks for. With --window the plan's size steps are skipped. Without it each run is the plan's own size steps
+// of the frames between the game's and the sides asks for. With --window the plan's size steps are skipped. Without it each run is the plan's own size steps
 // from a 1280x720 window.
 //
 // The plan is tools/capture_window.ps1's (its header has every step), its times in seconds since the program started:
@@ -130,8 +130,11 @@ async function playRun(i, size, signal, config) {
     if (mem === null) mem = fs.openSync(`/proc/${proc.pid}/mem`, 'r+');
     return rdram;
   };
-  const read = (addr, len = 4) => { const at = memory() + BigInt(addr - 0x80000000), b = Buffer.alloc(len); fs.readSync(mem, b, 0, len, at); return b; };
-  const write = (addr, v) => { const at = memory() + BigInt(addr - 0x80000000), b = Buffer.alloc(4); b.writeUInt32LE(v >>> 0); fs.writeSync(mem, b, 0, 4, at); };
+  // A position in /proc/<pid>/mem is a Number: fs.writeSync takes a BigInt one as null and writes at the file's
+  // offset, address 0, which fails with EIO (readSync takes either). A user address is below 2^47, so it is exact.
+  const at = (addr) => Number(memory() + BigInt(addr - 0x80000000));
+  const read = (addr, len = 4) => { const pos = at(addr), b = Buffer.alloc(len); fs.readSync(mem, b, 0, len, pos); return b; };
+  const write = (addr, v) => { const pos = at(addr), b = Buffer.alloc(4); b.writeUInt32LE(v >>> 0); fs.writeSync(mem, b, 0, 4, pos); };
   const num = (s) => {
     let m = s.match(/^\[(.+)\](?:\+(.+))?$/);
     if (m) return (read(num(m[1])).readUInt32LE() + (m[2] ? num(m[2]) : 0)) >>> 0;

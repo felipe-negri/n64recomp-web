@@ -9,7 +9,8 @@
 // launcher took clicks) it clicks Load ROM again, twice at most, and says so each time. Headless Chrome draws to no display, so its
 // presents never go through the desktop's compositor or wait for the display; with headed it runs in a window of its own,
 // moved off the desktop as Firefox's is below, with its throttling of hidden windows off, which presents as a player's
-// Chrome does. Firefox has no WebGPU adapter headless, so
+// Chrome does. On Linux with an X display (Xvfb in tools/page_play.Dockerfile's container) Chrome always runs in a
+// window on it, since headless it gets no GPU adapter from NVIDIA's driver (openChrome says why). Firefox has no WebGPU adapter headless, so
 // it runs in a window of its own, moved off the desktop and sized from a DPI-aware process on Windows, with the
 // viewport set to the size asked for, and is driven over WebDriver BiDi. A window off the desktop never has focus, so
 // keys are KeyboardEvents dispatched on `window` and clicks mouse events dispatched on the canvas itself; and since
@@ -71,7 +72,7 @@
 // nowhere, no copy came, and the run failed a minute later at 'RDRAM not found'. In Chrome the step says so and fails.
 // And Chrome builds a page's prebuilt shader list behind its launcher (rt64's "RT64: <n> prebuilt shaders, <m> pipelines,
 // ... built behind the game once it draws", then "RT64: all <m> prebuilt shaders built"), where a click on Load ROM can
-// be lost (docs/findings.md, Behind CLAUDE.md's rules): F-Zero X's boot from Pages, whose plan pressed 3 s after the
+// be lost: F-Zero X's boot from Pages, whose plan pressed 3 s after the
 // device came, pressed three times into a build on a busy host, opened no picker and failed. So a rom step presses only
 // once a list building behind the launcher is built, waiting up to listBuiltMs and saying how long, whatever the plan
 // waits for. Firefox builds none there and says nothing that waits.
@@ -122,7 +123,7 @@ export const option = (args, name, fallback) => {
 // default) is a free one, server.address().port, so plays started beside each other don't clash; a port taken is
 // refused. The ROM and saves are kept per origin, port included, so a profile kept between runs needs the same port
 // each time. A path ending in / is its index.html, as
-// GitHub Pages serves it: a plan whose page is "" opens publish_page.sh's staged dir at /. A file it hasn't got is
+// GitHub Pages serves it: a plan whose page is "" opens a staged dir's index.html at /. A file it hasn't got is
 // printed once, since a page that 404s on its own files loads nothing and says nothing in its console.
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm' };
 const missing = new Set();
@@ -644,10 +645,17 @@ const asJson = (js) => `Promise.resolve((0, eval)(${JSON.stringify(js)})).then((
 const openChrome = async ({ profile, port, width, height, executable, rom, preload, headed, onScreen, uncapped, cpuThrottle, scale, chromeFlags = [], affinity, fallbackAdapter, line, stopPage }) => {
   // A window off the desktop counts as hidden, and Chrome stops drawing a hidden one unless told not to (on screen,
   // another window over it would hide it too).
-  const mode = headed || onScreen
+  // On Linux with an X display (an Xvfb will do) Chrome runs in a window on it, headed or not: headless, its Vulkan asks
+  // for VK_EXT_headless_surface, which NVIDIA's driver hasn't, so it fails and WebGPU gets only SwiftShader, while in an
+  // X window with ANGLE on Vulkan the page draws on the GPU. In a container (tools/remote_play_page.sh's) its sandbox
+  // can't start, so it runs without.
+  const onX = process.platform === 'linux' && !!process.env.DISPLAY;
+  const mode = headed || onScreen || onX
     ? ['--disable-features=CalculateNativeWinOcclusion', '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding', '--no-default-browser-check']
     : ['--headless=new'];
+  if (onX) mode.push('--ozone-platform=x11', '--use-angle=vulkan', '--enable-features=Vulkan');
+  if (process.platform === 'linux' && fs.existsSync('/.dockerenv')) mode.push('--no-sandbox');
   if (uncapped) mode.push('--disable-frame-rate-limit');
   if (fallbackAdapter) mode.push('--use-webgpu-adapter=swiftshader');
   const size = onScreen ? ['--start-maximized'] : [`--force-device-scale-factor=${scale}`, `--window-size=${width},${height}`];
