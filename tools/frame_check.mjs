@@ -85,7 +85,19 @@
 //   Light, a few large walls whose middles lie inside the view, reads 29 culled and 43 fixed. A shot whose every
 //   object reaches into the view draws them whole in both windows and fails whatever the build: Rayman 2's first still
 //   shot of Rayman, a few cliffs, x1.00 with its v0.1.1. So a scene is picked where the world goes on past the view (a
-//   course, a field, a race), and a fail is looked at in the 32:9 dump's frames before it is called the game's. A 4:3
+//   course, a field, a race), and a fail is looked at in the 32:9 dump's frames before it is called the game's. A game
+//   that culls nothing by the window fails it too, its 4:3 window drawing past the view all the 32:9 one does: Paper
+//   Mario's opening x1.00 (532 triangles a workload), Dinosaur Planet x1.03, Super Smash Bros.' stage zoomed in x1.00,
+//   where Super Mario 64's Bob-omb Battlefield reads x1.00 culled to 4:3 (its objects; its level is drawn whole in any
+//   window) and x2.99 fixed. Nothing in the 32:9 dump alone tells them apart, measured on these and on Mario Golf's
+//   culled flyover. Not things appearing at the view's sides as the camera turns, read as blocks of a game frame with
+//   nothing like them near in the game's frame before: on a 640x180 dump Mario 64's culled objects are a pixel or two
+//   across, its fixed build has as many by the view's edge (438-447 a column of blocks, every thousand frames, either
+//   build), and split by which way the camera turns neither leans. Not sides.tsv's triangles appearing between
+//   workloads, per band (6-8 a band past the edge culled, 24-25 fixed, as each draws there). Not how the drawing goes on
+//   across the view's edge (the next fifth of the view's width outside against inside: Mario 64 0.23 culled and 0.53
+//   fixed, Mario Golf's flyover 0.36 culled, F-Zero X's fixed 0.34, Dinosaur Planet 0.45, Smash 0.08-0.11, its stage
+//   ending at the 4:3 view by design). Nor triangles past the 32:9 picture, 0-6 a band in every one. A 4:3
 //   window's target can be a little off 4:3 (Rush 2049's is 640x440): a --narrower dump wider than 1.6:1, a --wider
 //   one narrower than 8:3, or a pair of which under 30 or a tenth of the 32:9 workloads find a match (not the same
 //   scene), exits 2. Without them it only counts the triangles. One dump's own strip against the view tells nothing:

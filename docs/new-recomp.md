@@ -358,7 +358,10 @@ What it looks for:
   the 32:9 picture's edges: the game draws those objects whole in both windows, so nothing grows. Rayman 2's first
   still shot of Rayman, a few cliffs, fails so on the build with the fix. So the sides are checked on a scene whose
   world goes on past the view (a course, a field, a race; Rayman 2's Fairy Glade), and a sides fail is looked at in
-  the 32:9 dump's frames before it is called the game's.
+  the 32:9 dump's frames before it is called the game's. A game that culls nothing by the window fails it as one
+  culled to 4:3 does, x1.00 or so (Paper Mario's opening, Dinosaur Planet, Smash Bros.' stage), and nothing in the
+  32:9 dump alone was found to tell the two apart (frame_check's header has what was tried), so its fail is looked at
+  the same way.
   San Francisco Rush 2049's dumps brought two more holes in the tools to light. Its frames come back in two sizes by
   turns, the picture the same in both with black past it (RT64's targets are larger than the picture), and
   frame_check, which started over at each change of size, matched 422 of 2150 frames; it now cuts every frame to the
