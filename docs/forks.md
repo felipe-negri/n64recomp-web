@@ -17,7 +17,8 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
 2d2db0c, d798d28, a17b46a, 952d327, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4,
-1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES` (rt64 9ef2024, which it turns on too),
+1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES` (rt64 9ef2024,
+a86c053, which it turns on too),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
@@ -1220,4 +1221,7 @@ rt64 9ef2024           RT64_INTERPOLATE_SCREEN_VERTICES: a screen position a gam
                        wrote them through one projection: Mario Golf writes four corners of its pin's flagstick, which
                        stood still on the screen a game frame at a time while the green moved under it, its foot
                        sliding across the cup and back, four frames a game frame at 120 Hz
+rt64 a86c053           RT64_INTERPOLATE_SCREEN_VERTICES's function at the end of the projection processor, with no
+                       include of its own: Banjo-Tooie's own RT64 changes add lines where 9ef2024 put it and its
+                       include, and didn't apply over 9ef2024
 ```
