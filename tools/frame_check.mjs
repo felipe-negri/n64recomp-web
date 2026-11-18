@@ -158,6 +158,8 @@ const MIN_BLOCKS = 4; // blocks a flagged frame has
 const NEAR_BLOCKS = 4; // ... or, drawn between the game's own, fewer within this many blocks of where
 const NEAR_FRAMES = 3; // ... this many other frames drawn between had theirs
 const NEAR_SECONDS = 1; // ... within this many seconds either side
+const LONE = 10; // a frame between the game's own as unlike each neighbour, of 255 over the whole picture, at the least,
+const LONE_RATIO = 3; // ... and this many times as unlike as they are to each other: a fault alone
 const CUT = 8; // the mean difference of two of the game's frames in a row, of 255, at the least, that is a cut
 const CUT_JUMP = 2; // ... and how many times the game's frames either side of them differ, at the least
 const CUT_PARTWAY = 0.3; // a frame between a cut's two as unlike both, against how unlike they are: the camera partway
@@ -795,7 +797,9 @@ function checkMiddle({ gw, gh, kept }) {
         if (saveDir) {
             saveTriplet(`${small ? 'small' : 'unlike'}-${String(c.f.n).padStart(5, '0')}.png`, [a.f, c.f, b.f], bad, gw);
         }
-        return { c: { f: { ...c.f, rgb: null } }, bad, bw, bh, small };
+        const ca = meanDiff(c.g, a.g), cb = meanDiff(c.g, b.g);
+        const lone = !small && (c.f.index > 0) && (Math.min(ca, cb) >= Math.max(LONE, LONE_RATIO * meanDiff(a.g, b.g)));
+        return { c: { f: { ...c.f, rgb: null } }, bad, bw, bh, small, lone };
     }));
 }
 for (const f of readFrames()) {
@@ -857,7 +861,8 @@ if (presented >= 3) {
         burst = Math.max(burst, i - j + 1);
     }
     checked = Math.max(checked, 1);
-    const fail = (counted.length * 100 > checked) || (burst >= 3);
+    const lone = counted.filter((u) => u.lone);
+    const fail = (counted.length * 100 > checked) || (burst >= 3) || (lone.length > 0);
     failed ||= fail;
     console.log(`frames: ${presented} presented over ${(last.t - first.t).toFixed(1)} s, ${between} of them between the` +
         ` game's own (${repeats} repeats, ${dropped} dropped by the dump), ${[...sizes].join(', ')}`);
@@ -866,18 +871,19 @@ if (presented >= 3) {
         console.log('frames: none presented between the game\'s own, so nothing tests how they are paired: dump at' +
             ' Framerate Display on a display faster than the game');
     }
-    console.log(`unlike both neighbours: ${counted.length} of ${checked} frames, at most ${burst} within a second: ` +
+    console.log(`unlike both neighbours: ${counted.length} of ${checked} frames, at most ${burst} within a second` +
+        (lone.length ? `, ${lone.length} between the game's own unlike the whole picture either side of it` : '') + ': ' +
         (fail ? 'FAILS' : 'passes') + (passing.length ? ` (${passing.length} more, not counted, where something passes` +
         ` close to the camera: the game's frames ${NEAR}-${CUT_WHOLE} of the picture apart, two presents running)` : ''));
     if (!quiet) {
-        for (const { c, bad, bw, bh } of flagged.slice(0, 40)) {
+        for (const { c, bad, bw, bh, lone: alone } of flagged.slice(0, 40)) {
             const xs = bad.map((i) => i % bw), ys = bad.map((i) => Math.floor(i / bw));
             const ids = [c.f.presentId, ...((c.f.index === c.f.count - 1) ? [c.f.presentId + 1] : [])];
             console.log(`  frame ${c.f.n} at ${c.f.t.toFixed(2)} s (present ${c.f.presentId}, ${c.f.index + 1} of ${c.f.count}):` +
                 ` ${bad.length} blocks, x ${(Math.min(...xs) / bw).toFixed(2)}-${((Math.max(...xs) + 1) / bw).toFixed(2)}` +
                 ` y ${(Math.min(...ys) / bh).toFixed(2)}-${((Math.max(...ys) + 1) / bh).toFixed(2)} of the picture` +
                 (nearPass(c) ? `, not counted: the game's frames ${ids.map((id) => wholeOf(id).toFixed(2)).join(' and ')} apart` :
-                    ''));
+                    (alone ? ', unlike the whole picture either side of it' : '')));
         }
         if (flagged.length > 40) {
             console.log(`  ... and ${flagged.length - 40} more`);
