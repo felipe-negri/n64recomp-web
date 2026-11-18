@@ -86,7 +86,7 @@ else {
       job = j;
       if (j.state === 'waiting' && Date.now() - said > 60000) {
         said = Date.now();
-        console.log(`play_job: waiting for the GPU, ${j.ahead ?? '?'} ahead${j.why?.text ? `: ${j.why.text}` : ''}`);
+        console.log(`play_job: waiting for the GPU, ${j.ahead ?? '?'} ahead${j.waitMs != null ? `, ~${Math.ceil(j.waitMs / 60000)} min` : ''}${j.why?.text ? `: ${j.why.text}` : ''}`);
       }
     },
   }, async (signal, j) => {
