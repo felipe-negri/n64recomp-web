@@ -170,10 +170,14 @@ async function playRun(name, size, signal, { config, work: kept }) {
         case 'size':
           if (size) { say(`size ${p[2]}x${p[3]} skipped: --window gives the size`); break; }
           xdo('windowsize', win, p[2], p[3]); say(`size ${p[2]}x${p[3]}`); break;
-        case 'shot':
-          execFileSync('bash', ['-c', `xwd -silent -id ${win} | convert xwd:- ${JSON.stringify(path.join(dir, p[2] + '.png'))}`],
+        case 'shot': {
+          const shoot = (file) => execFileSync('bash', ['-c', `xwd -silent -id ${win} | convert xwd:- ${JSON.stringify(path.join(dir, file))}`],
             { env: { ...process.env, DISPLAY: display } });
+          shoot(p[2] + '.png');
+          // --restart compares shots only of a picture that holds still: a second one half a second later says so.
+          if (restart) { await sleep(500); shoot(p[2] + '.still.png'); }
           say(`shot ${p[2]}`); break;
+        }
         case 'burst': case 'record': case 'stop': say(`${p[1]} skipped: the dump has every frame`); break;
         case 'drag': throw new RunFailed('drag is Windows\' move loop, which this has no counterpart of');
         case 'until': case 'find': {
@@ -330,10 +334,12 @@ function dumpShape(d) {
 
 // --restart's verdict, also in <out>/restart.txt. It fails where the first launch's settings files don't hold
 // --config's values, where a start changed a value the one before it wrote (a setting or a binding not read back),
-// where a dump's frames were drawn at another size or shown in another number of frames a game frame, and where a
-// shot of the first launch differs from the restart's by more than SHOT_SLACK (of 255, a grey pixel's mean) beyond
-// twice what the restart's and the next start's differ by: the two restarts read the same files, so what they differ
-// by is how much the plan's moment wanders from run to run.
+// where a dump's frames were drawn at another size or shown in another number of frames a game frame, and where two
+// launches' shots of a picture that holds still differ by more than SHOT_SLACK (of 255, a grey pixel's mean). A shot
+// that differs by more from its .still, taken half a second later, is moving and isn't compared: a launch's moment
+// wanders by a frame or two, which a still picture doesn't show. Rush 2049's countdown on its first track, from three
+// launches each, read 0.1-1.0 apart within a launch's settings and 9-10 between Draw Distance, Level of Detail and
+// Scenery Culling at Original and at their defaults; its attract race, moving, 14-37.
 const SHOT_SLACK = 3;
 function restartCheck() {
   const lines = [], say = (s) => lines.push(s);
@@ -350,13 +356,15 @@ function restartCheck() {
     say(`dumps: ${shapes.map((s, i) => `${restartNames[i]} ${s.frames} frames at ${s.size}, ${s.count} a game frame`).join('; ')}`);
     for (const k of ['size', 'count']) if (new Set(shapes.map((s) => s[k])).size > 1) fail(`the runs' frames differ in ${k}`);
   } else say('dumps: not in every run (a build without RT64_FRAME_DUMP), so only the shots compare the pictures');
-  const shots = fs.readdirSync(path.join(out, 'first')).filter((f) => f.endsWith('.png'));
+  const shots = fs.readdirSync(path.join(out, 'first')).filter((f) => f.endsWith('.png') && !f.endsWith('.still.png'));
   for (const s of shots) {
     const files = restartNames.map((n) => path.join(out, n, s));
-    if (!files.every((f) => fs.existsSync(f))) { say(`shot ${s}: not in every run`); continue; }
-    const [a, b, c] = files.map(thumb), first = mae(a, b), noise = mae(b, c);
-    const bad = first > 2 * noise + SHOT_SLACK;
-    (bad ? fail : say)(`shot ${s}: first launch against the restart ${first.toFixed(2)}, the restart against the next start ${noise.toFixed(2)}`);
+    if (!files.every((f) => fs.existsSync(f) && fs.existsSync(f.replace(/\.png$/, '.still.png')))) { say(`shot ${s}: not in every run`); continue; }
+    const pics = files.map(thumb), moved = files.map((f, i) => mae(pics[i], thumb(f.replace(/\.png$/, '.still.png'))));
+    if (Math.max(...moved) > SHOT_SLACK) { say(`shot ${s}: moving (${moved.map((m) => m.toFixed(1)).join(', ')} in half a second), not compared`); continue; }
+    const apart = [[0, 1], [1, 2], [0, 2]].map(([i, j]) => `${restartNames[i]}-${restartNames[j]} ${mae(pics[i], pics[j]).toFixed(1)}`);
+    const worst = Math.max(...[[0, 1], [1, 2], [0, 2]].map(([i, j]) => mae(pics[i], pics[j])));
+    (worst > SHOT_SLACK ? fail : say)(`shot ${s}: launches apart ${apart.join(', ')}`);
   }
   if (!shots.length) say('shots: none in the plan, so the pictures aren\'t compared');
   say(failed ? 'restart check: FAILS' : 'restart check: passes');
