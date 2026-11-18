@@ -1269,6 +1269,7 @@ rt64 9ed78c7           a framebuffer's pixels are shaped as the TV shows them (V
                        512x240 (x scale 0x333), shown at 2.13:1 and widened from there; it is 4:3 now. A square
                        framebuffer's is 1, so every other game draws as before
 N64ModernRuntime       an event no queue was set for (osSetEventMesg never called for it) sends nothing, as libultra's
-d6eacda                dispatch skips it: the thread that took a message with a null queue crashed reading its count.
-                       Excitebike 64's scheduler sets no queue for OS_EVENT_SP, and its first RSP task crashed the game
+d6eacda, d659ead       dispatch skips it: the thread that took a message with a null queue crashed reading its count.
+                       Excitebike 64's scheduler sets no queue for OS_EVENT_SP, and its first RSP task crashed the game.
+                       It is dropped in do_send, where every message reaches its queue in every runtime version
 ```
