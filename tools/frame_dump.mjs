@@ -21,7 +21,9 @@
 //
 // --window gives each run's window: one size is one run, frame_check reading its dump alone; three are three runs of
 // the plan, the first checked with the second as --narrower (a 4:3 window) and the third as --wider (32:9), the check
-// of the frames between the game's and the sides asks for. With --window the plan's size steps are skipped. Without it each run is the plan's own size steps
+// of the frames between the game's and the sides asks for. Two are tools/seam_check.mjs's: the first at 4 times the
+// console's resolution or more (1280x960) and the second at its own (320x240), the first checked for seams thinner
+// than a console pixel that the second lacks (its header says how), and --check's arguments are seam_check's. With --window the plan's size steps are skipped. Without it each run is the plan's own size steps
 // from a 1280x720 window.
 //
 // The plan is tools/capture_window.ps1's (its header has every step), its times in seconds since the program started:
@@ -73,7 +75,7 @@ const rom = path.resolve(need('--rom')), planFile = path.resolve(need('--plan'))
 const windows = opt('--window') ? opt('--window').split(',').map((s) => s.split('x').map(Number)) : null;
 const rate = Number(opt('--rate', 240));
 const here = path.dirname(new URL(import.meta.url).pathname);
-const runNames = ['main', 'narrower', 'wider'];
+const runNames = windows?.length === 2 ? ['main', 'low'] : ['main', 'narrower', 'wider'];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (s) => console.log(s);
 
@@ -286,17 +288,18 @@ async function dumps(signal) {
 }
 
 function check(made) {
-  const a = [path.join(here, 'frame_check.mjs'), made[0]];
+  const a = [path.join(here, made.length === 2 ? 'seam_check.mjs' : 'frame_check.mjs'), made[0]];
+  if (made.length === 2) a.push('--low', made[1]);
   if (made.length === 3) a.push('--narrower', made[1], '--wider', made[2]);
-  if (opt('--workers')) a.push('--workers', opt('--workers'));
+  if (opt('--workers') && (made.length !== 2)) a.push('--workers', opt('--workers'));
   a.push('--save', path.join(out, 'flagged'), ...(opt('--check') ?? '').split(/\s+/).filter(Boolean));
-  log(`frame_check ${a.slice(1).join(' ')}`);
+  log(`${path.basename(a[0], '.mjs')} ${a.slice(1).join(' ')}`);
   let code = 0, text;
   try { text = execFileSync(process.execPath, a, { maxBuffer: 1 << 28 }).toString(); }
   catch (e) { code = e.status ?? 1; text = (e.stdout ?? '').toString() + (e.stderr ?? '').toString(); }
-  fs.writeFileSync(path.join(out, 'frame_check.txt'), text);
+  fs.writeFileSync(path.join(out, `${path.basename(a[0], '.mjs')}.txt`), text);
   process.stdout.write(text);
-  log(`frame_check exited ${code}`);
+  log(`${path.basename(a[0], '.mjs')} exited ${code}`);
   return code;
 }
 
@@ -317,7 +320,7 @@ try {
     const spec = (type, label, vramMiB) => ({ type, label, vramMiB, model: gameId, priority: opt('--priority', 'low'),
       ...(vramMiB === 'auto' ? { guessMiB: 1024 } : {}), ramMiB: capMiB(),
       url: opt('--url') || undefined, ref: process.env.HOSTNAME,
-      onUpdate: (j) => j.state === 'waiting' && log(`queue: ${type} waiting, ${j.ahead} ahead: ${j.why?.text ?? 'going next'}`) });
+      onUpdate: (j) => j.state === 'waiting' && log(`queue: ${type} waiting, ${j.ahead} ahead${j.waitMs != null ? `, ~${Math.ceil(j.waitMs / 60000)} min` : ''}: ${j.why?.text ?? 'going next'}`) });
     const made = await gpuRun(spec('frame-dump', `Frame dump: ${gameId}`, opt('--vram', 'auto') === 'auto' ? 'auto' : Number(opt('--vram'))), (signal) => dumps(signal));
     code = dumping ? await gpuRun(spec('frame-check', `frame_check: ${gameId}`, 0), async () => check(made)) : 0;
   } else code = dumping ? check(await dumps(null)) : (await dumps(null), 0);
