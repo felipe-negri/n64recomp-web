@@ -221,6 +221,9 @@
 //   credits are, stays where it was and is fixed too, but only for the seconds each line is up. A dump without the
 //   HUD (a menu, a cutscene) has none at the sides and says so. Golf v0.1.1, its HUD left at 4:3, predates the frame
 //   dump.
+// - The pace of what moves through the frames drawn between the game's own: a part of the picture that steps at the
+//   game's rate while the rest moves on every frame, or that moves past where the game's frames have it or back and
+//   forth (tools/frame_pace.mjs, its header). It reads the one dump, after the checks above; --sides skips it.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
 // the pairing or the sides. frames.bin is read a frame at a time, those the workers have yet to match kept (a few a
@@ -236,6 +239,7 @@ import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { Worker, isMainThread, parentPort } from 'node:worker_threads';
+import { checkPace } from './frame_pace.mjs';
 
 // Before any worker starts, so each is made at it (the header says why). Best effort: a host that refuses keeps normal.
 if (isMainThread) try { os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* runs at normal */ }
@@ -1857,5 +1861,11 @@ for (const d of new Set([sidesOnly ? null : dir, narrowerDir, widerDir].filter(B
             `${p.seam[1]} of ${p.moving} frames where the scene moves` +
             (seamFails ? ': FAILS, something cut short of the picture\'s side' : '') :
             `no straight line along the view's sides in ${p.moving} frames where the scene moves`));
+}
+// The pace of what moves through the frames drawn between the game's own: tools/frame_pace.mjs, its header.
+if (!sidesOnly && fs.existsSync(path.join(dir, 'frames.bin'))) {
+    const pace = await checkPace(dir, { from, to, workers, saveDir });
+    pace.lines.forEach((l) => console.log(l));
+    failed ||= pace.failed;
 }
 process.exit(failed ? 1 : (untested ? 2 : 0));

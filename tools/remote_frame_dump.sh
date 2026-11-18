@@ -58,10 +58,10 @@ remote() { ssh -o BatchMode=yes "$host" "$@"; }
 remote "docker image inspect $image >/dev/null 2>&1 || docker build -q -t $image - >/dev/null" \
     < "$here/frame_dump.Dockerfile"
 
-# What the container reads, in one tar: the three scripts, the plan, the settings, the queue's client.
+# What the container reads, in one tar: the four scripts, the plan, the settings, the queue's client.
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
-cp "$here/frame_dump.mjs" "$here/frame_check.mjs" "$here/seam_check.mjs" "$stage/"
+cp "$here/frame_dump.mjs" "$here/frame_check.mjs" "$here/frame_pace.mjs" "$here/seam_check.mjs" "$stage/"
 cp "$plan" "$stage/plan.txt"
 args=()
 while [[ $# -gt 0 ]]; do
