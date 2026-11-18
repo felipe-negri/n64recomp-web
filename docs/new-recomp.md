@@ -48,7 +48,7 @@ items by almost no game when the record began.
 | Perfect Dark | 2a fails, 4c, 8a fails | W5 fails, W6's Drive |
 | Super Mario 64 | 2a fails | W5 fails, W6's Drive |
 | F-Zero X | 2a | W6's Drive |
-| Mario Party | 2a fails, 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
+| Mario Party | 2a, 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Mario Party 2 | 2a fails, 4c, 5b, 6a, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
 | Mario Party 3 | 2a fails, 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Super Smash Bros. | 2a | W6's Drive |
@@ -364,8 +364,8 @@ What it looks for:
   world goes on past the view (a course, a field, a race; Rayman 2's Fairy Glade), and a sides fail is looked at in
   the 32:9 dump's frames before it is called the game's. A game that culls nothing by the window fails it as one
   culled to 4:3 does, x1.00 or so (Paper Mario's opening, Dinosaur Planet, Smash Bros.' stage), and nothing in the
-  32:9 dump alone was found to tell the two apart (frame_check's header has what was tried), so its fail is looked at
-  the same way.
+  32:9 dump alone, nor the whole objects the 4:3 one draws past the view, was found to tell the two apart (frame_check's
+  header has what was tried), so its fail is looked at the same way.
   San Francisco Rush 2049's dumps brought two more holes in the tools to light. Its frames come back in two sizes by
   turns, the picture the same in both with black past it (RT64's targets are larger than the picture), and
   frame_check, which started over at each change of size, matched 422 of 2150 frames; it now cuts every frame to the
@@ -378,18 +378,170 @@ What it looks for:
   flags broken into shards between the game's frames (its v0.1.67, src/node_interpolation.cpp) is not caught: in
   PRACTICE's chase view only their lower edge is in the picture, and the build without the fix flags no more frames
   there than the build with it.
-  Mario Party 1, 2 and 3 fail 2a on their main, built at v0.226.0 and played at 59 Hz through the opening, title,
-  menus, the first board and its minigame (filed): the board's letterbox wipe between turns in 1 and 2 (5 and 13
-  frames within a second), 2's minigame roulette, and 3's item menu, whose frame between draws the cursor on an
-  option neither neighbour has. Their triangles test nothing at the sides: a board's picture past the 4:3 view is
-  its 2D background, 5-12 triangles a workload. frame_check reads each dump's frames there too (its header, the
-  picture at the 4:3 view's sides), which needs no second run to agree: Mario Party 3's Chilly Waters at 32:9 passes,
-  and fails with the board's tiles picked under 4:3 alone, as boards were drawn before the engine widened them; its
+  Mario Party 1, 2 and 3, on their main built at v0.226.0 and played at 59 Hz through the opening, title, menus,
+  the first board and its minigame, first failed 2a on frame_check's own misreadings, not pairing faults: the
+  board's letterbox wipe between turns, a strip grown from the middle whose edge pixels blend black and board, a
+  menu's cursor stepped from option to option and held on each, and the game's own frames changing in a step faster
+  than a block's match follows (Mario Party 2's warp pipes, Mario Party's turn order dice). frame_check now reads
+  those rightly (its header), and Mario Party passes them (its sides left to a 32:9 play); Mario Party 2 fails on
+  its opening's two camera cuts, drawn with the camera partway from one shot to the next (filed), and Mario Party 3
+  on its party setup's spinning star, whose frames between draw its BONUS sign face-on and a second outline neither
+  game frame has (filed). Their triangles test nothing at the sides: a board's picture past the 4:3 view is its
+  2D background, 5-12 triangles a workload. frame_check reads each dump's frames there too (its header, the picture
+  at the 4:3 view's sides), which needs no second run to agree: Mario Party 3's Chilly Waters at 32:9 passes, and
+  fails with the board's tiles picked under 4:3 alone, as boards were drawn before the engine widened them; its
   opening passes, and fails without mario-party-engine 245ec52's scissor, a band of background along the 3D's sides.
-  Mario Party 3's opening
-  without its models' tags (lib/mario-party-engine's model_ids.cpp) was flagged under the 4 blocks a frame needs, a
-  small star drawn where neither neighbour has it, every frame between for 0.3 s; frame_check now counts small
-  flags that recur in one place (its header).
+  Mario Party 3's opening without its models' tags (lib/mario-party-engine's model_ids.cpp) was flagged under the 4
+  blocks a frame needs, a small star drawn where neither neighbour has it, every frame between for 0.3 s;
+  frame_check now counts small flags that recur in one place, and fails flags drawn between that keep coming back
+  to one place, 4 within 5 s (its header): the setup star's come at most 2 within a second.
+  Perfect Dark, Super Mario 64, F-Zero X, Super Smash Bros., Paper Mario and Dinosaur Planet were played for 2a on
+  desktop builds of their main with N64Recomp-browser v0.229.0, each also built without a fix it took for one of 2a's
+  faults, to see the check fail it. It fails Super Mario 64's title without its head's pairing (586 of 1085 frames),
+  F-Zero X's race without its racers' (986 of 2197), Paper Mario's opening drawn in parts without
+  `RT64_GAME_FRAME_WORKLOADS` (1204 of 1504), Dinosaur Planet's map blocks paired across an origin step (a lone frame,
+  its header) and Super Mario 64's objects culled at 4:3 (x1.00, x2.99 with the fix). Builds with the fixes failed it
+  falsely too, and no longer do: a repeat of the game's picture read as a frame between, a HUD over a scene moving
+  behind it, sparkles the game draws anew each frame, a dialog box opening read as a cut (its header).
+  On main, Super Mario 64 fails 2a: its title's frames between draw Mario's head turned and winking as it first
+  appears, and sparkles neither neighbour has (filed). Perfect Dark fails it: Defection's 3D isn't widened past the
+  game's own shape in a 16:9 window, its HUD out at the window's sides on black (filed); its pairing is untested,
+  since it runs at 60 in its levels and a 60 Hz display draws no frame between (a dump at a set rate, filed). F-Zero X
+  (dumped at a rate of 120 set in a local RT64 build) and Super Smash Bros. are left 2a, each on a fail frame_check
+  still reads falsely: F-Zero X's fixed race flags 20 of 2669 frames, 14 within a second in a tunnel, the game's own
+  frames with a few blocks along its HUD over a texture changing fast (144 before the fixes above), and Smash's camera
+  zooming fast reads as a cut drawn partway, 3.3 times as far as the game's frames either side and 0.12 of the picture
+  new, where F-Zero X's real cut drawn partway without its fix reads 3.2 and 0.12 (filed). F-Zero X's race draws
+  too little past the 4:3 view to test the sides, and Smash's stage culls nothing by the window, but its fix culls
+  fighters, which no scene played had at the picture's side. Paper Mario and Dinosaur Planet pass: their sides read
+  x1.00 since neither culls by the window, their world drawn to the 32:9 picture's edges.
+
+### 3. Every controller its own port
+
+A game of several players plays each controller as a port of its own, as a console does: with two pads plugged in,
+the second pad plays port 2 without anyone assigning players first, and the game's multiplayer offers a player for
+each. RecompFrontend's `RECOMPINPUT_PADS_IN_ORDER` does that (set before `add_subdirectory` of RecompFrontend, with
+`RECOMPINPUT_SINGLE_PLAYER_UNTIL_ASSIGNED`, `set_single_player_mode(false)` and the game's player count), and the
+game's `get_connected_device_info` reports a controller in port 1, in each port a pad is connected for
+(`get_detected_controller_count`) and in each assigned player's, each with a Rumble Pak in it unless the game keeps
+its save on a Controller Pak there (5a): a game that finds no Rumble Pak (`osMotorInit`) never rumbles for that
+player. F-Zero X's, Super Smash Bros.' and Mario Party's `main.cpp` are the pattern. A game whose pads become
+players on their first press (per-pad bindings) can keep that and join every connected pad in the order it was
+plugged in on any pad's first press instead (Rush 2049's `RecompFrontend-0009` runtime patch). Single-player mode,
+where every pad plays port 1, is for a game of one player only. The page plays it with stand-in pads (W7), their
+rumble included.
+
+### 4. Input
+
+- **4a.** On a new profile: mouse look on and pointing the way the game's stick does, and keyboard defaults that reach
+  every menu (the arrows and the D-pad's keys) as well as play.
+- **4b.** Start or Enter pressed or held through the boot: many games open their Controller Pak manager for it, which
+  must neither crash nor stop the game. The launcher's own Enter on Start Game can be that press: Turok: Dinosaur
+  Hunter's first read of the pad comes while the key is still down, so a game started with Enter opened its manager
+  every time (Start leaves it).
+- **4c.** Bindings are kept across a restart and a pad plugged in again, two pads of one model included, and a pad
+  plugged in again plays the port it played before. A page plays the pads with no pad on the machine: W7's stand-in
+  pads, one pulled out and plugged in again by `unplugPad` and `replugPad`, a binding written to the controls file
+  (`<HOME>/.config/<program id>/controls.json`, the page's `FS`) and read back on the same profile's next visit.
+
+### 5. Saves and settings
+
+- **5a.** The game finds its save (EEPROM, SRAM, flash or Controller Pak) again after a restart of the desktop build
+  (the page's is W6), and a Controller Pak and a Rumble Pak work together if the game uses both.
+- **5b.** A first launch's settings are the defaults in effect, not only on disk: librecomp writes them out without
+  calling the options' change callbacks, so an option read only in its callback keeps its C++ starting value until
+  the next launch. Checked on a new profile, on the desktop and on the page.
+
+### 6. Timing and sound
+
+- **6a.** libultra's `osSetTime` is named in the game's syms (it is often missed), so the runtime sees the game set
+  its clock, and time spent in the launcher before Start Game doesn't reach the game's clock (an attract demo that
+  skips ahead, a game that runs fast for a while). Checked by waiting two minutes in the launcher first, and below full
+  speed. A game that never calls it passes where nothing a player sees reads `osGetTime` (Mario Party's only
+  performance meter does).
+- **6b.** No sound lost or turned to noise on the desktop through the boot and a window dragged (the page's is W5). On
+  Windows a drag holds the window's thread in the move loop that a `WM_SYSCOMMAND` `SC_MOVE` posted to the window
+  starts as well, which a script holds and ends (Escape) without the mouse, and SDL's disk driver
+  (`SDL_AUDIODRIVER=disk`, `SDL_DISKAUDIOFILE`) records what the game played, its gaps as runs of zeros
+  (`tools/capture_window.ps1`'s `drag`). A gap is a loss only where a recording of the same boot without drags has
+  none (a game's own cut to its attract demo is a run of zeros too, as Turok: Dinosaur Hunter's is) and a second drag
+  play loses it again: Turok 3's first lost 65 ms in a drag over its title music beside a page play at 3840 wide, and
+  two more lost nothing.
+- **6c.** The sound keeps pace on the desktop: through a minute of play (its menus and a level) no buffer is dropped by
+  `queue_samples`' catch-up past 100 ms queued, and no sound goes onto an empty queue. A game that sends nothing for
+  a while empties it, as Super Mario 64 does for 66 ms at each screen change, where a console's AI plays nothing too:
+  that passes where the sound after it starts with a cushion queued. The catch-up drops every other sample of a
+  buffer, a click with no gap in it, so 6b's gap search misses it, and SDL's disk driver plays slower than real
+  time, so its recording never shows a queue that runs dry: read on the sound device, by a log of the frames queued
+  beside each buffer, which `tools/sound_pace.sh` takes from a released Windows archive with no test build (a stand-in
+  SDL2.dll), on a quiet host: beside builds a game runs below full speed and any queue runs dry. A queue that runs dry
+  only inside the game's own silence (a scene change's fade) passes. Mario Golf's sound library made 552 samples a
+  retrace where 533 play, leaving its pace to the audio FIFO's full status, which the runtime never sets, and clicked
+  about four times a second until its `patches/audio.c` (its CLAUDE.md, Sound).
+
+### 7. The page
+
+The web port list, every item of it.
+
+### 8. The release
+
+- **8a.** The desktop build runs on Windows and on Linux, Mesa's lavapipe included: its release's boot
+  (`tools/boot_release.sh`, 90 s) passes on both. A build whose pin is older than plume a8e74eb crashes on lavapipe
+  seconds into its game (docs/findings.md, A desktop build on Mesa's lavapipe), so it fails until an update moves it.
+- **8b.** Its icon, window title and launcher art are its own game's, not the recomp it was started from.
+- **8c.** Its README links its page.
+
+## The web port list
+
+Every game's page, a game fork's or a recomp of the project's own, is checked for each. W2, W5, W6 and W7 are one
+short play a browser: `bash tools/play_pages.sh <rush-2049-recomp checkout> chrome <game> --backcheck`, and again with
+`firefox` (`play_page.mjs --backcheck`, its header), from Pages on a fresh profile, which prints a verdict for each and
+records the run in `plays.jsonl`. Firefox's play is W5's alone; a save reaching the Drive (W6) is a signed-in
+player's, played by hand.
+
+- **W1.** It draws at the display's rate and the canvas's size whatever the recomp's desktop build defaults to
+  (Framerate Display, resolution Auto: the README's The recomp's own code): played uncapped in Chrome, it presents
+  well above its game's own rate.
+- **W2.** Its canvas is in CSS pixels (no `SDL_WINDOW_ALLOW_HIGHDPI`, docs/porting.md): at `--scale 2`
+  (`tools/page_driver.mjs`) Load ROM opens the file picker and the launcher takes clicks where they land (Wave Race
+  64's opened nothing).
+- **W3.** A prebuilt shader list (docs/porting.md, Prebuilt shader lists), in sections a level or an area for a game
+  of many levels, its header saying what was played and what not: the regular plan played on a fresh profile misses
+  none (`shaderMisses`), and what the sweep plays (the attract demo, pause, the Controller Pak manager, weapons and
+  moves, each aspect ratio) is in it.
+- **W4.** Render to RAM chosen, and why written beside the call: each display list's copy of its frame into RDRAM
+  waits 5-6 ms for the browser's readback (README, The recomp's own code), and left at RT64's default it is the exact
+  copy with no reason anyone gave. Off where the game's CPU never reads a frame it drew, nor writes into one
+  (`set_render_to_ram(false)`, and in a recomp of the project's own off on the desktop build too, where it is a second
+  draw of every frame: Rush 2049's and Super Mario 64's Copy Frames to RAM option, Off by default). Else the copy a
+  list late on the page, where the game can take a frame one list old (`set_render_to_ram_late(true)`, played through
+  its levels and the console's reports of CPU writes to a framebuffer with a copy pending read). Else the exact copy,
+  naming what reads it (Majora's Mask's Pictograph Box, Jet Force Gemini's shadows' render targets).
+- **W5.** No sound lost or turned to noise: none short in the boot's first 10 s in Chrome and Firefox
+  (`audioShort`), nor after the tab is hidden and shown again. A loss inside the game's own silence (a boot's silent
+  logos) is no sound lost: `tools/audio_probe.js` logs each short render quantum with the loudest sample played
+  before it, 0 there. Nor is Firefox's wait for a later section of the prebuilt list (`play_page.mjs`'s
+  `shaderWaits` past the boot's, RT64's "building N prebuilt shaders for section X, the game waiting"): the game is
+  held under the page's panel as at a load, its sound with it, since a held game makes none (docs/findings.md,
+  Firefox's boot wait and the first sound). The stray rounds of section (none), a few shaders at a time in the middle
+  of play, are still sound lost.
+- **W6.** The game finds its save after the page is reloaded and after the browser is closed and opened again, and a
+  signed-in player's save reaches the Drive and comes back in another browser (`frontend/save_sync.js`).
+- **W7.** A stand-in pad (`tools/gamepad_probe.js`) drives the launcher, the menus and play, its rumble played; a game
+  of several players has a pads plan that plugs a pad a port (Super Smash Bros.' `tools/play_plan_pads.json`, item 3).
+- **W8.** A regular plan (docs/playing.md, Plans) that reaches a level as a player does and plays a minute or more in
+  it, and a shader list recorded on what it plays. The levels past the plan's go into the list when a card's play
+  reaches them, never as work of their own: a shader the list misses costs Firefox 0.2-0.3 s once, Chrome draws it
+  with the ubershader until it is built, and the page remembers it (docs/porting.md, Prebuilt shader lists). An
+  extended plan is no part of it either: a game gets one when a card first needs a longer play.
+- **W9.** A long play, over 3 minutes of the game's busiest screens at 3840 wide, in Chrome and in Firefox, without
+  running out of memory or a "memory access out of bounds".
+- **W10.** Firefox played on its own and from Pages: black frames, white edges, traps and freezes have turned up there
+  and in no other browser.
+- **W11.** Its place on the hub and on GitHub: a Games row and an entry in `site/news.html` (docs/playing.md, The games
+  page), its tile's art or a title card and its score; a game fork's README opens with its banner and its GitHub
+  game frame has (filed). Their triangles test nothing at the sides: a board's picture past the 4:3 view is its 2D
+  background,,
   Perfect Dark, Super Mario 64, F-Zero X, Super Smash Bros., Paper Mario and Dinosaur Planet were played for 2a on
   desktop builds of their main with N64Recomp-browser v0.229.0, each also built without a fix it took for one of 2a's
   faults, to see the check fail it. It fails Super Mario 64's title without its head's pairing (586 of 1085 frames),

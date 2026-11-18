@@ -8,7 +8,7 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Twenty-three options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Twenty-four options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
@@ -17,7 +17,8 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
 2d2db0c, d798d28, a17b46a, 952d327, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4,
-1682468, which it turns on too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
+1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES` (rt64 9ef2024,
+a86c053, ff78e32, which it turns on too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
 `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
@@ -1225,6 +1226,22 @@ rt64 21ed4b9           RT64_SKIP_PLACE_SWAPS: nor a pair of a transform whose ve
                        a frame
 rt64 3c875ec           TransformMap's verticesStill moved after its rigidBody: WWF No Mercy's rt64 adds fields after
                        mapped, and a field there too was its three-way merge's conflict (wwf-patches). It does the same
+rt64 5c90244           a scissor's left and right sides are on the pixel nearest them, as a rect's are and as its own
+                       top and bottom were, not floored and ceiled: where the picture's scale left an x off a whole
+                       pixel, the scissor took in a column on each side that a rect over the same x leaves out, and
+                       Mario Golf's course showed in a line down each side of the black screen its closed iris wipe
+                       draws in a wide window (x 8 on 56.9 of 2276). It takes in ae0a708's case
+rt64 9ef2024           RT64_INTERPOLATE_SCREEN_VERTICES: a screen position a game writes into a vertex (G_MODIFYVTX's
+                       XYSCREEN) is drawn between the game frame before's and its own, paired in the order the game
+                       wrote them through one projection: Mario Golf writes four corners of its pin's flagstick, which
+                       stood still on the screen a game frame at a time while the green moved under it, its foot
+                       sliding across the cup and back, four frames a game frame at 120 Hz
+rt64 a86c053           RT64_INTERPOLATE_SCREEN_VERTICES's function at the end of the projection processor, with no
+                       include of its own: Banjo-Tooie's own RT64 changes add lines where 9ef2024 put it and its
+                       include, and didn't apply over 9ef2024
+rt64 ff78e32           RT64_INTERPOLATE_SCREEN_VERTICES's function after the camera's eye helpers, the file's end as
+                       upstream has it: Beetle Adventure Racing's own RT64 changes end the file with a newline, and
+                       didn't apply over a86c053
 rt64 f0da42b           a present that takes a game frame whose frames a present has shown presents nothing, and the
                        screen holds its last frame: the VI showing a frame again showed them all again, the frame
                        between the game's first, from targets the next game frame was already drawn into, so
