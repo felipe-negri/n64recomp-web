@@ -16,8 +16,8 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7, c0d27e5),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
-2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 55cb360, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES` (rt64
-91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES` (rt64 9ef2024,
+2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 55cb360, c8742c7, which it turns on too), `RT64_EXPAND_SCREEN_VERTICES`
+(rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES` (rt64 9ef2024,
 a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on too),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
@@ -1282,6 +1282,7 @@ rt64 1ac724a           RT64_INTERPOLATE_RECT_SCROLLS: rects pair by their places
                        Mario Golf's credits draw each glyph and its shadow a pixel aside, and as a line came in at the
                        bottom the two swapped sizes there, the glyph paired with the shadow, and every other present
                        drew the line a pixel to the right
-rt64 55cb360           1ac724a's gameRect declared after the scissor's fields and set after loadDrawState(), with no
-                       reset: Jet Force Gemini's and SSSV's own RT64 changes touch the lines beside rect where it was
+rt64 55cb360, c8742c7  1ac724a's gameRect declared after the scissor's fields, with no reset, and set where drawRect()
+                       takes the draw call: Jet Force Gemini's, SSSV's and Beetle Adventure Racing's own RT64 changes
+                       touch the lines beside rect where it was, and the lines after loadDrawState()
 ```
