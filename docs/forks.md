@@ -1242,15 +1242,19 @@ rt64 a86c053           RT64_INTERPOLATE_SCREEN_VERTICES's function at the end of
 rt64 ff78e32           RT64_INTERPOLATE_SCREEN_VERTICES's function after the camera's eye helpers, the file's end as
                        upstream has it: Beetle Adventure Racing's own RT64 changes end the file with a newline, and
                        didn't apply over a86c053
+rt64 a00fdff           RT64_FRAME_DUMP reads back only the box of a present's color target the VI draws from, not the
+                       whole target: the targets of the frames drawn between the game's are kept at the largest size
+                       drawn, so Dinosaur Planet's at 1280x720 read 1692x960 and came out 564x320 beside the game's
+                       640x360, with the boot logos' text past the picture, and frame_check failed 6 of 2027
+rt64 9adecdf           RT64_FRAME_DUMP's sides.tsv counted the model matrices drawn wholly past the view's sides,
+                       reverted by 4de3122: the count didn't tell a game that culls nothing by the window from one
+                       culled to 4:3
 rt64 f0da42b           a present that takes a game frame whose frames a present has shown presents nothing, and the
                        screen holds its last frame: the VI showing a frame again showed them all again, the frame
                        between the game's first, from targets the next game frame was already drawn into, so
                        Mario Golf's menus now and then showed a character with a forearm gone for one frame
 rt64 ffc1447           f0da42b's shown at InterpolatedFrameCounters' end, past inUse, where Jet Force Gemini's own
                        field after skipped doesn't meet it
-rt64 9adecdf           RT64_FRAME_DUMP's sides.tsv counted the model matrices drawn wholly past the view's sides,
-                       reverted by 4de3122: the count didn't tell a game that culls nothing by the window from one
-                       culled to 4:3
 rt64 3f0181c           RT64_FRAME_DUMP_RATE=<Hz>, beside RT64_FRAME_DUMP: the swap chain's vsync off and its rate taken
                        as that one wherever RT64 sets it, so Framerate Display presents and interpolates at it whatever
                        the display's: a game of 60 on a 59-60 Hz display presented no frame between the game's, and
