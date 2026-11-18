@@ -30,18 +30,18 @@
 // It fails where frames with a seam come in RUN or more seconds in a row (the dump's own clock), one a second or more:
 // a seam belongs to a scene and comes back for as long as the scene is on screen, every frame of a flyover or once a
 // bob of a sign that moves, where a lone second's lines are a frame paired with the wrong low one or a flash. Mario
-// Golf's builds by one plan, a dump at 1280x960 against one at 320x240 (on Linux or Windows, either):
+// Golf's Windows releases by one plan, a dump at 1280x960 against one at 320x240, the game at 26-30 frames a second:
 //   - Through the title, the menus and hole 1's flyover to the first shot (35 s): v0.1.10, with issue 33's cracks,
-//     in 9 seconds, 6 in a row (92 of 990 frames); v0.1.11 in 1 (1 of 1103). v0.1.26 and v0.1.27 in 5 and 3, at most
-//     2 in a row: this plan leaves the main menu in a second.
+//     in 11 seconds, 7 in a row (96 of 1662 frames); v0.1.11 in none (0 of 1758).
 //   - Its main menu held 15 s: v0.1.26, whose bobbing MAIN MENU sign showed a line of sky across it in a frame drawn
 //     between the game's own (issue 76; rt64-web 0571b69 fixed it), in 12 seconds, all in a row (14 of 886 frames, one
 //     a bob); v0.1.27 in 1 (3 of 787, the ONE above, paired with a low frame where it differed).
+//
 // A seam that comes at one moment of an animation (a bob of a sign) comes only as often as the game reaches that moment,
 // so a high dump whose game ran slower than MIN_RATE of its own frames a second (the last of each present: a frame
 // drawn between them is RT64's) can't pass: it exits 2 unless it fails. Mario Golf's Linux builds on a host whose GPU a
-// training job held drew 2.4-2.9 game frames a second at 1280x960, against 30 on Windows on an idle one, and v0.1.26's
-// main menu there showed its sign's line in 1 of 472 frames.
+// training job held drew 2.1-2.9 game frames a second at 1280x960, against 26-30 on Windows on a busy host, and
+// v0.1.26's main menu there showed its sign's line in 1 of 472 frames.
 //
 // --from and --to keep the high dump's frames between those seconds, counted from its first; --save writes, for each
 // second with a seam, its frame with the most seam pixels as a PNG with its seams marked magenta (<t>-marked.png) and

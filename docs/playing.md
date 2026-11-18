@@ -53,7 +53,8 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   gap between two of the game's pieces showing what lies behind (terrain blocks a level of detail apart, a sliced
   sprite's strips a pixel apart), which frame_check can't see. It reads a dump of a plan at 4 times the console's
   resolution or more against one of the same plan at the console's own, and counts only the lines the second lacks;
-  `remote_frame_dump.sh` given two window sizes (`--window 1280x960,320x240`) makes both and runs it. Its header says
+  `remote_frame_dump.sh` given two window sizes (`--window 1280x960,320x240`) makes both and runs it. A dump whose game
+  ran slower than 10 of its own frames a second (a host whose GPU something else holds) can't pass. Its header says
   what it measured.
 
 ## Plans
