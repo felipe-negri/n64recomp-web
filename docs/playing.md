@@ -16,6 +16,17 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   viewport the page has (`innerWidth`, `innerHeight`), never to `--size`.
 - On Windows play_page reads the GPU from Windows' counters for the adapter the page draws with (by LUID), with
   nvidia-smi's GPU 0 beside it: on a laptop with two GPUs that one is the idle discrete GPU.
+- Where a Linux host with an NVIDIA GPU is at hand, pages are checked there and not on the machine that works on the
+  game: `tools/remote_play_page.sh` runs play_page.mjs or record_shaders.mjs in Chrome or Firefox in a container there
+  (`tools/page_play.Dockerfile`), on a page built there or one at a URL, and brings back only the output, the files
+  the play was told to write and the lines it recorded. Both draw WebGPU on the GPU through Vulkan into Xvfb, Chrome
+  in a window as Firefox is (headless, NVIDIA's driver gives Chrome no adapter: page_driver.mjs says why). Where the
+  host's GPU is shared through a queue each play is a job of it, sharing the GPU with other jobs (its header and
+  `tools/play_job.mjs`'s say how). Such a host checks a page (a smoke play, a Firefox play for crashes, a recording),
+  and doesn't measure one: every present there is copied into Xvfb on the CPU, which paces the page. Mario Golf's
+  page, uncapped in Chrome at 3840x2000 alone on an RTX 5090, presented 15-30 a second with the GPU a tenth busy at
+  its idle clock, where an RTX 2070 on Windows presents 240-275. A run there records `platform` and the GPU's name,
+  and is compared only with runs on Linux.
 - A page served from a build dir needs `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy:
   require-corp` (threads need SharedArrayBuffer); on Pages `coi_serviceworker.js` sets them after one reload. Look at a
   page with CDP `Page.captureScreenshot` of that page.
