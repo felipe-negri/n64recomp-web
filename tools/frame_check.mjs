@@ -45,7 +45,8 @@
 //   3's and Rush 2049's dumps it changes no verdict, and adds nothing to the ones that pass.
 //   Only frames presented between the game's own (Framerate Display, on a display faster than the
 //   game) are paired, so a dump without one (Framerate Original, a 60 Hz display under a game of 60) leaves pairing
-//   untested and exits 2, whatever else passes.
+//   untested and exits 2, whatever else passes. A game of 60 is dumped with RT64_FRAME_DUMP_RATE=120 set beside
+//   RT64_FRAME_DUMP, which presents at 120 with vsync off whatever the display's rate (rt64-web's rt64_frame_dump.h).
 // - Camera cuts drawn partway. A cut is two of the game's frames in a row far apart (a mean difference of 8 of 255
 //   after the best shift of one against the other) where the game's frames before and after them are at least twice as
 //   near: the camera jumps in one frame. RT64 interpolates a camera unless the game says it cut, so a cut the game
@@ -864,7 +865,8 @@ if (presented >= 3) {
     if (!between) {
         untested = true;
         console.log('frames: none presented between the game\'s own, so nothing tests how they are paired: dump at' +
-            ' Framerate Display on a display faster than the game');
+            ' Framerate Display on a display faster than the game, or with RT64_FRAME_DUMP_RATE=120 set too, which' +
+            ' presents at 120 whatever the display\'s rate (a game of 60 on a 60 Hz display)');
     }
     console.log(`unlike both neighbours: ${counted.length} of ${checked} frames, at most ${burst} within a second: ` +
         (fail ? 'FAILS' : 'passes') + (passing.length ? ` (${passing.length} more, not counted, where something passes` +
