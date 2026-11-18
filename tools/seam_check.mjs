@@ -30,9 +30,9 @@
 // It fails where frames with a seam come in RUN or more seconds in a row (the dump's own clock), one a second or more:
 // a seam belongs to a scene and comes back for as long as the scene is on screen, every frame of a flyover or once a
 // bob of a sign that moves, where a lone second's lines are a frame paired with the wrong low one or a flash. Mario
-// Golf's builds by one plan, a dump of 1280x960 against one of 320x240 in the same windows:
+// Golf's builds by one plan, a dump at 1280x960 against one at 320x240 (on Linux or Windows, either):
 //   - Through the title, the menus and hole 1's flyover to the first shot (35 s): v0.1.10, with issue 33's cracks,
-//     in 9 seconds, 6 in a row (120 of 990 frames); v0.1.11 in 1 (1 of 1103). v0.1.26 and v0.1.27 in 5 and 3, at most
+//     in 9 seconds, 6 in a row (92 of 990 frames); v0.1.11 in 1 (1 of 1103). v0.1.26 and v0.1.27 in 5 and 3, at most
 //     2 in a row: this plan leaves the main menu in a second.
 //   - Its main menu held 15 s: v0.1.26, whose bobbing MAIN MENU sign showed a line of sky across it in a frame drawn
 //     between the game's own (issue 76; rt64-web 0571b69 fixed it), in 12 seconds, all in a row (14 of 886 frames, one
