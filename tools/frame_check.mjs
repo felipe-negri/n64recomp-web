@@ -16,10 +16,11 @@
 // - Frames unlike both neighbours. Each frame is matched against the frames presented before and after it, block by
 //   block (8 pixels of a grey copy about 400 wide), each block to the best place within a few pixels of where the
 //   picture as a whole moved or of where the part around it moved (a screen split open from its middle, near and far
-//   parts of a scene), and each pixel of a block that matches neither whole to the nearest like it in either, about
-//   the block's place there or its own unmoved place (the edge of a wipe that moved, a picture that stretches, the edge
-//   of a HUD fixed on the screen over a world that moves: F-Zero X's race flags @FZX@ of its frames without the
-//   unmoved place, each at the edge of a HUD's figure): a block neither neighbour has anywhere near, where the
+//   parts of a scene), and each pixel of a block that matches neither whole to the nearest like it in either about the
+//   block's place there, and about its own unmoved place where the neighbours are alike there (the edge of a wipe that
+//   moved, a picture that stretches, the edge of a HUD fixed on the screen over a world that moves: 8 s of F-Zero X's
+//   race flag 39 of 767 frames at its HUD's figures without the unmoved place, 2 with it): a block neither neighbour
+//   has anywhere near, where the
 //   neighbours match each other there, is something drawn for that frame alone. A frame paired wrongly between the
 //   game's own (a model drawn halfway to a look-alike's place, a camera cut stretched, polygons torn), a frame drawn
 //   in parts, a frame of garbage or an old picture between two right ones all read so; the game's own motion, a fade,
@@ -27,10 +28,11 @@
 //   out, and a frame between that the last of its present (the game's own) repeats is the game's own picture, drawn a
 //   frame early. A frame whose neighbours are the game's own pictures as it is has nothing drawn between them to flag,
 //   and a few blocks flagged in one of the game's own aren't counted: Super Mario 64's Bob-omb Battlefield, whose
-//   dialogs draw the game's picture as the frame between, flagged @SMB@ of its frames. It fails where such frames are more than 1 in 100, or come 3 or more within a second: a one-frame flash a
-//   game draws is rare and alone, and a pairing fault shows in every frame drawn between the game's for as long as
-//   the scene lasts. A frame between two of the game's own that differ over a fifth to a half of the picture (the
-//   share of the newer one's blocks with nothing like them near in the older, as the camera cuts' check reads it), where
+//   dialogs draw the game's picture as the frame between, flagged 33 of its 2671 frames, 2 with this and the HUD's
+//   unmoved place above. It fails where such frames are more than 1 in 100, or come 3 or more within a second: a
+//   one-frame flash a game draws is rare and alone, and a pairing fault shows in every frame drawn between the game's
+//   for as long as the scene lasts. A frame between two of the game's own that differ over a fifth to a half of the
+//   picture (the share of the newer one's blocks with nothing like them near in the older, as the camera cuts' check reads it), where
 //   the game's frames before or after differ as much too, isn't counted, nor the game's frame at either end, and they are
 //   listed apart: something passing close to the camera, game frame after game frame, moves further from frame to
 //   frame than a block's match follows, and the frames between are the camera's own path. Turok: Dinosaur Hunter's
@@ -44,13 +46,15 @@
 //   apart. A fault drawn while something passes that close to the camera goes unseen. A frame between the game's own
 //   with fewer blocks than 4 counts where 3 others between, within a second either side, have theirs within 4 blocks
 //   of its: one small thing paired wrongly, again and again in one place, where the odd small block of a clean game
-//   lands anywhere, and only where its neighbours match each other in place around it (within R) in all but a tenth
-//   of the blocks within 4 of its: a field of sparkles the game redraws in new places every frame has a block or two
-//   unlike both in a different place in each, and Super Mario 64's title flagged @SMA@ of its frames for them. Mario Party 3's opening without its models' tags (lib/mario-party-engine's model_ids.cpp) draws a
-//   small star for a frame where neither neighbour has it, at one place in every frame between for 0.3 s, 1-2 blocks
-//   each: 23 of 689 frames flagged, 11 without this; with the tags, 3 of 654 either way. On Rayman 2's, Turok 2's and
+//   lands anywhere, and only where its neighbours match each other in place around it (within 3 pixels) in all but a
+//   tenth of the blocks within 4 of its: a field of sparkles the game redraws in new places every frame has a block or
+//   two unlike both in each frame, never where the last one's were, and Super Mario 64's title, sparkles over a still
+//   picture, flagged 58 of 1168 frames where it flags 22 with this and the rest below. Mario Party 3's opening without
+//   its models' tags (lib/mario-party-engine's model_ids.cpp) draws a small star for a frame where neither neighbour
+//   has it, at one place in every frame between for 0.3 s, 1-2 blocks each: 14 of 566 frames flagged, 10 within a
+//   second; with the tags, 1 of 467. On Rayman 2's, Turok 2's and
 //   3's and Rush 2049's dumps it changes no verdict, and adds nothing to the ones that pass. And a flagged frame
-//   between the game's own (not the last of its present, which is the game's) that is unlike the whole picture either
+//   between the game's own (not the game's own picture) that is unlike the whole picture either
 //   side of it, by 10 of 255 at the least and 3 times as much as those two differ from each other, fails alone: a pairing
 //   fault that comes once per event, not once per frame. Dinosaur Planet's map blocks paired with a look-alike across a
 //   step of its world's origin (its src/game/interpolation.cpp before its block groups) draw a cliff over the camera for
@@ -80,7 +84,8 @@
 //   boxes, 0.13-0.16 of the picture, 0.94-0.98 of the rest in place, 29-37 times either side), where a cut moves its
 //   rest (0.00-0.17). Super Smash Bros.' camera zooming fast onto a fighter reads as a cut, 0.12 of the picture at 3.3
 //   times either side and 0.63 in place, as F-Zero X's cut drawn partway on its build without its pairing fix does at
-//   0.12, 3.2 and 0.56: nothing here tells them apart, so its frame between fails as that one's does. A near object passing the camera changes the picture as much and only in part, and its frames
+//   0.12, 3.2 and 0.56: nothing here tells them apart, so its frame between fails as that one's does. A near object
+//   passing the camera changes the picture as much and only in part, and its frames
 //   between are the camera's own, rightly drawn: Turok: Dinosaur Hunter's title fly-over goes through a leaf between
 //   two of the game's frames, changing 0.35 of the picture, 2.4 times as far as either side, and the frame drawn between
 //   them is the leaf, 0.94 unlike both. A cut to a shot that shares much of the old one's picture changes less of it,
@@ -884,7 +889,8 @@ function middleBad(gw, gh, a, c, b) {
         let n = 0;
         for (let by = 1; by < bh - 1; by++) {
             for (let bx = 1; bx < bw - 1; bx++) {
-                if (!bad.some((k) => (Math.abs(k % bw - bx) <= NEAR_BLOCKS) && (Math.abs(Math.floor(k / bw) - by) <= NEAR_BLOCKS))) {
+                const near = (k) => (Math.abs(k % bw - bx) <= NEAR_BLOCKS) && (Math.abs(Math.floor(k / bw) - by) <= NEAR_BLOCKS);
+                if (!bad.some(near)) {
                     continue;
                 }
                 n++;
@@ -1015,7 +1021,8 @@ if (presented >= 3) {
     const fail = (counted.length * 100 > checked) || (burst >= 3) || (lone.length > 0);
     failed ||= fail;
     console.log(`frames: ${presented} presented over ${(last.t - first.t).toFixed(1)} s, ${between} of them between the` +
-        ` game's own (${repeats} repeats, ${dropped} dropped by the dump, ${drawn} of them kept that aren't the game's picture repeated), ${[...sizes].join(', ')}`);
+        ` game's own (${repeats} repeats, ${dropped} dropped by the dump, ${drawn} of them kept that aren't the game's` +
+        ` picture repeated), ${[...sizes].join(', ')}`);
     if (few) {
         untested = true;
         console.log(`frames: ${drawn ? `only ${drawn} of ${checked}` : 'none'} drawn between the game's own, so too few test how` +
@@ -1047,7 +1054,8 @@ if (presented >= 3) {
     if (!quiet) {
         for (const p of cuts) {
             console.log(`  present ${p.f.presentId} at ${p.f.t.toFixed(2)} s (frame ${p.f.n}): ${p.D.toFixed(1)} apart, ` +
-                `${p.jump.toFixed(1)} times either side, ${p.whole.toFixed(2)} of its blocks (${p.still.toFixed(2)} of the rest in place), between them ${p.partway.toFixed(2)} of that unlike both` + ((p.partway >= CUT_PARTWAY) ? ', PARTWAY' : ''));
+                `${p.jump.toFixed(1)} times either side, ${p.whole.toFixed(2)} of its blocks ` +
+                `(${p.still.toFixed(2)} of the rest in place), between them ${p.partway.toFixed(2)} of that unlike both` + ((p.partway >= CUT_PARTWAY) ? ', PARTWAY' : ''));
         }
     }
 }

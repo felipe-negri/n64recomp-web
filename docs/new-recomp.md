@@ -45,18 +45,18 @@ items by almost no game when the record began.
 | Game | New recomp: left | Web port: left |
 |---|---|---|
 | San Francisco Rush 2049 | 2a fails, 4c fails, 8a fails | W5, W6's Drive |
-| Perfect Dark | 2a, 4c, 8a fails | W5 fails, W6's Drive |
-| Super Mario 64 | 2a | W5 fails, W6's Drive |
-| F-Zero X | 2a | W6's Drive |
+| Perfect Dark | 2a fails, 4c, 8a fails | W5 fails, W6's Drive |
+| Super Mario 64 | 2a fails | W5 fails, W6's Drive |
+| F-Zero X | 2a's sides | W6's Drive |
 | Mario Party | 2a fails, 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
 | Mario Party 2 | 2a fails, 4c, 5b, 6a, 8a, 8b, 8c fails | W5 fails, W6's Drive, W8 |
 | Mario Party 3 | 2a fails, 4c, 5b, 6a, 8a, 8b, 8c fails | W6's Drive, W8 |
-| Super Smash Bros. | 2a | W6's Drive |
-| Paper Mario | 2a, 4a, 4c, 6b | W5 fails, W6's Drive |
+| Super Smash Bros. | 2a's sides | W6's Drive |
+| Paper Mario | 4a, 4c, 6b | W5 fails, W6's Drive |
 | Mario Golf | | W6's Drive |
 | Rayman 2 | 2a fails | W5 fails, W6's Drive |
 | Donald Duck: Goin' Quackers | 2, 5b | W5 fails, W6's Drive |
-| Dinosaur Planet | 2a | W5 fails |
+| Dinosaur Planet | | W5 fails |
 | Turok: Dinosaur Hunter | 2a fails, 5a | W5 fails, W6's Drive |
 | Turok 2: Seeds of Evil | 2 fails, 2a fails, 4c, 5a | W5 fails, W6's Drive |
 | Turok 3: Shadow of Oblivion | 2a's sides, 4c, 5a | W5 fails, W6's Drive |
@@ -386,6 +386,23 @@ What it looks for:
   without its models' tags (lib/mario-party-engine's model_ids.cpp) was flagged under the 4 blocks a frame needs, a
   small star drawn where neither neighbour has it, every frame between for 0.3 s; frame_check now counts small
   flags that recur in one place (its header).
+  Perfect Dark, Super Mario 64, F-Zero X, Super Smash Bros., Paper Mario and Dinosaur Planet were played for 2a on
+  desktop builds of their main with N64Recomp-browser v0.229.0, each also built without a fix it took for one of 2a's
+  faults, to see the check fail it. It fails Super Mario 64's title without its head's pairing (586 of 1085 frames),
+  F-Zero X's race without its racers' (FZX_WITHOUT), Paper Mario's opening drawn in parts without
+  `RT64_GAME_FRAME_WORKLOADS` (1204 of 1504), Dinosaur Planet's map blocks paired across an origin step (a lone frame,
+  its header) and Super Mario 64's objects culled at 4:3 (x1.00, x2.99 with the fix). Builds with the fixes failed it
+  falsely too, and no longer do: a repeat of the game's picture read as a frame between, a HUD over a scene moving
+  behind it, sparkles the game draws anew each frame, a dialog box opening and a fast zoom read as cuts (its header).
+  On main, Super Mario 64 fails 2a: its title's frames between draw Mario's head turned and winking as it first
+  appears, and sparkles neither neighbour has (filed). Perfect Dark fails it: Defection's 3D isn't widened past the
+  game's own shape in a 16:9 window, its HUD out at the window's sides on black (filed); its pairing is untested,
+  since it runs at 60 in its levels and a 60 Hz display draws no frame between (a dump at a set rate, filed). F-Zero X
+  (dumped at a rate of 120 set in a local RT64 build) and Super Smash Bros. pass the frames between and the cuts
+  (FZX_SSB); F-Zero X's race draws too little past the 4:3 view to test the sides, and Smash's stage culls nothing by
+  the window, but its fix culls fighters, which no scene played had at the picture's side, so both are left the
+  sides. Paper Mario and Dinosaur Planet pass: their sides read x1.00 since neither culls by the window, their world
+  drawn to the 32:9 picture's edges.
 
 ### 3. Every controller its own port
 
