@@ -1242,4 +1242,8 @@ rt64 a86c053           RT64_INTERPOLATE_SCREEN_VERTICES's function at the end of
 rt64 ff78e32           RT64_INTERPOLATE_SCREEN_VERTICES's function after the camera's eye helpers, the file's end as
                        upstream has it: Beetle Adventure Racing's own RT64 changes end the file with a newline, and
                        didn't apply over a86c053
+rt64 a00fdff           RT64_FRAME_DUMP reads back only the box of a present's color target the VI draws from, not the
+                       whole target: the targets of the frames drawn between the game's are kept at the largest size
+                       drawn, so Dinosaur Planet's at 1280x720 read 1692x960 and came out 564x320 beside the game's
+                       640x360, with the boot logos' text past the picture, and frame_check failed 6 of 2027
 ```
