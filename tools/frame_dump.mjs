@@ -107,20 +107,21 @@
 //   <s> answer <name> <control> <value> <hold s> [<press ms> [<still ms>]]
 // answer times the picture's answer to a press: it reads the window's pixels from Xvfb's screen (-fbdir) every few
 // milliseconds, so it needs nothing of the build (old releases have no RT64_FRAME_DUMP), for a second, then sets
-// <control> to <value> (a pad's control, or key:<key> for a key through XTEST), holds it <hold s>, lets go and reads
-// on for 2.5 s. The picture has answered at the first read after the press that differs from the picture at the press
-// by more than the scene drifted by itself in the second before (judgeAnswer() says how), and has settled once no later read
-// differs from it by that much. It fails when the answer comes later than <press ms> (500) after the press, or none
-// comes, or the picture settles later than <still ms> (1000) after the release, '-' leaving settling out. Both count
-// the way to the screen: a game at 30 frames a second showed its first move 240-380 ms after the press and settled
-// 0-650 ms after the release (Turok 2's v0.2.8 and v0.2.9, the view turned up from level), so a game whose view eases
-// towards the stick and springs back when it is let go (Turok 2's look before v0.2.8, settled 1.5-2.0 s after the
-// release) fails, and one that answers a press a few game frames late passes.
-// An until's or find's key may be pad:<button>, the stand-in pad's button pressed instead of a key.
-// Each answer is a line in <out>/<run>/answers.txt and in the output, the press and release timed by when the pad
-// applied them (the shim's log, <run>/pad.log), its reads in <run>/answer-<name>.json to judge again. Pick a still scene and a control that moves the picture at once: a
-// menu's cursor, the view turning. A pad plugged in again answering a press is item 4c's check on a desktop build.
-// --no-dump (below) plays a plan of answers alone.
+// <control> to <value> (a pad's control, or key:<key> for a key through XTEST), holds it <hold s>, lets go and reads on
+// for 2.5 s. The picture has answered at the first read after the press that differs from the picture at the press by
+// more than the scene drifted by itself in the second before (judgeAnswer() says how), and has settled once no later
+// read differs from it by that much. It fails when the answer comes later than <press ms> (500) after the press, or
+// none comes, or the picture settles later than <still ms> (1000) after the release, '-' leaving settling out. Both
+// count the way to the screen: Turok 2's view, turned up from level, showed its first move 240-420 ms after the press
+// and settled 0-650 ms after the release on v0.2.8 and v0.2.9, so a game whose view eases towards the stick and springs
+// back when it is let go (its look before v0.2.8, settled 1.5-2.0 s after the release) fails, and one that answers a
+// press a few game frames late passes. An until's or find's key may be pad:<button>, the stand-in pad's button. Each
+// answer is a line in <out>/<run>/answers.txt and in the output, the press and release timed by when the pad applied
+// them (the shim's log, <run>/pad.log), its reads in <run>/answer-<name>.json to judge again. Pick a still scene and a
+// control that moves the picture at once and holds it: a menu's cursor, the view turning, not a car whose world moves
+// by itself. The stand-in pad pulled out and plugged in again keeps its name and GUID, so it isn't every reconnect a
+// player's pad makes: Rush 2049's v0.1.16, whose reconnected Bluetooth pad drove nothing, drove its car with the
+// stand-in pad plugged in again, as v0.1.17 did. --no-dump (above) plays a plan of answers alone.
 //
 // Exit: frame_check's own (0 passes, 1 fails, 2 has nothing to test), or 1 where sound_check fails, 2 where the frames
 // pass and sound_check had nothing it could check against --sound-reference (a run that fell behind real time), 3 when

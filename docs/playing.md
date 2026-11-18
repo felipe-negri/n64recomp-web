@@ -205,8 +205,9 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   steps plugs a stand-in pad (`tools/stand_in_pad.c`, preloaded into the program, an SDL virtual gamepad) into its Linux
   build, and its `answer` step times how long the picture takes to move after a press and to settle after the release,
   from the window's pixels, so a build without `RT64_FRAME_DUMP` is timed too: a view that eases towards the stick
-  instead of following it fails, and so does a pad plugged in again that no longer moves a menu's cursor. Run it
-  through `tools/remote_frame_dump.sh` with `--no-dump`; frame_dump's header says how.
+  instead of following it fails (Turok 2's look before v0.2.8). A pad plugged in again is the same pad to SDL, so a
+  game that lost a player's reconnected pad (Rush 2049 before v0.1.17) may still pass it. Run it through
+  `tools/remote_frame_dump.sh` with `--no-dump`; frame_dump's header says how.
 - Video memory: read the adapter's `\GPU Adapter Memory(*)\Dedicated Usage` and nvidia-smi, never
   `\GPU Process Memory(*)\Dedicated Usage`, which climbs by a canvas a frame in Firefox (Windows 10 counts every reopen
   of its shared canvas texture, KB4490156). nvidia-smi's is the whole GPU's, so a page filling video memory beside
