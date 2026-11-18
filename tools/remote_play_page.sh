@@ -12,7 +12,8 @@
 #                 one already there is sent first, so record_shaders' --add records into it
 #   --record <f>  a local file of runs (plays.jsonl): sent, so the tool compares the run with the earlier ones, and the
 #                 lines the run adds are appended to the local file
-#   a local file  sent as it is (a plan, a --preload script), a plan with the files its evalFile steps name
+#   a local file  sent as it is (a plan, a --preload script), a plan with the files its evalFile steps name, up
+#                 into a recomp's lib/N64Recomp-browser too
 # Anything else (a URL, a number, a flag) goes as it is. For example, a smoke play of a page built there:
 #
 #   tools/remote_play_page.sh --model mg out/mg-smoke play_page.mjs chrome host:pages/mg/build-web host:roms/mg.z64 \
@@ -75,22 +76,34 @@ for a in "$@"; do
     elif [[ "$a" == out:* ]]; then
         targs+=("/work/out/${a#out:}")
     elif [[ -f "$a" ]]; then
-        mkdir -p "$stage/in/$n"
-        cp "$a" "$stage/in/$n/"
-        # A plan's evalFile steps name files relative to it: they go beside it as it names them.
+        # A plan's evalFile steps name files relative to it, a recomp's plan often up and into its N64Recomp-browser
+        # submodule (../lib/N64Recomp-browser/tools/gamepad_probe.js): they go where it names them, the plan as many
+        # folders down in its own as they reach up (in/<n>/_/_/plan.json for ../../), so none lands outside it. Any
+        # other file goes as it is.
+        files=()
         if [[ "$a" == *.json ]]; then
-            node -e '
-                const fs = require("fs"), path = require("path");
+            mapfile -t files < <(node -e '
+                const fs = require("fs");
                 const plan = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
                 const steps = [plan.load, plan.setup, plan.start, plan.play, ...(plan.sections || []).map((s) => s.steps)];
-                for (const s of [].concat(...steps.filter(Boolean))) if (Array.isArray(s) && s[0] === "evalFile") console.log(s[1]);
-            ' "$a" | tr -d '\r' | while IFS= read -r f; do
-                [[ "$f" != /* && "$f" != *..* ]] || { echo "an evalFile step names $f, outside its plan's folder" >&2; exit 3; }
-                mkdir -p "$stage/in/$n/$(dirname "$f")"
-                cp "$(dirname "$a")/$f" "$stage/in/$n/$f"
-            done
+                for (const s of [].concat(...steps.filter(Boolean))) if (Array.isArray(s) && (s[0] === "evalFile")) console.log(s[1]);
+            ' "$a" | tr -d '\r')
         fi
-        targs+=("/work/in/$n/$(basename "$a")")
+        sub=""
+        for f in "${files[@]}"; do
+            [[ "$f" != /* ]] || { echo "an evalFile step names $f: a plan names its scripts relative to itself" >&2; exit 3; }
+            rest="$f" up=""
+            while [[ "$rest" == ../* ]]; do rest="${rest#../}" up="${up}_/"; done
+            [[ "$rest" != *..* ]] || { echo "an evalFile step names $f, which goes up past its start" >&2; exit 3; }
+            if (( ${#up} > ${#sub} )); then sub="$up"; fi
+        done
+        mkdir -p "$stage/in/$n/$sub"
+        cp "$a" "$stage/in/$n/$sub"
+        for f in "${files[@]}"; do
+            mkdir -p "$(dirname "$stage/in/$n/$sub$f")"
+            cp "$(dirname "$a")/$f" "$stage/in/$n/$sub$f"
+        done
+        targs+=("/work/in/$n/$sub$(basename "$a")")
     else
         targs+=("$a")
     fi
