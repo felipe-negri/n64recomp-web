@@ -205,16 +205,21 @@
 //   scales its 2D screens by 240/224 in a wide window and by 320/304 in a 4:3 one, which shows the game's 8-pixel
 //   border (its src/game/screen.cpp), 1.8% apart by design. The outer column of blocks either side isn't counted, the
 //   4:3 window's border there. A frame with 0.15 of its blocks apart or more is unlike it, and 0.75 s of such frames in
-//   a row fail. A HUD a recomp moves out to the wide picture's sides is a difference by design that fails too, so a
-//   plan for it stops before one is drawn: Mario Golf's plan ends at hole 1's flyover's end, where the tee's HUD comes
-//   in (its src/game/hud.cpp), 0.17 of the middle unlike the 4:3 window's for as long as the tee is shown. Its v0.1.22,
-//   the last before its title and menus were scaled to the window's full height (v0.1.23), reads 23.0 s in a row at
-//   16:9 and 26.7 s at 32:9 over its menus, as v0.1.14, v0.1.16 and v0.1.18 do (22.5-26.8 s), their opening's
-//   character intros drawn larger too (3.6-4.0 s at 16:9); v0.1.23, v0.1.28 and v0.1.30 read at most 0.4 s at 16:9
-//   and 0.5 s at 32:9: the title held before Start, its top edge as the logo drops in and Play Modes' text as it types
-//   out, where the two windows' frames land at different points of a fast change. --middle-samples <s> writes a frame and its match side by side every <s>
-//   seconds of a run, unlike blocks in red, to --save's directory, and each run's worst frame always, and
-//   middle-<run>.tsv lists every frame's time, its match's and its share.
+//   a row fail. A HUD a recomp moves out to the wide picture's sides by design leaves the scene in the middle where the
+//   4:3 window has the HUD, so in a frame that would be unlike, a block of the 4:3 frame found in the wide one past its
+//   middle 4:3, along the same rows toward the nearer side, isn't counted (midMovedOut(); a flat block, found
+//   anywhere, always is): Mario Golf's tee, its HUD moved out by its src/game/hud.cpp, read 0.17 of the middle unlike
+//   for as long as the tee showed, 11.2 s in a row at 16:9, and reads 0.09 with 13 blocks a frame found moved out, none
+//   of its 397 frames unlike; its v0.1.22's menus have 0.3 blocks a frame found so. Played through its opening, title,
+//   menus and hole 1's flyover, each key waiting on the game's frame counter so the three windows play alike, Mario
+//   Golf's v0.1.22, the last before its title and menus were scaled to the window's full height (v0.1.23), reads
+//   23.0 s in a row at 16:9 and 26.7 s at 32:9 over its menus, as v0.1.14, v0.1.16 and v0.1.18 do (22.5-26.8 s),
+//   their opening's character intros drawn larger too (3.6-4.0 s at 16:9); v0.1.23, v0.1.28 (on to the tee too) and
+//   v0.1.30 read at most 0.4 s at 16:9 and 0.5 s at 32:9: the title held before Start, its top edge as the logo drops
+//   in and Play Modes' text as it types out, where the two windows' frames land at different points of a fast change.
+//   --middle-samples <s> writes a frame and its match side by side every <s> seconds of a run, unlike blocks in red,
+//   to --save's directory, and each run's worst frame always, and middle-<run>.tsv lists every frame's time, its
+//   match's, its share and its blocks found moved out.
 // - Black stopping short of the window, from each wide dump's frames alone (blackShort()), every frame at 60 a second:
 //   black that the game draws across its 4:3 picture (letterbox bars, a wipe closing about the middle, a black screen
 //   between scenes, the credits' black) reaches the wide window's edges when it is widened, and stops at a straight
@@ -1905,6 +1910,7 @@ function middleFrames(d) {
         return [];
     }
     const vw = Math.min(Math.round(shape.h * 4 / 3), shape.w), x0 = Math.floor((shape.w - vw) / 2);
+    const fw = Math.floor(shape.w * MID_W / vw), mx0 = Math.round(x0 * MID_W / vw);
     const fd = fs.openSync(file, 'r');
     const size = fs.fstatSync(fd).size;
     const head = Buffer.alloc(HEADER);
@@ -1940,7 +1946,25 @@ function middleFrames(d) {
                     g[y * MID_W + x] = sum / ((yb - ya) * (xb - xa));
                 }
             }
-            out.push({ t, p: Number(head.readBigUInt64LE(24)), g });
+            // The whole width at the same scale, for a HUD moved out past the middle (midMovedOut()).
+            let full = null;
+            if (fw > MID_W) {
+                full = new Uint8Array(fw * MID_H);
+                for (let y = 0; y < MID_H; y++) {
+                    const ya = Math.floor(y * sy), yb = Math.max(Math.floor((y + 1) * sy), ya + 1);
+                    for (let x = 0; x < fw; x++) {
+                        const xa = Math.floor(x * sx), xb = Math.min(Math.max(Math.floor((x + 1) * sx), xa + 1), shape.w);
+                        let sum = 0;
+                        for (let yy = ya; yy < yb; yy++) {
+                            for (let xx = xa, p = (yy * w + xa) * 3; xx < xb; xx++, p += 3) {
+                                sum += rows[p] * 0.299 + rows[p + 1] * 0.587 + rows[p + 2] * 0.114;
+                            }
+                        }
+                        full[y * fw + x] = sum / ((yb - ya) * Math.max(xb - xa, 1));
+                    }
+                }
+            }
+            out.push({ t, p: Number(head.readBigUInt64LE(24)), g, full, fw, mx0 });
         }
         o += HEADER + w * h * 3;
     }
@@ -2010,6 +2034,48 @@ function midScaled(g, s) {
     }
     return out;
 }
+// Whether the 4:3 frame n's block blk, unlike the wide middle's there, is found in the wide frame f moved out past
+// its middle 4:3 along the same rows, toward the nearer side: a HUD the recomp puts at the wide picture's sides by
+// design (Mario Golf's src/game/hud.cpp), where the middle shows the scene. A block flat to within MID_FLAT of its mean
+// is found anywhere (sky, black), so it never counts as moved.
+const MID_FLAT = 10;
+function midMovedOut(f, n, blk) {
+    if (!f.full) {
+        return false;
+    }
+    const nbx = MID_W / MID_B, bx = blk % nbx, by = Math.floor(blk / nbx);
+    let mean = 0;
+    for (let y = by * MID_B; y < (by + 1) * MID_B; y++) {
+        for (let x = bx * MID_B; x < (bx + 1) * MID_B; x++) {
+            mean += n[y * MID_W + x];
+        }
+    }
+    mean /= MID_B * MID_B;
+    let dev = 0;
+    for (let y = by * MID_B; y < (by + 1) * MID_B; y++) {
+        for (let x = bx * MID_B; x < (bx + 1) * MID_B; x++) {
+            dev += Math.abs(n[y * MID_W + x] - mean);
+        }
+    }
+    if (dev / (MID_B * MID_B) < MID_FLAT) {
+        return false;
+    }
+    const { full, fw, mx0 } = f;
+    const left = bx < nbx / 2;
+    const xs = left ? [0, mx0 - MID_B / 2] : [mx0 + MID_W - MID_B / 2 + 1, fw - MID_B];
+    for (let fx = xs[0]; fx <= xs[1]; fx++) {
+        let s = 0;
+        for (let y = by * MID_B; (y < (by + 1) * MID_B) && (s < MID_BAD * MID_B * MID_B); y++) {
+            for (let x = 0; x < MID_B; x++) {
+                s += Math.abs(full[y * fw + fx + x] - n[y * MID_W + bx * MID_B + x]);
+            }
+        }
+        if (s / (MID_B * MID_B) < MID_BAD) {
+            return true;
+        }
+    }
+    return false;
+}
 function middleCheck(name, wideDir, narrow) {
     const wide = middleFrames(wideDir);
     if (!wide.length || !narrow.length) {
@@ -2038,13 +2104,20 @@ function middleCheck(name, wideDir, narrow) {
                 }
             }
         }
-        const { bad, match } = best;
+        const { match } = best;
+        let { bad } = best;
+        let moved = 0;
+        if (shareOf(bad) >= MID_SHARE) {
+            const kept = bad.filter((blk) => !midMovedOut(f, match.g, blk));
+            moved = bad.length - kept.length;
+            bad = kept;
+        }
         const share = shareOf(bad);
         if (sampleEvery && (f.t >= nextSample)) {
             savePair(`middle-${name}-${f.t.toFixed(1)}.png`, best.g, match.g, bad);
             nextSample = f.t + sampleEvery;
         }
-        rows.push(`${f.t.toFixed(3)}\t${match.t.toFixed(3)}\t${midMean(best.g, match.g).toFixed(1)}\t${share.toFixed(3)}`);
+        rows.push(`${f.t.toFixed(3)}\t${match.t.toFixed(3)}\t${midMean(best.g, match.g).toFixed(1)}\t${share.toFixed(3)}\t${moved}`);
         if (share >= MID_SHARE) {
             unlike++;
             runFrom ??= f.t;
@@ -2102,7 +2175,7 @@ if (narrowerDir) {
         if (saveDir) {
             fs.mkdirSync(saveDir, { recursive: true });
             fs.writeFileSync(path.join(saveDir, `middle-${name}.tsv`),
-                't\t4:3 t\tmean\tshare\n' + m.rows.join('\n') + '\n');
+                't\t4:3 t\tmean\tshare\tmoved out\n' + m.rows.join('\n') + '\n');
             if (m.worst) {
                 savePair(`middle-${name}-worst.png`, m.worst.f.g, m.worst.match.g, m.worst.bad);
             }
