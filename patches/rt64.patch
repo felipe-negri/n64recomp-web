@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web a86c053d5e0f8cf336ff402ae888e0386cbdd5fd
+rt64: https://github.com/n64hub/rt64-web ff78e32ef6a1dfe27781f67cb0b1fa9893972c10
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -9161,10 +9161,10 @@ index 0000000..9984c41
 +}
 +#endif
 diff --git a/src/render/rt64_projection_processor.cpp b/src/render/rt64_projection_processor.cpp
-index e842dcc..9231f7a 100644
+index e842dcc..1a6b24c 100644
 --- a/src/render/rt64_projection_processor.cpp
 +++ b/src/render/rt64_projection_processor.cpp
-@@ -8,6 +8,22 @@
+@@ -8,6 +8,141 @@
  #include "hle/rt64_workload_queue.h"
  
  namespace RT64 {
@@ -9183,124 +9183,6 @@ index e842dcc..9231f7a 100644
 +        view[3][2] = translation.z;
 +    }
 +#endif
-+
-     inline void adjustProjectionMatrix(interop::float4x4 &matrix, const float aspectRatioScale) {
-         matrix[0][0] *= aspectRatioScale;
-         matrix[1][0] *= aspectRatioScale;
-@@ -126,6 +142,18 @@ namespace RT64 {
- 
-                 // We only interpolate the projection if the view matrix has been interpolated.
-                 const bool interpolateProjection = rigidBody->lerpTranslation || rigidBody->lerpRotation;
-+#           if RT64_INTERPOLATE_CAMERA_EYE
-+                // The view's translation is the eye in the view's own axes, so lerping it took the eye of a camera far from the
-+                // world's origin off the line between its two places as the camera turned, and what is near the camera swung
-+                // in the frames between. The eye is lerped instead (kept at the current one when the position isn't), and
-+                // each interpolated view's translation is put back from it.
-+                hlslpp::float3 prevEye, curEye;
-+                if (viewEye(*prevViewMatrix, prevEye) && viewEye(curViewTransform, curEye)) {
-+                    setViewEye(viewMatrix, rigidBody->lerpTranslation ? hlslpp::lerp(prevEye, curEye, p.curFrameWeight) : curEye);
-+                    setViewEye(prevViewTransform, rigidBody->lerpTranslation ? hlslpp::lerp(prevEye, curEye, p.prevFrameWeight) : curEye);
-+                }
-+#           endif
-+
-                 if (interpolateProjection) {
-                     projMatrix = lerpMatrix(adjustedPrevProj, curProjTransform, p.curFrameWeight);
-                     prevProjTransform = lerpMatrix(adjustedPrevProj, curProjTransform, p.prevFrameWeight);
-@@ -149,6 +177,90 @@ namespace RT64 {
- 
-     void ProjectionProcessor::upload(const ProcessParams &p) {
-         uploads.clear();
-+#   if RT64_EXPAND_SCREEN_VERTICES || RT64_INTERPOLATE_SCREEN_VERTICES
-+        // RT64_EXPAND_SCREEN_VERTICES: a screen position a game writes into a vertex itself (G_MODIFYVTX's XYSCREEN)
-+        // never passes through the projection, so the x scale process() gave the projections for a picture wider than
-+        // 4:3 missed it, and the wide viewport then stretched it away from the picture's middle: what a game projects
-+        // itself and writes where it lands (Mario Golf's pin flagstick) stood away from what the projection placed (the
-+        // hole) and from the 2D the game put at the same spot (the pin's marker). Each written x is scaled toward its
-+        // viewport's centre by its vertex's projection's scale, as its projected vertices are, and the scaled copy is
-+        // uploaded over what the workload uploaded only where one was scaled. With RT64_INTERPOLATE_SCREEN_VERTICES
-+        // each write is drawn between the frame before's and its own first (interpolateScreenWrites(), at the end of this file), and that is
-+        // what is scaled.
-+        //
-+        // The scale is read from the projection process() made, not noted as it was made, since games' own changes to
-+        // RT64 rewrite those lines: process() scales only the projection's x column, and interpolates it whole between
-+        // two frames' projections, which a zoom changes in x and y alike, so the length of its x column over its y
-+        // column's is the game's times the scale (their first three rows, which a view the game folds into its
-+        // projection only turns).
-+        for (uint32_t w : p.curFrame->workloads) {
-+            Workload &workload = p.workloadQueue->workloads[w];
-+            const DrawData &drawData = workload.drawData;
-+            if (drawData.modifyPosUints.empty()) {
-+                continue;
-+            }
-+
-+            if (screenModifyPosUints.size() <= w) {
-+                screenModifyPosUints.resize(w + 1);
-+            }
-+
-+            std::vector<uint32_t> &modifyPosUints = screenModifyPosUints[w];
-+            modifyPosUints = drawData.modifyPosUints;
-+            bool changedAny = false;
-+#       if RT64_INTERPOLATE_SCREEN_VERTICES
-+            changedAny = interpolateScreenWrites(p, w, modifyPosUints);
-+#       endif
-+#       if RT64_EXPAND_SCREEN_VERTICES
-+            for (size_t m = 0; (m + 1) < modifyPosUints.size(); m += 2) {
-+                const uint32_t target = modifyPosUints[m];
-+                if ((target & 0x1) != 0) {
-+                    // A ZSCREEN write.
-+                    continue;
-+                }
-+
-+                const uint32_t vertexIndex = target >> 1;
-+                if (vertexIndex >= drawData.viewProjIndices.size()) {
-+                    continue;
-+                }
-+
-+                const uint32_t t = drawData.viewProjIndices[vertexIndex];
-+                if ((t >= drawData.projTransforms.size()) || (t >= drawData.modProjTransforms.size()) || (t >= drawData.rspViewports.size())) {
-+                    continue;
-+                }
-+
-+                const interop::float4x4 &gameProj = drawData.projTransforms[t];
-+                const interop::float4x4 &madeProj = drawData.modProjTransforms[t];
-+                const float gameX = float(hlslpp::length(hlslpp::float3(gameProj[0][0], gameProj[1][0], gameProj[2][0])));
-+                const float gameY = float(hlslpp::length(hlslpp::float3(gameProj[0][1], gameProj[1][1], gameProj[2][1])));
-+                const float madeX = float(hlslpp::length(hlslpp::float3(madeProj[0][0], madeProj[1][0], madeProj[2][0])));
-+                const float madeY = float(hlslpp::length(hlslpp::float3(madeProj[0][1], madeProj[1][1], madeProj[2][1])));
-+                if ((gameX <= 0.0f) || (gameY <= 0.0f) || (madeY <= 0.0f)) {
-+                    continue;
-+                }
-+
-+                const float ratioScale = (madeX / madeY) / (gameX / gameY);
-+                if (!(ratioScale > 0.0f) || ((ratioScale > 0.9999f) && (ratioScale < 1.0001f))) {
-+                    continue;
-+                }
-+
-+                // Quarter pixels, as the RSP takes them, x in the high half.
-+                const uint32_t value = modifyPosUints[m + 1];
-+                const float centerX = float(drawData.rspViewports[t].translate.x) * 4.0f;
-+                const float screenX = float(int16_t((value >> 16) & 0xFFFF));
-+                const float scaledX = centerX + (screenX - centerX) * ratioScale;
-+                int32_t roundedX = int32_t(scaledX + ((scaledX >= 0.0f) ? 0.5f : -0.5f));
-+                roundedX = (roundedX < -32768) ? -32768 : ((roundedX > 32767) ? 32767 : roundedX);
-+                modifyPosUints[m + 1] = (uint32_t(uint16_t(int16_t(roundedX))) << 16) | (value & 0xFFFF);
-+                changedAny = true;
-+            }
-+#       endif
-+
-+            if (changedAny) {
-+                std::pair<size_t, size_t> modifyRange = { 0, modifyPosUints.size() };
-+                uploads.emplace_back(BufferUploader::Upload{ modifyPosUints.data(), modifyRange, sizeof(uint32_t), RenderBufferFlag::FORMATTED, { RenderFormat::R32_UINT }, &workload.drawBuffers.modifyPosUintsBuffer });
-+            }
-+        }
-+#   endif
- 
-         for (uint32_t w : p.curFrame->workloads) {
-             Workload &workload = p.workloadQueue->workloads[w];
-@@ -160,4 +272,123 @@ namespace RT64 {
- 
-         bufferUploader->submit(p.worker, uploads);
-     }
 +
 +#if RT64_INTERPOLATE_SCREEN_VERTICES
 +    // A screen position a game writes into a vertex itself (G_MODIFYVTX's XYSCREEN) is the game frame's own, and
@@ -9420,8 +9302,120 @@ index e842dcc..9231f7a 100644
 +        return pairedAny;
 +    }
 +#endif
- };
-\ No newline at end of file
++
+     inline void adjustProjectionMatrix(interop::float4x4 &matrix, const float aspectRatioScale) {
+         matrix[0][0] *= aspectRatioScale;
+         matrix[1][0] *= aspectRatioScale;
+@@ -126,6 +261,18 @@ namespace RT64 {
+ 
+                 // We only interpolate the projection if the view matrix has been interpolated.
+                 const bool interpolateProjection = rigidBody->lerpTranslation || rigidBody->lerpRotation;
++#           if RT64_INTERPOLATE_CAMERA_EYE
++                // The view's translation is the eye in the view's own axes, so lerping it took the eye of a camera far from the
++                // world's origin off the line between its two places as the camera turned, and what is near the camera swung
++                // in the frames between. The eye is lerped instead (kept at the current one when the position isn't), and
++                // each interpolated view's translation is put back from it.
++                hlslpp::float3 prevEye, curEye;
++                if (viewEye(*prevViewMatrix, prevEye) && viewEye(curViewTransform, curEye)) {
++                    setViewEye(viewMatrix, rigidBody->lerpTranslation ? hlslpp::lerp(prevEye, curEye, p.curFrameWeight) : curEye);
++                    setViewEye(prevViewTransform, rigidBody->lerpTranslation ? hlslpp::lerp(prevEye, curEye, p.prevFrameWeight) : curEye);
++                }
++#           endif
++
+                 if (interpolateProjection) {
+                     projMatrix = lerpMatrix(adjustedPrevProj, curProjTransform, p.curFrameWeight);
+                     prevProjTransform = lerpMatrix(adjustedPrevProj, curProjTransform, p.prevFrameWeight);
+@@ -149,6 +296,90 @@ namespace RT64 {
+ 
+     void ProjectionProcessor::upload(const ProcessParams &p) {
+         uploads.clear();
++#   if RT64_EXPAND_SCREEN_VERTICES || RT64_INTERPOLATE_SCREEN_VERTICES
++        // RT64_EXPAND_SCREEN_VERTICES: a screen position a game writes into a vertex itself (G_MODIFYVTX's XYSCREEN)
++        // never passes through the projection, so the x scale process() gave the projections for a picture wider than
++        // 4:3 missed it, and the wide viewport then stretched it away from the picture's middle: what a game projects
++        // itself and writes where it lands (Mario Golf's pin flagstick) stood away from what the projection placed (the
++        // hole) and from the 2D the game put at the same spot (the pin's marker). Each written x is scaled toward its
++        // viewport's centre by its vertex's projection's scale, as its projected vertices are, and the scaled copy is
++        // uploaded over what the workload uploaded only where one was scaled. With RT64_INTERPOLATE_SCREEN_VERTICES
++        // each write is drawn between the frame before's and its own first (interpolateScreenWrites()), and that is
++        // what is scaled.
++        //
++        // The scale is read from the projection process() made, not noted as it was made, since games' own changes to
++        // RT64 rewrite those lines: process() scales only the projection's x column, and interpolates it whole between
++        // two frames' projections, which a zoom changes in x and y alike, so the length of its x column over its y
++        // column's is the game's times the scale (their first three rows, which a view the game folds into its
++        // projection only turns).
++        for (uint32_t w : p.curFrame->workloads) {
++            Workload &workload = p.workloadQueue->workloads[w];
++            const DrawData &drawData = workload.drawData;
++            if (drawData.modifyPosUints.empty()) {
++                continue;
++            }
++
++            if (screenModifyPosUints.size() <= w) {
++                screenModifyPosUints.resize(w + 1);
++            }
++
++            std::vector<uint32_t> &modifyPosUints = screenModifyPosUints[w];
++            modifyPosUints = drawData.modifyPosUints;
++            bool changedAny = false;
++#       if RT64_INTERPOLATE_SCREEN_VERTICES
++            changedAny = interpolateScreenWrites(p, w, modifyPosUints);
++#       endif
++#       if RT64_EXPAND_SCREEN_VERTICES
++            for (size_t m = 0; (m + 1) < modifyPosUints.size(); m += 2) {
++                const uint32_t target = modifyPosUints[m];
++                if ((target & 0x1) != 0) {
++                    // A ZSCREEN write.
++                    continue;
++                }
++
++                const uint32_t vertexIndex = target >> 1;
++                if (vertexIndex >= drawData.viewProjIndices.size()) {
++                    continue;
++                }
++
++                const uint32_t t = drawData.viewProjIndices[vertexIndex];
++                if ((t >= drawData.projTransforms.size()) || (t >= drawData.modProjTransforms.size()) || (t >= drawData.rspViewports.size())) {
++                    continue;
++                }
++
++                const interop::float4x4 &gameProj = drawData.projTransforms[t];
++                const interop::float4x4 &madeProj = drawData.modProjTransforms[t];
++                const float gameX = float(hlslpp::length(hlslpp::float3(gameProj[0][0], gameProj[1][0], gameProj[2][0])));
++                const float gameY = float(hlslpp::length(hlslpp::float3(gameProj[0][1], gameProj[1][1], gameProj[2][1])));
++                const float madeX = float(hlslpp::length(hlslpp::float3(madeProj[0][0], madeProj[1][0], madeProj[2][0])));
++                const float madeY = float(hlslpp::length(hlslpp::float3(madeProj[0][1], madeProj[1][1], madeProj[2][1])));
++                if ((gameX <= 0.0f) || (gameY <= 0.0f) || (madeY <= 0.0f)) {
++                    continue;
++                }
++
++                const float ratioScale = (madeX / madeY) / (gameX / gameY);
++                if (!(ratioScale > 0.0f) || ((ratioScale > 0.9999f) && (ratioScale < 1.0001f))) {
++                    continue;
++                }
++
++                // Quarter pixels, as the RSP takes them, x in the high half.
++                const uint32_t value = modifyPosUints[m + 1];
++                const float centerX = float(drawData.rspViewports[t].translate.x) * 4.0f;
++                const float screenX = float(int16_t((value >> 16) & 0xFFFF));
++                const float scaledX = centerX + (screenX - centerX) * ratioScale;
++                int32_t roundedX = int32_t(scaledX + ((scaledX >= 0.0f) ? 0.5f : -0.5f));
++                roundedX = (roundedX < -32768) ? -32768 : ((roundedX > 32767) ? 32767 : roundedX);
++                modifyPosUints[m + 1] = (uint32_t(uint16_t(int16_t(roundedX))) << 16) | (value & 0xFFFF);
++                changedAny = true;
++            }
++#       endif
++
++            if (changedAny) {
++                std::pair<size_t, size_t> modifyRange = { 0, modifyPosUints.size() };
++                uploads.emplace_back(BufferUploader::Upload{ modifyPosUints.data(), modifyRange, sizeof(uint32_t), RenderBufferFlag::FORMATTED, { RenderFormat::R32_UINT }, &workload.drawBuffers.modifyPosUintsBuffer });
++            }
++        }
++#   endif
+ 
+         for (uint32_t w : p.curFrame->workloads) {
+             Workload &workload = p.workloadQueue->workloads[w];
 diff --git a/src/render/rt64_projection_processor.h b/src/render/rt64_projection_processor.h
 index 5bc3a2a..ac24930 100644
 --- a/src/render/rt64_projection_processor.h
