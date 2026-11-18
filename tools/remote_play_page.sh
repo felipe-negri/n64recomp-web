@@ -6,7 +6,7 @@
 #
 #   PLAY_HOST=<host> tools/remote_play_page.sh [--measure] [--model <game>] <out dir> <play_page.mjs | record_shaders.mjs> <its args...>
 #
-# The tool's arguments are its own (each one's header), with four kinds rewritten for the host:
+# The tool's arguments are its own (each one's header), with five kinds rewritten for the host:
 #   host:<path>   a file or folder on the host, relative to its home (a build dir, a ROM), given to the tool read-only
 #   out:<name>    a file the tool writes (--json, --shot, record_shaders' list), which comes back as <out dir>/<name>;
 #                 one already there is sent first, so record_shaders' --add records into it
@@ -14,6 +14,7 @@
 #                 lines the run adds are appended to the local file
 #   a local file  sent as it is (a plan, a --preload script), a plan with the files its evalFile steps name, up
 #                 into a recomp's lib/N64Recomp-browser too
+#   a local dir   a folder, sent as it is: a page built elsewhere and kept here, which no host: path names
 # Anything else (a URL, a number, a flag) goes as it is. For example, a smoke play of a page built there:
 #
 #   tools/remote_play_page.sh --model mg out/mg-smoke play_page.mjs chrome host:pages/mg/build-web host:roms/mg.z64 \
@@ -21,7 +22,8 @@
 #
 # It runs in the image of tools/page_play.Dockerfile, tagged with a hash of that file and the week and built on the host
 # the first time a run needs it, in a container named page-play-<out dir's name> (`docker stop` that name to end one),
-# as the host's own user, with the host's GPUs, capped at $PLAY_CPUS cores (8) and $PLAY_MEMORY of memory (16g). Its
+# as the host's own user, with the host's GPUs, capped at $PLAY_CPUS cores (4: a play in Chrome used 1-1.5) and
+# $PLAY_MEMORY of memory (4g: one held 1.6 GB), which is also the host memory its job asks the queue for. Its
 # files are in $PLAY_DIR/<out dir's name> under the host's home (page-plays), deleted when it ends. tools/play_job.mjs
 # starts the browsers' display and sound there and runs the tool.
 #
@@ -104,6 +106,10 @@ for a in "$@"; do
             cp "$(dirname "$a")/$f" "$stage/in/$n/$sub$f"
         done
         targs+=("/work/in/$n/$sub$(basename "$a")")
+    elif [[ -d "$a" ]]; then
+        mkdir -p "$stage/in/$n"
+        cp -r "$a" "$stage/in/$n/"
+        targs+=("/work/in/$n/$(basename "$a")")
     else
         targs+=("$a")
     fi
@@ -130,7 +136,7 @@ remote "rm -rf $dir && mkdir -p $dir"
 tar -C "$stage" -cf - . | remote "tar -C $dir -xf -"
 
 q() { printf '%q ' "$@"; }
-run=(docker run --rm --name "page-play-$name" --gpus all --cpus "${PLAY_CPUS:-8}" --memory "${PLAY_MEMORY:-16g}"
+run=(docker run --rm --name "page-play-$name" --gpus all --cpus "${PLAY_CPUS:-4}" --memory "${PLAY_MEMORY:-4g}"
     --shm-size 2g -e HOME=/work/home -w /work/out)
 [[ -n "${PLAY_NETWORK:-}" ]] && run+=(--network "$PLAY_NETWORK")
 [[ -n "${GPU_QUEUE_URL:-}" ]] && run+=(-e "GPU_QUEUE_URL=$GPU_QUEUE_URL")
