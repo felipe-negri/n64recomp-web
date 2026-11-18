@@ -19,14 +19,15 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
 - Where a Linux host with an NVIDIA GPU is at hand, pages are checked there and not on the machine that works on the
   game: `tools/remote_play_page.sh` runs play_page.mjs or record_shaders.mjs in Chrome or Firefox in a container there
   (`tools/page_play.Dockerfile`), on a page built there or one at a URL, and brings back only the output, the files
-  the play was told to write and the lines it recorded. Both draw WebGPU on the GPU through Vulkan into Xvfb, Chrome
-  in a window as Firefox is (headless, NVIDIA's driver gives Chrome no adapter: page_driver.mjs says why). Where the
-  host's GPU is shared through a queue each play is a job of it, sharing the GPU with other jobs (its header and
-  `tools/play_job.mjs`'s say how). Such a host checks a page (a smoke play, a Firefox play for crashes, a recording),
-  and doesn't measure one: every present there is copied into Xvfb on the CPU, which paces the page. Mario Golf's
-  page, uncapped in Chrome at 3840x2000 alone on an RTX 5090, presented 15-30 a second with the GPU a tenth busy at
-  its idle clock, where an RTX 2070 on Windows presents 240-275. A run there records `platform` and the GPU's name,
-  and is compared only with runs on Linux.
+  the play was told to write and the lines it recorded. Both draw WebGPU on the GPU through Vulkan into Xorg on
+  NVIDIA's own X driver with no display, so a present stays on the GPU, Chrome in a window as Firefox is (headless,
+  NVIDIA's driver gives Chrome no adapter: page_driver.mjs says why). Where the host's GPU is shared through a queue
+  each play is a job of it, sharing the GPU with other jobs (its header and `tools/play_job.mjs`'s say how), and a
+  play whose numbers are the result takes the GPU to itself (`--measure`), as one page at a time on a machine asks.
+  Such a host measures a page as a desktop does: Mario Golf's page uncapped in Chrome presented 357 a second at
+  1256x645 and 352 at 3840x2000 on an RTX 5090 beside other jobs, held by the uncapped 360, where an RTX 2070 on
+  Windows presents 345 and 239-287 (docs/findings.md, A Linux host's X server). A run there records `platform` and
+  the GPU's name, and is compared only with runs on Linux.
 - A page served from a build dir needs `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy:
   require-corp` (threads need SharedArrayBuffer); on Pages `coi_serviceworker.js` sets them after one reload. Look at a
   page with CDP `Page.captureScreenshot` of that page.
