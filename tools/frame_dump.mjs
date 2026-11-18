@@ -47,8 +47,10 @@
 // and reached through a symlink, and each file in it through a symlink of its own, as a player shares saves through a
 // synced folder, and the load run starts the program again in the same folder and plays --saves' plan: it has the game
 // load the save and reads that it did (an until on its RAM, a find, a shot), `saves same` once it has loaded (a
-// restart that saves nothing leaves the bytes alone), and it may save again (`saves changed`) to check a write goes
-// through the links. Then every link must still be the link it was, to the same file. It runs once, at --window's first
+// restart that saves nothing leaves the bytes alone; a game that rewrites its save as it boots or on a screen the plan
+// crosses, the same bytes as on a console, writes all the same, and the runtime's .bak then moves on to the last save,
+// so `saves same` goes before that: Excitebike 64 rewrites its EEPROM leaving its title), and it may save again
+// (`saves changed`) to check a write goes through the links. Then every link must still be the link it was, to the same file. It runs once, at --window's first
 // size (1280x720). Exit 0 passes; 1 fails (the save run left nothing in saves/, the load run's plan unmet or the
 // program crashed, a link replaced); 3 the save run itself failed, which checks nothing.
 //
