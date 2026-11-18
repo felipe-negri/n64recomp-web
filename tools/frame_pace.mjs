@@ -1,6 +1,60 @@
-// PROTOTYPE: the pace of what moves through the frames drawn between the game's own. Header to come once measured.
+// Checks the pace of what moves through the frames drawn between the game's own, from what RT64 writes with
+// RT64_FRAME_DUMP=<dir> set (rt64-web's src/hle/rt64_frame_dump.h): a part of the picture that steps at the game's own
+// rate while the rest moves on every frame, or that goes past where either of the game's frames has it, or back the
+// way it came. tools/frame_check.mjs runs it on its dump and fails with it; alone it reads one dump.
 //
-//   node tools/frame_pace.mjs <dump dir> [--from <s>] [--to <s>] [--save <dir>] [--verbose]
+//   node tools/frame_pace.mjs <dump dir> [--from <s>] [--to <s>] [--save <dir>] [--workers <n>]
+//       [--write <file> | --read <file>]
+//
+// frame_check fails a frame unlike both its neighbours. A layer the frames between don't move is like both: in each
+// frame between it is where one of the game's frames has it, so only its pace is wrong, and a player sees it shake
+// against what moves smoothly in front of it (Mario Golf's far hills stepping at 30 a second under a course that
+// moves at the display's rate). So this places each block of a frame (16 pixels of a grey copy at most 640 wide, the
+// dump's own width) in the frame two before, and then along that way in the frame between them: a fraction, 0 where
+// the last frame has it and 1 where the first does. Everything RT64 interpolates moves by the same fraction in one
+// frame, however far it goes, near or far, so the fraction most blocks have there is the frame's, and a block off it by
+// 0.3 or more (and 1.5 pixels or more) is off its pace: within 0.15 of 0 or 1 a step, past them by 0.15 too far, and
+// between, off. Any three frames in a row within 0.1 s do, so a dump that keeps only some of the frames presented (40
+// a second, at 640x360, of a game at 30 on a 240 Hz display) is read as well as one that keeps them all, and a frame
+// presented again is left out.
+//
+// A block is placed only where it can be: something drawn in it (a mean difference from its own mean of 6 of 255), its
+// best match in the first frame within 10 of 255, 2 of 255 better than 2 pixels away in any direction (a line or an
+// edge matches as well anywhere along itself), 1.5 better than any other place in the search (a row of look-alike
+// trees, a gauge's marks), the same along the way in the middle frame, and under a quarter of its detailed pixels
+// standing where they stood (the edge of a HUD's figures over a world moving behind them, which a block holding both
+// places at one end or the other). It is measured where it moves 2 pixels or more, and where 12 blocks or more in that
+// frame give the common fraction.
+//
+// It fails where 3 or more blocks within 2 blocks of each other are each off in 8 or more frames, and in half or more
+// of those they were measured in, over half a second or more within 2 s: a layer the frames between leave behind does
+// so in every frame as long as it moves, where a block matched wrongly is off once and somewhere else the next time.
+// Mario Golf's v0.1.13 at 1280x720 on a 60 Hz display (a frame between each two of the game's), hole 1 of Toad
+// Highlands: its flyover's hills along the horizon, drawn in 2D strips that v0.1.14 moves on every frame as the camera
+// tilts, step in 22 blocks from 16.2 to 18.9 s (279 steps), and v0.1.14's dump of the same plan has no place off. Its
+// v0.1.15, v0.1.16, v0.1.19, v0.1.20 and v0.1.28 pass the same plan (the flyover, the aim turned left and right at the
+// tee, a shot followed), v0.1.19 and v0.1.20 a putt on Mini-Golf's first hole, aim turned, and v0.1.26 and v0.1.27 the
+// end credits rising. With places of one block, 3 of those 10 failed one, over a second or two: a block of the distance
+// bubble over the pin, of a row of trees, of the sky beside the HUD's face.
+//
+// What it can't see: something a block or two across, or a pixel off. Mario Golf's flagstick that stood still for the
+// frames between as the green slid under it (v0.1.19, fixed in v0.1.20) is a pixel wide in a 640-wide dump and stood a
+// pixel and a half off, in a block that is mostly the green moving rightly; its pin marker that stopped for a frame as
+// its animation turned (v0.1.15) is a block; its end credits' line that wobbled a pixel sideways as it rose into view
+// (v0.1.26) moves across the way it rises, where a block is looked for only along its way, and at the picture's edge.
+// Nor anything in the game's own frames: San Francisco Rush 2049's start line flags juddering as a race rewound (its
+// v0.1.25) were drawn wrongly by the game itself, its frames between rightly between them. Golf's releases before
+// v0.1.13 have no RT64_FRAME_DUMP, so its hills stepping as the camera turned (fixed in v0.1.6) and its clouds (v0.1.9)
+// aren't measured, though they step the same way. A scene where nothing moves (a menu, a still shot) has nothing to
+// measure, and the first frames after a cut nothing like the frame before.
+//
+// --save writes, for each place that fails, its triplet with most of its blocks off, side by side, those blocks
+// outlined in the frame between (magenta a step, yellow too far, cyan off). --from and --to keep what came between
+// those seconds, counted from the dump's first frame. --write keeps each triplet's result in a file, and --read judges
+// those again without the dump. It matches on --workers threads (a third of the cores unless told): a 49 s dump of 2899
+// frames took 50-70 s on 4 threads on a busy 12-core host. It runs below normal priority. It exits 0 when no place
+// fails, 1 when one does, 2 when under 1 in 100 of the frames were drawn between the game's own (Framerate Original,
+// or a display no faster than the game), which leaves nothing to test.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

@@ -210,6 +210,7 @@ import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { Worker, isMainThread, parentPort } from 'node:worker_threads';
+import { checkPace } from './frame_pace.mjs';
 
 // Before any worker starts, so each is made at it (the header says why). Best effort: a host that refuses keeps normal.
 if (isMainThread) try { os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* runs at normal */ }
