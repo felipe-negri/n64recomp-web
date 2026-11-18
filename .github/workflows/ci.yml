@@ -72,7 +72,8 @@ jobs:
           fi
           echo "$files"
           code=false
-          if grep -qvE '\.md$|^tools/(page_driver\.mjs|play_page\.mjs|play_phone\.mjs|phone_turn\.mjs|record_shaders\.mjs|publish_(pages?|site)\.sh|serve_site\.mjs|wasm_offset\.mjs|[a-z_]+_probe\.js)$|^plays\.jsonl$|^site/' <<< "$files"
+          # frame_check.mjs and capture_window.ps1 play a desktop build and read its frames: nothing here builds or runs them.
+          if grep -qvE '\.md$|^tools/(page_driver\.mjs|play_page\.mjs|play_phone\.mjs|phone_turn\.mjs|record_shaders\.mjs|publish_(pages?|site)\.sh|serve_site\.mjs|wasm_offset\.mjs|frame_check\.mjs|capture_window\.ps1|[a-z_]+_probe\.js)$|^plays\.jsonl$|^site/' <<< "$files"
           then code=true
           elif [[ "$GITHUB_EVENT_NAME" == push ]]; then
             # The same newest tag as the tag job's, and a tag that can't be found or fetched builds everything.
