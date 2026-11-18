@@ -89,6 +89,15 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   option that took effect only from the second launch, as librecomp's first launch calls no option's change
   callback, or not at every start). Its plan's shots are of a moment that holds still at the same game state in
   every launch and shows the options a player sees; `tools/frame_dump.mjs`'s header says how.
+- Play a desktop build for the crashes and hangs a short boot misses, those that come in one scene: `tools/frame_dump.mjs
+  --soak <seconds>` (through `tools/remote_frame_dump.sh` like a dump) plays its Linux build by a plan through each of
+  its modes and scenes once, a few minutes, pressing random keys where its `random` step says, and fails at once on
+  a `Crash:` line, the program exiting, or a picture that stands still for 10 s, saying whether the game's memory went
+  on changing behind it (a frozen picture) or not (a hang). Its header has the steps and what it keeps. It failed Rush
+  2049 v0.1.51 at the start of a two-player race on track 2 (black for good, the game's memory still changing) and
+  Mario Golf v0.1.6 as Training's hole changes (a hang), each within seconds of reaching the scene, and passed the
+  releases that fixed them, v0.1.52 racing on for 4 minutes and v0.1.7 taking 2 minutes of random input on
+  Training's course screen.
 
 ## Plans
 

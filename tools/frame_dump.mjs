@@ -10,6 +10,7 @@
 //       [--reuse] [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>] [--sound-reference <dir>]
 //       [--launcher] [--no-dump] [--slow] [--saves <plan>]
 //       [--restart]
+//       [--soak <seconds> [--still <seconds>] [--seed <n>]]
 //
 // --game is the folder of a recomp's Linux build (its release archive unpacked, or its build folder with assets/),
 // --exe the program in it, --game-id the name its runtime stores the ROM under (<game id>.z64, as Load ROM does). Each
@@ -120,7 +121,23 @@
 // pass and sound_check had nothing it could check against --sound-reference (a run that fell behind real time), 3 when
 // a run failed (the program exited or crashed, an until or find unmet, no window), 75 when the queue asked it to stop;
 // 1 too where a clock step's speed fails.
+//
+// --soak plays the game for <seconds> instead, the program's own settings (--config's if given), no dump and no
+// frame_check: a play by the game's plan through each of its modes and scenes once, a few minutes, that fails on what a
+// 90 s boot misses, players' crashes and hangs in one scene. Both such faults it was tried on failed within seconds of
+// the plan reaching their scene, so its plan covers scenes, not time. One run, in --window's first size (1280x720). It
+// fails, at once, when the program's stderr gets a "Crash:" line (the recomps' crash trace), the program exits (the one
+// the kernel kills first when the container runs out of memory, which it then says), or the window's picture stays
+// exactly the same for --still seconds (10), from the first time it changed: a hang, or a picture frozen while the
+// game goes on. Which one is told by the game's memory (its first 8 MB of RDRAM, read each second), still changing or
+// not, since the runs' sound goes to SDL's dummy driver. The frozen picture is kept as frozen.png, the last as end.png.
+// One plan step is for soaks: `<t> random <key>,<key>,...` presses one of those keys every 0.3-1.2 s (120 ms each)
+// while no plan step is due within a second, until `<t> random off`, from a generator seeded by --seed (1), each
+// press in input.log. A plan's own steps keep a still screen from standing 10 s (a title waiting for Start, a static
+// menu): press past it, or give random input. Exit: 0 when the time is up with none of those, 1 when one came (the
+// line saying which starts "soak FAILED"), 3 and 75 as above. Its queue job is a `soak`, which runs no frame_check.
 import { spawn, execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -137,13 +154,16 @@ const rate = Number(opt('--rate', 60));
 const restart = flag('--restart');
 const here = path.dirname(new URL(import.meta.url).pathname);
 const runNames = windows?.length === 2 ? ['main', 'low'] : ['main', 'narrower', 'wider'];
+const soak = opt('--soak') ? Number(opt('--soak')) : null;
+const still = Number(opt('--still', 10));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (s) => console.log(s);
 
 class RunFailed extends Error {}
+class SoakFailed extends Error {}
 let stopped = false; // the queue asked for a stop
 let speedFails = false; // a clock step's run judged the game's speed wrong
-const dumping = !flag('--no-dump');
+const dumping = !flag('--no-dump') && !soak;
 
 const readPlan = (file) => fs.readFileSync(file, 'utf8').split('\n').map((l) => l.trim())
   .filter((l) => l && !l.startsWith('#')).map((l) => l.split(/\s+/));
@@ -236,6 +256,13 @@ async function playRun(name, planSteps, size, signal, { config, work: keptWork }
     stdio: ['ignore', fs.openSync(path.join(dir, 'stdout.log'), 'w'), fs.openSync(path.join(dir, 'stderr.log'), 'w')] });
   let exited = null;
   proc.on('exit', (code, sig) => { exited = sig ?? code; });
+  // The program is the one the kernel kills when the container runs out of memory, not this tool: a game's memory
+  // running away then ends in a verdict, not in a container gone with nothing said.
+  try { fs.writeFileSync(`/proc/${proc.pid}/oom_score_adj`, '1000'); } catch { /* not Linux, or gone already */ }
+  const oomKills = () => { try { return Number(fs.readFileSync('/sys/fs/cgroup/memory.events', 'utf8').match(/^oom_kill (\d+)/m)?.[1] ?? 0); } catch { return 0; } };
+  const oomBefore = oomKills();
+  const exitedWith = () => `the program exited with ${exited} at ${t().toFixed(1)}s` +
+    (exited === 'SIGKILL' && oomKills() > oomBefore ? `, killed when the container ran out of memory (${capMiB()} MiB)` : '');
   const t = () => (Date.now() - started) / 1000;
   // Each step as it is done: printed, in <run>/plan.log, which stays with the dump (when a reused dump's run had its
   // plan reach a scene), and with its wall-clock time in <run>/steps.tsv (for the sound check).
@@ -249,9 +276,82 @@ async function playRun(name, planSteps, size, signal, { config, work: keptWork }
   say(`started ${exe} ${progArgs.join(' ')}`);
   let win = null, mem = null, rdram = null, shift = 0;
   const names = {};
+  const errFile = path.join(dir, 'stderr.log');
+  const crashLine = () => fs.readFileSync(errFile, 'utf8').match(/^.*Crash:.*$/m)?.[0] ?? null;
+  let failed = null; // what the soak's watcher found; false once it is to stop
   const live = () => {
     if (signal?.aborted) { stopped = true; throw new RunFailed(`the queue asked it to stop: ${signal.reason?.message ?? signal.reason}`); }
-    if (exited !== null) throw new RunFailed(`the program exited with ${exited} at ${t().toFixed(1)}s`);
+    if (failed) throw failed;
+    if (exited !== null) {
+      if (!soak) throw new RunFailed(exitedWith());
+      const crash = crashLine();
+      throw new SoakFailed(crash ? `the program crashed at ${t().toFixed(1)}s: ${crash}` : exitedWith());
+    }
+  };
+  // The soak's watcher, once a second: a Crash: line in stderr, and the window's picture (xwd's bytes) and the game's
+  // first 8 MB of RDRAM, each hashed.
+  const xenv = { ...process.env, DISPLAY: display };
+  const picture = () => execFileSync('xwd', ['-silent', '-id', win], { env: xenv, maxBuffer: 1 << 28 });
+  const png = (buf, file) => execFileSync('convert', ['xwd:-', path.join(dir, file)], { input: buf, env: xenv });
+  const sha = (b) => crypto.createHash('sha1').update(b).digest('hex');
+  const watch = async () => {
+    let errAt = 0, carry = '', lastPic = null, stillFrom = null, lastMem = null, memMoves = 0, memReads = 0;
+    while (failed === null && exited === null) {
+      await sleep(1000);
+      if (failed !== null || exited !== null) break;
+      try {
+        const size = fs.statSync(errFile).size;
+        if (size > errAt) {
+          const b = Buffer.alloc(size - errAt);
+          const fd = fs.openSync(errFile, 'r'); fs.readSync(fd, b, 0, b.length, errAt); fs.closeSync(fd);
+          errAt = size;
+          const lines = (carry + b.toString()).split('\n');
+          carry = lines.pop();
+          const crash = lines.find((l) => /Crash:/.test(l));
+          if (crash) { failed = new SoakFailed(`the program crashed at ${t().toFixed(1)}s: ${crash}`); break; }
+        }
+        const buf = picture(), h = sha(buf);
+        if (h !== lastPic) {
+          if (lastPic !== null) stillFrom = t();
+          lastPic = h; lastMem = null; memMoves = 0; memReads = 0;
+          continue;
+        }
+        if (stillFrom === null) continue; // the picture hasn't changed yet: the boot's, for the boot check to judge
+        let m = null;
+        try { m = sha(read(0x80000000, 8 << 20)); } catch (e) { if (e instanceof RunFailed) rdram = null; else throw e; }
+        if (m !== null) { if (lastMem !== null) { memReads++; if (m !== lastMem) memMoves++; } lastMem = m; }
+        if (t() - stillFrom >= still) {
+          png(buf, 'frozen.png');
+          const game = memReads === 0 ? 'its RDRAM unread'
+            : memMoves > 0 ? `the game's RDRAM still changing (${memMoves} of ${memReads} reads): a frozen picture, the game going on`
+              : `the game's RDRAM unchanged too (${memReads} reads): a hang`;
+          failed = new SoakFailed(`the picture stood still from ${stillFrom.toFixed(1)}s for ${still} s, ${game} (frozen.png)`);
+        }
+      } catch (e) { if (exited === null && !failed) say(`watcher: ${e.message.split('\n')[0]}`); }
+    }
+  };
+  // A soak's random input: mulberry32 from --seed.
+  let seed = Number(opt('--seed', 1)) >>> 0;
+  const rng = () => {
+    seed = (seed + 0x6D2B79F5) >>> 0;
+    let z = seed;
+    z = Math.imul(z ^ (z >>> 15), z | 1);
+    z ^= z + Math.imul(z ^ (z >>> 7), z | 61);
+    return ((z ^ (z >>> 14)) >>> 0) / 4294967296;
+  };
+  let rand = null, nextRand = 0;
+  // Waits until <end> on the run's clock, pressing a random key when one is due and <end> is more than a second off.
+  const idle = async (end) => {
+    while (t() < end) {
+      live();
+      if (rand && t() >= nextRand && end - t() > 1) {
+        const k = rand[Math.floor(rng() * rand.length)];
+        fs.appendFileSync(path.join(dir, 'input.log'), `${t().toFixed(2)} ${k}\n`);
+        await press(k);
+        nextRand = t() + 0.3 + rng() * 0.9;
+      }
+      await sleep(10);
+    }
   };
   const findWindow = async () => {
     for (const end = Date.now() + 60000; Date.now() < end; await sleep(250)) {
@@ -288,8 +388,10 @@ async function playRun(name, planSteps, size, signal, { config, work: keptWork }
   try {
     await findWindow();
     if (size) xdo('windowsize', win, String(w), String(h));
+    const watching = soak ? watch() : null;
     plan: for (const p of planSteps) {
-      while (t() < Number(p[0]) + shift) { live(); await sleep(10); }
+      await idle(soak ? Math.min(Number(p[0]) + shift, soak) : Number(p[0]) + shift);
+      if (soak && t() >= soak) break plan;
       live();
       switch (p[1]) {
         case 'key': await press(p[2], p[3] ? Number(p[3]) : 120); say(`key ${p[2]}`); break;
@@ -357,6 +459,12 @@ async function playRun(name, planSteps, size, signal, { config, work: keptWork }
           if (r === null) throw new RunFailed(`saves changed: nothing in saves/ changed in ${p[3] ?? 10} s`);
           say(`saves changed: saves/${r} after ${(t() - began).toFixed(1)}s`); break;
         }
+        case 'random':
+          rand = p[2] === 'off' ? null : p[2].split(',');
+          rand?.forEach(keysym);
+          nextRand = t();
+          say(`random ${p[2]}`);
+          break;
         case 'clock':
           clock = { addr: num(p[2]), perSecond: Number(p[3]), reads: [] };
           clearInterval(clockTimer); clockTimer = setInterval(clockRead, 100); clockRead();
@@ -366,7 +474,16 @@ async function playRun(name, planSteps, size, signal, { config, work: keptWork }
         default: throw new RunFailed(`unknown plan step: ${p.join(' ')}`);
       }
     }
+    if (soak) {
+      await idle(soak);
+      live();
+      failed = false; // stops the watcher
+      await watching;
+      png(picture(), 'end.png');
+      say(`soak passed: ${soak} s`);
+    }
   } finally {
+    if (failed === null) failed = false;
     clearInterval(clockTimer);
     if (clock) {
       fs.writeFileSync(path.join(dir, 'speed.tsv'), clock.reads.map(([ms, v]) => `${Math.round(ms)}\t${v}`).join('\n') + '\n');
@@ -382,8 +499,8 @@ async function playRun(name, planSteps, size, signal, { config, work: keptWork }
       say('stopped');
     }
   }
-  const crash = fs.readFileSync(path.join(dir, 'stderr.log'), 'utf8').match(/^.*Crash:.*$/m);
-  if (crash) throw new RunFailed(`the program crashed: ${crash[0]}`);
+  const crash = crashLine();
+  if (crash) throw new (soak ? SoakFailed : RunFailed)(`the program crashed: ${crash}`);
   fs.writeFileSync(path.join(dir, 'dump.done'), '');
   const pace = paceOf(path.join(dir, 'dump'));
   if (pace) say(pace);
@@ -429,6 +546,7 @@ async function makeConfig() {
   fs.rmSync(config, { recursive: true, force: true });
   fs.mkdirSync(config, { recursive: true });
   if (opt('--config')) fs.cpSync(path.resolve(opt('--config')), config, { recursive: true });
+  if (soak) return config; // the program's own settings, as a player first runs it
   const gj = path.join(config, 'graphics.json');
   if (!fs.existsSync(gj)) {
     const work = path.join(out, 'first-start');
@@ -508,6 +626,11 @@ async function saveCheck(signal) {
   if (failed || broken.length) return 1;
   log(`frame_dump: the save check passes: the save was found after a restart, through ${links.size} link(s) that stayed`);
   return 0;
+}
+
+async function soakRun(signal) {
+  try { await playRun('soak', plan, windows?.[0] ?? null, signal, { config: await makeConfig() }); return 0; }
+  catch (e) { if (!(e instanceof SoakFailed)) throw e; log(`soak FAILED: ${e.message}`); return 1; }
 }
 
 // --restart: the plan played three times in one copy of the game, a first launch with only --config's files and two
@@ -678,6 +801,7 @@ try {
       onUpdate: (j) => j.state === 'waiting' && log(`queue: ${type} waiting, ${j.ahead} ahead${j.waitMs != null ? `, ~${Math.ceil(j.waitMs / 60000)} min` : ''}: ${j.why?.text ?? 'going next'}`) });
     const vram = opt('--vram', 'auto') === 'auto' ? 'auto' : Number(opt('--vram'));
     if (loadPlan) code = await gpuRun(spec('frame-dump', `Save check: ${gameId}`, vram), (signal) => saveCheck(signal));
+    else if (soak) code = await gpuRun(spec('soak', `Soak: ${gameId}, ${soak} s`, vram), (signal) => soakRun(signal));
     else {
       const made = reusing() && !restart ? await dumps(null) : await gpuRun(spec('frame-dump', `Frame dump: ${gameId}`, vram),
         (signal) => (restart ? restartRuns(signal) : dumps(signal)));
@@ -686,6 +810,7 @@ try {
       else code = dumping ? await gpuRun(spec('frame-check', `frame_check: ${gameId}`, 0), async () => both(made)) : 0;
     }
   } else if (loadPlan) code = await saveCheck(null);
+  else if (soak) code = await soakRun(null);
   else if (restart) { await restartRuns(null); code = restartCheck(); }
   else code = dumping ? both(await dumps(null)) : (await dumps(null), 0);
   if (speedFails) { log("frame_dump: the game's speed fails (the clock step's lines above)"); code = 1; }
@@ -693,7 +818,7 @@ try {
   log(`frame_dump: ${e instanceof RunFailed ? e.message : e?.stack ?? e}`);
   code = stopped ? 75 : 3;
 }
-for (const n of [...runNames, ...restartNames, 'save', 'load', 'first-start']) {
+for (const n of [...runNames, ...restartNames, 'save', 'load', 'soak', 'first-start']) {
   if (!flag('--keep')) fs.rmSync(path.join(out, n, 'dump'), { recursive: true, force: true });
   fs.rmSync(path.join(out, n, 'run'), { recursive: true, force: true });
 }

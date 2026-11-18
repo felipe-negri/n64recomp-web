@@ -22,6 +22,8 @@
 # tools/frame_dump.mjs's header says what a run does and what the options mean; its exit code is this one's (0 passes,
 # 1 fails, the game's speed included, 2 nothing to test, 3 a run failed, 75 stopped by the queue). With --restart (a
 # first launch and two restarts, in place of frame_check) <out dir> gets restart.txt and each run's settings files.
+# A container killed outright (137, which in practice is the kernel at its memory cap: a game whose memory ran away
+# faster than frame_dump could see it go) said nothing, so it is said here: a --soak fails (1), a dump's run failed (3).
 #
 # It runs in the image of tools/frame_dump.Dockerfile, tagged with a hash of that file and built on the host the first
 # time a run needs it, in a container named frame-dump-<out dir's name> (`docker stop` that name to end one), as the
@@ -111,6 +113,12 @@ printf %s "${GPU_QUEUE_KEY:-}" | remote "cd ~ && GPU_QUEUE_KEY=\$(cat) && export
     -v \"\$(realpath $(q "$game"))\":/game:ro -v \"\$(realpath $(q "$rom"))\":/rom.z64:ro $image $(q "${cmd[@]}" "$@")"
 code=$?
 set -e
+if [[ $code == 137 ]]; then
+    code=3
+    for a in "$@"; do [[ "$a" == --soak ]] && code=1; done
+    [[ $code == 1 ]] && echo -n "soak FAILED: " || echo -n "frame_dump: "
+    echo "the container was killed (137), most likely at its ${FRAME_DUMP_MEMORY:-2g} memory cap"
+fi
 trap 'rm -rf "$stage"' EXIT
 trap - INT TERM
 
