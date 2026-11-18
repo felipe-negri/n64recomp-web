@@ -4,10 +4,10 @@
 // drawn between the game's, and its ground culled at the 4:3 view's sides), and which these find without anyone
 // looking.
 //
-//   node tools/frame_check.mjs <dir> [--wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--quiet]
+//   node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--quiet]
 //
 // <dir> is a dump's: frames.bin, every frame presented, and sides.tsv, where across the view the 3D's triangles lay.
-// --wider names a dump of the same plan and seconds in a wider window (32:9 beside 16:9) for the sides. --from and
+// --narrower and --wider name two dumps of the same plan for the sides, one in a 4:3 window and one at 32:9. --from and
 // --to keep what came between those seconds of the dumps, counted from each one's first frame; --save writes each
 // flagged frame with the frames either side of it as one PNG, its flagged blocks outlined, for whoever wants to see
 // one. It matches the frames on a worker thread a core: 20 s of Turok's 640x360 frames at 120 a second (1025 matched)
@@ -17,14 +17,30 @@
 //   block (8 pixels of a grey copy about 400 wide), each block to the best place within a few pixels of where the
 //   picture as a whole moved or of where the part around it moved (a screen split open from its middle, near and far
 //   parts of a scene), and each pixel of a block that matches neither whole to the nearest like it in either (the
-//   edge of a wipe that moved, a picture that stretches): a block neither neighbour has anywhere near, where the
+//   edge of a wipe that moved, a picture that stretches; Mario Party's board wipe between turns, a strip grown from the
+//   picture's middle whose edge pixels are part black, part board, a value between what either neighbour has there,
+//   reads by the pixel), and where it still matches neither, to something within 24 pixels that moved from one
+//   neighbour's place to the other's (a menu's cursor or bar, stepped from one option to the next, with the frame
+//   between drawn on the way): a block neither neighbour has anywhere near, where the
 //   neighbours match each other there, is something drawn for that frame alone. A frame paired wrongly between the
 //   game's own (a model drawn halfway to a look-alike's place, a camera cut stretched, polygons torn), a frame drawn
 //   in parts, a frame of garbage or an old picture between two right ones all read so; the game's own motion, a fade,
 //   a cut, a wipe, something appearing for good don't. A presented frame equal to the one before (a repeat) is left
-//   out. It fails where such frames are more than 1 in 100, or come 3 or more within a second: a one-frame flash a
-//   game draws is rare and alone, and a pairing fault shows in every frame drawn between the game's for as long as
-//   the scene lasts. A frame between two of the game's own that differ over a fifth to a half of the picture (the
+//   out, and the frame it repeats isn't matched: a picture the game held, its neighbours the picture before the hold
+//   and the one after, which a menu's cursor stepping from option to option and staying on each reads as unlike both
+//   (Mario Party 3's book of minigames, 12 in a second); a frame between paired wrongly is never shown twice. The
+//   game's own frame (the last of its present) counts only beside a frame between, either side of it, that counts
+//   too: a pairing fault changes only the frames between, so where it makes the game's frame unlike its neighbours,
+//   they read so too, and alone it is the game's own picture changing in a step faster than a block's match follows
+//   (Mario Party 2's warp pipes rising from a flat ring, Mario Party's turn order dice swelling and shrinking to a
+//   third in one game frame; 4-13 of a dump, listed apart). It fails where such frames are more than 1 in 100, come
+//   3 or more within a second, or 4 or more drawn between the game's own within 5 s have their blocks within 4 blocks
+//   of the first's: a one-frame flash a game draws is rare and alone, and a pairing fault shows in the frames drawn
+//   between the game's, again and again in one place, for as long as the scene lasts. Mario Party 3's party setup
+//   draws its spinning star's BONUS sign face-on and a second outline in frames between, where neither game frame
+//   either side has them: 13 of 6906 flagged, at most 2 within a second, 6 in one place within 5 s. Mario Party's and
+//   2's dumps of the same plan read 3 of 5367 and 3 of 4419, Smash Bros.', Dinosaur Planet's and Perfect Dark's at
+//   most 1 in one place. A frame between two of the game's own that differ over a fifth to a half of the picture (the
 //   share of the newer one's blocks with nothing like them near in the older, as the camera cuts' check reads it), where
 //   the game's frames before or after differ as much too, isn't counted, nor the game's frame at either end, and they are
 //   listed apart: something passing close to the camera, game frame after game frame, moves further from frame to
@@ -37,12 +53,13 @@
 //   flyover, whose trees its build without rt64 eda3964 put where other trees stood, has game frames at most 0.09
 //   apart, and Turok 2's world missing at the picture's edge as the player turns lies between game frames 0.01-0.05
 //   apart. A fault drawn while something passes that close to the camera goes unseen. A frame between the game's own
-//   with fewer blocks than 4 counts where 3 others between, within a second either side, have theirs within 4 blocks
-//   of its: one small thing paired wrongly, again and again in one place, where the odd small block of a clean game
-//   lands anywhere. Mario Party 3's opening without its models' tags (lib/mario-party-engine's model_ids.cpp) draws a
-//   small star for a frame where neither neighbour has it, at one place in every frame between for 0.3 s, 1-2 blocks
-//   each: 23 of 689 frames flagged, 11 without this; with the tags, 3 of 654 either way. On Rayman 2's, Turok 2's and
-//   3's and Rush 2049's dumps it changes no verdict, and adds nothing to the ones that pass.
+//   with fewer blocks than 4 counts where 4 others between, within a quarter second either side, have theirs within 4
+//   blocks of its: one small thing paired wrongly, again and again in one place, where the odd small block of a clean
+//   game lands anywhere (Mario Party's Luigi jumping). Mario Party 3's opening without its
+//   models' tags (lib/mario-party-engine's model_ids.cpp) draws a small star for a frame where neither neighbour has it,
+//   at one place in every frame between for 0.3 s, 1-2 blocks each: 12 of 341 frames flagged, 10 within a second;
+//   with the tags, 0 of 282. Its board with mario-party-engine 199db65's board zoom fix reverted reads 20 of 4861, 5
+//   within a second.
 //   Only frames presented between the game's own (Framerate Display, on a display faster than the
 //   game) are paired, so a dump without one (Framerate Original, a 60 Hz display under a game of 60) leaves pairing
 //   untested and exits 2, whatever else passes.
@@ -64,48 +81,86 @@
 //   Turok 2's 0.29 and 0.21, 49 and 58 times. Turok 2's cinematics' cuts change 0.62-0.80 of theirs where they are
 //   lit; a cut between two dark shots, whose blocks differ by less than a block's match allows, reads lower, and under a
 //   tenth goes untested.
-// - Culled at the 4:3 view's sides, from two dumps of the same plan: one at 16:9 and one --wider at 32:9. A game
-//   that culls its world to the picture draws more of it past the 4:3 view's sides as the picture widens; one that
-//   culls to its 4:3 view draws the same whatever the window, so the strip only the wider picture shows holds what
-//   reaches over the edge from inside and nothing more (water or sky where the ground goes on). It compares the
-//   triangles a workload of 3D (200 triangles or more) has in that strip in both, by where each one's middle lies,
-//   and fails where the wider has under 1.2 times as many and the strip is under half as dense as the view: a world
-//   drawn that densely past the view isn't culled at its sides at all. A game that culls nothing by the window draws
-//   the same whatever the window too, so the two dumps alone read it like one culled to its 4:3 view: San Francisco
-//   Rush 2049 culls whole stretches of scenery and draws its world out to the 32:9 picture's edges, and its attract
-//   race read x1.16 on a 60 Hz display and x1.00 on a 240 Hz one. The narrower dump tells them apart. A game culled to
-//   4:3 thins out past the narrower picture's own edge, where nothing of it shows, and one not culled by the window
-//   draws there as it does inside, so the check passes where the strip past that edge (out as far again as the edge
-//   lies past the view, 0.17-0.33 of it at 16:9) is 0.65 or more as dense a band as the strip inside the edge: Mario
-//   Golf's hole 1 flyover read 0.28 without its patches/cull.c and 0.59 with it, Rayman 2's Woods of Light 0.25-0.54
-//   without its v0.1.1, Rush 2049's attract race 0.74 and Practice on its first track 0.81. A scene that draws under
-//   50 triangles a workload in the strip at 32:9 can't fail, and exits 2: the fifth more the check asks for is then an
-//   object or two, and a game culling to the picture draws an object reaching into the narrower one whole, past its
-//   edge too. Rayman 2's Woods of Light opens on a fade-in down a ravine whose walls are a few large triangles, their
-//   middles inside the view: its fixed build reads 22 and 25 there (x1.14) and the build without its v0.1.1 11 and 11,
-//   where its first 8 s in the Fairy Glade read 102 and 117 (passing on 0.74) and 62 and 61 (failing), and Mario
-//   Golf's flyover without its patches/cull.c 197 and 186. A scene of more is no test either where its world is a few
-//   large objects that each reach into the narrower picture: a game culling to the picture draws them whole in both
-//   windows, so it grows no more than one culled to 4:3, and fails with its world out to the wider picture's edges.
-//   Rayman 2's language menu, a backdrop of a few cliffs, reads 78 and 91 (x1.17; 0.46 past the edge) and fails, the
-//   shots of its Woods of Light opening after the ravine 33 and 38 (x1.15) and pass on 0.67, and Rayman's first still
-//   shot 108 and 111 (x1.02) on 1.03, so a dump of the whole opening passes or fails by how long its plan holds each:
-//   one pair read 74 and 79 (x1.06) and passed on 0.85, another 46 and 52 (x1.14) and failed.
-//   So a fail is looked at in the wider dump's frames before it is called the game's. Without --wider it only counts
-//   them. One dump's own strip
-//   against the view tells nothing: Mario Golf's flyover, culled or not, draws a fraction past the edges of what it
-//   draws inside, the course being long and narrow. The picture's shape is the
-//   picture's box between --from and --to (pictureBox()), not its first frame's: a dump that starts before its plan
-//   sizes the window begins at 4:3, and one whose frames come in several sizes has black past the picture in some.
+// - Culled at the 4:3 view's sides, from two more dumps of the same plan: one --narrower in a 4:3 window, where
+//   nothing past the view shows, and one --wider at 32:9. A game that culls its world to the picture draws more of it
+//   past the view's sides at 32:9 than in the 4:3 window; one that culls to its 4:3 view draws the same in both, what
+//   reaches over the view's edge from inside and nothing more (water or sky where the ground goes on). Each workload of
+//   3D (200 triangles or more) at 32:9 is paired with the 4:3 dump's that draws most nearly the same inside the view
+//   (its triangles counted a twentieth of the view at a time, differing by a tenth of them at most), so two runs out
+//   of step, or a shot held longer in one, compare the same poses; it compares the triangles the pairs have past the
+//   view's sides, out to the 32:9 picture's edges (0.83 of the view either side), by where each one's middle lies, and
+//   fails where the 32:9 dump has under 1.1 times as many and draws there under half as densely as inside the view: a
+//   world drawn that densely past the view isn't culled at its sides at all. A build culled to 4:3 reads x0.99-1.05 and
+//   a fixed one x1.17 or more: Mario Golf's hole 1 flyover x1.02-1.05 without its patches/cull.c (57-367 triangles a
+//   workload past the view) and x1.87-1.92 with it, Rayman 2's first 45 s in the Fairy Glade x0.99-1.00 without its
+//   v0.1.1 and x1.21-1.22 with it, its Woods of Light opening x1.00 and x1.17, and San Francisco Rush 2049's attract
+//   race, which culls whole stretches of scenery and draws its world out to the 32:9 picture's edges, x1.19-1.49. A
+//   16:9 window in the 4:3 one's place tells less: it draws past the view itself, so a fixed build grows less against
+//   it (Rush 2049's attract race x1.00-1.16, Rayman 2's opening x1.10), and a culled one passed Rayman 2's Fairy Glade
+//   on how densely it drew there. A scene drawing under 50 triangles a workload past the view at 32:9 can't fail and
+//   exits 2, too few to tell from an object or two reaching over the edge: Rayman 2's ravine down into the Woods of
+//   Light, a few large walls whose middles lie inside the view, reads 29 culled and 43 fixed. A shot whose every
+//   object reaches into the view draws them whole in both windows and fails whatever the build: Rayman 2's first still
+//   shot of Rayman, a few cliffs, x1.00 with its v0.1.1. So a scene is picked where the world goes on past the view (a
+//   course, a field, a race), and a fail is looked at in the 32:9 dump's frames before it is called the game's. A game
+//   that culls nothing by the window fails it too, its 4:3 window drawing past the view all the 32:9 one does: Paper
+//   Mario's opening x1.00 (532 triangles a workload), Dinosaur Planet x1.03, Super Smash Bros.' stage zoomed in x1.00,
+//   where Super Mario 64's Bob-omb Battlefield reads x1.00 culled to 4:3 (its objects; its level is drawn whole in any
+//   window) and x2.99 fixed. Nothing in the 32:9 dump alone tells them apart, measured on these and on Mario Golf's
+//   culled flyover. Not things appearing at the view's sides as the camera turns, read as blocks of a game frame with
+//   nothing like them near in the game's frame before: on a 640x180 dump Mario 64's culled objects are a pixel or two
+//   across, its fixed build has as many by the view's edge (438-447 a column of blocks, every thousand frames, either
+//   build), and split by which way the camera turns neither leans. Not sides.tsv's triangles appearing between
+//   workloads, per band (6-8 a band past the edge culled, 24-25 fixed, as each draws there). Not how the drawing goes on
+//   across the view's edge (the next fifth of the view's width outside against inside: Mario 64 0.23 culled and 0.53
+//   fixed, Mario Golf's flyover 0.36 culled, F-Zero X's fixed 0.34, Dinosaur Planet 0.45, Smash 0.08-0.11, its stage
+//   ending at the 4:3 view by design). Nor triangles past the 32:9 picture, 0-6 a band in every one. A 4:3
+//   window's target can be a little off 4:3 (Rush 2049's is 640x440): a --narrower dump wider than 1.6:1, a --wider
+//   one narrower than 8:3, or a pair of which under 30 or a tenth of the 32:9 workloads find a match (not the same
+//   scene), exits 2. Without them it only counts the triangles. One dump's own strip against the view tells nothing:
+//   Mario Golf's flyover, culled or not, draws a fraction past the view's edges of what it draws inside, the course
+//   being long and narrow. The picture's shape is the picture's box between --from and --to (pictureBox()), not its
+//   first frame's: a dump that starts before its plan sizes the window begins at 4:3, and one whose frames come in
+//   several sizes has black past the picture in some. Rayman 2's language menu draws its frames at 300x224 for its
+//   first 6 s whatever the window, so --from starts a dump of it after that.
+// - The picture at the 4:3 view's sides, from each dump's frames alone (pictureAtSides()), every dump given: what the
+//   triangles can't read, a world past the view drawn in 2D (Mario Party's boards are a background of tiles, 3-12
+//   triangles a workload past the view), and a picture something cuts. Its frames are looked at ten a second. Cut
+//   short: the picture fills the view out to its side, then ends in black past it with something drawn on the black,
+//   for a second or more in a row: a board whose background is drawn only under 4:3 draws its 3D spaces and characters
+//   out past it. A picture that ends where its world does (a board's map reaching no further, a stage built short of a
+//   wide window) has nothing on the black past it, and a 4:3 scene or a logo on black doesn't fill the view to its
+//   side, so neither counts. Mario Party 3's Chilly Waters at 32:9 with its board's tiles picked under 4:3 alone
+//   (lib/mario-party-engine's board_back_area() with no side) is cut short in 339 of 544 frames, 14.5 s in a row, and
+//   the game as released in none of 381, though its map ends short of the window in much of them. A straight line: a
+//   column within a twentieth of the view's width of its side that steps sharply in 0.3 more of its rows than the
+//   columns around it (only rows drawn either side of it, so a picture's own end isn't one), in the same column in a
+//   quarter or more of the frames where the scene moves, looked at four a second: something the game cuts a few
+//   pixels short of the side, the picture behind it showing. Mario Party 3's opening without mario-party-engine
+//   245ec52 draws its 3D grass under a scissor 8 of the console's pixels inside the screen, the background's grass in a
+//   band around it: a line 6 pixels in from the view's side (a 640x180 dump at 32:9) in 32 of 56 frames where the
+//   scene moves, and none with it. A frame counts the line only where the picture beside it moves too (its rows'
+//   pixels 3 either side, as much as a moving scene does): a cut lies across what moves, where the scene's own straight
+//   edge that stands still isn't one. Paper Mario's opening at 32:9 has its stage's pillars at the view's sides while only
+//   the curtain above them moves: a line 2 pixels out in 6 of 23 moving frames, 2 counting the picture beside it.
+//   Turok 1's and 2's 16:9 sweeps and Mario Golf's iris wipes have neither. Neither
+//   needs two runs to agree, so a board the computer players play differently each time is checked too.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
 // the pairing or the sides. frames.bin is read a frame at a time, those the workers have yet to match kept (a few a
 // worker, pool.room()): a dump at a 240 Hz display's rate is about 160 MB a second.
+//
+// It runs below normal priority, its workers with it: it takes every core but one, and it is run beside plays,
+// builds and a person at the desktop, which come first. On an idle host that costs it nothing; on a busy one it
+// takes what is left rather than making the host 100% busy for everything else.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { Worker, isMainThread, parentPort } from 'node:worker_threads';
+
+// Before any worker starts, so each is made at it (the header says why). Best effort: a host that refuses keeps normal.
+if (isMainThread) try { os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* runs at normal */ }
 
 const args = process.argv.slice(2);
 const opt = (name, fallback) => {
@@ -114,13 +169,14 @@ const opt = (name, fallback) => {
 };
 const dir = args[0];
 if (isMainThread && (!dir || dir.startsWith('--'))) {
-    console.error('usage: node tools/frame_check.mjs <dir> [--wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--quiet]');
+    console.error('usage: node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--from <s>] [--to <s>] [--save <dir>] [--quiet]');
     process.exit(2);
 }
 const from = Number(opt('--from', 0));
 const to = Number(opt('--to', Infinity));
 const saveDir = opt('--save', null);
 const widerDir = opt('--wider', null);
+const narrowerDir = opt('--narrower', null);
 const quiet = args.includes('--quiet');
 
 const MAGIC = 0x44465452; // rt64_frame_dump.h's FrameDump::Magic
@@ -147,10 +203,9 @@ const NEAR = 0.2; // the share, at the least, of something passing near the came
 const P = 2; // a pixel's search about its block's best place, in grey pixels (eitherDiff())
 const M = 2; // the quarter pixels around a block that its own shift is found over (placesOf())
 const RM = 24; // how far a block's thing moved from one neighbour to the other is looked for, in grey pixels (movedDiff())
-const SIDES_GROW = 1.2; // how many times the triangles past the 4:3 view a wider picture has, at the least
+const SIDES_GROW = 1.1; // how many times the triangles past the 4:3 view a 32:9 picture has against a 4:3 one, at least
 const SIDES_DENSE = 0.5; // ... unless the strip is this dense against the view: a world not culled at its sides
-const SIDES_OPEN = 0.65; // ... or the narrower picture this dense past its own edge as inside it: not culled by the window
-const SIDES_FEW = 50; // triangles a workload in the wider picture's strip under which a scene can't fail: too few to tell
+const SIDES_FEW = 50; // triangles a workload past the view in the wider picture under which a scene can't fail: too few to tell
 
 let dumpStartMs = null; // the first frame's time, ms since 1970: the dump's second 0, sides.tsv's too
 
@@ -972,7 +1027,7 @@ else {
 // Sides: sides.tsv's bands are a twentieth of the view's width each, from one view left of it to one right, each
 // workload's triangles counted by where their middles lie.
 const PER = 20;
-// A dump's 3D workloads (200 triangles or more) between --from and --to: their mean count a band, and the picture's
+// A dump's 3D workloads (200 triangles or more) between --from and --to, their counts a band each, and the picture's
 // shape: its picture's box between those seconds (pictureBox()), so a dump that starts before its plan sizes the window
 // (Rayman 2's first 2 s of frames at 4:3 in a 16:9 window) reads the size the plan set, and one whose frames come in
 // several sizes (Rush 2049's) reads its picture's, not its color target's.
@@ -991,8 +1046,7 @@ function sidesOf(d) {
     fs.readSync(fd, head, 0, HEADER, 0);
     fs.closeSync(fd);
     const startMs = Number(head.readBigUInt64LE(32)); // the dump's second 0
-    const mean = new Array(PER * 3).fill(0);
-    let n = 0;
+    const rows = [];
     for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
         // <workload id>\t<ms since 1970>\t<a count a band>...
         const cols = line.split('\t').map(Number);
@@ -1001,73 +1055,294 @@ function sidesOf(d) {
         if ((v.length !== PER * 3) || !(t >= from) || !(t <= to) || (v.reduce((a, b) => a + b, 0) < 200)) {
             continue;
         }
-        v.forEach((c, i) => { mean[i] += c; });
-        n++;
+        rows.push(v);
     }
-    return { n, mean: mean.map((c) => c / Math.max(n, 1)), aspect: shape.w / shape.h };
+    return { n: rows.length, rows, aspect: shape.w / shape.h };
 }
-// The mean triangles a workload with their middles past the 4:3 view's sides, from a to b view widths out on each.
-const pastSides = (s, a, b) => {
+// A workload's triangles with their middles past the 4:3 view's sides, out to b view widths on each, and inside it.
+const pastOf = (v, b) => {
     let sum = 0;
-    for (let i = Math.round(a * PER); i < Math.round(b * PER); i++) {
-        sum += s.mean[PER - 1 - i] + s.mean[2 * PER + i];
+    for (let i = 0; i < Math.round(b * PER); i++) {
+        sum += v[PER - 1 - i] + v[2 * PER + i];
     }
     return sum;
 };
-// ... and a band's mean of them there, both sides together.
-const perBand = (s, a, b) => pastSides(s, a, b) / Math.max(Math.round(b * PER) - Math.round(a * PER), 1);
-const insideView = (s) => s.mean.slice(PER, 2 * PER).reduce((a, b) => a + b, 0);
+const insideOf = (v) => v.slice(PER, 2 * PER).reduce((a, b) => a + b, 0);
+const extOf = (aspect) => (aspect / (4 / 3) - 1) / 2; // a picture's strip past each side of the view, in view widths
+// Two workloads draw the same shot where their bands inside the view differ by at most this share of their triangles.
+const SIDES_MATCH = 0.1;
 const sides = sidesOf(dir);
-if (sides && sides.n && widerDir) {
-    const wider = sidesOf(widerDir);
-    const extOf = (aspect) => (aspect / (4 / 3) - 1) / 2; // a picture's strip past each side of the view, in view widths
-    if (!wider || !wider.n) {
-        console.error(`sides: no 3D in ${widerDir}'s dump between those seconds`);
+if (widerDir || narrowerDir) {
+    if (!widerDir || !narrowerDir) {
+        console.error('sides: the culling check takes two dumps, --narrower <a dump of the same plan in a 4:3 window> ' +
+            '--wider <one at 32:9>');
         process.exit(2);
     }
-    const a = extOf(sides.aspect), b = Math.min(extOf(wider.aspect), 1);
-    const inA = insideView(sides), inB = insideView(wider);
-    if (b - a < 0.2) {
-        console.error(`sides: ${widerDir}'s picture (${wider.aspect.toFixed(2)}:1) is too little wider than ${dir}'s ` +
-            `(${sides.aspect.toFixed(2)}:1): dump it at 32:9`);
+    const narrower = sidesOf(narrowerDir), wider = sidesOf(widerDir);
+    for (const [d, s] of [[narrowerDir, narrower], [widerDir, wider]]) {
+        if (!s || !s.n) {
+            console.error(`sides: no 3D in ${d}'s dump between those seconds`);
+            process.exit(2);
+        }
+    }
+    // A 4:3 window's frames are the game's own target, which can be a little off 4:3 (Rush 2049's 640x440): a 16:9 one isn't.
+    if (narrower.aspect > 1.6) {
+        console.error(`sides: ${narrowerDir}'s picture is ${narrower.aspect.toFixed(2)}:1: dump it in a 4:3 window, where ` +
+            'a game culling to the picture draws what one culled to its 4:3 view does');
         process.exit(2);
     }
-    if (Math.abs(inA - inB) > 0.1 * Math.max(inA, inB)) {
-        console.error(`sides: the two dumps draw ${inA.toFixed(0)} and ${inB.toFixed(0)} triangles a workload inside the 4:3 ` +
-            'view: not the same scene, so play the same plan and seconds in both');
+    const b = Math.min(extOf(wider.aspect), 1);
+    if (b < 0.5) {
+        console.error(`sides: ${widerDir}'s picture (${wider.aspect.toFixed(2)}:1) is too little wider than 4:3: dump it at 32:9`);
         process.exit(2);
     }
-    // Between the narrower picture's edge and the wider one's, where only the wider picture shows the world.
-    const pastA = pastSides(sides, a, b), pastB = pastSides(wider, a, b);
+    // Each of the wider dump's workloads paired with the 4:3 one's that draws the same inside the view: the same shot,
+    // whenever each run came to it, since two runs of a plan don't keep step (Mario Golf's flyover, a race).
+    const narrowIn = narrower.rows.map(insideOf);
+    let n = 0, pastA = 0, pastB = 0, inB = 0;
+    for (const w of wider.rows) {
+        const wIn = insideOf(w);
+        let best = null, bestD = SIDES_MATCH;
+        narrower.rows.forEach((u, k) => {
+            const scale = Math.max(wIn, narrowIn[k], 1), limit = bestD * scale;
+            let d = 0;
+            for (let i = PER; (i < 2 * PER) && (d <= limit); i++) {
+                d += Math.abs(w[i] - u[i]);
+            }
+            d /= scale;
+            if (d <= bestD) {
+                bestD = d;
+                best = u;
+            }
+        });
+        if (best) {
+            n++;
+            pastA += pastOf(best, b);
+            pastB += pastOf(w, b);
+            inB += wIn;
+        }
+    }
+    if (n < Math.max(30, 0.1 * wider.n)) {
+        console.error(`sides: ${n} of ${widerDir}'s ${wider.n} workloads draw what one of ${narrowerDir}'s does inside the ` +
+            '4:3 view: not the same scene, so play the same plan and seconds in both');
+        process.exit(2);
+    }
+    pastA /= n;
+    pastB /= n;
+    inB /= n;
     const grows = pastB / Math.max(pastA, 1);
-    // Drawn as densely there as inside the view, a world isn't culled at the sides at all: nothing to grow.
-    const density = (pastB / (2 * (b - a))) / Math.max(inB, 1);
-    // Drawn past the narrower picture's own edge (as far out again as the edge is) as densely as just inside it, a world
-    // isn't culled by the window: it draws the same whatever the window, so it doesn't grow, and isn't culled to 4:3.
-    const open = perBand(sides, a, 2 * a) / Math.max(perBand(sides, 0, a), 1);
-    const unmet = (grows < SIDES_GROW) && (density < SIDES_DENSE) && (open < SIDES_OPEN);
-    // A scene that draws next to nothing past the view can't show the growth: a fifth of a few dozen triangles is an
-    // object or two, whose triangles a game culling to the picture draws whole in both windows once it reaches into the
-    // narrower one.
+    // Drawn as densely past the view as inside it, a world isn't culled at the sides at all: nothing to grow.
+    const density = (pastB / (2 * b)) / Math.max(inB, 1);
+    const unmet = (grows < SIDES_GROW) && (density < SIDES_DENSE);
+    // A scene that draws next to nothing past the view can't show the growth: a tenth of a few dozen triangles is a
+    // triangle or two.
     const few = unmet && (pastB < SIDES_FEW);
     const fail = unmet && !few;
     failed ||= fail;
     untested ||= few;
-    console.log(`sides: ${a.toFixed(2)}-${b.toFixed(2)} of the view past the 4:3 view's sides, ${pastA.toFixed(0)} triangles` +
-        ` a workload at ${sides.aspect.toFixed(2)}:1 and ${pastB.toFixed(0)} at ${wider.aspect.toFixed(2)}:1` +
-        ` (x${grows.toFixed(2)}; ${density.toFixed(2)} of the view's density; ${open.toFixed(2)} as dense past the` +
-        ` ${sides.aspect.toFixed(2)}:1 picture's edge as inside it), over ${sides.n} and ${wider.n} workloads: ` +
-        (fail ? 'FAILS, the world past the 4:3 view doesn\'t grow with the picture: culled to the 4:3 view' :
+    console.log(`sides: ${pastA.toFixed(0)} triangles a workload past the 4:3 view's sides in the 4:3 window and ` +
+        `${pastB.toFixed(0)} in the ${wider.aspect.toFixed(2)}:1 picture, out to ${b.toFixed(2)} of the view ` +
+        `(x${grows.toFixed(2)}; ${density.toFixed(2)} of the view's density), over ${n} of its ${wider.n} workloads paired ` +
+        `with one of the ${narrower.n} at 4:3 that draws the same inside the view: ` +
+        (fail ? 'FAILS, the wider picture draws no more past the 4:3 view than the 4:3 window: culled to the 4:3 view, ' +
+            'or a scene whose every object reaches into the view (look at the wider dump\'s frames)' :
             few ? `untested, too little drawn past the view to tell (under ${SIDES_FEW} triangles a workload): a scene ` +
                 'that draws more there tests it' : 'passes'));
 }
 else if (sides && sides.n) {
-    const ext = (sides.aspect / (4 / 3) - 1) / 2;
-    console.log(`sides: ${pastSides(sides, 0, ext).toFixed(0)} triangles a workload past the 4:3 view's sides in the` +
-        ` ${sides.aspect.toFixed(2)}:1 picture, ${insideView(sides).toFixed(0)} inside it, over ${sides.n} workloads;` +
-        ' --wider <a dump of the same plan at 32:9> checks the culling');
+    const past = sides.rows.reduce((a, v) => a + pastOf(v, extOf(sides.aspect)), 0) / sides.n;
+    const inside = sides.rows.reduce((a, v) => a + insideOf(v), 0) / sides.n;
+    console.log(`sides: ${past.toFixed(0)} triangles a workload past the 4:3 view's sides in the ${sides.aspect.toFixed(2)}:1 ` +
+        `picture, ${inside.toFixed(0)} inside it, over ${sides.n} workloads; --narrower <a dump of the same plan in a 4:3 ` +
+        'window> --wider <one at 32:9> checks the culling');
 }
 else {
     console.log('sides: no workload drew 200 triangles between those seconds');
+}
+// The picture at the 4:3 view's sides, from each dump's frames alone (pictureAtSides()): what the triangle count above
+// can't read, a picture whose world past the view is 2D (a board's background) or that a scissor cuts.
+const PIC_EVERY = 0.1; // seconds between the frames looked at
+const PIC_LIT = 16; // a pixel brighter than this in any channel, of 255, is drawn
+const PIC_FULL = 0.8; // a column with this share of its rows drawn is the picture's
+const PIC_SOME = 0.02; // ... the black past where the picture ends has something drawn on it from this share
+const PIC_DARK = 0.3; // ... to this (more is the picture going on with a gap in it)
+const PIC_ROOM = 0.1; // ... and is this much of the view's width at least
+const PIC_RUN = 1; // seconds in a row of frames cut short that fail
+const SEAM_EVERY = 0.25; // seconds between the frames a straight line is looked for in
+const SEAM_MOVES = 2; // a frame's mean difference to the last one looked at, of 255, from which the scene moves
+const SEAM_BESIDE = 3; // ... where the pixels this many columns either side of a line, in the rows it steps, move as much
+const SEAM_STEP = 10; // a step between two pixels, of 255, that counts in a column
+const SEAM_OVER = 0.3; // the share of a column's rows stepping, over its neighbours', that is a straight line
+const SEAM_NEAR = 0.05; // ... within this much of the view's width of its sides
+const SEAM_SHARE = 0.25; // ... in this share of the frames where the scene moves: fails
+
+// A dump's frames between --from and --to, one every <every> seconds, cut to its picture's box.
+function* sampledFrames(d, every) {
+    const file = path.join(d, 'frames.bin');
+    const shape = fs.existsSync(file) && pictureBox(d);
+    if (!shape) {
+        return;
+    }
+    const fd = fs.openSync(file, 'r');
+    const size = fs.fstatSync(fd).size;
+    const head = Buffer.alloc(HEADER);
+    let startMs = null, next = from;
+    for (let o = 0; o + HEADER <= size;) {
+        fs.readSync(fd, head, 0, HEADER, o);
+        const w = head.readUInt32LE(4), h = head.readUInt32LE(8);
+        if ((head.readUInt32LE(0) !== MAGIC) || (o + HEADER + w * h * 3 > size)) {
+            break;
+        }
+        const timeMs = Number(head.readBigUInt64LE(32));
+        startMs ??= timeMs;
+        const t = (timeMs - startMs) / 1000;
+        if (t > to) {
+            break;
+        }
+        if ((t >= next) && (w >= shape.w) && (h >= shape.h)) {
+            const rgb = Buffer.allocUnsafe(shape.w * shape.h * 3);
+            const whole = Buffer.allocUnsafe(w * shape.h * 3);
+            fs.readSync(fd, whole, 0, whole.length, o + HEADER);
+            for (let y = 0; y < shape.h; y++) {
+                whole.copy(rgb, y * shape.w * 3, y * w * 3, (y * w + shape.w) * 3);
+            }
+            yield { t, w: shape.w, h: shape.h, rgb };
+            next = t + every;
+        }
+        o += HEADER + w * h * 3;
+    }
+    fs.closeSync(fd);
+}
+
+// Two faults of the picture at the view's sides, each read from one dump's frames. Cut short: the picture fills the
+// view out to its side and ends in black past it, with something drawn on the black, as a board whose background is
+// drawn to 4:3 draws its 3D spaces out past the map. A picture that ends where its world does (a board's map reaching
+// no further, a stage built short of a wide window) has nothing on the black past it, and a 4:3 scene, or a logo on
+// black, doesn't fill the view to its side. A straight line inside the picture along the view's side, in the same
+// column while the scene moves: something the game cuts a few pixels short of the side, the picture behind it showing.
+function pictureAtSides(d) {
+    let looked = 0, cutShort = 0, longest = 0, runFrom = null, runAt = null, moving = 0, prev = null, nextSeam = from;
+    let vw = 0, v0 = 0, v1 = 0, aspect = 0;
+    const seams = new Map();
+    for (const f of sampledFrames(d, PIC_EVERY)) {
+        const { w, h, rgb } = f;
+        aspect = w / h;
+        vw = h * 4 / 3;
+        v0 = Math.round((w - vw) / 2);
+        v1 = Math.round((w + vw) / 2);
+        const drawn = new Uint8Array(w * h);
+        const lit = new Float32Array(w);
+        for (let i = 0, p = 0; i < w * h; i++, p += 3) {
+            drawn[i] = (Math.max(rgb[p], rgb[p + 1], rgb[p + 2]) > PIC_LIT) ? 1 : 0;
+            lit[i % w] += drawn[i] / h;
+        }
+        looked++;
+        let cut = false;
+        if (aspect > 4 / 3 * 1.1) {
+            for (const [first, step, last] of [[v0 - 1, -1, 0], [v1, 1, w - 1]]) {
+                const within = (x) => ((step < 0) ? (x >= last) : (x <= last));
+                // The view drawn out to its side: the twentieth of it inside the side.
+                let full = true;
+                for (let k = 1; k <= Math.ceil(vw / 20); k++) {
+                    full &&= lit[first - step * k] >= PIC_FULL;
+                }
+                let reach = first - step;
+                for (let x = first; within(x) && (lit[x] >= PIC_FULL); x += step) {
+                    reach = x;
+                }
+                const n = Math.abs(last - reach);
+                let beyond = 0;
+                for (let x = reach + step; within(x); x += step) {
+                    beyond += lit[x];
+                }
+                beyond /= Math.max(n, 1);
+                cut ||= full && (n >= PIC_ROOM * vw) && (beyond >= PIC_SOME) && (beyond <= PIC_DARK);
+            }
+        }
+        if (cut) {
+            runFrom = ((runAt !== null) && (f.t - runAt <= 2.5 * PIC_EVERY)) ? runFrom : f.t;
+            runAt = f.t;
+            cutShort++;
+            longest = Math.max(longest, runAt - runFrom + PIC_EVERY);
+        }
+        if (f.t < nextSeam) {
+            continue;
+        }
+        nextSeam = f.t + SEAM_EVERY;
+        const g = grey(f, w, h);
+        const last = (prev && (prev.length === g.length)) ? prev : null;
+        const moved = last ? meanDiff(g, last) : Infinity;
+        prev = g;
+        if (moved < SEAM_MOVES) {
+            continue;
+        }
+        moving++;
+        // Each column's share of the rows drawn two pixels either side of it that step to the next column.
+        const share = new Float32Array(w);
+        for (let x = 1; x < w - 2; x++) {
+            let rows = 0, steps = 0;
+            for (let i = x; i < w * h; i += w) {
+                if (drawn[i - 1] && drawn[i] && drawn[i + 1] && drawn[i + 2]) {
+                    rows++;
+                    steps += (Math.abs(g[i + 1] - g[i]) > SEAM_STEP) ? 1 : 0;
+                }
+            }
+            share[x] = (rows >= h / 2) ? steps / rows : 0;
+        }
+        // How much the picture beside column x moved since the last frame looked at: its pixels SEAM_BESIDE either side,
+        // in the rows where x steps. A line where the picture beside it stands still is the scene's own edge (Paper
+        // Mario's stage pillars at the view's sides, while only the curtain above them moves), not a cut.
+        const beside = (x) => {
+            if (!last) {
+                return Infinity;
+            }
+            let sum = 0, n = 0;
+            for (let i = x; i < w * h; i += w) {
+                if (drawn[i - 1] && drawn[i] && drawn[i + 1] && drawn[i + 2] && (Math.abs(g[i + 1] - g[i]) > SEAM_STEP)) {
+                    for (let k = -SEAM_BESIDE; k <= SEAM_BESIDE + 1; k++) {
+                        sum += Math.abs(g[i + k] - last[i + k]);
+                        n++;
+                    }
+                }
+            }
+            return n ? sum / n : 0;
+        };
+        const near = Math.ceil(SEAM_NEAR * vw);
+        for (const side of [v0, v1 - 1]) {
+            for (let x = Math.max(side - near, 7); x <= Math.min(side + near, w - 9); x++) {
+                const around = [];
+                for (let k = 2; k <= 6; k++) {
+                    around.push(share[x - k], share[x + k]);
+                }
+                around.sort((a, b) => a - b);
+                if ((share[x] - around[around.length >> 1] >= SEAM_OVER) && (share[x] >= share[x - 1]) &&
+                    (share[x] >= share[x + 1]) && (beside(x) >= SEAM_MOVES)) {
+                    seams.set(x, (seams.get(x) ?? 0) + 1);
+                }
+            }
+        }
+    }
+    const seam = [...seams].sort((a, b) => b[1] - a[1])[0];
+    return { looked, cutShort, longest, moving, seam, vw, v0, v1, aspect };
+}
+for (const d of [dir, narrowerDir, widerDir].filter(Boolean)) {
+    const p = pictureAtSides(d);
+    if (!p.looked) {
+        continue;
+    }
+    const wide = p.aspect > 4 / 3 * 1.1;
+    const cutFails = p.longest >= PIC_RUN;
+    const seamFails = !!p.seam && (p.seam[1] >= SEAM_SHARE * p.moving);
+    failed ||= cutFails || seamFails;
+    // Where the line lies from the view's side it is nearer, in the dump's pixels: in toward the middle or out from it.
+    const off = p.seam && ((p.seam[0] < p.v0 + p.vw / 2) ? (p.seam[0] + 1 - p.v0) : (p.v1 - 1 - p.seam[0]));
+    console.log(`picture at the sides (${d}, ${p.aspect.toFixed(2)}:1): ` +
+        (wide ? `${p.cutShort} of ${p.looked} frames cut short past the 4:3 view (something drawn on black past where ` +
+            `the picture ends), at most ${p.longest.toFixed(1)} s in a row` +
+            (cutFails ? ': FAILS, the picture stops where the world goes on' : '') : 'no room past the 4:3 view') + '; ' +
+        (p.seam ? `a straight line ${Math.abs(off)} pixels ${(off < 0) ? 'out' : 'in'} from the view's side in ` +
+            `${p.seam[1]} of ${p.moving} frames where the scene moves` +
+            (seamFails ? ': FAILS, something cut short of the picture\'s side' : '') :
+            `no straight line along the view's sides in ${p.moving} frames where the scene moves`));
 }
 process.exit(failed ? 1 : (untested ? 2 : 0));
