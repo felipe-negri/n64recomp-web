@@ -37,11 +37,16 @@
 //   - Its main menu held 15 s: v0.1.26, whose bobbing MAIN MENU sign showed a line of sky across it in a frame drawn
 //     between the game's own (issue 76; rt64-web 0571b69 fixed it), in 12 seconds, all in a row (14 of 886 frames, one
 //     a bob); v0.1.27 in 1 (3 of 787, the ONE above, paired with a low frame where it differed).
+// A seam that comes at one moment of an animation (a bob of a sign) comes only as often as the game reaches that moment,
+// so a high dump whose game ran slower than MIN_RATE of its own frames a second (the last of each present: a frame
+// drawn between them is RT64's) can't pass: it exits 2 unless it fails. Mario Golf's Linux builds on a host whose GPU a
+// training job held drew 2.4-2.9 game frames a second at 1280x960, against 30 on Windows on an idle one, and v0.1.26's
+// main menu there showed its sign's line in 1 of 472 frames.
 //
 // --from and --to keep the high dump's frames between those seconds, counted from its first; --save writes, for each
 // second with a seam, its frame with the most seam pixels as a PNG with its seams marked magenta (<t>-marked.png) and
-// as it was (<t>.png). It exits 0 when it passes, 1 when it fails, 2 on a bad dump or arguments, or a pair of dumps
-// whose resolutions differ by under 2 dump pixels a console pixel.
+// as it was (<t>.png). It exits 0 when it passes, 1 when it fails, 2 on a bad dump or arguments, a pair of dumps whose
+// resolutions differ by under 2 dump pixels a console pixel, or a high dump whose game ran under MIN_RATE.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -77,6 +82,7 @@ const PAIR_W = 64; // the grey copy frames are paired by
 const NEAR = 1; // pixels around a line's place in the low frame a line of its own is looked for
 const HAVE = 0.5; // the share of a line's pixels the low frame has a line beside, from which it is the game's own
 const RUN = 4; // seconds in a row, each with a frame with a seam, that fail
+const MIN_RATE = 10; // the game's own frames a second the high dump has at the least, to pass
 
 // A dump's frames between --from and --to (or all for the low one): each { t, o, w, h }, o its pixels' offset.
 function framesOf(d, all) {
@@ -103,7 +109,7 @@ function framesOf(d, all) {
             break;
         }
         if (all || (t >= from)) {
-            out.push({ t, o: o + HEADER, w, h });
+            out.push({ t, o: o + HEADER, w, h, own: head.readUInt32LE(12) === head.readUInt32LE(16) - 1 });
         }
         o += HEADER + w * h * 3;
     }
@@ -322,6 +328,13 @@ if (saveDir && seamed) {
         fs.writeFileSync(path.join(saveDir, `${t.toFixed(2)}.png`), png(f.w, f.h, p));
         fs.writeFileSync(path.join(saveDir, `${t.toFixed(2)}-marked.png`), png(f.w, f.h, m));
     }
+}
+const span = high.frames.at(-1).t - high.frames[0].t;
+const rate = high.frames.filter((f) => f.own).length / (span || 1);
+if (!fails && (rate < MIN_RATE)) {
+    console.log(`the high dump's game drew ${rate.toFixed(1)} of its own frames a second, under ${MIN_RATE}: a seam at one ` +
+        'moment of an animation may not have come, so it cannot pass (a host too busy? dump it again on an idle one)');
+    process.exit(2);
 }
 process.exit(fails ? 1 : 0);
 
