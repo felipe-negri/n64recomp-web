@@ -7,13 +7,19 @@
 //   node tools/frame_dump.mjs --game <dir> --exe <name> --game-id <id> --rom <file> --plan <file> --out <dir>
 //       [--window <w>x<h>[,<w>x<h>,<w>x<h>]] [--rate <hz>] [--seconds <from>-<to>] [--args "<program args>"]
 //       [--env K=V,...] [--config <dir>] [--check "<frame_check args>"] [--workers <n>] [--keep]
-//       [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>] [--saves <plan>]
+//       [--queue <module>] [--vram <MiB>|auto] [--priority low] [--url <url>] [--sound-reference <dir>]
+//       [--saves <plan>]
 //
 // --game is the folder of a recomp's Linux build (its release archive unpacked, or its build folder with assets/),
 // --exe the program in it, --game-id the name its runtime stores the ROM under (<game id>.z64, as Load ROM does). Each
 // run copies --game into a folder of its own under --out with a portable.txt, so its settings and saves are the run's,
 // stores the ROM, copies --config's files in (a graphics.json, a general.json) and starts the program with --boot,
 // --window and --args, SDL's dummy sound driver, and RT64_FRAME_DUMP (and RT64_FRAME_DUMP_SECONDS from --seconds).
+// Each run's sound is recorded too, by tools/sdl_audio_record.c (built with the image's cc and loaded with
+// LD_PRELOAD), into <out>/<run>/sound.tsv and sound.raw, and each step of the plan's time into steps.tsv, and
+// tools/sound_check.mjs checks the first run's after frame_check, against --sound-reference's if given (a run's folder
+// of an earlier dump, by the same plan, of a build whose sound is right), its text in sound_check.txt. The recording
+// stays (about 23 MB a minute) for a later check against another.
 // RT64's refresh rate is set to Manual at --rate (240) in its graphics.json, made by a first start of the program
 // when --config has none: Xvfb has no refresh rate of its own, and at Display the program presents only the game's own
 // frames, which test nothing of the frames between. It presents as fast as it draws below that rate (Mario Golf's
@@ -58,8 +64,9 @@
 // --workers is frame_check's (a third of the cores it sees unless given), for a container held to fewer cores than
 // the host has.
 //
-// Exit: frame_check's own (0 passes, 1 fails, 2 has nothing to test), 3 when a run failed (the program exited or
-// crashed, an until or find unmet, no window), 75 when the queue asked it to stop.
+// Exit: frame_check's own (0 passes, 1 fails, 2 has nothing to test), or 1 where sound_check fails, 2 where the frames
+// pass and sound_check had nothing it could check against --sound-reference (a run that fell behind real time), 3 when
+// a run failed (the program exited or crashed, an until or find unmet, no window), 75 when the queue asked it to stop.
 import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -109,7 +116,18 @@ process.on('exit', () => xvfb.kill());
 const xdo = (...a) => execFileSync('xdotool', a, { env: { ...process.env, DISPLAY: display } }).toString().trim();
 
 const keyNames = { Enter: 'Return', Space: 'space', Shift: 'Shift_L', Escape: 'Escape', Tab: 'Tab', Up: 'Up',
-  Down: 'Down', Left: 'Left', Right: 'Right' };
+  Down: 'Down', Left: 'Left', Right: 'Right', Backspace: 'BackSpace' };
+
+// tools/sdl_audio_record.c, built once for every run: each run's sound is recorded beside its dump.
+let recorder = null;
+try {
+  recorder = path.join(out, 'sdl_audio_record.so');
+  fs.mkdirSync(out, { recursive: true });
+  execFileSync('cc', ['-shared', '-fPIC', '-O2', '-o', recorder, path.join(here, 'sdl_audio_record.c'), '-ldl'], { stdio: 'pipe' });
+} catch (e) {
+  log(`frame_dump: no sound recorded: building sdl_audio_record.c failed: ${(e.stderr ?? e.message).toString().trim()}`);
+  recorder = null;
+}
 const keysym = (name) => {
   if (keyNames[name]) return keyNames[name];
   if (/^[A-Za-z0-9]$/.test(name)) return name.toLowerCase();
@@ -133,7 +151,7 @@ function rdramOf(pid) {
 
 // One run of steps, its logs and shots in <out>/<name>. The program runs in a copy of --game of the run's own, or in
 // shared, a folder --saves' two runs share, copied by the first.
-async function playRun(name, steps, size, signal, config, shared = null) {
+async function playRun(name, planSteps, size, signal, config, shared = null) {
   const dir = path.join(out, name), work = shared ?? path.join(dir, 'run');
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
@@ -145,6 +163,7 @@ async function playRun(name, steps, size, signal, config, shared = null) {
   }
   const savesDir = path.join(work, 'saves'), savesAtStart = filesOf(savesDir);
   const env = { ...process.env, DISPLAY: display, SDL_AUDIODRIVER: 'dummy' };
+  if (recorder) Object.assign(env, { LD_PRELOAD: recorder, SDL_AUDIO_RECORD: path.join(dir, 'sound') });
   if (!loadPlan) env.RT64_FRAME_DUMP = path.join(dir, 'dump');
   if (!loadPlan && opt('--seconds')) env.RT64_FRAME_DUMP_SECONDS = opt('--seconds');
   for (const kv of (opt('--env') ?? '').split(',').filter(Boolean)) { const k = kv.indexOf('='); env[kv.slice(0, k)] = kv.slice(k + 1); }
@@ -156,7 +175,8 @@ async function playRun(name, steps, size, signal, config, shared = null) {
   let exited = null;
   proc.on('exit', (code, sig) => { exited = sig ?? code; });
   const t = () => (Date.now() - started) / 1000;
-  const say = (s) => log(`${name} ${t().toFixed(1).padStart(6)}s ${s}`);
+  const steps = fs.openSync(path.join(dir, 'steps.tsv'), 'w');
+  const say = (s) => { log(`${name} ${t().toFixed(1).padStart(6)}s ${s}`); fs.writeSync(steps, `${Date.now()}\t${s}\n`); };
   say(`started ${exe} ${progArgs.join(' ')}`);
   let win = null, mem = null, rdram = null, shift = 0;
   const names = {};
@@ -194,7 +214,7 @@ async function playRun(name, steps, size, signal, config, shared = null) {
   try {
     await findWindow();
     if (size) xdo('windowsize', win, String(w), String(h));
-    plan: for (const p of steps) {
+    plan: for (const p of planSteps) {
       while (t() < Number(p[0]) + shift) { live(); await sleep(10); }
       live();
       switch (p[1]) {
@@ -374,6 +394,24 @@ function check(made) {
   return code;
 }
 
+// sound_check on the first run's recording, after frame_check, in the same job: its exit, 1 where it fails.
+function soundCheck(made) {
+  const a = [path.join(here, 'sound_check.mjs'), path.dirname(made[0])];
+  if (opt('--sound-reference')) a.push('--reference', path.resolve(opt('--sound-reference')));
+  log(`sound_check ${a.slice(1).join(' ')}`);
+  let code = 0, text;
+  try { text = execFileSync(process.execPath, a, { maxBuffer: 1 << 24 }).toString(); }
+  catch (e) { code = e.status ?? 1; text = (e.stdout ?? '').toString() + (e.stderr ?? '').toString(); }
+  fs.writeFileSync(path.join(out, 'sound_check.txt'), text);
+  process.stdout.write(text);
+  log(`sound_check exited ${code}`);
+  return code;
+}
+const both = (made) => {
+  const frames = check(made), sound = soundCheck(made);
+  return sound === 1 ? 1 : sound === 2 && opt('--sound-reference') && frames === 0 ? 2 : frames;
+};
+
 // The container's memory cap in MiB (cgroup v2's memory.max), null when it has none (the queue then reads the game's
 // last runs).
 function capMiB() {
@@ -396,9 +434,9 @@ try {
     if (loadPlan) code = await gpuRun(spec('frame-dump', `Save check: ${gameId}`, vram), (signal) => saveCheck(signal));
     else {
       const made = await gpuRun(spec('frame-dump', `Frame dump: ${gameId}`, vram), (signal) => dumps(signal));
-      code = await gpuRun(spec('frame-check', `frame_check: ${gameId}`, 0), async () => check(made));
+      code = await gpuRun(spec('frame-check', `frame_check: ${gameId}`, 0), async () => both(made));
     }
-  } else code = loadPlan ? await saveCheck(null) : check(await dumps(null));
+  } else code = loadPlan ? await saveCheck(null) : both(await dumps(null));
 } catch (e) {
   log(`frame_dump: ${e instanceof RunFailed ? e.message : e?.stack ?? e}`);
   code = stopped ? 75 : 3;
