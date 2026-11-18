@@ -4,17 +4,19 @@
 # host's GPU and CPU, not on the machine you run this from. A dump is ~20 MB a second, too much to bring back over a
 # slow link, so the dumps are made, checked and deleted there.
 #
-#   DUMP_HOST=<host> tools/remote_frame_dump.sh [-c <config dir>] <game dir> <exe> <game id> <rom> <plan> <out dir>
-#       [tools/frame_dump.mjs options: --window 1280x720,960x720,2560x720 --seconds 10-70 --args "..." --check "..."]
+#   DUMP_HOST=<host> tools/remote_frame_dump.sh [-c <config dir>] [-r <sound reference>] <game dir> <exe> <game id>
+#       <rom> <plan> <out dir> [tools/frame_dump.mjs options: --window 1280x720,960x720,2560x720 --seconds 10-70 ...]
 #
 # <game dir> and <rom> are paths on the host (relative to its home): the recomp's Linux build, its release archive
 # unpacked or a build folder with assets/, and its ROM. <exe> is the program in <game dir>, <game id> the name its
 # runtime stores the ROM under (its game_id). <plan> is a plan of tools/capture_window.ps1's here, and <out dir> a
 # folder here that gets frame_check.txt (the check's output, also printed; seam_check.txt with two --window sizes),
-# each run's stdout.log, stderr.log and the plan's shots, and flagged/ (the check's --save). -c sends a folder of
-# settings files (graphics.json, general.json) for every run. tools/frame_dump.mjs's header says what a run does and
-# what the options mean; its exit code is this one's (0 passes, 1 fails, the game's speed included, 2 nothing
-# to test, 3 a run failed, 75 stopped by the queue).
+# each run's stdout.log, stderr.log and the plan's shots, flagged/ (the check's --save), and each run's sound recording
+# and sound_check.txt (tools/sound_check.mjs's output, also printed). -c sends a folder of settings files
+# (graphics.json, general.json) for every run, and -r a run's folder from an earlier one (its sound.tsv, sound.raw and
+# steps.tsv) for sound_check to compare the first run's sound with (frame_dump.mjs's --sound-reference).
+# tools/frame_dump.mjs's header says what a run does and what the options mean; its exit code is this one's (0 passes,
+# 1 fails, the game's speed included, 2 nothing to test, 3 a run failed, 75 stopped by the queue).
 #
 # It runs in the image of tools/frame_dump.Dockerfile, tagged with a hash of that file and built on the host the first
 # time a run needs it, in a container named frame-dump-<out dir's name> (`docker stop` that name to end one), as the
@@ -30,14 +32,15 @@
 # $FRAME_DUMP_NETWORK names the docker network the queue answers on, and $FRAME_DUMP_JOB_URL is each job's link.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
-config=""
+config="" reference=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
     -c) config="$(cd "$2" && pwd)"; shift 2 ;;
+    -r) reference="$(cd "$2" && pwd)"; shift 2 ;;
     *) break ;;
     esac
 done
-[[ $# -ge 6 ]] || { sed -n '6,8p' "$0" >&2; exit 3; }
+[[ $# -ge 6 ]] || { sed -n '6,7p' "$0" >&2; exit 3; }
 game=$1 exe=$2 game_id=$3 rom=$4 plan=$5 out=$6
 shift 6
 host="${DUMP_HOST:?set DUMP_HOST to the host to dump on}"
@@ -54,13 +57,18 @@ remote() { ssh -o BatchMode=yes "$host" "$@"; }
 remote "docker image inspect $image >/dev/null 2>&1 || docker build -q -t $image - >/dev/null" \
     < "$here/frame_dump.Dockerfile"
 
-# What the container reads, in one tar: the four scripts, the plan, the settings, the queue's client.
+# What the container reads, in one tar: the scripts, the plan, the settings, the sound reference, the queue's client.
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
-cp "$here/frame_dump.mjs" "$here/frame_check.mjs" "$here/frame_pace.mjs" "$here/seam_check.mjs" "$here/game_speed.mjs" "$stage/"
+cp "$here/frame_dump.mjs" "$here/frame_check.mjs" "$here/frame_pace.mjs" "$here/seam_check.mjs" "$here/sound_check.mjs" \
+    "$here/game_speed.mjs" "$here/sdl_audio_record.c" "$stage/"
 cp "$plan" "$stage/plan.txt"
 mkdir -p "$stage/config-in"
 [[ -n "$config" ]] && cp -r "$config/." "$stage/config-in/"
+if [[ -n "$reference" ]]; then
+    mkdir -p "$stage/sound-reference"
+    cp "$reference/sound.tsv" "$reference/sound.raw" "$reference/steps.tsv" "$stage/sound-reference/"
+fi
 queue=()
 if [[ -n "${FRAME_DUMP_QUEUE_CLIENT:-}" ]]; then
     cp "$FRAME_DUMP_QUEUE_CLIENT" "$stage/queue.mjs"
@@ -79,6 +87,7 @@ run=(docker run --rm --name "frame-dump-$name" --gpus all --cpus "$cpus" --memor
 cmd=(node /work/frame_dump.mjs --game /game --exe "$exe" --game-id "$game_id" --rom /rom.z64 --plan /work/plan.txt
     --out /work/out --workers "$cpus" "${queue[@]}")
 [[ -n "$config" ]] && cmd+=(--config /work/config-in)
+[[ -n "$reference" ]] && cmd+=(--sound-reference /work/sound-reference)
 stopped() { remote "docker stop frame-dump-$name >/dev/null 2>&1" || true; exit 75; }
 trap 'rm -rf "$stage"; stopped' INT TERM
 set +e
@@ -91,7 +100,7 @@ trap 'rm -rf "$stage"' EXIT
 trap - INT TERM
 
 # Everything but the dumps and the runs' copies of the game comes back.
-remote "tar -C $dir/out -cf - --exclude=./*/dump --exclude=./*/run --exclude=./config ." 2>/dev/null | tar -C "$out" -xf - \
+remote "tar -C $dir/out -cf - --exclude=./*/dump --exclude=./*/run --exclude=./config --exclude=./sdl_audio_record.so ." 2>/dev/null | tar -C "$out" -xf - \
     || echo "nothing came back from $host:$dir/out" >&2
 [[ -n "$keep" ]] || remote "rm -rf $dir"
 echo "results in $out (exit $code)"
