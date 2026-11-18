@@ -9,11 +9,12 @@
 // --queue names a JavaScript module exporting gpuRun(spec, run), the queue's client; without it the command runs at
 // once. A play that checks (a smoke play, a Firefox play for crashes, a recording) is a job of type page-play asking
 // "auto" GPU memory for --model (the game's name: the queue sizes the ask from that game's last runs, plus a margin,
-// and a first run asks 4 GiB), so it runs beside other jobs. --measure files it as page-measure asking more memory
+// and a first run asks 2 GiB; a page holds under 1), so it runs beside other jobs. --measure files it as page-measure asking more memory
 // than the GPU has, so it runs alone on the GPU, as the one-page-at-a-time rule asks of a play whose numbers are the
 // result; in Xvfb every present is copied on the CPU, which paces the page, so a play here measures no page
-// (docs/playing.md). The host memory each asks is the queue's own reading of the
-// game's last runs (8 GiB before it has one), and the container's cores are capped by its docker run (--cpus). Both
+// (docs/playing.md). The host memory each asks is the container's own cap (its docker run's --memory, read from its
+// cgroup), so what the queue reserves is what the play can hold, never the queue's 8 GiB for a game it hasn't measured;
+// with no cap it is the queue's reading of the game's last runs. The cores are capped by the docker run (--cpus). Both
 // are --priority (low) and linked to --url. A stop the queue asks for ends the play, and this, with 75.
 //
 // Where the command records a run (play_page's --record <file>) and gives no --host-reading, the line it appended is
@@ -64,6 +65,14 @@ const play = (signal) => new Promise((resolve) => {
   proc.on('exit', (code, sig) => resolve(signal?.aborted ? 75 : code ?? (sig ? 128 + os.constants.signals[sig] : 1)));
 });
 
+// The container's memory cap in MiB (cgroup v2's memory.max), null when it has none.
+function capMiB() {
+  try {
+    const max = fs.readFileSync('/sys/fs/cgroup/memory.max', 'utf8').trim();
+    return /^\d+$/.test(max) ? Math.ceil(Number(max) / 1048576) : null;
+  } catch { return null; }
+}
+
 let code, job = null;
 if (!queue) code = await play(null);
 else {
@@ -71,7 +80,7 @@ else {
   let said = 0;
   code = await gpuRun({
     type: measure ? 'page-measure' : 'page-play', label: measure ? 'Page play, measured alone' : 'Page play',
-    vramMiB: measure ? 32768 : 'auto', ...(measure ? {} : { guessMiB: 4096 }), model,
+    vramMiB: measure ? 32768 : 'auto', ...(measure ? {} : { guessMiB: 2048 }), model, ramMiB: capMiB(),
     priority: opt('--priority', 'low'), url: opt('--url') || null, ref: os.hostname(),
     onUpdate: (j) => {
       job = j;
