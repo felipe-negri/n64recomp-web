@@ -55,7 +55,9 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   sound is right, given as the reference (`remote_frame_dump.sh -r <run's folder>`, frame_dump's `--sound-reference`),
   in narrow bands lined up by the plan's steps, and fails where one is louder (a stuck or looping sound) or quieter (a
   missing one) through seconds. A plan for it plays the scene with the fault in it: Rush 2049's squeal left playing
-  across a rewind showed only in a plan that skids while it holds Rewind. Its header says what it was measured on.
+  across a rewind showed only in a plan that skids while it holds Rewind. Both runs are recorded on an idle host: on a
+  busy one the game falls behind real time, the plan's keys meet it at other moments, and sound_check checks nothing.
+  Its header says what it was measured on.
 
 ## Plans
 

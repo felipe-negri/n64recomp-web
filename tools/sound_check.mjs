@@ -25,6 +25,12 @@
 // v0.1.36 fails there too, by 4.6 dB: it has v0.1.35's fault. No build with a known missing sound has been recorded,
 // so the quieter side has only been seen as the mirror of these (v0.1.36 against v0.1.31 is quieter by 5.3 dB).
 //
+// A run whose game fell behind real time can't be compared: the plan's keys, timed on the host's clock, then met its
+// race at other moments than the reference's, and on a busy host Rush 2049's v0.1.30 failed against its own run on
+// an idle host in 19 bands, through the half minute after the first gap. So where the queue ran dry more than
+// MAX_GAPS times (the game queued too little sound to keep up; a run on an idle host ran dry at most once, as a
+// level loads, and that run 15 times) in either run, it says so and checks nothing.
+//
 // It also prints how much sound was queued before each buffer (least, median, most: how far behind the game it was
 // heard) and the buffers queued onto an empty queue (a gap), but fails on neither: a busy host runs any queue dry, and
 // whether a game's sound keeps pace with a sound card is a sound card's to show. Mario Golf v0.1.2, whose queue grew
@@ -43,6 +49,7 @@ const PER_OCTAVE = 12; // bands an octave
 const DIFF_DB = 3; // how much louder or quieter than the reference a band fails at
 const HOLD_S = 4; // ... through this many seconds
 const RANGE_DB = 40; // ... in sound at least this far above the quietest the two play in that band
+const MAX_GAPS = 3; // times either run's queue may run dry before the two can't be compared
 
 const args = process.argv.slice(2);
 const opt = (name, def) => { const i = args.indexOf(name); return i < 0 ? def : args[i + 1]; };
@@ -159,6 +166,14 @@ if (opt('--reference')) {
   if (kinds(run) !== kinds(ref)) {
     console.log('sound against the reference: the two runs played different steps (a different plan, or one failed), so they don\'t line up');
     process.exit(2);
+  }
+  for (const r of [run, ref]) {
+    const gaps = r.buffers.filter((b, i) => i > 0 && b.t >= from && b.t <= to && b.queued === 0).length;
+    if (gaps > MAX_GAPS) {
+      console.log(`sound against the reference: ${r === run ? 'this run' : 'the reference'}'s queue ran dry ${gaps} times, so ` +
+        "its game fell behind real time (a busy host) and the plan's keys met it at other moments: record it again on an idle host");
+      process.exit(2);
+    }
   }
   // A moment of the run, on the reference's clock: as long after the same step.
   const onRef = (t) => {

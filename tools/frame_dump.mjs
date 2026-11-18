@@ -47,8 +47,9 @@
 // --workers is frame_check's (a third of the cores it sees unless given), for a container held to fewer cores than
 // the host has.
 //
-// Exit: frame_check's own (0 passes, 1 fails, 2 has nothing to test), or 1 where sound_check fails, 3 when a run failed
-// (the program exited or crashed, an until or find unmet, no window), 75 when the queue asked it to stop.
+// Exit: frame_check's own (0 passes, 1 fails, 2 has nothing to test), or 1 where sound_check fails, 2 where the frames
+// pass and sound_check had nothing it could check against --sound-reference (a run that fell behind real time), 3 when
+// a run failed (the program exited or crashed, an until or find unmet, no window), 75 when the queue asked it to stop.
 import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -296,7 +297,10 @@ function soundCheck(made) {
   log(`sound_check exited ${code}`);
   return code;
 }
-const both = (made) => { const frames = check(made), sound = soundCheck(made); return sound === 1 ? 1 : frames; };
+const both = (made) => {
+  const frames = check(made), sound = soundCheck(made);
+  return sound === 1 ? 1 : sound === 2 && opt('--sound-reference') && frames === 0 ? 2 : frames;
+};
 
 // The container's memory cap in MiB (cgroup v2's memory.max), null when it has none (the queue then reads the game's
 // last runs).
