@@ -16,7 +16,7 @@
 #
 # Plan lines, each at seconds since the exe started:
 #   <s> key <name> [ms]       press and release a key in the window (a letter, a digit, Enter, Space, Shift, Escape,
-#                             Tab, Up, Down, Left, Right), held ms (120)
+#                             Tab, Up, Down, Left, Right, Backspace), held ms (120)
 #   <s> down <name>           press a key and keep it held, and
 #   <s> up <name>             release it: a key held while a record goes on (key's hold stops the captures meanwhile)
 #   <s> shot <name>           one capture, <name>.png
@@ -352,7 +352,7 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $OutDir = (Resolve-Path $OutDir).Path
 
 $named = @{ Enter = 0x0D; Space = 0x20; Shift = 0x10; Escape = 0x1B; Tab = 0x09; Left = 0x25; Up = 0x26; Right = 0x27;
-    Down = 0x28 }
+    Down = 0x28; Backspace = 0x08 }
 $extended = @(0x25, 0x26, 0x27, 0x28)
 
 function Post-Key($hwnd, $name, [bool]$up) {

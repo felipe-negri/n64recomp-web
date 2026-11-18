@@ -41,14 +41,16 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   one that looks plausible. With `RT64_FRAME_DUMP=<dir>` (and `RT64_FRAME_DUMP_SECONDS=<from>-<to>` for a scene's
   worth), RT64 writes into that folder, made if it isn't there, every frame presented and where the 3D's triangles
   lay across the view (rt64-web's `src/hle/rt64_frame_dump.h`); `capture_window.ps1 -Env` passes the variables to
-  the build it starts. frame_check reads one dump for frames drawn for themselves alone between two that agree and for
-  a picture cut short at the 4:3 view's sides or black stopping short of the window's, and a dump of the same plan
-  in a 4:3 window with one at 32:9 (`--narrower`, `--wider`) for a world culled at the 4:3 view's sides and a HUD
-  left at them. Where a Linux host with an NVIDIA GPU is at hand, the dumps and the check are made there and not on
-  the machine that works on the game: `tools/remote_frame_dump.sh` plays the game's Linux build by the same plan in
-  all three windows, runs frame_check there and brings back only its text, the logs, the plan's shots and the flagged
-  frames (its header and `tools/frame_dump.mjs`'s say how), since a dump is too big to move and the check holds a
-  third of a machine's cores for minutes. Its verdicts match a dump made on Windows by `capture_window.ps1`.
+  the build it starts. frame_check reads one dump for frames drawn for themselves alone between two that agree, for
+  a part of the picture moving at another pace than the rest through the frames drawn between the game's own
+  (`tools/frame_pace.mjs`) and for a picture cut short at the 4:3 view's sides or black stopping short of the
+  window's, and a dump of the same plan in a 4:3 window with one at 32:9 (`--narrower`, `--wider`) for a world
+  culled at the 4:3 view's sides and a HUD left at them. Where a Linux host with an NVIDIA GPU is at hand, the dumps
+  and the check are made there and not on the machine that works on the game: `tools/remote_frame_dump.sh` plays the
+  game's Linux build by the same plan in all three windows, runs frame_check there and brings back only its text, the
+  logs, the plan's shots and the flagged frames (its header and `tools/frame_dump.mjs`'s say how), since a dump is too
+  big to move and the check holds a third of a machine's cores for minutes. Its verdicts match a dump made on Windows
+  by `capture_window.ps1`.
 - Check a high resolution for seams with `tools/seam_check.mjs`: a line thinner than one of the console's pixels, a
   gap between two of the game's pieces showing what lies behind (terrain blocks a level of detail apart, a sliced
   sprite's strips a pixel apart), which frame_check can't see. It reads a dump of a plan at 4 times the console's
@@ -56,6 +58,15 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   `remote_frame_dump.sh` given two window sizes (`--window 1280x960,320x240`) makes both and runs it. A dump whose game
   ran slower than 10 of its own frames a second (a host whose GPU something else holds) can't pass. Its header says
   what it measured.
+- Check a desktop build's sound the same way, by `tools/sound_check.mjs`: each run frame_dump.mjs makes also records
+  every buffer the game queues to SDL with its time (`tools/sdl_audio_record.c`, through LD_PRELOAD on a Linux build),
+  and the times of the plan's steps. sound_check compares that with the recording of the same plan by a build whose
+  sound is right, given as the reference (`remote_frame_dump.sh -r <run's folder>`, frame_dump's `--sound-reference`),
+  in narrow bands lined up by the plan's steps, and fails where one is louder (a stuck or looping sound) or quieter (a
+  missing one) through seconds. A plan for it plays the scene with the fault in it: Rush 2049's squeal left playing
+  across a rewind showed only in a plan that skids while it holds Rewind. Both runs are recorded on an idle host: on a
+  busy one the game falls behind real time, the plan's keys meet it at other moments, and sound_check checks nothing.
+  Its header says what it was measured on.
 
 ## Plans
 
