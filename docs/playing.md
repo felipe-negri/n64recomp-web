@@ -25,14 +25,19 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   each game frame, why it ended and what each of its workloads drew, and each present and wait; `tools/frame_log.mjs`
   reads that beside the captures' times, to tell a frame drawn in parts from one matched wrongly. Their headers say
   how. A page opened with `?frame-log` prints the same log to its console.
-- Check a desktop build's frames by machine with `tools/frame_check.mjs`: a capture comes tens of milliseconds after the
-  last, so captures miss a fault in the frames between the game's, and an eye misses one that looks plausible. With
-  `RT64_FRAME_DUMP=<dir>` (and `RT64_FRAME_DUMP_SECONDS=<from>-<to>` for a scene's worth), RT64 writes into that folder,
-  made if it isn't there, every frame presented and where the 3D's triangles lay across the view (rt64-web's
-  `src/hle/rt64_frame_dump.h`); `capture_window.ps1 -Env` passes the variables to the build it starts. frame_check reads
-  one dump for frames drawn for themselves alone between two that agree and for a picture cut short at the 4:3 view's
-  sides, and a dump of the same plan in a 4:3 window with one at 32:9 (`--narrower`, `--wider`) for a world culled at
-  the 4:3 view's sides.
+- Check a desktop build's frames by machine with `tools/frame_check.mjs`: a capture comes
+  tens of milliseconds after the last, so captures miss a fault in the frames between the game's, and an eye misses
+  one that looks plausible. With `RT64_FRAME_DUMP=<dir>` (and `RT64_FRAME_DUMP_SECONDS=<from>-<to>` for a scene's
+  worth), RT64 writes into that folder, made if it isn't there, every frame presented and where the 3D's triangles
+  lay across the view (rt64-web's `src/hle/rt64_frame_dump.h`); `capture_window.ps1 -Env` passes the variables to
+  the build it starts. frame_check reads one dump for frames drawn for themselves alone between two that agree and for
+  a picture cut short at the 4:3 view's sides, and a
+  dump of the same plan in a 4:3 window with one at 32:9 (`--narrower`, `--wider`) for a world culled at the 4:3
+  view's sides. Where a Linux host with an NVIDIA GPU is at hand, the dumps and the check are made there and not on
+  the machine that works on the game: `tools/remote_frame_dump.sh` plays the game's Linux build by the same plan in
+  all three windows, runs frame_check there and brings back only its text, the logs, the plan's shots and the flagged
+  frames (its header and `tools/frame_dump.mjs`'s say how), since a dump is too big to move and the check holds a
+  third of a machine's cores for minutes. Its verdicts match a dump made on Windows by `capture_window.ps1`.
 
 ## Plans
 
