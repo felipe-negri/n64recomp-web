@@ -36,8 +36,8 @@
 //                                  tools/game_speed.mjs judges the game's speed from it: each run's speed.tsv has the
 //                                  reads, the log what was judged. A game faster than its console fails the run (exit
 //                                  1), and one slower too with --slow, for a host known to draw the game at its pace
-//   <s> point <x> <y>              moves the pointer to x, y in the window: a launcher takes Enter for the option under
-//                                  the pointer, so with --launcher a plan starts the game with a point and a key Enter
+//   <s> click <x> <y>              clicks at x, y in the window, through XTEST as a mouse does: with --launcher a plan
+//                                  starts the game with a click on Start Game (Enter under the pointer doesn't, on X)
 // --launcher starts the program without --boot, at its launcher, so a plan can wait there as a player who leaves it
 // open does before Start Game (a game whose clock counted the launcher's time played its demos with no title).
 // --no-dump plays the plan with RT64's frame dump off and no frame_check, for the clock alone: a dump writes every
@@ -225,7 +225,7 @@ async function playRun(i, size, signal, config) {
           clock = { addr: num(p[2]), perSecond: Number(p[3]), reads: [] };
           clearInterval(clockTimer); clockTimer = setInterval(clockRead, 100); clockRead();
           say(`clock ${p[2]} at ${p[3]} a second`); break;
-        case 'point': xdo('mousemove', '--window', win, p[2], p[3]); say(`point ${p[2]} ${p[3]}`); break;
+        case 'click': xdo('mousemove', '--window', win, p[2], p[3]); await sleep(100); xdo('click', '1'); say(`click ${p[2]} ${p[3]}`); break;
         case 'end': break plan;
         default: throw new RunFailed(`unknown plan step: ${p.join(' ')}`);
       }
