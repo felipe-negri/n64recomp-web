@@ -344,7 +344,7 @@ What it looks for:
   matching, and passes 0 of 4280 with it. Only frames between the game's test how they are paired, so a dump without
   any (Framerate Original, or a display no faster than the game) exits 2, not 0. A game of 60 on a 59-60 Hz display
   (F-Zero X, Super Smash Bros., Perfect Dark's levels) is dumped with `RT64_FRAME_DUMP_RATE=120` set beside
-  `RT64_FRAME_DUMP`, which presents at 120 with vsync off whatever the display's rate (rt64 fc3ee93), so every other
+  `RT64_FRAME_DUMP`, which presents at 120 with vsync off whatever the display's rate (rt64 3f0181c), so every other
   frame is one between. Rayman 2's build before v0.1.18 failed the
   Woods of Light's opening at 240 Hz, 9 of 3191 frames drawn from a camera halfway across a cut, and passed it at
   Framerate Original: the game puts its camera into every model's matrix, so RT64 saw no camera to cut, and since then
