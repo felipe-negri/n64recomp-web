@@ -1608,6 +1608,8 @@ const BLACK_ROWS = 0.08; // the share of a frame's rows whose black stops at one
 const BLACK_RUN = 0.1; // seconds in a row a frame does so, its edge in one column, that fail
 const LINE_W = 2; // columns a line of the scene down the black is wide at the most, black again past it to the edge
 const LINE_FRAMES = 2; // frames in a row with one in the same column (BLACK_GAP apart at the most) that fail
+const BORDER_STRIP = 0.5; // the share of a frame's rows a strip short of the picture's border is drawn in, at least
+const BORDER_DARK = 0.9; // ... and the border past it is dark in
 
 // Each pixel's share of the frames looked at in which it is fixed on the screen: it stands still with something
 // drawn in it (a step to a neighbour) while the scene around it moves. A HUD's figures, frame and icons, which stay
@@ -1765,12 +1767,29 @@ function blackShort(d) {
         }
         looked++;
         const vw = h * 4 / 3, v0 = Math.round((w - vw) / 2), v1 = Math.round((w + vw) / 2), k = Math.ceil(vw / 20);
-        const lit = new Uint8Array(w * h);
+        const lit = new Uint8Array(w * h), litRows = new Uint32Array(w);
         for (let i = 0, p = 0; i < w * h; i++, p += 3) {
             lit[i] = (Math.max(rgb[p], rgb[p + 1], rgb[p + 2]) > PIC_LIT) ? 1 : 0;
+            litRows[i % w] += lit[i];
         }
+        // A strip from x to past (either way) that is the picture going on, and black from past out to the edge that
+        // is the picture's border: in the frame's rows as a whole, the strip drawn in BORDER_STRIP of them, the border
+        // dark in BORDER_DARK.
+        const bordered = (x, past, edge, step) => {
+            let strip = 0, n = 0;
+            for (let xx = x; xx !== past + step; xx += step, n++) {
+                strip += litRows[xx];
+            }
+            for (let xx = past + step; xx !== edge + step; xx += step) {
+                if (litRows[xx] > (1 - BORDER_DARK) * h) {
+                    return false;
+                }
+            }
+            return strip >= BORDER_STRIP * h * n;
+        };
         // Each side: the column each row's black stops at, out from the view's side, where the scene is drawn past it
-        // (a band) or where a line of it LINE_W wide at the most has black again past it out to the window's edge.
+        // out to the window's edge or to the picture's own border (a band), or where a line of it LINE_W wide at the
+        // most has the border's black past it.
         const found = [null, null];
         for (const [inner, step, edge] of [[v0, -1, 0], [v1 - 1, 1, w - 1]]) {
             const stops = [new Map(), new Map()];
@@ -1793,8 +1812,9 @@ function blackShort(d) {
                         past = xx;
                     }
                 }
-                const kind = (drawn * 2 >= Math.abs(edge - x) + 1) ? 0 : ((Math.abs(past - x) < LINE_W) &&
-                    (drawn === Math.abs(past - x) + 1)) ? 1 : -1;
+                const wide = Math.abs(past - x) + 1;
+                const kind = (drawn * 2 >= Math.abs(edge - x) + 1) ? 0 : ((drawn * 2 < wide) || !bordered(x, past, edge, step))
+                    ? -1 : (wide <= LINE_W) ? 1 : 0;
                 if (kind >= 0) {
                     stops[kind].set(x, (stops[kind].get(x) ?? 0) + 1);
                 }
