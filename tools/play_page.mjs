@@ -140,7 +140,7 @@
 // Windows is the adapter the page draws with, from Windows' counters (the one the browser's own 3D load lands on, by
 // LUID, since a laptop's nvidia-smi GPU 0 can be its idle second GPU): its 3D engines' utilization summed over every
 // process, as Task Manager's, and its dedicated and shared memory (GPU Adapter Memory), with nvidia-smi's GPU 0 beside
-// it (utilization and power); elsewhere nvidia-smi's utilization, power, clock and memory, with its name as the adapter. A summary at the end covers
+// it (utilization and power); elsewhere nvidia-smi's utilization, power, clock and memory, with its name. A summary at the end covers
 // the "play" steps: median presents a second and the range, the gaps between presents (the longest ten over 100 ms with
 // when each came, to the sample: where a long play stuttered), the median animation frames a
 // second (in Chrome on Windows ~55.6 when the display gives it no vblank, a monitor that is off: then a page that
@@ -446,8 +446,8 @@ const smi = spawn('nvidia-smi', ['-i', '0', '--query-gpu=utilization.gpu,power.d
 smi.on('error', () => {});
 eachLine(smi.stdout, (text) => {
   const [busy, watts, mhz, mib] = text.split(',').map(Number);
-  const adapter = text.split(',')[4]?.trim();
-  if (![busy, watts, mhz, mib].some(Number.isNaN)) smiGpu = { busy, watts, mhz, mib, ...(adapter ? { adapter } : {}) };
+  const name = text.split(',')[4]?.trim();
+  if (![busy, watts, mhz, mib].some(Number.isNaN)) smiGpu = { busy, watts, mhz, mib, ...(name ? { name } : {}) };
 });
 let counters = null;
 if (process.platform === 'win32') {
@@ -1090,8 +1090,8 @@ const longGaps = during.flatMap((s) => (s.gaps ?? []).filter((g) => g > 100).map
 const gpuMedians = (key) => {
   const m = Object.fromEntries(['busy', 'watts', 'mib', 'sharedMib']
     .map((k) => [k, median(during.map((s) => s[key]?.[k] ?? null))]).filter(([, v]) => v !== null));
-  const adapter = during.find((s) => s[key]?.adapter)?.[key].adapter;
-  return Object.keys(m).length ? { ...m, ...(adapter ? { adapter } : {}) } : null;
+  const adapter = during.find((s) => s[key]?.adapter)?.[key].adapter, name = during.find((s) => s[key]?.name)?.[key].name;
+  return Object.keys(m).length ? { ...m, ...(adapter ? { adapter } : {}), ...(name ? { name } : {}) } : null;
 };
 // The GPU process's private bytes from the first sample of the play to the last: flat, or a leak's MB a second.
 const memory = during.filter((s) => s.gpuProcessMB);
@@ -1134,7 +1134,7 @@ console.log(`  shader misses ${shaderMisses.length}${shaderMisses.length ? ', by
   Object.entries(bySection).map(([section, n]) => `${n} in ${section}`).join(', ') : ''}`);
 console.log(`  WebGPU errors ${playErrors.length}${playErrors.length ? ': ' + [...new Set(playErrors)].slice(0, 5).join(' | ') : ''}, exceptions ${playExceptions}`);
 if (summary.gpu?.adapter) console.log(`  GPU ${summary.gpu.busy}% busy (3D), ${summary.gpu.mib} MiB, ${summary.gpu.sharedMib} MiB shared (medians, the page's adapter ${summary.gpu.adapter})`);
-else if (summary.gpu) console.log(`  GPU ${summary.gpu.busy}% busy, ${summary.gpu.watts} W (medians, the whole GPU)`);
+else if (summary.gpu) console.log(`  GPU ${summary.gpu.busy}% busy, ${summary.gpu.watts} W (medians, the whole ${summary.gpu.name ?? 'GPU'})`);
 if (summary.nvidia) console.log(`  nvidia-smi's GPU 0 ${summary.nvidia.busy}% busy, ${summary.nvidia.watts} W (medians)`);
 if (summary.cores) console.log(`  GPU process ${r(summary.cores.gpuProcess, 2)} cores, browser ${r(summary.cores.browser, 2)} (medians)`);
 if (summary.gpuProcessMB) console.log(`  GPU process private bytes ${summary.gpuProcessMB.first} -> ${summary.gpuProcessMB.last} MB, ` +
