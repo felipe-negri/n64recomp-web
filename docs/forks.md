@@ -1248,4 +1248,8 @@ rt64 f0da42b           a present that takes a game frame whose frames a present 
                        Mario Golf's menus now and then showed a character with a forearm gone for one frame
 rt64 ffc1447           f0da42b's shown at InterpolatedFrameCounters' end, past inUse, where Jet Force Gemini's own
                        field after skipped doesn't meet it
+rt64 9adecdf           RT64_FRAME_DUMP's sides.tsv counted the model matrices drawn wholly past the view's sides,
+                       reverted by 4de3122: the count didn't tell a game that culls nothing by the window from one
+                       culled to 4:3
+rt64 4de3122           reverts 9adecdf: sides.tsv holds the bands alone again
 ```
