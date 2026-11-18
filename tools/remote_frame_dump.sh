@@ -10,10 +10,11 @@
 # <game dir> and <rom> are paths on the host (relative to its home): the recomp's Linux build, its release archive
 # unpacked or a build folder with assets/, and its ROM. <exe> is the program in <game dir>, <game id> the name its
 # runtime stores the ROM under (its game_id). <plan> is a plan of tools/capture_window.ps1's here, and <out dir> a
-# folder here that gets frame_check.txt (the check's output, also printed), each run's stdout.log, stderr.log and the
-# plan's shots, and flagged/ (frame_check's --save). -c sends a folder of settings files (graphics.json, general.json)
-# for every run. tools/frame_dump.mjs's header says what a run does and what the options mean; its exit code is this
-# one's (0 passes, 1 fails, 2 nothing to test, 3 a run failed, 75 stopped by the queue).
+# folder here that gets frame_check.txt (the check's output, also printed; seam_check.txt with two --window sizes),
+# each run's stdout.log, stderr.log and the plan's shots, and flagged/ (the check's --save). -c sends a folder of
+# settings files (graphics.json, general.json) for every run. tools/frame_dump.mjs's header says what a run does and
+# what the options mean; its exit code is this one's (0 passes, 1 fails, 2 nothing to test, 3 a run failed, 75 stopped
+# by the queue).
 #
 # It runs in the image of tools/frame_dump.Dockerfile, tagged with a hash of that file and built on the host the first
 # time a run needs it, in a container named frame-dump-<out dir's name> (`docker stop` that name to end one), as the
@@ -53,10 +54,11 @@ remote() { ssh -o BatchMode=yes "$host" "$@"; }
 remote "docker image inspect $image >/dev/null 2>&1 || docker build -q -t $image - >/dev/null" \
     < "$here/frame_dump.Dockerfile"
 
-# What the container reads, in one tar: the two scripts and the stand-in pad, the plan, the settings, the queue's client.
+# What the container reads, in one tar: the three scripts and the stand-in pad, the plan, the settings, the queue's
+# client.
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
-cp "$here/frame_dump.mjs" "$here/frame_check.mjs" "$here/stand_in_pad.c" "$stage/"
+cp "$here/frame_dump.mjs" "$here/frame_check.mjs" "$here/seam_check.mjs" "$here/stand_in_pad.c" "$stage/"
 cp "$plan" "$stage/plan.txt"
 mkdir -p "$stage/config-in"
 [[ -n "$config" ]] && cp -r "$config/." "$stage/config-in/"
