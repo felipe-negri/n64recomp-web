@@ -2,8 +2,11 @@
 //
 //   node tools/frame_pace.mjs <dump dir> [--from <s>] [--to <s>] [--save <dir>] [--verbose]
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { pathToFileURL } from 'node:url';
+import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 
 const MAGIC = 0x44465452;
 const HEADER = 40;
@@ -333,115 +336,186 @@ function* readFrames(dir, from, to) {
     fs.closeSync(fd);
 }
 
-const args = process.argv.slice(2);
-const opt = (name, fallback) => {
-    const i = args.indexOf(name);
-    return (i < 0) ? fallback : args[i + 1];
-};
-const dir = args[0];
-const from = Number(opt('--from', 0)), to = Number(opt('--to', Infinity));
-const saveDir = opt('--save', null);
-const verbose = args.includes('--verbose');
-if (saveDir) {
-    fs.mkdirSync(saveDir, { recursive: true });
-}
 
-// Three frames in a row: where each block of the last was in the first, and how far along that way it is in the middle.
-let window = [], checked = 0, framesRead = 0, betweenFrames = 0, repeats = 0;
-const results = [];
-const started = Date.now();
-const MAX_GAP = 0.1; // seconds from a triplet's first frame to its last, at most
-for (const f of readFrames(dir, from, to)) {
-    framesRead++;
-    betweenFrames += (f.index < f.count - 1) ? 1 : 0;
-    const gw = Math.min(GW, f.w), gh = Math.floor(gw * f.h / f.w);
-    f.gw = gw; f.gh = gh;
-    f.g = grey(f.rgb, f.w, f.h, gw, gh);
-    if (!saveDir) {
-        f.rgb = null;
-    }
-    const last = window[window.length - 1];
-    if (last && (last.w === f.w) && (last.h === f.h)) {
-        let d = 0;
-        for (let i = 0; i < f.g.length; i += 7) {
-            d += Math.abs(f.g[i] - last.g[i]);
-        }
-        if (d / (f.g.length / 7) < 0.05) {
-            repeats++;
-            continue;
-        }
-    }
-    if (last && ((last.w !== f.w) || (last.h !== f.h))) {
-        window = [];
-    }
-    f.q = shrink(f.g, gw, gh);
-    window.push(f);
-    if (window.length > 3) {
-        window.shift();
-    }
-    if ((window.length === 3) && (window[2].t - window[0].t <= MAX_GAP)) {
-        const [a, b, c] = window;
+// A worker matches triplets: this file again, told so by its workerData (frame_check's own workers import it too).
+if (!isMainThread && workerData?.pace) {
+    parentPort.on('message', ({ id, a, b, c, gw, gh }) => {
         const r = checkPresent(a, [b, c], gw, gh);
-        r.t = b.t;
-        r.kinds = [a, b, c].map((x) => (x.index === x.count - 1) ? 'G' : 'b').join('');
-        results.push(r);
-        checked++;
-        if (verbose) {
-            const kinds = {};
-            r.off.forEach((o) => (kinds[o.kind] = (kinds[o.kind] ?? 0) + 1));
-            console.log(`${b.t.toFixed(2)} ${r.kinds} moving=${r.moving} s*=${r.weights.map((w) => w.toFixed(2)).join(',')} off=${r.off.length} ${JSON.stringify(kinds)}`);
-        }
-        if (saveDir && (r.off.length >= 4)) {
-            save(path.join(saveDir, `${b.t.toFixed(2)}.png`), a, [b, c], r.off, gw);
-        }
-    }
-}
-console.log(`${framesRead} frames, ${betweenFrames} between the game's own, ${repeats} repeats, ${checked} triplets checked in ` +
-    `${((Date.now() - started) / 1000).toFixed(1)} s`);
-// Per second: presents checked, the off blocks by kind.
-const bySecond = new Map();
-for (const r of results) {
-    const s = Math.floor(r.t);
-    const e = bySecond.get(s) ?? { n: 0, moving: 0, step: 0, far: 0, off: 0, with4: 0 };
-    e.n++;
-    e.moving += r.moving;
-    r.off.forEach((b) => e[b.kind]++);
-    e.with4 += (r.off.length >= 4) ? 1 : 0;
-    bySecond.set(s, e);
-}
-for (const [s, e] of bySecond) {
-    console.log(`${s}s: ${e.n} presents, ${(e.moving / e.n).toFixed(0)} moving blocks each, off step ${e.step} far ` +
-        `${e.far} other ${e.off}, ${e.with4} presents with 4+`);
+        parentPort.postMessage({ id, r: { moving: r.moving, weights: r.weights, off: r.off, measured: r.measured } });
+    });
 }
 
-// Per place: in 2 s windows, how often a block measured there was off.
-const cells = new Map();
-for (const r of results) {
-    for (const m of r.measured) {
-        const k = `${m.bx},${m.by}`;
-        if (!cells.has(k)) {
-            cells.set(k, []);
+const MAX_GAP = 0.1; // seconds from a triplet's first frame to its last, at most
+const PLACE_WINDOW = 2; // seconds a place's blocks are counted over
+const PLACE_OFF = 8; // ... off in this many triplets, at least,
+const PLACE_SHARE = 0.5; // ... and this share of those where they were measured,
+const PLACE_SPAN = 0.5; // ... from the first to the last over this many seconds at least
+
+// Checks a dump's pace: { failed, untested, lines }.
+export async function checkPace(dir, { from = 0, to = Infinity, workers = 1, saveDir = null, verbose = false,
+    read = null, write = null } = {}) {
+    const lines = [];
+    const log = (s) => {
+        lines.push(s);
+        if (verbose) {
+            console.log(s);
         }
-        cells.get(k).push({ t: r.t, off: m.off });
+    };
+    if (saveDir) {
+        fs.mkdirSync(saveDir, { recursive: true });
     }
+    const results = read ? JSON.parse(fs.readFileSync(read, 'utf8')) : [];
+    const pool = [], idle = [], waiters = [];
+    let inFlight = 0, wake = null;
+    const post = (task) => new Promise((resolve) => {
+        inFlight++;
+        const go = () => {
+            const w = idle.pop();
+            w.resolve = resolve;
+            w.postMessage(task);
+        };
+        idle.length ? go() : waiters.push(go);
+    });
+    for (let i = 0; i < (read ? 0 : workers); i++) {
+        const w = new Worker(new URL(import.meta.url), { workerData: { pace: true } });
+        w.on('message', ({ r }) => {
+            const resolve = w.resolve;
+            idle.push(w);
+            waiters.shift()?.();
+            inFlight--;
+            resolve(r);
+            wake?.();
+        });
+        w.on('error', (e) => {
+            console.error(e);
+            process.exit(2);
+        });
+        pool.push(w);
+        idle.push(w);
+    }
+    let window = [], framesRead = 0, betweenFrames = 0, repeats = 0;
+    const jobs = [];
+    for (const f of (read ? [] : readFrames(dir, from, to))) {
+        framesRead++;
+        betweenFrames += (f.index < f.count - 1) ? 1 : 0;
+        const gw = Math.min(GW, f.w), gh = Math.floor(gw * f.h / f.w);
+        f.g = grey(f.rgb, f.w, f.h, gw, gh);
+        if (!saveDir) {
+            f.rgb = null;
+        }
+        const last = window[window.length - 1];
+        if (last && ((last.w !== f.w) || (last.h !== f.h))) {
+            window = [];
+        } else if (last) {
+            // A repeat (the same picture presented again) moves nothing: left out.
+            let d = 0;
+            for (let i = 0; i < f.g.length; i += 7) {
+                d += Math.abs(f.g[i] - last.g[i]);
+            }
+            if (d / (f.g.length / 7) < 0.05) {
+                repeats++;
+                continue;
+            }
+        }
+        f.q = shrink(f.g, gw, gh);
+        window.push(f);
+        if (window.length > 3) {
+            window.shift();
+        }
+        if ((window.length === 3) && (window[2].t - window[0].t <= MAX_GAP)) {
+            const [a, b, c] = window;
+            const keep = saveDir ? [a, b, c] : null;
+            jobs.push(post({ a: { g: a.g, q: a.q }, b: { g: b.g }, c: { g: c.g, q: c.q }, gw, gh }).then((r) => {
+                r.t = b.t;
+                results.push(r);
+                if (keep && (r.off.length >= 4)) {
+                    save(path.join(saveDir, `pace-${b.t.toFixed(2)}.png`), keep[0], keep.slice(1), r.off, gw);
+                }
+            }));
+            // Frames read ahead stay a few per worker.
+            while (inFlight > workers * 3) {
+                await new Promise((resolve) => (wake = resolve));
+            }
+        }
+    }
+    await Promise.all(jobs);
+    pool.forEach((w) => w.terminate());
+    results.sort((x, y) => x.t - y.t);
+    if (write) {
+        fs.writeFileSync(write, JSON.stringify(results));
+    }
+    // Per place (a block of the grid), in PLACE_WINDOW s windows: how often a block measured there was off, over how long.
+    const cells = new Map();
+    for (const r of results) {
+        for (const m of r.measured) {
+            const k = `${m.bx},${m.by}`;
+            if (!cells.has(k)) {
+                cells.set(k, []);
+            }
+            cells.get(k).push({ t: r.t, off: m.off });
+        }
+    }
+    const bad = [];
+    for (const [k, v] of cells) {
+        let best = null;
+        for (let i = 0, j = 0; i < v.length; i++) {
+            while (v[i].t - v[j].t > PLACE_WINDOW) {
+                j++;
+            }
+            const w = v.slice(j, i + 1), offs = w.filter((x) => x.off);
+            const span = offs.length ? offs[offs.length - 1].t - offs[0].t : 0;
+            const e = { n: w.length, o: offs.length, share: offs.length / w.length, span, t0: offs[0]?.t,
+                t1: offs[offs.length - 1]?.t };
+            if (!best || (e.o * e.share > best.o * best.share)) {
+                best = e;
+            }
+        }
+        const [bx, by] = k.split(',').map(Number);
+        if (best && (best.o >= PLACE_OFF) && (best.share >= PLACE_SHARE) && (best.span >= PLACE_SPAN)) {
+            bad.push({ bx, by, ...best });
+        }
+    }
+    // Places: bad blocks within 2 blocks of each other, joined.
+    let places = [];
+    for (const c of bad) {
+        const near = places.filter((q) => q.some((d) => (Math.abs(d.bx - c.bx) <= 2 * B) && (Math.abs(d.by - c.by) <= 2 * B)));
+        places = places.filter((q) => !near.includes(q));
+        places.push([c, ...near.flat()]);
+    }
+    places.sort((p, q) => q.length - p.length);
+    const untested = !read && (betweenFrames < framesRead / 100);
+    log(`pace (${dir}): ${results.length} triplets of frames matched (${framesRead} frames, ${betweenFrames} drawn ` +
+        `between the game's own, ${repeats} repeats), ${places.length} places off the rest's pace` +
+        (places.length ? ': FAILS' : '') + (untested ? '; under 1 in 100 frames drawn between the game\'s own: untested' : ''));
+    for (const p of places) {
+        const t0 = Math.min(...p.map((c) => c.t0)), t1 = Math.max(...p.map((c) => c.t1));
+        const x0 = Math.min(...p.map((c) => c.bx)), x1 = Math.max(...p.map((c) => c.bx)) + B;
+        const y0 = Math.min(...p.map((c) => c.by)), y1 = Math.max(...p.map((c) => c.by)) + B;
+        const kinds = {};
+        for (const r of results.filter((x) => (x.t >= t0) && (x.t <= t1))) {
+            for (const o of r.off.filter((x) => p.some((c) => (c.bx === x.bx) && (c.by === x.by)))) {
+                kinds[o.kind] = (kinds[o.kind] ?? 0) + 1;
+            }
+        }
+        log(`  ${p.length} blocks at ${x0}-${x1} x ${y0}-${y1} (of a ${GW} wide copy) from ${t0.toFixed(2)} to ` +
+            `${t1.toFixed(2)} s: ${Object.entries(kinds).map(([k, n]) => `${n} ${k}`).join(', ')}`);
+    }
+    return { failed: places.length > 0, untested, lines };
 }
-const worst = [];
-for (const [k, v] of cells) {
-    let best = null;
-    for (let i = 0, j = 0; i < v.length; i++) {
-        while (v[i].t - v[j].t > 2) {
-            j++;
-        }
-        const n = i - j + 1, o = v.slice(j, i + 1).filter((x) => x.off).length;
-        if ((n >= 6) && (!best || o / n > best.share)) {
-            best = { share: o / n, n, o, t0: v[j].t, t1: v[i].t };
-        }
+
+if (isMainThread && process.argv[1] && (import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href)) {
+    const args = process.argv.slice(2);
+    const opt = (name, fallback) => {
+        const i = args.indexOf(name);
+        return (i < 0) ? fallback : args[i + 1];
+    };
+    if (!args[0] || args[0].startsWith('--')) {
+        console.error('usage: node tools/frame_pace.mjs <dump dir> [--from <s>] [--to <s>] [--save <dir>] [--workers <n>]');
+        process.exit(2);
     }
-    if (best) {
-        worst.push({ k, ...best });
-    }
-}
-worst.sort((a, b) => b.share - a.share);
-for (const w of worst.slice(0, 25)) {
-    console.log(`cell ${w.k}: ${w.o} of ${w.n} off from ${w.t0.toFixed(2)} to ${w.t1.toFixed(2)} s`);
+    try { os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* runs at normal */ }
+    const r = await checkPace(args[0], { from: Number(opt('--from', 0)), to: Number(opt('--to', Infinity)),
+        workers: Math.max(Math.round(Number(opt('--workers', os.availableParallelism() / 3))) || 1, 1),
+        saveDir: opt('--save', null), verbose: true, read: opt('--read', null), write: opt('--write', null) });
+    process.exit(r.failed ? 1 : (r.untested ? 2 : 0));
 }
