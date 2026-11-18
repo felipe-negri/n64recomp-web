@@ -3,8 +3,8 @@
 # both). The program draws on the host's GPU through NVIDIA's Vulkan driver, which the NVIDIA container toolkit mounts
 # (--gpus, NVIDIA_DRIVER_CAPABILITIES=all), into Xvfb: NVIDIA's Vulkan presents to an X server without its driver,
 # so no X server on the GPU, no display and no privileges are needed. xdotool sends a plan's keys and sizes the window,
-# ImageMagick and x11-apps' xwd take its shots, gcc builds tools/stand_in_pad.c. GTK 3 and FreeType are what a recomp's
-# Linux archive doesn't carry.
+# ImageMagick and x11-apps' xwd take its shots. GTK 3 and FreeType are what a recomp's Linux archive doesn't carry.
+# gcc builds tools/sdl_audio_record.c, which records the sound each run plays, and tools/stand_in_pad.c.
 # remote_frame_dump.sh tags it with a hash of this file, so a change here makes the next run build a new one.
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
