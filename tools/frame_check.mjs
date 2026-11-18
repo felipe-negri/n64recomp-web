@@ -1606,6 +1606,8 @@ const BLACK_EVERY = 0.012; // seconds between the frames black is looked for in:
 const BLACK_GAP = 0.05; // ... and the longest gap between two in a run
 const BLACK_ROWS = 0.08; // the share of a frame's rows whose black stops at one column, at least
 const BLACK_RUN = 0.1; // seconds in a row a frame does so, its edge in one column, that fail
+const LINE_W = 2; // columns a line of the scene down the black is wide at the most, black again past it to the edge
+const LINE_FRAMES = 2; // frames in a row with one in the same column (BLACK_GAP apart at the most) that fail
 
 // Each pixel's share of the frames looked at in which it is fixed on the screen: it stands still with something
 // drawn in it (a step to a neighbour) while the scene around it moves. A HUD's figures, frame and icons, which stay
@@ -1752,7 +1754,8 @@ function hudPlacement(narrow, wide) {
 // goes on only with its edge in the same column: two halves of an old screen sliding apart over black (Mario Golf's
 // menus opening the next) move theirs every frame.
 function blackShort(d) {
-    const run = { n: 0, longest: 0, from: null, at: null, first: null, where: null };
+    // A run of frames whose black stops in one column (a pixel either way): bands, and lines (kind 1).
+    const runs = [0, 1].map(() => ({ n: 0, frames: 0, longest: 0, most: 0, from: null, at: null, first: null, where: null }));
     let looked = 0, aspect = 0;
     for (const f of sampledFrames(d, BLACK_EVERY)) {
         const { w, h, rgb } = f;
@@ -1766,10 +1769,11 @@ function blackShort(d) {
         for (let i = 0, p = 0; i < w * h; i++, p += 3) {
             lit[i] = (Math.max(rgb[p], rgb[p + 1], rgb[p + 2]) > PIC_LIT) ? 1 : 0;
         }
-        // Each side: the column each row's black stops at, out from the view's side.
-        let black = null;
+        // Each side: the column each row's black stops at, out from the view's side, where the scene is drawn past it
+        // (a band) or where a line of it LINE_W wide at the most has black again past it out to the window's edge.
+        const found = [null, null];
         for (const [inner, step, edge] of [[v0, -1, 0], [v1 - 1, 1, w - 1]]) {
-            const stops = new Map();
+            const stops = [new Map(), new Map()];
             for (let row = 0; row < w * h; row += w) {
                 let dark = true;
                 for (let j = 0; (j < k) && dark; j++) {
@@ -1782,36 +1786,52 @@ function blackShort(d) {
                 if (!dark || (x === edge + step)) {
                     continue; // the view drawn at its side, or black out to the window's edge
                 }
-                let drawn = 0;
+                let drawn = 0, past = x;
                 for (let xx = x; xx !== edge + step; xx += step) {
                     drawn += lit[row + xx];
+                    if (lit[row + xx]) {
+                        past = xx;
+                    }
                 }
-                if (drawn * 2 >= Math.abs(edge - x) + 1) {
-                    stops.set(x, (stops.get(x) ?? 0) + 1);
+                const kind = (drawn * 2 >= Math.abs(edge - x) + 1) ? 0 : ((Math.abs(past - x) < LINE_W) &&
+                    (drawn === Math.abs(past - x) + 1)) ? 1 : -1;
+                if (kind >= 0) {
+                    stops[kind].set(x, (stops[kind].get(x) ?? 0) + 1);
                 }
             }
-            for (const [x, n] of stops) {
-                const rows = (stops.get(x - 1) ?? 0) + n + (stops.get(x + 1) ?? 0);
-                if ((rows >= BLACK_ROWS * h) && (!black || (rows > black.rows))) {
-                    black = { out: Math.abs(x - inner), rows, h };
+            for (const kind of [0, 1]) {
+                for (const [x, n] of stops[kind]) {
+                    const rows = (stops[kind].get(x - 1) ?? 0) + n + (stops[kind].get(x + 1) ?? 0);
+                    if ((rows >= BLACK_ROWS * h) && (!found[kind] || (rows > found[kind].rows))) {
+                        found[kind] = { out: Math.abs(x - inner), rows, h };
+                    }
                 }
             }
         }
-        if (!black) {
-            continue;
-        }
-        if ((run.at === null) || (f.t - run.at > BLACK_GAP) || (Math.abs(black.out - run.first.out) > 1)) {
-            run.from = f.t;
-            run.first = { ...black, t: f.t, f }; // the run's first frame, for --save
-        }
-        run.at = f.t;
-        run.n++;
-        if (f.t - run.from + BLACK_EVERY > run.longest) {
-            run.longest = f.t - run.from + BLACK_EVERY;
-            run.where = run.first;
+        for (const kind of [0, 1]) {
+            const black = found[kind], run = runs[kind];
+            if (!black) {
+                continue;
+            }
+            if ((run.at === null) || (f.t - run.at > BLACK_GAP) || (Math.abs(black.out - run.first.out) > 1)) {
+                run.from = f.t;
+                run.frames = 0;
+                run.first = { ...black, t: f.t, f }; // the run's first frame, for --save
+            }
+            run.at = f.t;
+            run.n++;
+            run.frames++;
+            if (f.t - run.from + BLACK_EVERY > run.longest) {
+                run.longest = f.t - run.from + BLACK_EVERY;
+                run.where = run.first;
+            }
+            if (run.frames > run.most) {
+                run.most = run.frames;
+                run.lineAt = run.first;
+            }
         }
     }
-    return { looked, aspect, ...run };
+    return { looked, aspect, band: runs[0], line: runs[1] };
 }
 {
     const narrow = narrowerDir && fixedOf(narrowerDir);
@@ -1821,15 +1841,23 @@ function blackShort(d) {
         if (!b.looked) {
             continue;
         }
-        const fails = b.longest >= BLACK_RUN, at = b.where;
-        failed ||= fails;
+        const band = b.band, line = b.line, at = band.where, lineAt = line.lineAt;
+        const fails = band.longest >= BLACK_RUN, lineFails = line.most >= LINE_FRAMES;
+        failed ||= fails || lineFails;
         if (saveDir && at) {
             fs.writeFileSync(path.join(saveDir, `black-${name}-${at.t.toFixed(2)}s.png`), png(at.f.w, at.f.h, at.f.rgb));
         }
-        console.log(`black at the sides (${d}, ${b.aspect.toFixed(2)}:1): stopping short of the window in ${b.n} of ` +
-            `${b.looked} frames` + (at ? `, at most ${b.longest.toFixed(2)} s in a row from ${at.t.toFixed(2)} s (${at.rows} ` +
+        if (saveDir && lineAt) {
+            fs.writeFileSync(path.join(saveDir, `line-${name}-${lineAt.t.toFixed(2)}s.png`),
+                png(lineAt.f.w, lineAt.f.h, lineAt.f.rgb));
+        }
+        console.log(`black at the sides (${d}, ${b.aspect.toFixed(2)}:1): stopping short of the window in ${band.n} of ` +
+            `${b.looked} frames` + (at ? `, at most ${band.longest.toFixed(2)} s in a row from ${at.t.toFixed(2)} s (${at.rows} ` +
                 `of ${at.h} rows black to ${at.out} pixels out from the view's side, the scene past it)` : '') +
-            (fails ? ': FAILS, black that should reach the window\'s edge' : ''));
+            (fails ? ': FAILS, black that should reach the window\'s edge' : '') +
+            `; a line of the scene down it, black past it, in ${line.n} frames` + (lineAt ? `, at most ${line.most} in a ` +
+                `row from ${lineAt.t.toFixed(2)} s (${lineAt.rows} of ${lineAt.h} rows, ${lineAt.out} pixels out from the ` +
+                'view\'s side)' : '') + (lineFails ? ': FAILS, black split by a line of the scene' : ''));
         if (!narrow) {
             continue;
         }
