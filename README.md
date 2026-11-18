@@ -7,7 +7,7 @@ through WebGPU. It is game-agnostic. A recomp keeps its own submodules at the co
 beside them, and its web build patches their checkouts (Using it in a recomp). It was written for San Francisco Rush
 2049: Recompiled, this project's own recomp as Perfect Dark's, Super Mario 64's, F-Zero X's, Mario Party 1's, 2's
 and 3's, Super Smash Bros.', Paper Mario's, Mario Golf's, Rayman 2's, Donald Duck: Goin' Quackers', Dinosaur Planet's, Turok:
-Dinosaur Hunter's, Turok 2's and Turok 3's are, and sixteen more recomps build a page with it (Games).
+Dinosaur Hunter's, Turok 2's, Turok 3's and Excitebike 64's are, and sixteen more recomps build a page with it (Games).
 
 > Written almost entirely by AI (Claude), like the recomp it came from.
 
@@ -17,8 +17,8 @@ Each game's repo builds its page with this repo; a page holds no ROM, the player
 recomps aside, the games are here to build out and test the web support on more than one
 game: what one of them or one browser turns up is fixed in this repo or the forks unless it really is that game's own,
 so every game and both browsers get it. Rush 2049, Perfect Dark, Super Mario 64, F-Zero X, Mario Party 1, 2 and 3,
-Super Smash Bros., Paper Mario, Mario Golf, Rayman 2, Donald Duck: Goin' Quackers, Dinosaur Planet, Turok: Dinosaur Hunter, Turok 2
-and Turok 3 are this project's own recomps, each with releases of its desktop build for Windows and Linux on its repo's Releases page.
+Super Smash Bros., Paper Mario, Mario Golf, Rayman 2, Donald Duck: Goin' Quackers, Dinosaur Planet, Turok: Dinosaur Hunter, Turok 2,
+Turok 3 and Excitebike 64 are this project's own recomps, each with releases of its desktop build for Windows and Linux on its repo's Releases page.
 
 | Game | Recomp | Repo | Page |
 |---|---|---|---|
@@ -62,6 +62,7 @@ and Turok 3 are this project's own recomps, each with releases of its desktop bu
 | Turok: Dinosaur Hunter | this project's own recomp | [turok-recomp](https://github.com/n64hub/turok-recomp) | [play](https://n64hub.com/turok-dinosaur-hunter/) |
 | Turok 2: Seeds of Evil | this project's own recomp | [turok-2-recomp](https://github.com/n64hub/turok-2-recomp) | [play](https://n64hub.com/turok-2/) |
 | Turok 3: Shadow of Oblivion | this project's own recomp | [turok-3-recomp](https://github.com/n64hub/turok-3-recomp) | [play](https://n64hub.com/turok-3/) |
+| Excitebike 64 | this project's own recomp | [excitebike-64-recomp](https://github.com/n64hub/excitebike-64-recomp) | [play](https://n64hub.com/excitebike-64/) |
 
 ## Using it in a recomp
 
