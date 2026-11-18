@@ -10,8 +10,9 @@
 // once. A play that checks (a smoke play, a Firefox play for crashes, a recording) is a job of type page-play asking
 // "auto" GPU memory for --model (the game's name: the queue sizes the ask from that game's last runs, plus a margin,
 // and a first run asks 4 GiB), so it runs beside other jobs. --measure files it as page-measure asking more memory
-// than the GPU has, so it runs alone on the GPU: a play whose numbers are the result (an A/B's, an uncapped
-// measurement), as the one-page-at-a-time rule asks. The host memory each asks is the queue's own reading of the
+// than the GPU has, so it runs alone on the GPU, as the one-page-at-a-time rule asks of a play whose numbers are the
+// result; in Xvfb every present is copied on the CPU, which paces the page, so a play here measures no page
+// (docs/playing.md). The host memory each asks is the queue's own reading of the
 // game's last runs (8 GiB before it has one), and the container's cores are capped by its docker run (--cpus). Both
 // are --priority (low) and linked to --url. A stop the queue asks for ends the play, and this, with 75.
 //

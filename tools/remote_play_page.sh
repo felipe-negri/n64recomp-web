@@ -26,8 +26,8 @@
 #
 # A host whose GPU is shared through a queue: PLAY_QUEUE_CLIENT names a JavaScript module here that exports
 # gpuRun(spec, run), sent with the run, and the play waits for a turn as one job of it (play_job.mjs's header says what
-# each asks): one that checks beside other jobs, or with --measure one that has the GPU to itself, for a play whose
-# numbers are the result. --model is the game's name, which the queue sizes the job by (the tool's --game when it has
+# each asks), one that checks beside other jobs. --measure gives a play the GPU to itself, but its presents are still
+# Xvfb's (docs/playing.md): a play there checks a page, and its numbers measure none. --model is the game's name, which the queue sizes the job by (the tool's --game when it has
 # one). The queue's key is $GPU_QUEUE_KEY, sent on ssh's stdin, never on a command line; $GPU_QUEUE_URL is passed on if
 # set, $PLAY_NETWORK names the docker network the queue answers on, $PLAY_JOB_URL is the job's link, and
 # $PLAY_PRIORITY its priority (low). The exit code is the tool's (play_page.mjs's header), 75 when the queue stopped
