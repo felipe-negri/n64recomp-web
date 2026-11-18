@@ -160,7 +160,8 @@
 //   a 4:3 window only the rest, so a count of what it draws there would pass a culled build. A 4:3
 //   window's target can be a little off 4:3 (Rush 2049's is 640x440): a --narrower dump wider than 1.6:1, a --wider
 //   one narrower than 8:3, or a pair of which under 30 or a tenth of the 32:9 workloads find a match (not the same
-//   scene), exits 2. Without them it only counts the triangles. One dump's own strip against the view tells nothing:
+//   scene), leaves it untested, exiting 2 if nothing else fails. Without them it only counts the triangles.
+//   One dump's own strip against the view tells nothing:
 //   Mario Golf's flyover, culled or not, draws a fraction past the view's edges of what it draws inside, the course
 //   being long and narrow. The picture's shape is the picture's box between --from and --to (pictureBox()), not its
 //   first frame's: a dump that starts before its plan sizes the window begins at 4:3, and one whose frames come in
@@ -206,13 +207,45 @@
 //   4:3 window's border there. A frame with 0.15 of its blocks apart or more is unlike it, and 0.75 s of such frames in
 //   a row fail. A HUD a recomp moves out to the wide picture's sides is a difference by design that fails too, so a
 //   plan for it stops before one is drawn: Mario Golf's plan ends at hole 1's flyover's end, where the tee's HUD comes
-//   in (its src/game/hud.cpp), 0.17 of the middle unlike the 4:3 window's for as long as the tee is shown. Its v0.1.18,
-//   before its menus and title were scaled to the window's full height, reads 23.1 s in a row at 16:9 and 26.8 s at
-//   32:9 over its menus, and its opening's character intros drawn larger, 3.6 s; v0.1.28 at most 0.4 s and 0.5 s, its
-//   title's top edge as the logo drops in and Play Modes' text as it types out, where the two windows' frames land at
-//   different points of a fast change. --middle-samples <s> writes a frame and its match side by side every <s>
+//   in (its src/game/hud.cpp), 0.17 of the middle unlike the 4:3 window's for as long as the tee is shown. Its v0.1.22,
+//   the last before its title and menus were scaled to the window's full height (v0.1.23), reads 23.0 s in a row at
+//   16:9 and 26.7 s at 32:9 over its menus, as v0.1.14, v0.1.16 and v0.1.18 do (22.5-26.8 s), their opening's
+//   character intros drawn larger too (3.6-4.0 s at 16:9); v0.1.23, v0.1.28 and v0.1.30 read at most 0.4 s at 16:9
+//   and 0.5 s at 32:9: the title held before Start, its top edge as the logo drops in and Play Modes' text as it types
+//   out, where the two windows' frames land at different points of a fast change. --middle-samples <s> writes a frame and its match side by side every <s>
 //   seconds of a run, unlike blocks in red, to --save's directory, and each run's worst frame always, and
 //   middle-<run>.tsv lists every frame's time, its match's and its share.
+// - Black stopping short of the window, from each wide dump's frames alone (blackShort()), every frame at 60 a second:
+//   black that the game draws across its 4:3 picture (letterbox bars, a wipe closing about the middle, a black screen
+//   between scenes, the credits' black) reaches the wide window's edges when it is widened, and stops at a straight
+//   edge with the scene drawn past it when it is drawn to 4:3 or to a HUD ratio narrower than the window. A frame has
+//   it where a twelfth of its rows or more are black from inside the view's side out to one column (a pixel either
+//   way), past which out to the window's edge half the pixels or more are drawn, and it fails where that holds 0.1 s
+//   in a row with the edge in one column. Mario Golf's iris wipe in v0.1.16 at 32:9 draws its black to 16:9 only, the
+//   course showing past it for 0.2 s as the iris opens on hole 1 (159 of 180 rows black to 41 pixels out from the
+//   view's side), and v0.1.28's reaches the window; its credits in v0.1.21 at 32:9 have the sun's glow past the
+//   black beside the character preview, 0.8 s in a row (17 rows, 19 pixels out), and v0.1.22's none. Neither fails at
+//   16:9, where both draw out to the window. Two halves of an old screen sliding apart over black (Golf's menus opening
+//   the next) leave a band between the 4:3 picture and the halves, but it moves every frame, so no run holds. Faults
+//   only some scenes have are found only where a plan plays them: Golf's closed iris between holes (v0.1.19, a line of
+//   the course down each side) and Lakitu Mode's bars (v0.1.9) weren't in the plans these were measured with.
+// - Where the HUD sits, from a wide dump against the --narrower one (hudPlacement(), with --narrower): the pixels fixed
+//   on the screen in each (fixedOf(): standing still, something drawn in them, the scene moving around them) at the 4:3
+//   view's sides are looked for in the wide dump at their 4:3 place and moved out toward the window's sides a pixel at
+//   a time. A HUD widened with the picture (to the window's sides, or to a narrower HUD ratio's) has a place of its own
+//   out past the 4:3 one where most of it is found; a side fails where 30% or more is found at its 4:3 place and under
+//   half as much anywhere out from it, where it thins out to half within 30 grey pixels of there (a share as high
+//   every way out is a picture fixed all over, no place in particular). Mario Golf's v0.1.22 with HUD Placement
+//   Original fails at 16:9 and 32:9, its HUD 100% where it was and nowhere out; with Expand it passes, 97% of it 40 of
+//   40 grey pixels out at 16:9 (26% where it was) and found only at the window's side at 32:9. Its v0.1.19, v0.1.20
+//   and v0.1.22 at their default pass, 87-97% found 39-40 pixels out and 25-28% where it was. Only what is fixed for
+//   half of a stretch counts (fixedOf()): text the game draws over a moving picture where a 4:3 screen has it, as
+//   credits are, stays where it was and is fixed too, but only for the seconds each line is up. A dump without the
+//   HUD (a menu, a cutscene) has none at the sides and says so. Golf v0.1.1, its HUD left at 4:3, predates the frame
+//   dump.
+// - The pace of what moves through the frames drawn between the game's own: a part of the picture that steps at the
+//   game's rate while the rest moves on every frame, or that moves past where the game's frames have it or back and
+//   forth (tools/frame_pace.mjs, its header). It reads the one dump, after the checks above; --sides skips it.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
 // the pairing or the sides. frames.bin is read a frame at a time, those the workers have yet to match kept (a few a
@@ -228,6 +261,7 @@ import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { Worker, isMainThread, parentPort } from 'node:worker_threads';
+import { checkPace } from './frame_pace.mjs';
 
 // Before any worker starts, so each is made at it (the header says why). Best effort: a host that refuses keeps normal.
 if (isMainThread) try { os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* runs at normal */ }
@@ -1295,9 +1329,9 @@ const extOf = (aspect) => (aspect / (4 / 3) - 1) / 2; // a picture's strip past 
 // Two workloads draw the same shot where their bands inside the view differ by at most this share of their triangles.
 const SIDES_MATCH = 0.1;
 const sides = sidesOf(dir);
-// A sides check that can't be made (a dump with no 3D, or of a build whose RT64 writes no sides.tsv: Mario Golf's
-// v0.1.6) leaves the middle below to be checked: it reads the frames alone.
-sides: if (widerDir || narrowerDir) {
+// A dump that can't test the culling (no 3D, not the same scene) leaves it untested, and the picture's checks below
+// still run.
+cull: if (widerDir || narrowerDir) {
     if (!widerDir || !narrowerDir) {
         console.error('sides: the culling check takes two dumps, --narrower <a dump of the same plan in a 4:3 window> ' +
             '--wider <one at 32:9>');
@@ -1308,7 +1342,7 @@ sides: if (widerDir || narrowerDir) {
         if (!s || !s.n) {
             console.error(`sides: no 3D in ${d}'s dump between those seconds`);
             untested = true;
-            break sides;
+            break cull;
         }
     }
     // A 4:3 window's frames are the game's own target, which can be a little off 4:3 (Rush 2049's 640x440): a 16:9 one isn't.
@@ -1316,13 +1350,13 @@ sides: if (widerDir || narrowerDir) {
         console.error(`sides: ${narrowerDir}'s picture is ${narrower.aspect.toFixed(2)}:1: dump it in a 4:3 window, where ` +
             'a game culling to the picture draws what one culled to its 4:3 view does');
         untested = true;
-        break sides;
+        break cull;
     }
     const b = Math.min(extOf(wider.aspect), 1);
     if (b < 0.5) {
         console.error(`sides: ${widerDir}'s picture (${wider.aspect.toFixed(2)}:1) is too little wider than 4:3: dump it at 32:9`);
         untested = true;
-        break sides;
+        break cull;
     }
     // Each of the wider dump's workloads paired with the 4:3 one's that draws the same inside the view: the same shot,
     // whenever each run came to it, since two runs of a plan don't keep step (Mario Golf's flyover, a race).
@@ -1354,7 +1388,7 @@ sides: if (widerDir || narrowerDir) {
         console.error(`sides: ${n} of ${widerDir}'s ${wider.n} workloads draw what one of ${narrowerDir}'s does inside the ` +
             '4:3 view: not the same scene, so play the same plan and seconds in both');
         untested = true;
-        break sides;
+        break cull;
     }
     pastA /= n;
     pastB /= n;
@@ -1554,6 +1588,283 @@ function pictureAtSides(d) {
     }
     const seam = [...seams].sort((a, b) => b[1] - a[1])[0];
     return { looked, cutShort, longest, moving, seam, vw, v0, v1, aspect };
+}
+
+// The picture past the 4:3 view that isn't the world: where the HUD sits (hudPlacement()), and black stopping short of
+// the window (blackShort()).
+const HUD_EVERY = 0.25; // seconds between the frames the HUD is looked for in
+const HUD_H = 180; // the grey copy's height it is looked for at
+const HUD_STILL = 2; // a pixel this near its last value, of 255, stood still
+const HUD_EDGE = 24; // ... and with a step this large to the pixel right of or below it is part of something drawn
+const HUD_CHANGE = 6; // a pixel moving more than this, of 255, is the scene moving
+const HUD_AROUND = 12; // ... looked at this many grey pixels around a still one
+const HUD_MOVES = 0.3; // ... where this share of them moving makes it fixed on the screen over a moving scene
+const HUD_FIXED = 0.5; // the share of the frames looked at in which a pixel is so: the HUD's, up for seconds on end
+const HUD_CHUNK = 10; // ... in the seconds of a dump that share is counted over at a time
+const HUD_CHUNK_MIN = 8; // ... of which this many frames looked at, at least
+const HUD_FOUND = 0.3; // the share of the 4:3 dump's HUD at a side the wide dump has at one place, at least: found
+const HUD_VALLEY = 0.5; // ... a peak of its own: the share between it and the 4:3 place falls to this much of it
+const HUD_FALL_IN = 30; // ... and thins out to that within this many grey pixels of its 4:3 place, where it is left there
+const HUD_OUT = 3; // grey pixels out from the 4:3 place from which the HUD is placed out
+const HUD_MIDDLE = 0.15; // the view's middle, this much of its width either side of its centre, left out
+const HUD_BORDER = 0.05; // ... and this much of the 4:3 picture's width and height at its edges: its own border
+const BLACK_EVERY = 0.012; // seconds between the frames black is looked for in: every one at 60 a second
+const BLACK_GAP = 0.05; // ... and the longest gap between two in a run
+const BLACK_ROWS = 0.08; // the share of a frame's rows whose black stops at one column, at least
+const BLACK_RUN = 0.1; // seconds in a row a frame does so, its edge in one column, that fail
+
+// Each pixel's share of the frames looked at in which it is fixed on the screen: it stands still with something
+// drawn in it (a step to a neighbour) while the scene around it moves. A HUD's figures, frame and icons, which stay
+// where the screen has them while the world moves under them; a menu that stands still has nothing moving around it.
+// The share is each HUD_CHUNK seconds', the most of them kept: a HUD shown a few seconds of a long dump (Mario Golf's
+// tee before its credits) is as much the HUD as one shown throughout, and a pixel is the HUD's where it is fixed in half
+// of a stretch: Mario Golf's credits, each line up a few seconds over a moving scene, have their lines' pixels in a
+// third of one, and at that the right side's read as a HUD left at 4:3 (65 pixels, 88% where they were).
+function fixedOf(d) {
+    let prev = null, pairs = 0, gw = 0, fixed = null, best = null, chunkFrom = null;
+    const flush = () => {
+        if (pairs >= HUD_CHUNK_MIN) {
+            fixed.forEach((n, i) => {
+                best[i] = Math.max(best[i], n / pairs);
+            });
+        }
+        fixed?.fill(0);
+        pairs = 0;
+    };
+    for (const f of sampledFrames(d, HUD_EVERY)) {
+        gw = Math.round(f.w * HUD_H / f.h);
+        const g = grey(f, gw, HUD_H);
+        fixed ??= new Float32Array(gw * HUD_H);
+        best ??= new Float32Array(gw * HUD_H);
+        if ((chunkFrom === null) || (f.t - chunkFrom >= HUD_CHUNK)) {
+            flush();
+            chunkFrom = f.t;
+        }
+        const last = (prev && (prev.length === g.length)) ? prev : null;
+        prev = g;
+        if (!last) {
+            continue;
+        }
+        // How many pixels moved in each box about a pixel: a sum table of the moved ones.
+        const sum = new Int32Array((gw + 1) * (HUD_H + 1));
+        for (let y = 0; y < HUD_H; y++) {
+            for (let x = 0, row = 0; x < gw; x++) {
+                const m = (Math.abs(g[y * gw + x] - last[y * gw + x]) > HUD_CHANGE) ? 1 : 0;
+                row += m;
+                sum[(y + 1) * (gw + 1) + x + 1] = sum[y * (gw + 1) + x + 1] + row;
+            }
+        }
+        pairs++;
+        for (let y = 1; y < HUD_H - 1; y++) {
+            const y0 = Math.max(y - HUD_AROUND, 0), y1 = Math.min(y + HUD_AROUND + 1, HUD_H);
+            for (let x = 1; x < gw - 1; x++) {
+                const i = y * gw + x;
+                if ((Math.abs(g[i] - last[i]) > HUD_STILL) ||
+                    (Math.max(Math.abs(g[i] - g[i + 1]), Math.abs(g[i] - g[i + gw])) < HUD_EDGE)) {
+                    continue;
+                }
+                const x0 = Math.max(x - HUD_AROUND, 0), x1 = Math.min(x + HUD_AROUND + 1, gw);
+                const around = sum[y1 * (gw + 1) + x1] - sum[y0 * (gw + 1) + x1] - sum[y1 * (gw + 1) + x0] +
+                    sum[y0 * (gw + 1) + x0];
+                if (around >= HUD_MOVES * (x1 - x0) * (y1 - y0)) {
+                    fixed[i]++;
+                }
+            }
+        }
+    }
+    if (best) {
+        flush();
+    }
+    return (best && best.some((v) => v > 0)) ? { gw, gh: HUD_H, fixed: best } : null;
+}
+
+// Where a wide dump has the HUD the 4:3 dump has at its sides: the share of the 4:3 dump's fixed pixels in each side of
+// the view (its middle left out, where nothing moves out) that the wide one has fixed when each is moved out from its
+// 4:3 place by s grey pixels, toward the window's side, for every s from 0 to the wide picture's side. A HUD placed at
+// the wide picture's sides (or at a narrower HUD ratio's) has its peak out past 0; one left at 4:3, at 0.
+function hudPlacement(narrow, wide) {
+    const { gw: nw, gh, fixed: nf } = narrow;
+    const { gw: ww, fixed: wf } = wide;
+    // The wide map spread by a pixel, so a HUD scaled a little differently in the two windows still meets.
+    const near = new Uint8Array(ww * gh);
+    for (let y = 0; y < gh; y++) {
+        for (let x = 0; x < ww; x++) {
+            if (wf[y * ww + x] < HUD_FIXED) {
+                continue;
+            }
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    const yy = y + dy, xx = x + dx;
+                    if ((yy >= 0) && (yy < gh) && (xx >= 0) && (xx < ww)) {
+                        near[yy * ww + xx] = 1;
+                    }
+                }
+            }
+        }
+    }
+    const ext = Math.floor((ww - nw) / 2);
+    const sides = [];
+    for (const side of [-1, 1]) {
+        const at = [];
+        for (let y = 0; y < gh; y++) {
+            for (let x = 2; x < nw - 2; x++) {
+                const cx = x + 0.5 - nw / 2;
+                const border = (Math.abs(cx) > (0.5 - HUD_BORDER) * nw) || (Math.abs(y + 0.5 - gh / 2) > (0.5 - HUD_BORDER) * gh);
+                if ((Math.sign(cx) === side) && (Math.abs(cx) >= HUD_MIDDLE * nw) && !border && (nf[y * nw + x] >= HUD_FIXED)) {
+                    at.push([x, y]);
+                }
+            }
+        }
+        const share = [];
+        for (let s = 0; s <= ext; s++) {
+            let hit = 0;
+            for (const [x, y] of at) {
+                const xx = x + Math.round((ww - nw) / 2) + side * s;
+                hit += ((xx >= 0) && (xx < ww)) ? near[y * ww + xx] : 0;
+            }
+            share.push(at.length ? hit / at.length : 0);
+        }
+        // The best place out from 4:3: a peak of its own past HUD_OUT, higher than the share on either side of it, not
+        // the slope down from 0 (a line along the HUD, a row of text, matches nearly as well a few pixels along).
+        let out = null;
+        let valley = share[0];
+        for (let s = 1; s <= ext; s++) {
+            valley = Math.min(valley, share[s - 1]);
+            if ((s > HUD_OUT) && (share[s] > share[s - 1]) && (share[s] >= (share[s + 1] ?? 0)) && (valley <= HUD_VALLEY * share[s]) &&
+                ((out === null) || (share[s] > share[out]))) {
+                out = s;
+            }
+        }
+        const atOut = (out === null) ? 0 : share[out];
+        // Left at 4:3 only where what is found there thins out moved off it: a share as high every way out is a picture
+        // fixed all over (a still screen's text over a scene), no place in particular.
+        let falls = false;
+        for (let s = 1; s <= Math.min(ext, HUD_FALL_IN); s++) {
+            falls ||= (share[s] <= HUD_VALLEY * share[0]);
+        }
+        const found = (at.length >= 20) && (Math.max(share[0], atOut) >= HUD_FOUND);
+        sides.push({ side, pixels: at.length, at43: share[0], out, atOut, found, ext,
+            left: found && falls && (share[0] >= HUD_FOUND) && (atOut < 0.5 * share[0]) });
+    }
+    return sides;
+}
+
+// Black stopping short of the window, from a wide dump's frames alone, every one at 60 a second: rows black at the
+// view's side, a twentieth of the view inside it, and on out past it to a column, past which out to the window's
+// edge the scene is drawn in half the pixels or more, the same column (a pixel either way) in a twelfth of the rows or
+// more: a straight edge of black inside the wide picture. Bars across the view (Lakitu Mode's letterbox), a wipe
+// closing to black about the middle, a black screen between scenes, drawn to 4:3 or to a HUD ratio narrower than the
+// window, leave the scene showing past them; drawn to the window, their black reaches its edge. A run of such frames
+// goes on only with its edge in the same column: two halves of an old screen sliding apart over black (Mario Golf's
+// menus opening the next) move theirs every frame.
+function blackShort(d) {
+    const run = { n: 0, longest: 0, from: null, at: null, first: null, where: null };
+    let looked = 0, aspect = 0;
+    for (const f of sampledFrames(d, BLACK_EVERY)) {
+        const { w, h, rgb } = f;
+        aspect = w / h;
+        if (aspect <= 4 / 3 * 1.1) {
+            break;
+        }
+        looked++;
+        const vw = h * 4 / 3, v0 = Math.round((w - vw) / 2), v1 = Math.round((w + vw) / 2), k = Math.ceil(vw / 20);
+        const lit = new Uint8Array(w * h);
+        for (let i = 0, p = 0; i < w * h; i++, p += 3) {
+            lit[i] = (Math.max(rgb[p], rgb[p + 1], rgb[p + 2]) > PIC_LIT) ? 1 : 0;
+        }
+        // Each side: the column each row's black stops at, out from the view's side.
+        let black = null;
+        for (const [inner, step, edge] of [[v0, -1, 0], [v1 - 1, 1, w - 1]]) {
+            const stops = new Map();
+            for (let row = 0; row < w * h; row += w) {
+                let dark = true;
+                for (let j = 0; (j < k) && dark; j++) {
+                    dark = !lit[row + inner - step * j];
+                }
+                let x = inner + step;
+                while (dark && (x !== edge + step) && !lit[row + x]) {
+                    x += step;
+                }
+                if (!dark || (x === edge + step)) {
+                    continue; // the view drawn at its side, or black out to the window's edge
+                }
+                let drawn = 0;
+                for (let xx = x; xx !== edge + step; xx += step) {
+                    drawn += lit[row + xx];
+                }
+                if (drawn * 2 >= Math.abs(edge - x) + 1) {
+                    stops.set(x, (stops.get(x) ?? 0) + 1);
+                }
+            }
+            for (const [x, n] of stops) {
+                const rows = (stops.get(x - 1) ?? 0) + n + (stops.get(x + 1) ?? 0);
+                if ((rows >= BLACK_ROWS * h) && (!black || (rows > black.rows))) {
+                    black = { out: Math.abs(x - inner), rows, h };
+                }
+            }
+        }
+        if (!black) {
+            continue;
+        }
+        if ((run.at === null) || (f.t - run.at > BLACK_GAP) || (Math.abs(black.out - run.first.out) > 1)) {
+            run.from = f.t;
+            run.first = { ...black, t: f.t, f }; // the run's first frame, for --save
+        }
+        run.at = f.t;
+        run.n++;
+        if (f.t - run.from + BLACK_EVERY > run.longest) {
+            run.longest = f.t - run.from + BLACK_EVERY;
+            run.where = run.first;
+        }
+    }
+    return { looked, aspect, ...run };
+}
+{
+    const narrow = narrowerDir && fixedOf(narrowerDir);
+    for (const d of new Set([dir, widerDir].filter(Boolean))) {
+        const name = path.basename(path.dirname(path.resolve(d)));
+        const b = blackShort(d);
+        if (!b.looked) {
+            continue;
+        }
+        const fails = b.longest >= BLACK_RUN, at = b.where;
+        failed ||= fails;
+        if (saveDir && at) {
+            fs.writeFileSync(path.join(saveDir, `black-${name}-${at.t.toFixed(2)}s.png`), png(at.f.w, at.f.h, at.f.rgb));
+        }
+        console.log(`black at the sides (${d}, ${b.aspect.toFixed(2)}:1): stopping short of the window in ${b.n} of ` +
+            `${b.looked} frames` + (at ? `, at most ${b.longest.toFixed(2)} s in a row from ${at.t.toFixed(2)} s (${at.rows} ` +
+                `of ${at.h} rows black to ${at.out} pixels out from the view's side, the scene past it)` : '') +
+            (fails ? ': FAILS, black that should reach the window\'s edge' : ''));
+        if (!narrow) {
+            continue;
+        }
+        const wide = fixedOf(d);
+        if (!wide || (wide.gw <= narrow.gw * 1.1)) {
+            continue;
+        }
+        const sides = hudPlacement(narrow, wide);
+        if (saveDir) {
+            // The fixed pixels of both, white, the 4:3 dump's above the wide one's, each about the middle.
+            const w = wide.gw, h = narrow.gh + wide.gh, rgb = Buffer.alloc(w * h * 3);
+            const x0 = Math.round((w - narrow.gw) / 2);
+            const put = (map, mw, y0, dx) => map.forEach((v, i) => {
+                rgb.fill((v >= HUD_FIXED) ? 255 : Math.round(v / HUD_FIXED * 96), ((y0 + Math.floor(i / mw)) * w + dx + i % mw) * 3,
+                    ((y0 + Math.floor(i / mw)) * w + dx + i % mw + 1) * 3);
+            });
+            put(narrow.fixed, narrow.gw, 0, x0);
+            put(wide.fixed, w, narrow.gh, 0);
+            fs.writeFileSync(path.join(saveDir, `hud-${name}.png`), png(w, h, rgb));
+        }
+        const left = sides.some((s) => s.left);
+        failed ||= left;
+        console.log(`HUD placement (${d} against ${narrowerDir}): ` + sides.map((s) =>
+            `${(s.side < 0) ? 'left' : 'right'}: ${s.pixels} fixed pixels in the 4:3 dump, ` +
+            `${Math.round(s.at43 * 100)}% where they were, ` +
+            ((s.out === null) ? 'no other place they gather' : `${Math.round(s.atOut * 100)}% ${s.out} of ${s.ext} pixels out`) +
+            (s.found ? '' : ' (no HUD found)')).join('; ') +
+            (left ? ': FAILS, the HUD left at the 4:3 view\'s sides' : ''));
+    }
 }
 for (const d of new Set([sidesOnly ? null : dir, narrowerDir, widerDir].filter(Boolean))) {
     const p = pictureAtSides(d);
@@ -1802,5 +2113,11 @@ if (narrowerDir) {
                 `${m.worst.mt.toFixed(1)} s)` : '') +
             (fail ? ': FAILS, the middle drawn otherwise than at 4:3' : ''));
     }
+}
+// The pace of what moves through the frames drawn between the game's own: tools/frame_pace.mjs, its header.
+if (!sidesOnly && fs.existsSync(path.join(dir, 'frames.bin'))) {
+    const pace = await checkPace(dir, { from, to, workers, saveDir });
+    pace.lines.forEach((l) => console.log(l));
+    failed ||= pace.failed;
 }
 process.exit(failed ? 1 : (untested ? 2 : 0));
