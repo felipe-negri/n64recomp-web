@@ -5,11 +5,12 @@
 // looking.
 //
 //   node tools/frame_check.mjs <dir> [--narrower <dir> --wider <dir>] [--sides] [--from <s>] [--to <s>] [--save <dir>]
-//       [--workers <n>] [--quiet]
+//       [--workers <n>] [--middle-samples <s>] [--quiet]
 //
 // <dir> is a dump's: frames.bin, every frame presented, and sides.tsv, where across the view the 3D's triangles lay.
-// --narrower and --wider name two dumps of the same plan for the sides, one in a 4:3 window and one at 32:9; --sides checks
-// only those and the picture at their sides, not <dir>'s frames between the game's or its cuts: a few seconds and no
+// --narrower and --wider name two dumps of the same plan for the sides and the middle, one in a 4:3 window and one at
+// 32:9; --sides checks only those, the picture at their sides and the middle, not <dir>'s frames between the game's or
+// its cuts: a few seconds and no
 // workers where the pairing takes minutes of every core (Turok 1's 122 s at 4:3, 3.5 GB). --from and
 // --to keep what came between those seconds of the dumps, counted from each one's first frame; --save writes each
 // flagged frame with the frames either side of it as one PNG, its flagged blocks outlined, for whoever wants to see
@@ -192,6 +193,26 @@
 //   even counting only those where both sides of it move, and not one inside the view.
 //   Turok 1's and 2's 16:9 sweeps and Mario Golf's iris wipes have neither. Neither
 //   needs two runs to agree, so a board the computer players play differently each time is checked too.
+// - The middle against the 4:3 window's, with --narrower (middleCheck()): RT64's Expand widens the picture and keeps
+//   what the game draws at 4:3 as it is, so at the same height a wide window's middle 4:3 is the 4:3 window's whole
+//   frame. Everything a recomp draws for a wide picture itself (a 2D screen scaled, a wipe or a backdrop drawn across
+//   it, the course culled wider) can draw its middle otherwise: a menu in a box short of the window's height, a title
+//   or a wipe at another size or place. Each frame of <dir> and of --wider, its middle 4:3 a grey 128x96 copy, is
+//   matched with the 4:3 dump's frame most like it anywhere in the run (the two run out of step, a 32:9 window slower:
+//   20 presents a second where 16:9 drew 29), the 8 most alike by 16x12 block means and of those the one with fewest
+//   8-pixel blocks 24 of 255 or more apart, the wide middle taken at its size and 1.8% larger and smaller: Mario Golf
+//   scales its 2D screens by 240/224 in a wide window and by 320/304 in a 4:3 one, which shows the game's 8-pixel
+//   border (its src/game/screen.cpp), 1.8% apart by design. The outer column of blocks either side isn't counted, the
+//   4:3 window's border there. A frame with 0.15 of its blocks apart or more is unlike it, and 0.75 s of such frames in
+//   a row fail. A HUD a recomp moves out to the wide picture's sides is a difference by design that fails too, so a
+//   plan for it stops before one is drawn: Mario Golf's plan ends at hole 1's flyover's end, where the tee's HUD comes
+//   in (its src/game/hud.cpp), 0.17 of the middle unlike the 4:3 window's for as long as the tee is shown. Its v0.1.18,
+//   before its menus and title were scaled to the window's full height, reads 23.1 s in a row at 16:9 and 26.8 s at
+//   32:9 over its menus, and its opening's character intros drawn larger, 3.6 s; v0.1.28 at most 0.4 s and 0.5 s, its
+//   title's top edge as the logo drops in and Play Modes' text as it types out, where the two windows' frames land at
+//   different points of a fast change. --middle-samples <s> writes a frame and its match side by side every <s>
+//   seconds of a run, unlike blocks in red, to --save's directory, and each run's worst frame always, and
+//   middle-<run>.tsv lists every frame's time, its match's and its share.
 //
 // It exits 0 when what it checked passes, 1 when one fails, 2 on a bad dump or arguments or a dump that can't test
 // the pairing or the sides. frames.bin is read a frame at a time, those the workers have yet to match kept (a few a
@@ -1561,7 +1582,7 @@ const MID_W = 128, MID_H = 96; // the grey copy of a frame's middle 4:3
 const MID_B = 8; // its blocks
 const MID_BAD = 24; // a block's mean difference to the 4:3 frame's, of 255, that differs
 const MID_SHARE = 0.15; // the share of a frame's blocks that differ, from which it is unlike the 4:3 window's
-const MID_RUN = 0.5; // seconds in a row of such frames that fail
+const MID_RUN = 0.75; // seconds in a row of such frames that fail (the header says why)
 // A dump's frames between --from and --to, each { t, p, g }: a grey MID_W x MID_H copy of its picture's middle 4:3, at
 // the picture's full height. Every frame, the frames drawn between the game's too: a wide window's frame between is the
 // 4:3 window's at the same point between, and the game's own reach a dump far sparser than its presents (Mario Golf's
@@ -1678,7 +1699,7 @@ function midScaled(g, s) {
     }
     return out;
 }
-function middleCheck(wideDir, narrow) {
+function middleCheck(name, wideDir, narrow) {
     const wide = middleFrames(wideDir);
     if (!wide.length || !narrow.length) {
         return null;
@@ -1709,7 +1730,7 @@ function middleCheck(wideDir, narrow) {
         const { bad, match } = best;
         const share = shareOf(bad);
         if (sampleEvery && (f.t >= nextSample)) {
-            savePair(`middle-${path.basename(path.dirname(wideDir))}-${f.t.toFixed(1)}.png`, best.g, match.g, bad);
+            savePair(`middle-${name}-${f.t.toFixed(1)}.png`, best.g, match.g, bad);
             nextSample = f.t + sampleEvery;
         }
         rows.push(`${f.t.toFixed(3)}\t${match.t.toFixed(3)}\t${midMean(best.g, match.g).toFixed(1)}\t${share.toFixed(3)}`);
@@ -1758,9 +1779,9 @@ function savePair(name, a, b, bad) {
 }
 if (narrowerDir) {
     const narrow = middleFrames(narrowerDir);
-    for (const d of [dir, widerDir].filter(Boolean)) {
+    for (const [name, d] of [['main', dir], ['wider', widerDir]].filter(([, d]) => d)) {
         nextSample = 0;
-        const m = middleCheck(d, narrow);
+        const m = middleCheck(name, d, narrow);
         if (!m || !m.n) {
             console.log(`middle (${d}): no frames to match with ${narrowerDir}'s`);
             continue;
@@ -1769,10 +1790,10 @@ if (narrowerDir) {
         failed ||= fail;
         if (saveDir) {
             fs.mkdirSync(saveDir, { recursive: true });
-            fs.writeFileSync(path.join(saveDir, `middle-${path.basename(path.dirname(d))}.tsv`),
+            fs.writeFileSync(path.join(saveDir, `middle-${name}.tsv`),
                 't\t4:3 t\tmean\tshare\n' + m.rows.join('\n') + '\n');
             if (m.worst) {
-                savePair(`middle-${path.basename(path.dirname(d))}-worst.png`, m.worst.f.g, m.worst.match.g, m.worst.bad);
+                savePair(`middle-${name}-worst.png`, m.worst.f.g, m.worst.match.g, m.worst.bad);
             }
         }
         console.log(`middle (${d}): ${m.unlike} of ${m.n} frames unlike the 4:3 window's in ` +
