@@ -125,9 +125,6 @@ backend or how RT64 builds pipelines or presents on the web.
   doesn't.
 - A plan reaches a level as a player does and plays a minute or more in its levels, its holds on the game's own clock;
   a plan that ends on black is the plan's fault until a direct warp there draws black too (docs/playing.md, Plans).
-- A game's desktop build never runs on the GPU from inside WSL2 (Mesa's Dozen over `/dev/dxg`): a device lost there
-  wedged the Windows host's GPU driver and froze the whole machine until a restart (docs/findings.md, A desktop build
-  on WSL's GPU). Under WSL or Docker it runs on lavapipe, on the CPU; on the GPU only natively, or as its page.
 
 ## Ruled out, so don't retry
 

@@ -16,7 +16,8 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 04dc9cf, which Perfect Dark's desktop build turns on), `RT64_EXACT_PRIM_DEPTH` (rt64 c1000a7, c0d27e5),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
-2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, 8868f0d, which it turns on too),
+2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, 8868f0d,
+55f42a3, which it turns on too),
 `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES`
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
@@ -592,7 +593,7 @@ rt64 6a06f75           RT64_GAME_FRAME_WORKLOADS: a held frame waits up to 300 m
                        until the present queue is full, not 34 ms: on a busy host Mario Party's board showed a frame
                        in about 60 part-drawn as the characters jumped out of the tube, its rest up to 260 ms late.
                        RT64_FRAME_LOG prints each game frame to stderr as it ends (why, its workloads, presents,
-                       waits), which tools/frame_log.mjs reads
+                       waits), to read beside a window's captures
 rt64 9a700cc           RT64_GAME_FRAME_WORKLOADS: a workload not paired with one of the frame before's draws its own
                        transforms, as process() decides, where the empty interpolated ones were uploaded: Mario
                        Party 2, running late as a turn began, drew its next frame into the framebuffer it hadn't
@@ -1149,7 +1150,7 @@ plume b7285f9          Vulkan: copyTextureRegion() reads a texture back into a b
                        texture to buffer copy read a null texture. RT64_FRAME_DUMP reads its frames back so
 rt64 cf8b2e0           RT64_FRAME_DUMP=<dir> (and RT64_FRAME_DUMP_SECONDS=<from>-<to>): every presented frame, read back
                        from its color target, and each workload's perspective triangles counted by where across the view
-                       they lie, for tools/frame_check.mjs to check flicker, interpolation and culling at the 4:3 sides
+                       they lie, to check flicker, interpolation and culling at the 4:3 sides
                        by machine. Nothing runs without the variable
 rt64 95004d7           RT64_FRAME_DUMP's work all in rt64_frame_dump.h, called from one line after the present's render
                        hook (a frame read back, handed on at the next present) and one in drawIndexedTri() (the
@@ -1245,7 +1246,7 @@ rt64 ff78e32           RT64_INTERPOLATE_SCREEN_VERTICES's function after the cam
 rt64 a00fdff           RT64_FRAME_DUMP reads back only the box of a present's color target the VI draws from, not the
                        whole target: the targets of the frames drawn between the game's are kept at the largest size
                        drawn, so Dinosaur Planet's at 1280x720 read 1692x960 and came out 564x320 beside the game's
-                       640x360, with the boot logos' text past the picture, and frame_check failed 6 of 2027
+                       640x360, with the boot logos' text past the picture, and their check failed 6 of 2027
 rt64 9adecdf           RT64_FRAME_DUMP's sides.tsv counted the model matrices drawn wholly past the view's sides,
                        reverted by 4de3122: the count didn't tell a game that culls nothing by the window from one
                        culled to 4:3
@@ -1302,4 +1303,11 @@ plume 0f99478          WebGPU: after a READBACK map is cancelled (a threaded bui
                        in emwgpuBufferGetConstMappedRange and the buffer stayed mapped, every later submission copying
                        into it failing. Super Smash Bros.' page hit it as a battle ended, under a busy GPU
 rt64 59781ef           plume-web 0f99478
+rt64 8fb97c6           rt64_frame_dump.h's header says what the dump is for and names no checker: a comment only
+rt64 55f42a3           RT64_INTERPOLATE_RECT_SCROLLS: a rect cut at an edge it holds that changed size keeps its
+                       texels a pixel in the frames between, its texture scaled and its corners placed so the texel at
+                       the moving edge is this frame's (shifts and corners interpolated): Mario Golf opens Course Select
+                       by moving Play Modes' halves out 12 pixels a side, each cut by the screen's edge, and a half was
+                       stretched toward that edge and past where the next game frame puts it (frame_check: 8 frames
+                       unlike both neighbours in the 0.4 s it takes)
 ```

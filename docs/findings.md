@@ -2204,17 +2204,6 @@ OS call, while the reload runs at the host's speed, so it lost the race on a bus
 waits, right after the teardown destroys the audio thread, until the scheduler holds no audio task (at most 250 ms;
 its `src/main/bar_audio_teardown.cpp`); the same 20 ms hold then played through to a race.
 
-## A desktop build on WSL's GPU
-
-Mesa's Dozen (Vulkan over D3D12) gives a Docker container in WSL2 the Windows host's GPU through `/dev/dxg`; a game
-fork's Linux harness can take it to play its desktop build headless faster than lavapipe does. On an RTX 5080 a
-Perfect Dark desktop play under Dozen, a sweep through a mission, lost its device (`vkWaitForFences`
-`VK_ERROR_DEVICE_LOST`). Its process stayed in uninterruptible sleep in the driver and its container could not be
-removed; on Windows `nvidia-smi` hung from then on, and so did `wsl --shutdown`. Within the half hour the whole host
-froze, and only a restart brought it back. A device lost in a browser
-costs only its page (Faults); one lost through `/dev/dxg` costs the host and everything on it, so a desktop build
-under WSL runs on lavapipe (CLAUDE.md, Playing a page).
-
 ## A desktop build on Mesa's lavapipe
 
 Every recomp's Linux release crashed on lavapipe (Vulkan on the CPU) seconds into its game: Perfect Dark's v0.1.12 in

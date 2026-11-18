@@ -21,11 +21,13 @@
 #       ../mario-golf-recomp/play_plan.json --shot out:end.png --record plays.jsonl --game mg --build "main 1a2b3c4"
 #
 # It runs in the image of tools/page_play.Dockerfile, tagged with a hash of that file and the week and built on the host
-# the first time a run needs it, in a container named page-play-<out dir's name> (`docker stop` that name to end one),
-# as the host's own user, with the host's GPUs, capped at $PLAY_CPUS cores (4: a play in Chrome used 1-1.5) and
-# $PLAY_MEMORY of memory (4g: one held 1.6 GB), which is also the host memory its job asks the queue for. Its
-# files are in $PLAY_DIR/<out dir's name> under the host's home (page-plays), deleted when it ends. tools/play_job.mjs
-# starts the browsers' display and sound there and runs the tool.
+# the first time a run needs it, in a container named page-play-<key> (printed as it starts: `docker stop` that name to
+# end one), as the host's own user, with the host's GPUs, capped at $PLAY_CPUS cores (4: a play in Chrome used 1-1.5)
+# and $PLAY_MEMORY of memory (4g: one held 1.6 GB), which is also the host memory its job asks the queue for. Its
+# files are in $PLAY_DIR/<key> under the host's home (page-plays), deleted when it ends. The key is the out dir's name
+# and a hash of its whole path here (out-3f9a1c02), so callers whose out dirs share a name never share a folder or a
+# container; a run started while a container of its key is on the host (the same out dir's) stops (exit 3) before it
+# touches the folder. tools/play_job.mjs starts the browsers' display and sound there and runs the tool.
 #
 # A host whose GPU is shared through a queue: PLAY_QUEUE_CLIENT names a JavaScript module here that exports
 # gpuRun(spec, run), sent with the run, and the play waits for a turn as one job of it (play_job.mjs's header says what
@@ -52,10 +54,17 @@ case "$tool" in play_page.mjs|record_shaders.mjs) ;; *) echo "the tool is play_p
 host="${PLAY_HOST:?set PLAY_HOST to the host to play on}"
 mkdir -p "$out"
 out="$(cd "$out" && pwd)"
-name="$(basename "$out")"
-dir="${PLAY_DIR:-page-plays}/$name"
+key="$(basename "$out")-$(printf %s "$out" | git hash-object --stdin | cut -c1-8)"
+dir="${PLAY_DIR:-page-plays}/$key"
 image="page-play:$(git hash-object "$here/page_play.Dockerfile" | cut -c1-12)-$(date -u +%G%V)"
 remote() { ssh -o BatchMode=yes "$host" "$@"; }
+# A run already there with this key (playing, or waiting for its turn) is left alone: this one stops before it
+# empties the folder under the other.
+if remote "docker container inspect page-play-$key >/dev/null 2>&1"; then
+    echo "page-play-$key is already on $host: a run of this out dir holds it" >&2
+    exit 3
+fi
+echo "on $host as page-play-$key, in ~/$dir"
 
 # What the container reads, in one tar: the tools, the inputs, the out dir as it is, the queue's client.
 stage="$(mktemp -d)"
@@ -136,12 +145,12 @@ remote "rm -rf $dir && mkdir -p $dir"
 tar -C "$stage" -cf - . | remote "tar -C $dir -xf -"
 
 q() { printf '%q ' "$@"; }
-run=(docker run --rm --name "page-play-$name" --gpus all --cpus "${PLAY_CPUS:-4}" --memory "${PLAY_MEMORY:-4g}"
+run=(docker run --rm --name "page-play-$key" --gpus all --cpus "${PLAY_CPUS:-4}" --memory "${PLAY_MEMORY:-4g}"
     --shm-size 2g -e HOME=/work/home -w /work/out)
 [[ -n "${PLAY_NETWORK:-}" ]] && run+=(--network "$PLAY_NETWORK")
 [[ -n "${GPU_QUEUE_URL:-}" ]] && run+=(-e "GPU_QUEUE_URL=$GPU_QUEUE_URL")
 cmd=(node /work/tools/play_job.mjs "${job[@]}" -- node "/work/tools/$tool" "${targs[@]}")
-stopped() { remote "docker stop page-play-$name >/dev/null 2>&1" || true; exit 75; }
+stopped() { remote "docker stop page-play-$key >/dev/null 2>&1" || true; exit 75; }
 trap 'rm -rf "$stage"; stopped' INT TERM
 set +e
 printf %s "${GPU_QUEUE_KEY:-}" | remote "cd ~ && GPU_QUEUE_KEY=\$(cat) && export GPU_QUEUE_KEY && \
