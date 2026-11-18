@@ -49,6 +49,12 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   all three windows, runs frame_check there and brings back only its text, the logs, the plan's shots and the flagged
   frames (its header and `tools/frame_dump.mjs`'s say how), since a dump is too big to move and the check holds a
   third of a machine's cores for minutes. Its verdicts match a dump made on Windows by `capture_window.ps1`.
+- Check a game's speed against its console's with a plan's `clock` step, in a desktop plan (`capture_window.ps1`,
+  `frame_dump.mjs`) and a page's (page_driver's): it reads a counter the game keeps every 100 ms against real time,
+  and `tools/game_speed.mjs` fails a game that ran faster than its console in any 5 s, and says where it ran slower,
+  which fails only where the host is known to keep up (`-Slow`, `--slow`). `frame_dump.mjs --launcher` starts at the
+  launcher, so a plan waits there before Start Game as a player who leaves it open, and `--no-dump` plays without a
+  dump, which slows a large window's game below its pace.
 
 ## Plans
 

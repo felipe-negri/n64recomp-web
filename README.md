@@ -459,7 +459,8 @@ take the web support without moving its submodules to the forks (Using it in a r
   reading Firefox's GPU process memory around each; `memory_scan.ps1` says whose code made what that process grows.
   `capture_window.ps1` plays a desktop build by a plan and captures its own window, and `frame_log.mjs` reads RT64's
   frame log beside those captures (docs/playing.md); `frame_check.mjs` checks every frame RT64 dumps with
-  `RT64_FRAME_DUMP` for frames unlike both neighbours and a world culled at the 4:3 view's sides.
+  `RT64_FRAME_DUMP` for frames unlike both neighbours and a world culled at the 4:3 view's sides, and `game_speed.mjs`
+  judges a game's speed against its console's from a plan's `clock` step, on the desktop and on a page.
   `frame_lengths.js`, a preload too, logs how long the game's frames are against the page's presents, and
   `frame_lengths.mjs` counts from that what each guess at a frame's length would hold and cut. `wait_probe.js` logs
   whether a timed wait off the page's thread ends on time, each second of a play, and `heap_probe.js` how much of its
