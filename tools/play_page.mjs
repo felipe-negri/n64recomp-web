@@ -129,7 +129,8 @@
 // A shader plan's own section plays with --section <name> in place of "play" (its
 // "keep" steps, which only say what record_shaders.mjs records, do nothing here), and
 // --play <s> plays nothing but lets the game run by itself that long (an attract demo; the stand-in's runs). --shot
-// takes a screenshot of the page when the play steps end.
+// takes a screenshot of the page when the play steps end, and of a run that fails before they do as <file>-failed.png:
+// what the game showed where its plan stopped (a boot that never left the title, a menu the presses missed).
 //
 // Every console line goes to stdout as it comes, with the seconds since start (rt64 shader: lines aside), and every
 // --interval seconds (5) a line of: presents a second (the page's getCurrentTexture calls), the browser's animation
@@ -876,6 +877,13 @@ try {
       sleep(180000).then(() => { throw new Error('the browser gave no answer in 3 minutes'); })]).then(
       () => log(`gecko profile written to ${geckoProfileFile}, ${Math.round((Date.now() - from) / 1000)} s after it was asked for`),
       (e) => log(`no gecko profile: ${e.message}`));
+  }
+  if (shotFile) {
+    const failedShot = path.resolve(shotFile).replace(/(\.png)?$/, '-failed.png');
+    // Raced with 30 s: the run may have failed because the browser stopped answering.
+    await Promise.race([page.screenshot(), sleep(30000).then(() => { throw new Error('no answer in 30 s'); })]).then(
+      (shot) => { fs.writeFileSync(failedShot, shot); log(`the page as it failed: ${failedShot}`); },
+      (e) => log(`no screenshot of the failed run: ${e.message}`));
   }
   // A run that failed before the play still records the viewport it had, on screen the window's, not --size.
   viewport ??= await page.viewport().catch(() => null);
