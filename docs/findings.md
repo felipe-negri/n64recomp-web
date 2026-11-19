@@ -2073,8 +2073,12 @@ game's yaw in RAM beside it). Perfect Dark's answers in about 80 ms. Turok 2's o
   each, in interleaved pairs.
 - Turok: Dinosaur Hunter's frames end the same way: its look and turn answered in 210-238 ms before and 164-206 ms
   with 5cbf5ff, the frames of its levels ending as evenly as before (14.9 ms sd against 15.0). Its title's fly-through
-  through the leaves ends them less evenly (23.1 ms against 16.8), and frame_check flags 5-10 frames unlike both
-  neighbours there where it flagged 2-4 (three dumps each, 1280x720 at 120). Of every page played with `?frame-log`, Jet
+  through the leaves did too, dumped one build at a time and alternated, three dumps each (1280x720 at 120, 5-20 s):
+  frame_check counted no frame unlike both neighbours with either, and left out as many where the leaves pass close
+  to the camera (4-5 a dump); its frames were picked up 18.5-19.8 ms sd apart against 18.3-19.4, and it presented
+  106-109 frames a second against 100-103. For a frame of one workload both ends come at the same moment, the next
+  frame's first workload, and only which frame is drawn then differs. Four dumps at once on a busy host had read 5-10
+  flagged frames against 2-4 there. Of every page played with `?frame-log`, Jet
   Force Gemini, Mario Golf and Star Wars Episode I: Racer end many frames there too; the others a few a play or none.
   Mario Golf's whole frame plan flagged 14 frames with 5cbf5ff and 23 without, and Jet Force Gemini's and Racer's pages
   played their plans with no WebGPU error or exception, ending most frames drawn.
