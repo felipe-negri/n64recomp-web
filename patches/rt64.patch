@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web dd17c96c0342fd04f868aaf07b423e5aca029f86
+rt64: https://github.com/n64hub/rt64-web 53ce431c929d2569649ef528325dbd79f595f305
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -1834,7 +1834,7 @@ index 08f83e5..75800e1 100755
          MONITORINFOEX info = {};
          info.cbSize = sizeof(info);
 diff --git a/src/hle/rt64_draw_call.h b/src/hle/rt64_draw_call.h
-index 0e62be1..58f07d8 100644
+index 0e62be1..2b39dd6 100644
 --- a/src/hle/rt64_draw_call.h
 +++ b/src/hle/rt64_draw_call.h
 @@ -82,6 +82,11 @@ namespace RT64 {
@@ -1884,6 +1884,17 @@ index 0e62be1..58f07d8 100644
          uint16_t tileCopyWidth;
          uint16_t tileCopyHeight;
          bool reinterpretTile;
+@@ -154,6 +180,10 @@ namespace RT64 {
+         bool rawTMEM;
+         bool valid;
+ 
++        // What the tile copy holds when one is used (FramebufferManager::tileCopySource()), where tmemHashOrID is only
++        // the copy's ID: matchRectScrolls pairs rects drawn from tile copies by it.
++        uint64_t tileCopySource;
++
+         bool validTexcoords() const {
+             return (minTexcoord.x <= maxTexcoord.x) && (minTexcoord.y <= maxTexcoord.y);
+         }
 diff --git a/src/hle/rt64_frame_dump.cpp b/src/hle/rt64_frame_dump.cpp
 new file mode 100644
 index 0000000..c83613f
@@ -2463,7 +2474,7 @@ index 7b38b8e..2a5c6c0 100644
          std::unique_ptr<FramebufferReadChangesDescriptorChangesSet> readChangesSet;
          bool used;
 diff --git a/src/hle/rt64_framebuffer_manager.cpp b/src/hle/rt64_framebuffer_manager.cpp
-index d7caa12..beb887d 100644
+index d7caa12..dcc63be 100644
 --- a/src/hle/rt64_framebuffer_manager.cpp
 +++ b/src/hle/rt64_framebuffer_manager.cpp
 @@ -38,9 +38,11 @@ namespace RT64 {
@@ -2670,7 +2681,7 @@ index d7caa12..beb887d 100644
                      break;
                  }
  
-@@ -778,25 +911,33 @@ namespace RT64 {
+@@ -778,25 +911,74 @@ namespace RT64 {
          return usedTimestamp;
      }
  
@@ -2683,6 +2694,47 @@ index d7caa12..beb887d 100644
 +        }
 +
 +        return false;
++    }
++
++    // What the tile copy tileCopyId found for a tile at TMEM address tmem holds, the same from frame to frame where its
++    // ID, reused for whichever copy of its size is made next, isn't: the framebuffer's address, the rect of it copied,
++    // its format and line, and where the tile's TMEM is in the region the copy was loaded to. Looked up after the check
++    // that found the copy (checkRegionsTMEM() and the rest), from the same regions, by the tile's own address: the
++    // region with the copy's ID that holds it, or holds it masked to TMEM's lower half (as an RGBA32 or TLUT tile is
++    // checked), or else, for a tile whose range wrapped around TMEM and was checked whole, the first with the copy's ID.
++    // 0 when no region has the ID.
++    uint64_t FramebufferManager::tileCopySource(uint64_t tileCopyId, uint32_t tmem) const {
++        const RegionTMEM *found = nullptr;
++        uint32_t offset = 0;
++        for (const RegionTMEM &region : activeRegionsTMEM) {
++            if (region.tileCopyId != tileCopyId) {
++                continue;
++            }
++
++            const uint32_t lowerTMEM = tmem & RDP_TMEM_MASK128;
++            if ((tmem >= region.tmemStart) && (tmem < region.tmemEnd)) {
++                found = &region;
++                offset = tmem - region.tmemStart;
++                break;
++            }
++            else if ((lowerTMEM >= region.tmemStart) && (lowerTMEM < region.tmemEnd)) {
++                found = &region;
++                offset = lowerTMEM - region.tmemStart;
++                break;
++            }
++            else if (found == nullptr) {
++                found = &region;
++            }
++        }
++
++        if (found == nullptr) {
++            return 0;
++        }
++
++        const FramebufferTile &fbTile = found->fbTile;
++        const uint32_t key[] = { fbTile.address, fbTile.left, fbTile.top, fbTile.right, fbTile.bottom, fbTile.lineWidth,
++            (uint32_t(fbTile.siz) << 8) | fbTile.fmt, offset };
++        return XXH3_64bits(key, sizeof(key));
 +    }
 +
      uint64_t FramebufferManager::findTileCopyId(uint32_t width, uint32_t height) {
@@ -2708,7 +2760,7 @@ index d7caa12..beb887d 100644
                  tileCopy.usedWidth = width;
                  tileCopy.usedHeight = height;
                  tileCopy.usedTimestamp = usedTimestamp;
-@@ -804,9 +945,13 @@ namespace RT64 {
+@@ -804,9 +986,13 @@ namespace RT64 {
              }
          }
  
@@ -2724,7 +2776,7 @@ index d7caa12..beb887d 100644
          tileCopy.usedWidth = width;
          tileCopy.usedHeight = height;
          tileCopy.usedTimestamp = usedTimestamp;
-@@ -838,6 +983,7 @@ namespace RT64 {
+@@ -838,6 +1024,7 @@ namespace RT64 {
  
                  if (updateHashes) {
                      it->second.RAMHash = currentHash;
@@ -2732,7 +2784,7 @@ index d7caa12..beb887d 100644
                  }
              }
  
-@@ -859,6 +1005,16 @@ namespace RT64 {
+@@ -859,6 +1046,16 @@ namespace RT64 {
              const uint8_t *fbRAM = &RDRAM[fb->addressStart];
              const FramebufferChange::Type fbChangeType = (fb->lastWriteFmt == G_IM_FMT_DEPTH) ? FramebufferChange::Type::Depth : FramebufferChange::Type::Color;
              FramebufferChange &fbChange = fbChangePool.use(renderWorker, fbChangeType, fb->width, fb->height, shaderLibrary->usesHDR);
@@ -2749,7 +2801,7 @@ index d7caa12..beb887d 100644
              const uint32_t DifferenceFractionNum = 1;
              const uint32_t DifferenceFractionDiv = 4;
              const uint32_t differentPixels = fb->copyRAMToNativeAndChanges(renderWorker, fbChange, fbRAM, 0, fb->height, fb->lastWriteFmt, false, shaderLibrary);
-@@ -896,6 +1052,7 @@ namespace RT64 {
+@@ -896,6 +1093,7 @@ namespace RT64 {
          while (it != framebuffers.end()) {
              if ((it->second.maxHeight > 0) && (it->second.RAMBytes > 0)) {
                  it->second.RAMHash = XXH3_64bits(&RDRAM[it->first], it->second.RAMBytes);
@@ -2757,7 +2809,7 @@ index d7caa12..beb887d 100644
              }
  
              it++;
-@@ -1001,16 +1158,46 @@ namespace RT64 {
+@@ -1001,16 +1199,46 @@ namespace RT64 {
              tileCopyBeforeBarriers.clear();
              tileCopyAfterBarriers.clear();
  
@@ -2807,7 +2859,7 @@ index d7caa12..beb887d 100644
  
              // Use the rasterization pipeline to copy the texture regions. Using the dedicated transfer commands does not behave consistently
              // enough across hardware to use it directly when it comes to synchronization due to unknown reasons found during testing (probably
-@@ -1033,6 +1220,7 @@ namespace RT64 {
+@@ -1033,6 +1261,7 @@ namespace RT64 {
                  renderWorker->commandList->setGraphicsPushConstants(0, &copy.pushConstants);
                  renderWorker->commandList->drawInstanced(3, 1, 0, 0);
              }
@@ -2816,7 +2868,7 @@ index d7caa12..beb887d 100644
              renderWorker->commandList->barriers(RenderBarrierStage::GRAPHICS_AND_COMPUTE, tileCopyAfterBarriers);
          }
 diff --git a/src/hle/rt64_framebuffer_manager.h b/src/hle/rt64_framebuffer_manager.h
-index 8d36b51..d635662 100644
+index 8d36b51..f15faa6 100644
 --- a/src/hle/rt64_framebuffer_manager.h
 +++ b/src/hle/rt64_framebuffer_manager.h
 @@ -20,6 +20,7 @@
@@ -2847,7 +2899,7 @@ index 8d36b51..d635662 100644
          std::unordered_map<uint64_t, uint64_t> reinterpretTileCache;
          std::unique_ptr<RenderTexture> dummyTLUTTexture;
          std::vector<std::unique_ptr<ReinterpretDescriptorSet>> descriptorReinterpretSets;
-@@ -176,11 +183,14 @@ namespace RT64 {
+@@ -176,11 +183,15 @@ namespace RT64 {
          ~FramebufferManager();
          Framebuffer &get(uint32_t address, uint8_t siz, uint32_t width, uint32_t height);
          Framebuffer *find(uint32_t address) const;
@@ -2859,10 +2911,11 @@ index 8d36b51..d635662 100644
          uint64_t getUsedTimestamp() const;
          uint64_t findTileCopyId(uint32_t width, uint32_t height);
 +        bool regionsTMEMUseTileCopy(uint64_t tileCopyId) const;
++        uint64_t tileCopySource(uint64_t tileCopyId, uint32_t tmem) const;
          void createTileCopySetup(RenderWorker *renderWorker, const FramebufferOperation &op, hlslpp::float2 resolutionScale, RenderTargetManager &targetManager, std::unordered_set<RenderTarget *> *resizedTargets);
          void createTileCopyRecord(RenderWorker *renderWorker, const FramebufferOperation &op, const FramebufferStorage &fbStorage, RenderTargetManager &targetManager,
              hlslpp::float2 resolutionScale, uint32_t maxFbPairIndex, CommandListCopies &cmdListCopies, CommandListDiscards &cmdListDiscards, const ShaderLibrary *shaderLibrary);
-@@ -197,6 +207,10 @@ namespace RT64 {
+@@ -197,6 +208,10 @@ namespace RT64 {
              interop::uint2 texelShift, interop::uint2 texelMask, uint64_t tlutHash, uint32_t tlutFormat);
  
          CheckCopyResult checkRegionsTMEM(uint32_t tmemStart, uint32_t tmemEnd, uint32_t lineWidth, uint8_t siz, uint8_t fmt, uint16_t uls, bool usesTLUT, uint8_t palette);
@@ -3114,7 +3167,7 @@ index 5c3c4d2..cba893c 100644
  
          uint32_t rdramUsed;
 diff --git a/src/hle/rt64_game_frame.cpp b/src/hle/rt64_game_frame.cpp
-index 87392d0..f43ad28 100644
+index 87392d0..86ddf5d 100644
 --- a/src/hle/rt64_game_frame.cpp
 +++ b/src/hle/rt64_game_frame.cpp
 @@ -2,6 +2,8 @@
@@ -3392,7 +3445,7 @@ index 87392d0..f43ad28 100644
          // Compute the difference between the screen-space position of both transforms on their respective projections.
          hlslpp::float4 prevScreenPos = hlslpp::mul(prevTransform[3], prevViewProj);
          hlslpp::float4 curScreenPos = hlslpp::mul(curTransform[3], curViewProj);
-@@ -252,6 +474,728 @@ namespace RT64 {
+@@ -252,6 +474,820 @@ namespace RT64 {
          return matchResult;
      }
  
@@ -3517,16 +3570,29 @@ index 87392d0..f43ad28 100644
 +    // below in the frames between). That strip's texture slides by its step, however much of the rect's few rows it
 +    // is. Each of a rect's
 +    // edges is drawn between where it was and where it is, its texcoords at its upper left, so it meets the strip above
-+    // in every frame between and leaves no row of what is behind it showing. A rect that changed texture, or its size
-+    // any other way, is drawn where the game put it. Places and sizes are compared as the game drew them, before the
-+    // enhancement that moves an edge within a pixel of the scissor's onto it (rect.fixRectLR): it grows or shrinks a
-+    // rect by a pixel in the frames its edge passes the scissor's, and a glyph that changed size there paired with its
-+    // shadow, the same glyph drawn a pixel aside, so the frames between drew the line a pixel to the side. Last, a strip
-+    // still unpaired that the frame before drew nothing of slides with the strip of its panorama it adjoins (below).
-+    // A rect's edge that came onto the scissor's from inside it, where the game cuts it as the panorama moves on, is held
-+    // there in the frames between, its texels moving with its other edge, as at an edge that stayed: the strip of
-+    // Mario Golf's hills under one that has just left the picture over the top as the camera pitches down, drawn between
-+    // where its top was and the scissor, showed the clear color's dark blue in the picture's top row.
++    // in every frame between and leaves no row of what is behind it showing. One still unpaired pairs with the nearest,
++    // less than its longer side away, that drew the same textures at another scale with the same texels at its corners,
++    // within a texel: a sprite the game grows or shrinks as it moves it (Mario Golf's Play Modes wheel, each mode's
++    // icon drawn in two strips at a scale of its own as the wheel turns), each of whose edges is drawn between where it
++    // was and where it is, its texture stretched across it as the game stretches it. Left unpaired, its strips slid in
++    // the game frames whose scale stayed and stepped in the rest, off the pace of the wheel. A rect that changed
++    // texture, or its size any other way, is drawn where the game put it. Places and sizes are compared as the game
++    // drew them, before the enhancement that moves an edge within a pixel of the scissor's onto it (rect.fixRectLR): it
++    // grows or shrinks a rect by a pixel in the frames its edge passes the scissor's, and a glyph that changed size
++    // there paired with its shadow, the same glyph drawn a pixel aside, so the frames between drew the line a pixel to
++    // the side. Last, a strip still unpaired that the frame before drew nothing of slides with the strip of its
++    // panorama it adjoins (below). A rect's edge that came onto the scissor's from inside it, where the game cuts it as
++    // the panorama moves on, is held there in the frames between, its texels moving with its other edge, as at an edge
++    // that stayed: the strip of Mario Golf's hills under one that has just left the picture over the top as the camera
++    // pitches down, drawn between where its top was and the scissor, showed the clear color's dark blue in the
++    // picture's top row. A rect drawn from a tile copy (a picture of the framebuffer) pairs by what the copy holds,
++    // the framebuffer and the part of it copied (DrawCallTile::tileCopySource), not by the copy's ID, which stands in
++    // for its TMEM hash: a copy is reused for whichever copy of its size is made next, so the same ID in the frame
++    // before is another picture or another part of it. Mario Golf's intro fades one shot into the next by copying the
++    // old shot into a buffer in 38 strips the first frame and drawing them back over the new shot every frame, each
++    // strip a copy of its part of the buffer: in the second frame each strip paired by its ID with a copy strip of the
++    // first that many rows lower, and the frames between drew the top half of the old shot slid down, the new shot
++    // uncovered above it.
 +    // Rects that sample no texture are paired among themselves, apart from the textured ones, so a rect of either kind
 +    // never changes what the other's runs of owns are: one that draws a colour (a combiner of primitive or environment
 +    // colour alone, or a fill) has the same look as one that draws it with the same combiner, other modes and colours,
@@ -3585,9 +3651,9 @@ index 87392d0..f43ad28 100644
 +            return (float(a.x) == float(b.x)) && (float(a.y) == float(b.y)) && (float(a.z) == float(b.z)) && (float(a.w) == float(b.w));
 +        };
 +
-+        // The same textures at the same scale, whatever the rect's size.
-+        auto sameLook = [&](const DrawCall &a, const DrawCall &b) {
-+            if ((a.rectDsdx != b.rectDsdx) || (a.rectDtdy != b.rectDtdy) || (a.tileCount != b.tileCount)) {
++        // The same textures, whatever the rect's size and scale; a tile copy's by what it holds, not by its ID.
++        auto sameTiles = [&](const DrawCall &a, const DrawCall &b) {
++            if (a.tileCount != b.tileCount) {
 +                return false;
 +            }
 +
@@ -3598,9 +3664,14 @@ index 87392d0..f43ad28 100644
 +            }
 +
 +            for (uint32_t t = 0; t < a.tileCount; t++) {
++                const DrawCallTile &ca = curData.callTiles[a.tileIndex + t];
++                const DrawCallTile &cb = prevData.callTiles[b.tileIndex + t];
++                const bool sameTexels = (ca.tileCopyUsed || cb.tileCopyUsed) ?
++                    (ca.tileCopyUsed && cb.tileCopyUsed && (ca.tileCopySource == cb.tileCopySource)) :
++                    (ca.tmemHashOrID == cb.tmemHashOrID);
 +                const interop::RDPTile &ta = curData.rdpTiles[a.tileIndex + t];
 +                const interop::RDPTile &tb = prevData.rdpTiles[b.tileIndex + t];
-+                if ((curData.callTiles[a.tileIndex + t].tmemHashOrID != prevData.callTiles[b.tileIndex + t].tmemHashOrID) ||
++                if (!sameTexels ||
 +                    (ta.fmt != tb.fmt) || (ta.siz != tb.siz) || (ta.palette != tb.palette) || (ta.masks != tb.masks) || (ta.maskt != tb.maskt) ||
 +                    (ta.cms != tb.cms) || (ta.cmt != tb.cmt) || (ta.shifts != tb.shifts) || (ta.shiftt != tb.shiftt) ||
 +                    (ta.uls != tb.uls) || (ta.ult != tb.ult) || (ta.lrs != tb.lrs) || (ta.lrt != tb.lrt))
@@ -3610,6 +3681,11 @@ index 87392d0..f43ad28 100644
 +            }
 +
 +            return true;
++        };
++
++        // The same textures at the same scale, whatever the rect's size.
++        auto sameLook = [&](const DrawCall &a, const DrawCall &b) {
++            return (a.rectDsdx == b.rectDsdx) && (a.rectDtdy == b.rectDtdy) && sameTiles(a, b);
 +        };
 +
 +        auto sameTextures = [&](const DrawCall &a, const DrawCall &b) {
@@ -3711,6 +3787,27 @@ index 87392d0..f43ad28 100644
 +            const DrawCall &b = *rb.call;
 +            return (follows(a.gameRect.ulx, a.gameRect.lrx, b.gameRect.ulx, b.gameRect.lrx) || cutAt(ra, rb, false)) &&
 +                (follows(a.gameRect.uly, a.gameRect.lry, b.gameRect.uly, b.gameRect.lry) || cutAt(ra, rb, true));
++        };
++
++        // The same texels at its corners, within a texel each way: the least and most texcoord over its vertices.
++        auto sameCorners = [&](const RectCall &a, const RectCall &b) {
++            const float *aTc = &curData.triTcFloats[a.rawVertex * 2];
++            const float *bTc = &prevData.triTcFloats[b.rawVertex * 2];
++            for (uint32_t axis = 0; axis < 2; axis++) {
++                float aMin = aTc[axis], aMax = aTc[axis], bMin = bTc[axis], bMax = bTc[axis];
++                for (uint32_t v = 1; v < 6; v++) {
++                    aMin = std::min(aMin, aTc[v * 2 + axis]);
++                    aMax = std::max(aMax, aTc[v * 2 + axis]);
++                    bMin = std::min(bMin, bTc[v * 2 + axis]);
++                    bMax = std::max(bMax, bTc[v * 2 + axis]);
++                }
++
++                if ((fabsf(aMin - bMin) > 1.0f) || (fabsf(aMax - bMax) > 1.0f)) {
++                    return false;
++                }
++            }
++
++            return true;
 +        };
 +
 +        // A step in a tile's texels, taken inside its period when it wraps or mirrors.
@@ -3884,6 +3981,38 @@ index 87392d0..f43ad28 100644
 +            }
 +        }
 +
++        thread_local std::vector<bool> curScaled;
++        curScaled.assign(curRects.size(), false);
++        for (size_t r = 0; (r < curRects.size()) && !untextured; r++) {
++            if (curFound[r] < prevRects.size()) {
++                continue;
++            }
++
++            const DrawCall &curCall = *curRects[r].call;
++            int32_t nearest = INT32_MAX;
++            for (size_t j = 0; j < prevRects.size(); j++) {
++                const DrawCall &prevCall = *prevRects[j].call;
++                const bool sameScale = (curCall.rectDsdx == prevCall.rectDsdx) && (curCall.rectDtdy == prevCall.rectDtdy);
++                if (((curOwn[r] < prevRects.size()) && (j != curOwn[r])) || prevUsed[j] || sameScale || !movedLess(curCall, prevCall) ||
++                    !sameTiles(curCall, prevCall) || !sameCorners(curRects[r], prevRects[j]))
++                {
++                    continue;
++                }
++
++                const int32_t distance = abs(prevCall.gameRect.ulx - curCall.gameRect.ulx) + abs(prevCall.gameRect.uly - curCall.gameRect.uly) +
++                    abs(prevCall.gameRect.lrx - curCall.gameRect.lrx) + abs(prevCall.gameRect.lry - curCall.gameRect.lry);
++                if (distance < nearest) {
++                    nearest = distance;
++                    curFound[r] = j;
++                }
++            }
++
++            if (curFound[r] < prevRects.size()) {
++                prevUsed[curFound[r]] = true;
++                curScaled[r] = true;
++            }
++        }
++
 +        // By a rect's index, the texcoords its upper left moved by from the frame before when its texture slides by
 +        // them, for the strip that adjoins it with no pair of its own (below).
 +        struct RectSlide {
@@ -3907,6 +4036,22 @@ index 87392d0..f43ad28 100644
 +            const float *prevTc = &prevData.triTcFloats[prevRects[found].rawVertex * 2];
 +            const float ds = curTc[0] - prevTc[0];
 +            const float dt = curTc[1] - prevTc[1];
++            const hlslpp::float4 edgeMoves = hlslpp::float4(float(prevCall.rect.ulx - curCall.rect.ulx), float(prevCall.rect.uly - curCall.rect.uly),
++                float(prevCall.rect.lrx - curCall.rect.lrx), float(prevCall.rect.lry - curCall.rect.lry)) / 4.0f;
++            auto setRectMoves = [&]() {
++                if (workloadMap.rectMoves.size() <= curCall.callIndex) {
++                    workloadMap.rectMoves.resize(curCall.callIndex + 1, hlslpp::float4(0.0f, 0.0f, 0.0f, 0.0f));
++                }
++
++                workloadMap.rectMoves[curCall.callIndex] = edgeMoves;
++            };
++
++            // One drawn at another scale with the same texels at its corners is drawn between there and here, its
++            // texture stretched across it as the game stretches it.
++            if (curScaled[r]) {
++                setRectMoves();
++                continue;
++            }
 +
 +            // A rect that changed size keeps its texels a pixel, so its texcoords moved by its upper left's. Its
 +            // texcoords follow the rect drawn, so this is the drawn rect's size. One with no texture has none to keep.
@@ -4121,7 +4266,7 @@ index 87392d0..f43ad28 100644
      void GameFrame::match(RenderWorker *worker, WorkloadQueue &workloadQueue, const GameFrame &prevFrame, BufferUploader *velocityUploader, bool &velocityUploaderUsed, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed) {
          tileInterpolationUsed = false;
          lookAtInterpolationUsed = false;
-@@ -260,17 +1204,49 @@ namespace RT64 {
+@@ -260,17 +1296,49 @@ namespace RT64 {
          thread_local std::unordered_map<uint32_t, ModifiedBuffers> workloadsModified;
          workloadsModified.clear();
  
@@ -4177,7 +4322,7 @@ index 87392d0..f43ad28 100644
              const Workload &prevWorkload = workloadQueue.workloads[workloadMap.prevWorkloadIndex];
              workloadMap.viewProjections.clear();
              workloadMap.viewProjections.resize(curWorkload.drawData.viewProjTransforms.size());
-@@ -290,7 +1266,7 @@ namespace RT64 {
+@@ -290,7 +1358,7 @@ namespace RT64 {
              buildTransformIdMap(curWorkload, curWorkload.transformIdMap, curWorkload.transformIgnoredIds);
  
              // Retrieve the matching maps for the current and previous workload.
@@ -4186,7 +4331,7 @@ index 87392d0..f43ad28 100644
              const GameFrameMap::WorkloadMap *prevWorkloadMap = nullptr;
              if (prevFrame.matched && prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex].mapped) {
                  prevWorkloadMap = &prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex];
-@@ -316,7 +1292,7 @@ namespace RT64 {
+@@ -316,7 +1384,7 @@ namespace RT64 {
              }
  
              if (!modifiedBuffers.empty()) {
@@ -4195,7 +4340,7 @@ index 87392d0..f43ad28 100644
              }
  
              // Any transforms tagged with the empty ID will be instantly marked as used and skipped.
-@@ -343,6 +1319,14 @@ namespace RT64 {
+@@ -343,6 +1411,14 @@ namespace RT64 {
                  const hlslpp::float4x4 &curProjTransform = curWorkload.drawData.projTransforms[curProj.transformsIndex];
                  for (uint32_t j = 0; j < prevScenes.size(); j++) {
                      const GameIndices::Projection prevFirstProj = prevScenes[j].projections[0];
@@ -4210,7 +4355,7 @@ index 87392d0..f43ad28 100644
                      const Workload &prevWorkload = workloadQueue.workloads[prevFirstProj.workloadIndex];
                      const FramebufferPair &prevFbPair = prevWorkload.fbPairs[prevFirstProj.fbPairIndex];
                      const Projection &prevProj = prevFbPair.projections[prevFirstProj.projectionIndex];
-@@ -356,6 +1340,40 @@ namespace RT64 {
+@@ -356,6 +1432,40 @@ namespace RT64 {
              prevScenesMatched.clear();
              curScenesMatched.resize(curScenes.size());
              prevScenesMatched.resize(prevScenes.size());
@@ -4251,7 +4396,7 @@ index 87392d0..f43ad28 100644
              std::stable_sort(matchCandidates.begin(), matchCandidates.end());
              for (const MatchCandidate &candidate : matchCandidates) {
                  if (curScenesMatched[candidate.curIndex]) {
-@@ -396,6 +1414,15 @@ namespace RT64 {
+@@ -396,6 +1506,15 @@ namespace RT64 {
          else {
              velocityUploaderUsed = false;
          }
@@ -4267,7 +4412,7 @@ index 87392d0..f43ad28 100644
      }
  
      void GameFrame::matchScene(WorkloadQueue &workloadQueue, const GameFrame &prevFrame, const GameScene &curScene, const GameScene &prevScene, std::unordered_map<uint32_t, ModifiedBuffers> &workloadsModified, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed) {
-@@ -403,8 +1430,10 @@ namespace RT64 {
+@@ -403,8 +1522,10 @@ namespace RT64 {
              return;
          }
  
@@ -4280,7 +4425,7 @@ index 87392d0..f43ad28 100644
          curCallHashMap.clear();
          prevCallHashMap.clear();
  
-@@ -478,6 +1507,24 @@ namespace RT64 {
+@@ -478,6 +1599,24 @@ namespace RT64 {
                  }
                  else {
                      viewProjMap.mapped = (curProjGroup.matrixId == G_EX_ID_AUTO);
@@ -4305,7 +4450,7 @@ index 87392d0..f43ad28 100644
                  }
  
                  if (viewProjMap.mapped) {
-@@ -509,69 +1556,163 @@ namespace RT64 {
+@@ -509,69 +1648,163 @@ namespace RT64 {
              buildCallHashMap(p, prevWorkload, prevProj, prevCallHashMap);
          }
  
@@ -4515,7 +4660,7 @@ index 87392d0..f43ad28 100644
          }
  
          // Compute all the differences between transforms and insert them into a vector that will be sorted according to the differences.
-@@ -592,6 +1733,51 @@ namespace RT64 {
+@@ -592,6 +1825,51 @@ namespace RT64 {
              }
          }
  
@@ -4567,7 +4712,7 @@ index 87392d0..f43ad28 100644
          ModifiedBuffers modifiedBuffers;
          std::stable_sort(matchCandidates.begin(), matchCandidates.end());
          for (const MatchCandidate candidate : matchCandidates) {
-@@ -669,17 +1855,160 @@ namespace RT64 {
+@@ -669,17 +1947,160 @@ namespace RT64 {
              const bool wrappedUlt = (curTile.cmt == G_TX_WRAP) && (modulo(integerUlt, curTile.maskt * 4) == modulo(expectedUlt, curTile.maskt * 4));
              const bool wrappedLrs = (curTile.cms == G_TX_WRAP) && (modulo(integerLrs, curTile.masks * 4) == modulo(expectedLrs, curTile.masks * 4));
              const bool wrappedLrt = (curTile.cmt == G_TX_WRAP) && (modulo(integerLrt, curTile.maskt * 4) == modulo(expectedLrt, curTile.maskt * 4));
@@ -4733,7 +4878,7 @@ index 87392d0..f43ad28 100644
          }
  
          // Check for look at matches.
-@@ -727,6 +2056,18 @@ namespace RT64 {
+@@ -727,6 +2148,18 @@ namespace RT64 {
          curTransformMap.mapped = true;
          curWorkloadMap.prevTransformsMapped[prevTransformIndex] = true;
  
@@ -4752,7 +4897,7 @@ index 87392d0..f43ad28 100644
          uint64_t curVertexHash = 0;
          uint64_t prevVertexHash = 0;
          uint32_t curVertexIndex = curWorkload.drawData.worldTransformVertexIndices[curTransformIndex];
-@@ -782,9 +2123,78 @@ namespace RT64 {
+@@ -782,9 +2215,78 @@ namespace RT64 {
  
              modifiedBuffers.texcoordVelocity = true;
          }
@@ -4832,7 +4977,7 @@ index 87392d0..f43ad28 100644
          for (uint32_t c = 0; c < proj.gameCallCount; c++) {
              const GameCall &call = proj.gameCalls[c];
              uint32_t matrixIdHash = 0;
-@@ -802,7 +2212,7 @@ namespace RT64 {
+@@ -802,7 +2304,7 @@ namespace RT64 {
                  doTileMatching = doTileMatching || (group.tileInterpolation == G_EX_COMPONENT_AUTO);
              }
  
@@ -6137,7 +6282,7 @@ index 8858dac..4bd6d21 100644
  
          void setUserConfig(const UserConfiguration &newUserConfig, bool discardFBs) {
 diff --git a/src/hle/rt64_state.cpp b/src/hle/rt64_state.cpp
-index 2970e71..8eb1ba0 100644
+index 2970e71..2668411 100644
 --- a/src/hle/rt64_state.cpp
 +++ b/src/hle/rt64_state.cpp
 @@ -7,6 +7,13 @@
@@ -6163,7 +6308,7 @@ index 2970e71..8eb1ba0 100644
          workloadCounter = 0;
          lastScreenHash = 0;
          lastScreenFactorCounter = 0;
-@@ -362,8 +371,42 @@ namespace RT64 {
+@@ -362,9 +371,44 @@ namespace RT64 {
                      checkResult = framebufferManager.checkRegionsTMEM(checkTMEMStart, checkTMEMEnd, dstCallTile.lineWidth, tile.siz, tile.fmt, tile.uls, usesTLUT, tile.palette);
                      dstCallTile.syncRequired = checkResult.syncRequired;
  
@@ -6204,10 +6349,15 @@ index 2970e71..8eb1ba0 100644
 +                        dstCallTile.tileCopyFallbackHash = rdp->tileReplacementHashes[tileIndex];
 +#                   endif
                          dstCallTile.tmemHashOrID = checkResult.tileId;
++                        dstCallTile.tileCopySource = framebufferManager.tileCopySource(checkResult.tileId, tile.tmem);
                          dstCallTile.tileCopyWidth = checkResult.tileWidth;
                          dstCallTile.tileCopyHeight = checkResult.tileHeight;
-@@ -382,7 +425,12 @@ namespace RT64 {
+ 
+@@ -380,9 +424,15 @@ namespace RT64 {
+                     }
+                     else {
                          dstCallTile.tileCopyUsed = false;
++                        dstCallTile.tileCopySource = 0;
                          dstCallTile.tmemHashOrID = rdp->tileReplacementHashes[tileIndex];
  
 +#                   if defined(__EMSCRIPTEN__)
@@ -6219,7 +6369,7 @@ index 2970e71..8eb1ba0 100644
                              FramebufferPair &fbPair = workload.fbPairs[workload.currentFramebufferPairIndex()];
                              fbPair.syncRequired = true;
                          }
-@@ -472,6 +520,7 @@ namespace RT64 {
+@@ -472,6 +522,7 @@ namespace RT64 {
          drawCall.NoN = rsp->NoN;
          drawCall.drawStatusChanges = drawStatus.changed;
          drawCall.callIndex = workload.gameCallCount++;
@@ -6227,7 +6377,7 @@ index 2970e71..8eb1ba0 100644
  
          // Add the draw call to the FB pair.
          GameCall gameCall;
-@@ -577,7 +626,41 @@ namespace RT64 {
+@@ -577,7 +628,41 @@ namespace RT64 {
              }
  
              // Synchronization will be required unless direct reinterpretation is possible (which is not implemented yet).
@@ -6269,7 +6419,7 @@ index 2970e71..8eb1ba0 100644
                  fbPair.syncRequired = true;
              }
  
-@@ -617,6 +700,15 @@ namespace RT64 {
+@@ -617,6 +702,15 @@ namespace RT64 {
      }
      
      void State::checkRDRAM() {
@@ -6285,7 +6435,7 @@ index 2970e71..8eb1ba0 100644
          if (!rdramCheckPending) {
              return;
          }
-@@ -636,6 +728,9 @@ namespace RT64 {
+@@ -636,6 +730,9 @@ namespace RT64 {
              }
  
              framebufferManager.performDiscards(drawFbDiscards);
@@ -6295,7 +6445,7 @@ index 2970e71..8eb1ba0 100644
          }
  
          rdramCheckPending = false;
-@@ -781,6 +876,159 @@ namespace RT64 {
+@@ -781,6 +878,159 @@ namespace RT64 {
          }
      }
      
@@ -6455,7 +6605,7 @@ index 2970e71..8eb1ba0 100644
      void State::listProcessBegin() {
          dlCpuProfiler.start();
      }
-@@ -790,6 +1038,7 @@ namespace RT64 {
+@@ -790,6 +1040,7 @@ namespace RT64 {
      }
  
      void State::fullSync() {
@@ -6463,7 +6613,7 @@ index 2970e71..8eb1ba0 100644
          flush();
          submitFramebufferPair(FramebufferPair::FlushReason::ProcessDisplayListsEnd);
  
-@@ -809,6 +1058,7 @@ namespace RT64 {
+@@ -809,6 +1060,7 @@ namespace RT64 {
          // Copy the current state's extended parameters into the workload.
          workload.extended.ditherNoiseStrength = extended.ditherNoiseStrength;
          workload.extended.texcoordWrapPoint = extended.texcoordWrapPoint;
@@ -6471,7 +6621,7 @@ index 2970e71..8eb1ba0 100644
  
          auto emitTileWarning = [&](CommandWarning warning, size_t tileIndex) {
              warning.indexType = CommandWarning::IndexType::TileIndex;
-@@ -819,6 +1069,7 @@ namespace RT64 {
+@@ -819,6 +1071,7 @@ namespace RT64 {
          // Validate all tile copies to be used during the rendering.
          const bool extendedRenderToRAMSet = (extended.renderToRAM < UINT8_MAX);
          const bool renderToRDRAM = extendedRenderToRAMSet ? (extended.renderToRAM != 0) : ext.emulatorConfig->framebuffer.renderToRAM;
@@ -6479,7 +6629,7 @@ index 2970e71..8eb1ba0 100644
          const bool warningsEnabled = ext.userConfig->developerMode;
          const bool linearFiltering = !ext.userConfig->threePointFiltering;
          const size_t callTileCount = workload.drawData.callTiles.size();
-@@ -845,6 +1096,36 @@ namespace RT64 {
+@@ -845,6 +1098,36 @@ namespace RT64 {
  
              }
  
@@ -6516,7 +6666,7 @@ index 2970e71..8eb1ba0 100644
              // The rest of the validation doesn't apply to tiles that aren't GPU copies or sampling TMEM directly.
              if (!callTile.tileCopyUsed && !callTile.rawTMEM) {
                  continue;
-@@ -914,6 +1195,16 @@ namespace RT64 {
+@@ -914,6 +1197,16 @@ namespace RT64 {
                  const bool insufficientHeight = (maxTexcoord.y > callTile.tileCopyHeight);
                  if (insufficientWidth || insufficientHeight) {
                      callTile.tileCopyUsed = false;
@@ -6533,7 +6683,7 @@ index 2970e71..8eb1ba0 100644
                  }
                  else {
                      callTile.rawTMEM = false;
-@@ -1103,7 +1394,8 @@ namespace RT64 {
+@@ -1103,7 +1396,8 @@ namespace RT64 {
  
                      // Submit the shader to the cache so compilation can start right away.
                      // Ignore any calls that use fill type, as they're emulated without using a shader.
@@ -6543,7 +6693,7 @@ index 2970e71..8eb1ba0 100644
                          ext.rasterShaderCache->submit(shaderDesc);
                      }
  
-@@ -1114,7 +1406,23 @@ namespace RT64 {
+@@ -1114,7 +1408,23 @@ namespace RT64 {
                      renderParams.omH = shaderDesc.otherMode.H;
                      renderParams.flags = shaderDesc.flags;
  
@@ -6568,7 +6718,7 @@ index 2970e71..8eb1ba0 100644
                      workload.drawData.renderParams.emplace_back(renderParams);
                  }
              }
-@@ -1254,6 +1562,10 @@ namespace RT64 {
+@@ -1254,6 +1564,10 @@ namespace RT64 {
                              resizedTargets.emplace(colorDepthPair.second);
                          }
                      }
@@ -6579,7 +6729,7 @@ index 2970e71..8eb1ba0 100644
                  }
  
                  for (RenderTarget *renderTarget : resizedTargets) {
-@@ -1264,6 +1576,9 @@ namespace RT64 {
+@@ -1264,6 +1578,9 @@ namespace RT64 {
              };
  
              auto renderAndSynchronize = [&](uint32_t maxFramebufferPair) {
@@ -6589,7 +6739,7 @@ index 2970e71..8eb1ba0 100644
                  // Preprocess all the framebuffer operations.
                  uint32_t pairCursor = framebufferPairCursor;
                  while (pairCursor < maxFramebufferPair) {
-@@ -1280,7 +1595,12 @@ namespace RT64 {
+@@ -1280,7 +1597,12 @@ namespace RT64 {
                  while (pairCursor < maxFramebufferPair) {
                      const FramebufferPair &fbPair = workload.fbPairs[pairCursor];
                      if (getTargetsFromPair(pairCursor)) {
@@ -6603,7 +6753,7 @@ index 2970e71..8eb1ba0 100644
                          FramebufferRenderer::DrawParams drawParams;
                          drawParams.worker = ext.framebufferGraphicsWorker;
                          drawParams.fbStorage = &fbStorage;
-@@ -1346,7 +1666,7 @@ namespace RT64 {
+@@ -1346,7 +1668,7 @@ namespace RT64 {
                  }
  
                  // Record all setup previous to drawing any of the recorded framebuffers.
@@ -6612,7 +6762,7 @@ index 2970e71..8eb1ba0 100644
                  framebufferRenderer->recordSetup(ext.framebufferGraphicsWorker, bufferUploaders, queuedProcessor, nullptr, &workload.outputBuffers, false);
  
                  // Record the command list for the framebuffer pairs.
-@@ -1385,7 +1705,7 @@ namespace RT64 {
+@@ -1385,7 +1707,7 @@ namespace RT64 {
                              uint32_t readRowCount = colorFb->height - colorFb->readHeight;
                              uint32_t readFbBytes = readRowBytes * readRowCount;
                              uint32_t storageAddress = colorImg.address + readRowBytes * colorFb->readHeight;
@@ -6621,7 +6771,7 @@ index 2970e71..8eb1ba0 100644
                              FramebufferChange *colorFbChange = colorFb->readChangeFromStorage(ext.framebufferGraphicsWorker, workload.fbStorage, scratchFbChangePool, Framebuffer::Type::Color,
                                  colorImg.fmt, pairCursor, colorFb->readHeight, readRowCount, ext.shaderLibrary);
  
-@@ -1429,7 +1749,7 @@ namespace RT64 {
+@@ -1429,7 +1751,7 @@ namespace RT64 {
                                  uint32_t readRowCount = depthFb->height - depthFb->readHeight;
                                  uint32_t readFbBytes = readRowBytes * readRowCount;
                                  uint32_t storageAddress = depthImg.address + readRowBytes * depthFb->readHeight;
@@ -6630,7 +6780,7 @@ index 2970e71..8eb1ba0 100644
                                  FramebufferChange *depthFbChange = depthFb->readChangeFromStorage(ext.framebufferGraphicsWorker, workload.fbStorage, scratchFbChangePool, Framebuffer::Type::Depth,
                                      G_IM_FMT_DEPTH, pairCursor, depthFb->readHeight, readRowCount, ext.shaderLibrary);
  
-@@ -1471,15 +1791,26 @@ namespace RT64 {
+@@ -1471,15 +1793,26 @@ namespace RT64 {
                  ext.framebufferGraphicsWorker->commandList->end();
                  framebufferRenderer->waitForUploaders();
                  ext.framebufferGraphicsWorker->execute();
@@ -6660,7 +6810,7 @@ index 2970e71..8eb1ba0 100644
                          }
                      }
  
-@@ -1508,8 +1839,10 @@ namespace RT64 {
+@@ -1508,8 +1841,10 @@ namespace RT64 {
                          colorFb->readHeight = 0;
                      }
  
@@ -6672,7 +6822,7 @@ index 2970e71..8eb1ba0 100644
                          if (dummyDepthTarget == nullptr) {
                              dummyDepthTarget = std::make_unique<RenderTarget>(0, Framebuffer::Type::Depth, renderTargetManager.multisampling, renderTargetManager.usesHDR);
                              dummyDepthTarget->setupDepth(ext.framebufferGraphicsWorker, rtWidth, rtHeight);
-@@ -1520,6 +1853,7 @@ namespace RT64 {
+@@ -1520,6 +1855,7 @@ namespace RT64 {
                          }
  
                          colorDepthPairs.emplace_back(colorTarget, dummyDepthTarget.get());
@@ -6680,7 +6830,7 @@ index 2970e71..8eb1ba0 100644
                      }
                      // Resize the depth target if necessary.
                      else if (depthTarget != nullptr) {
-@@ -1560,8 +1894,32 @@ namespace RT64 {
+@@ -1560,8 +1896,32 @@ namespace RT64 {
                  fullSyncFramebufferPairTiles(workload, fbPair, loadOpCursor, rdpTileCursor);
              }
  
@@ -6713,7 +6863,7 @@ index 2970e71..8eb1ba0 100644
          }
          else {
              // Process all tiles.
-@@ -1569,6 +1927,13 @@ namespace RT64 {
+@@ -1569,6 +1929,13 @@ namespace RT64 {
                  fullSyncFramebufferPairTiles(workload, workload.fbPairs[f], loadOpCursor, rdpTileCursor);
              }
  
@@ -6727,7 +6877,7 @@ index 2970e71..8eb1ba0 100644
              // Do not render anything, just wait for the data to be uploaded.
              ext.framebufferGraphicsWorker->commandList->begin();
              ext.drawDataUploader->commandListBeforeBarriers(ext.framebufferGraphicsWorker);
-@@ -1591,11 +1956,18 @@ namespace RT64 {
+@@ -1591,11 +1958,18 @@ namespace RT64 {
              textureManager.removeHashes(evictedTextureHashes);
          }
  
@@ -6747,7 +6897,7 @@ index 2970e71..8eb1ba0 100644
  
              advanceFramebufferRenderer();
  
-@@ -1621,6 +1993,7 @@ namespace RT64 {
+@@ -1621,6 +1995,7 @@ namespace RT64 {
  
          if (viHistory.top().vi.visible()) {
              workload.viFbSize = viHistory.top().vi.fbSize();
@@ -6755,7 +6905,7 @@ index 2970e71..8eb1ba0 100644
          }
  
          // Log and reset profilers.
-@@ -1805,7 +2178,7 @@ namespace RT64 {
+@@ -1805,7 +2180,7 @@ namespace RT64 {
  
                  for (size_t h = 0; (h < viHistory.history.size()) && !viPresented; h++) {
                      const VIHistory::Present &entry = viHistory.history[h];
@@ -6764,7 +6914,7 @@ index 2970e71..8eb1ba0 100644
                      const hlslpp::uint2 fbSize = entry.vi.fbSize();
                      const uint8_t fbSiz = entry.vi.fbSiz();
                      if ((colorImg.address == fbAddress) &&
-@@ -1824,6 +2197,12 @@ namespace RT64 {
+@@ -1824,6 +2199,12 @@ namespace RT64 {
          Workload &nextWorkload = ext.workloadQueue->workloads[workloadCursor];
          nextWorkload.begin(workloadCounter++);
  
@@ -6777,7 +6927,7 @@ index 2970e71..8eb1ba0 100644
          // Indicate on the framebuffer manager that all tile copies are free to be used again.
          framebufferManager.clearUsedTileCopies();
  
-@@ -1836,6 +2215,10 @@ namespace RT64 {
+@@ -1836,6 +2217,10 @@ namespace RT64 {
      }
      
      void State::updateScreen(const VI &newVI, bool fromEarlyPresent) {
@@ -6788,7 +6938,7 @@ index 2970e71..8eb1ba0 100644
          // If the debugger has paused the plugin, keep submitting the last workload and screen VI for rendering and a present event.
          if (debuggerInspector.paused && !fromEarlyPresent) {
              if (ext.userConfig->developerMode) {
-@@ -1871,18 +2254,36 @@ namespace RT64 {
+@@ -1871,18 +2256,36 @@ namespace RT64 {
          const hlslpp::uint2 screenFbSize = newVI.fbSize();
          const uint8_t screenFbSiz = newVI.fbSiz();
          const bool viVisible = newVI.visible();
@@ -6827,7 +6977,7 @@ index 2970e71..8eb1ba0 100644
              }
              else if (viVisible) {
                  lastScreenFactorCounter++;
-@@ -1897,11 +2298,12 @@ namespace RT64 {
+@@ -1897,11 +2300,12 @@ namespace RT64 {
          screenCpuProfiler.start();
          bool fbChangesMade = false;
          bool screenChangesMade = false;
@@ -6841,7 +6991,7 @@ index 2970e71..8eb1ba0 100644
              if (screenFb != nullptr) {
                  // Check compatibility of the high resolution framebuffer with the VI first.
                  // Ensure both the siz and width are the same.
-@@ -1909,6 +2311,7 @@ namespace RT64 {
+@@ -1909,6 +2313,7 @@ namespace RT64 {
                      const uint8_t *fbRAM = &RDRAM[screenFb->addressStart];
                      uint64_t currentHash = XXH3_64bits(fbRAM, screenFb->RAMBytes);
                      if (currentHash != screenFb->RAMHash) {
@@ -6849,7 +6999,7 @@ index 2970e71..8eb1ba0 100644
                          {
                              RenderWorkerExecution workerExecution(worker);
                              thread_local std::vector<uint32_t> fbDiscards;
-@@ -1924,12 +2327,16 @@ namespace RT64 {
+@@ -1924,12 +2329,16 @@ namespace RT64 {
                          // Only update the hash if it's not a discard.
                          if (present.fbOperations.front().type == FramebufferOperation::Type::WriteChanges) {
                              screenFb->RAMHash = currentHash;
@@ -6866,7 +7016,7 @@ index 2970e71..8eb1ba0 100644
                  }
                  else {
                      screenFb = nullptr;
-@@ -1943,6 +2350,15 @@ namespace RT64 {
+@@ -1943,6 +2352,15 @@ namespace RT64 {
                  memcpy(present.storage.data(), &RDRAM[screenFbAddress], screenFbBytes);
                  uint64_t newScreenHash = XXH3_64bits(present.storage.data(), screenFbBytes);
                  screenChangesMade = (newScreenHash != lastScreenHash);
@@ -6882,7 +7032,7 @@ index 2970e71..8eb1ba0 100644
                  lastScreenHash = newScreenHash;
              }
          }
-@@ -1950,9 +2366,18 @@ namespace RT64 {
+@@ -1950,9 +2368,18 @@ namespace RT64 {
          // We only push a new present event to the timeline when it's necessary.
          if (fromEarlyPresent || viDifferent || fbChangesMade || screenChangesMade) {
              // Push a new renderer event to the timeline for presenting this VI.
@@ -6902,7 +7052,7 @@ index 2970e71..8eb1ba0 100644
  
              // This presentation originates from screen changes being made manually by the CPU
              // or the game somehow not doing some form of buffering (instant input romhacks).
-@@ -1971,6 +2396,9 @@ namespace RT64 {
+@@ -1971,6 +2398,9 @@ namespace RT64 {
          renderTargetManager.destroyAll();
          renderTargetManager.setMultisampling(multisampling);
          dummyDepthTarget.reset();
@@ -6912,7 +7062,7 @@ index 2970e71..8eb1ba0 100644
          framebufferRenderer->updateMultisampling();
          updateRenderFlagSampleCount();
      }
-@@ -2660,12 +3088,106 @@ namespace RT64 {
+@@ -2660,12 +3090,106 @@ namespace RT64 {
          workload.debuggerCamera = debuggerInspector.camera;
          workload.debuggerRenderer = debuggerInspector.renderer;
          workload.paused = paused;
@@ -7019,7 +7169,7 @@ index 2970e71..8eb1ba0 100644
          present.debuggerFramebuffer.address = debuggerInspector.renderer.framebufferAddress;
          present.debuggerFramebuffer.view = (debuggerInspector.renderer.framebufferIndex >= 0);
      }
-@@ -2724,6 +3246,25 @@ namespace RT64 {
+@@ -2724,6 +3248,25 @@ namespace RT64 {
          extended.renderToRAM = renderToRAM;
      }
  

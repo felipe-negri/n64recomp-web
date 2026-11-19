@@ -50,7 +50,8 @@
 #
 # makes the run on this machine instead, with the same arguments, relative to <dir>: each host: path fetched from the
 # host first (a folder's own files, as remote_build.sh's get takes a page: no subfolders and no build leftovers), out:
-# names and the tool's working directory the out dir, on a fresh profile, with $NODE (node unless set).
+# names and the tool's working directory the out dir, on a fresh profile, with $NODE (node unless set). A --record
+# path is relative to <dir> unless it is absolute, /d/... or D:/... (a runner on Windows may pass either).
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 measure="" model="" from=""
@@ -78,7 +79,9 @@ if [[ -n "$from" ]]; then
     largs=() n=0 prev=""
     for a in "$@"; do
         n=$((n + 1))
-        if [[ "$prev" == --record && "$a" != /* ]]; then
+        # A Windows runner (a node one, from Git Bash) passes a path as D:/... rather than /d/...: that is absolute
+        # too, and $PWD before it made a path list that Git Bash turned into D;C:\Program Files\Git\... for node.
+        if [[ "$prev" == --record && "$a" != /* && "$a" != [A-Za-z]:/* ]]; then
             largs+=("$PWD/$a")
         elif [[ "$a" == host:* ]]; then
             p="~/$(printf %q "${a#host:}")"
