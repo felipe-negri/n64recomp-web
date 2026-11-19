@@ -1341,4 +1341,7 @@ rt64 ea78fc1           RT64_INTERPOLATE_RECT_SCROLLS: an edge that came onto the
                        as at an edge that stayed: as the Mini-Golf flyover pitches down, Mario Golf's top strip of hills
                        leaves the picture over the top and the strip under it is cut there, and drawn between where its
                        top was and the scissor it left the picture's top row to the clear color's dark blue
+rt64 cffbdf1           RT64_FRAME_DUMP writes each frame of frames.bin as zstd ("RTFZ", 8 more header bytes: its size
+                       and whether it is the bytes less the previous frame's), whole at least every 30, about a third
+                       of the raw frames' size; a browser's build writes them raw; no frames past 10 GB free
 ```
