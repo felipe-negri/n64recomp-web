@@ -950,11 +950,11 @@ const openFirefox = async ({ profile, port, width, height, executable, rom, prel
         const lines = ['compositor ' + g.windowLayerManagerType];
         for (const f of g.featureLog?.features ?? []) {
           const entry = (f.log ?? []).at(-1);
-          if (f.status !== 'available' || /webgpu/i.test(f.name)) lines.push(f.name + ' ' + f.status + (entry ? ': ' + entry.message : ''));
+          if (f.status !== 'available' || /webgpu/i.test(f.name)) lines.push(f.name + ' ' + f.status + (entry?.message ? ': ' + entry.message : ''));
         }
         for (const x of g.featureLog?.fallbacks ?? []) lines.push('fallback ' + x.name + ': ' + x.message);
         for (const x of g.failures ?? []) lines.push('failure: ' + x);
-        for (const [k, v] of Object.entries(g)) if (/webgpu/i.test(k)) lines.push(k + ' ' + JSON.stringify(v));
+        for (const [k, v] of Object.entries(g)) if (/webgpu/i.test(k)) lines.push(k + ' ' + JSON.stringify(v).slice(0, 400));
         return lines.join('\\n');
       })()` });
       if (r.result?.type === 'exception') return `about:support unread: ${r.result.exceptionDetails?.text}`;

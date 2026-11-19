@@ -827,6 +827,8 @@ const boot = async () => {
       reopening = true;
       try {
         await page.close();
+        // A fresh profile's run starts the next try on a fresh one too, so its boot is still a first visit's.
+        if (freshProfile) { try { fs.rmSync(profile, { recursive: true, force: true }); } catch {} fs.mkdirSync(profile, { recursive: true }); }
         await sleep(20000);
         page = await openPage();
         last = null;
