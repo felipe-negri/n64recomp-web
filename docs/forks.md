@@ -17,7 +17,7 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
 2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, 8868f0d,
-55f42a3, which it turns on too),
+55f42a3, e102336, which it turns on too),
 `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES`
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
@@ -1310,4 +1310,9 @@ rt64 55f42a3           RT64_INTERPOLATE_RECT_SCROLLS: a rect cut at an edge it h
                        by moving Play Modes' halves out 12 pixels a side, each cut by the screen's edge, and a half was
                        stretched toward that edge and past where the next game frame puts it (frame_check: 8 frames
                        unlike both neighbours in the 0.4 s it takes)
+rt64 e102336           RT64_INTERPOLATE_RECT_SCROLLS: a look-alike of the same size farther than a rect's shorter side
+                       is passed over when one of another size with the same textures lies nearer, the rect itself cut
+                       to that size: Mario Golf's save menu slides three slots of one wooden strip off the screen's
+                       left edge a frame or two apart, each cut there, and a slot's strip paired with the slot above's,
+                       cut to the same width a frame before, so its wood jumped between the slots
 ```
