@@ -115,7 +115,7 @@
 // 4.
 // Every run says when a WebGPU device the page made is lost, whoever lost it ("play_page: a WebGPU device was lost").
 // A page that finds no WebGPU adapter (plume's "No WebGPU adapter.") is tried again in a browser started again, three
-// tries in all, each saying what the GPU held and, in Firefox, what about:support says of its graphics; the last one
+// tries in all, each saying what the GPU held, the browser's stderr and, in Firefox, about:support's graphics; the last one
 // fails the run with "no WebGPU adapter ...: the host's, not the page's", which exits 5, not 1 (boot, below).
 //
 // The plan is record_shaders.mjs's, JSON, with what to play:
@@ -803,9 +803,10 @@ const steps = { keep: () => {} };  // record_shaders.mjs's own step, in a shader
 // The page from navigate to the end of the plan's load steps (its launcher) and to its first present, in seconds.
 const tenths = (x) => Math.round(x * 10) / 10;
 // A page that finds no WebGPU adapter is the browser's or the host's doing, not the page's: one Firefox play on a
-// shared GPU found none while another job held the card's memory, where the same build played before and after. So
-// it says what the GPU held and, in Firefox, what about:support says of its graphics, and the browser starts again
-// for another try 20 s later, three in all; the last fails the run with "no WebGPU adapter", and play_page exits 5.
+// shared GPU found none a second after it started, as a big job started on the card beside it, where the same build
+// played before and after. So it says what the GPU held, the browser's last stderr lines and, in Firefox, what
+// about:support says of its graphics, and the browser starts again for another try 20 s later, three in all; the
+// last fails the run with "no WebGPU adapter", and play_page exits 5.
 const adapterTries = 3;
 const boot = async () => {
   let from;
@@ -819,7 +820,9 @@ const boot = async () => {
       if (!noAdapter) throw error;
       const report = page.graphicsReport ? await page.graphicsReport().catch((e) => `about:support unread: ${e.message}`) : null;
       const card = smiGpu ? `, the GPU ${smiGpu.mib} MiB in use` : '';
-      log(`no WebGPU adapter, try ${tries} of ${adapterTries}${card}${report ? `; about:support:\n  ${report.split('\n').join('\n  ')}` : ''}`);
+      const stderr = page.stderr?.() ?? [];
+      log(`no WebGPU adapter, try ${tries} of ${adapterTries}${card}${report ? `; about:support:\n  ${report.split('\n').join('\n  ')}` : ''}` +
+        `${stderr.length ? `\n${browser}'s last stderr lines:\n  ${stderr.join('\n  ')}` : ''}`);
       if (tries === adapterTries) throw new Error(`no WebGPU adapter in ${adapterTries} tries of the browser${card}: the host's, not the page's`);
       reopening = true;
       try {

@@ -462,7 +462,8 @@ const closeBrowser = async (proc, profile, ask, ms, line) => {
 // crash closes it with 1006 and exits with an exception code (0x80000003) and a dump; and the browser stopped from
 // outside (taskkill) closes it the same way and exits with 1, with no dump. gone(ms) waits up to ms for the exit, puts
 // the stderr's last lines in the log and says what it found; dumps() says where the dumps written since it last looked
-// went, or '', which close() puts in the log too (a GPU process's crash the browser lived through).
+// went, or '', which close() puts in the log too (a GPU process's crash the browser lived through). tail() is the
+// stderr's last lines while it runs, which a page's stderr() gives (play_page.mjs, a page with no WebGPU adapter).
 const watchBrowser = (proc, name, profile, dumpDir, line) => {
   const dir = path.join(profile, dumpDir), kept = `${profile}-crashes`;
   const list = () => { try { return fs.readdirSync(dir).filter((f) => f.endsWith('.dmp')); } catch { return []; } };
@@ -487,7 +488,7 @@ const watchBrowser = (proc, name, profile, dumpDir, line) => {
     if (tail.length) line(`page_driver: ${name}'s stderr ended:\n  ${tail.join('\n  ')}`);
     return `${name} ${exit === null ? `was still running ${ms / 1000} s later` : `exited with code ${exit}`}, ${dumps() || 'no crash dump'}`;
   };
-  return { gone, dumps };
+  return { gone, dumps, tail: () => tail.slice() };
 };
 
 export const open = async (browser, { profile, port, size = [1256, 645], executable, rom, planDir = '.', preload = '',
@@ -746,6 +747,7 @@ const openChrome = async ({ profile, port, width, height, executable, rom, prelo
   };
   return {
     pid: proc.pid,
+    stderr: () => watch.tail(),
     navigate: (url) => send('Page.navigate', { url }),
     evaluate: async (js, ms = evaluateMs) => {
       const r = await send('Runtime.evaluate', { expression: asJson(js), awaitPromise: true, returnByValue: true }, undefined, ms);
@@ -914,6 +916,7 @@ const openFirefox = async ({ profile, port, width, height, executable, rom, prel
   })()`);
   return {
     pid: proc.pid,
+    stderr: () => watch.tail(),
     // What about:memory says of the GPU process, in MB (null if Firefox has none): private bytes, Firefox's own heap
     // (mozjemalloc: Gecko's WebGPU code and wgpu), the system heap (Windows' heaps: the D3D12 runtime, the GPU's
     // driver, DXC) and the GPU memory it has committed, dedicated and shared. Read from nsIMemoryReporterManager in
