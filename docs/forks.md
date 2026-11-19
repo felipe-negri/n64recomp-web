@@ -1325,4 +1325,10 @@ rt64 602dcd2           RT64_INTERPOLATE_RECT_SCROLLS: a rect drawn in the same p
 rt64 9a1d37a           RT64_INTERPOLATE_RECT_SCROLLS: a rect whose own moved pairs by place first when another rect of
                        this frame stands in its own's place with its look: the same sprites drawn in the same places in
                        another order paired crosswise with their owns, drawn swapping places in the frames between
+rt64 5cbf5ff           RT64_GAME_FRAME_WORKLOADS: a frame ends once it has drawn a framebuffer the VI shows, in as many
+                       workloads that draw as the frame before, where the frame before ended only at the next one's
+                       first workload (`?frame-log`'s end=drawn): Turok 2 queues a frame's present after its next frame
+                       begins, so every frame ended there and was drawn a game frame late, and a turn on the stick
+                       reached the picture 170 ms (median) after the game had turned its yaw, 150 ms with it. A frame
+                       with more workloads is cut there, its rest drawn as the frame after it, as at a wait
 ```
