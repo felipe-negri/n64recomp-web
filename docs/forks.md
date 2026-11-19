@@ -17,7 +17,7 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
 2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, 8868f0d,
-55f42a3, e102336, 602dcd2, 9a1d37a, which it turns on too),
+55f42a3, e102336, 602dcd2, 9a1d37a, cf8bba7, ea78fc1, which it turns on too),
 `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES`
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
@@ -1325,4 +1325,20 @@ rt64 602dcd2           RT64_INTERPOLATE_RECT_SCROLLS: a rect drawn in the same p
 rt64 9a1d37a           RT64_INTERPOLATE_RECT_SCROLLS: a rect whose own moved pairs by place first when another rect of
                        this frame stands in its own's place with its look: the same sprites drawn in the same places in
                        another order paired crosswise with their owns, drawn swapping places in the frames between
+rt64 5cbf5ff           RT64_GAME_FRAME_WORKLOADS: a frame ends once it has drawn a framebuffer the VI shows, in as many
+                       workloads that draw as the frame before, where the frame before ended only at the next one's
+                       first workload (`?frame-log`'s end=drawn): Turok 2 queues a frame's present after its next frame
+                       begins, so every frame ended there and was drawn a game frame late, and a turn on the stick
+                       reached the picture 170 ms (median) after the game had turned its yaw, 150 ms with it. A frame
+                       with more workloads is cut there, its rest drawn as the frame after it, as at a wait
+rt64 cf8bba7           RT64_INTERPOLATE_RECT_SCROLLS: a strip still unpaired that adjoins one whose texture slid,
+                       across the same columns with the same texcoord there, slides with it: a panorama's strip lying
+                       wholly past the screen's edge is an empty rect the RDP drops, so the one that has just come in
+                       paired with nothing, and Mario Golf's hills, strips scrolled sideways by their texcoords, had
+                       their top rows aside of those below in the frames between as the Mini-Golf flyover pitched down
+rt64 ea78fc1           RT64_INTERPOLATE_RECT_SCROLLS: an edge that came onto the scissor's from inside it, where the
+                       game cuts the rect, is held there in the frames between, its texels moving with the other edge,
+                       as at an edge that stayed: as the Mini-Golf flyover pitches down, Mario Golf's top strip of hills
+                       leaves the picture over the top and the strip under it is cut there, and drawn between where its
+                       top was and the scissor it left the picture's top row to the clear color's dark blue
 ```
