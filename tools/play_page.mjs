@@ -114,6 +114,9 @@
 // is compared with nothing; the play's own numbers leave the faults out; and a page that didn't come through one exits
 // 4.
 // Every run says when a WebGPU device the page made is lost, whoever lost it ("play_page: a WebGPU device was lost").
+// A page that finds no WebGPU adapter (plume's "No WebGPU adapter.") is tried again in a browser started again, three
+// tries in all, each saying what the GPU held, the browser's stderr and, in Firefox, about:support's graphics; the last one
+// fails the run with "no WebGPU adapter ...: the host's, not the page's", which exits 5, not 1 (boot, below).
 //
 // The plan is record_shaders.mjs's, JSON, with what to play:
 //
@@ -316,6 +319,8 @@ let prebuiltShaders = null;
 const hex = (x) => (x >>> 0).toString(16).padStart(8, '0');
 const errors = [];
 let exceptions = 0, firstException = null, exceptionAt = null, aborted = null;
+// The page found no WebGPU adapter (plume's "No WebGPU adapter."): the browser's and the host's, not the page's (boot).
+let noAdapter = false;
 // A page that refuses the ROM throws nothing and stays at its launcher, presenting at the display's rate, so its plan
 // would go on to the end: one Firefox run of a refused ROM held a GPU turn for 1,940 s and summed up as a clean run of
 // 60 presents a second. Each game's page says it on the console, three ways: recompui's launcher (and the launchers
@@ -352,6 +357,10 @@ const onLine = (text) => {
   // "unreachable executed" at that function's offset (docs/playing.md, What a page says about itself), so the line
   // that says why goes in front of the exception's.
   if (/^Aborted\(/.test(text)) aborted ??= text.split('\n')[0].slice(0, 300);
+  if (/No WebGPU adapter/.test(text) && !noAdapter) {
+    noAdapter = true;
+    page.stop('the browser found no WebGPU adapter');
+  }
   // The page's own exceptions and, in Chrome, its workers' (page_driver.mjs; Firefox reports both as "exception: ").
   if (/^exception( on a worker)?: /.test(text)) {
     exceptions++;
@@ -793,10 +802,43 @@ let viewport = null;
 const steps = { keep: () => {} };  // record_shaders.mjs's own step, in a shader plan's sections
 // The page from navigate to the end of the plan's load steps (its launcher) and to its first present, in seconds.
 const tenths = (x) => Math.round(x * 10) / 10;
+// A page that finds no WebGPU adapter is the browser's or the host's doing, not the page's: one Firefox play on a
+// shared GPU found none a second after it started, as a big job started on the card beside it, where the same build
+// played before and after. So it says what the GPU held, the browser's last stderr lines and, in Firefox, what
+// about:support says of its graphics, and the browser starts again for another try 20 s later, three in all; the
+// last fails the run with "no WebGPU adapter", and play_page exits 5.
+const adapterTries = 3;
 const boot = async () => {
-  const from = Date.now();
-  await page.navigate(pageUrl);
-  await page.run(plan.load ?? [], steps);
+  let from;
+  for (let tries = 1; ; tries++) {
+    from = Date.now();
+    try {
+      await page.navigate(pageUrl);
+      await page.run(plan.load ?? [], steps);
+      break;
+    } catch (error) {
+      if (!noAdapter) throw error;
+      const report = page.graphicsReport ? await page.graphicsReport().catch((e) => `about:support unread: ${e.message}`) : null;
+      const card = smiGpu ? `, the GPU ${smiGpu.mib} MiB in use` : '';
+      const stderr = page.stderr?.() ?? [];
+      log(`no WebGPU adapter, try ${tries} of ${adapterTries}${card}${report ? `; about:support:\n  ${report.split('\n').join('\n  ')}` : ''}` +
+        `${stderr.length ? `\n${browser}'s last stderr lines:\n  ${stderr.join('\n  ')}` : ''}`);
+      if (tries === adapterTries) throw new Error(`no WebGPU adapter in ${adapterTries} tries of the browser${card}: the host's, not the page's`);
+      reopening = true;
+      try {
+        await page.close();
+        // A fresh profile's run starts the next try on a fresh one too, so its boot is still a first visit's.
+        if (freshProfile) { try { fs.rmSync(profile, { recursive: true, force: true }); } catch {} fs.mkdirSync(profile, { recursive: true }); }
+        await sleep(20000);
+        page = await openPage();
+        last = null;
+      } finally { reopening = false; }
+      noAdapter = false;
+      errors.length = 0;
+      exceptions = 0;
+      firstException = exceptionAt = aborted = null;
+    }
+  }
   const loaded = (Date.now() - from) / 1000;
   if (pad) { page.gameRunning = false; await page.evaluate('plugPads(1)'); }
   const first = await page.evaluate('window.__firstPresent ? performance.timeOrigin + window.__firstPresent : null').catch(() => null);
@@ -888,7 +930,7 @@ try {
   }
   // A run that failed before the play still records the viewport it had, on screen the window's, not --size.
   viewport ??= await page.viewport().catch(() => null);
-  if (!recordFile && !jsonFile) await finish(1);
+  if (!recordFile && !jsonFile) await finish(failure.startsWith('no WebGPU adapter') ? 5 : 1);
 }
 if (slept && !failure) { log(`failed: ${slept}`); failure = slept; }
 if (!failure && prebuiltShaders === null && !/record-shaders/.test(query) && samples.some((s) => s.playing && s.presents > 0)) {
@@ -1172,7 +1214,7 @@ if (recordFile) {
   fs.appendFileSync(recordFile, JSON.stringify(run) + '\n');
 }
 for (const r of regressions) console.log(`regression: ${r}`);
-await finish(failure ? 1 : regressions.length ? 3 : faultResults.some((f) => !f.recovered) ? 4 : 0);
+await finish(failure?.startsWith('no WebGPU adapter') ? 5 : failure ? 1 : regressions.length ? 3 : faultResults.some((f) => !f.recovered) ? 4 : 0);
 
 // The ways a run plays worse than the last 5 like it in the file (the header says which are like it).
 function compare(run, lines) {

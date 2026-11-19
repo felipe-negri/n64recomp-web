@@ -462,7 +462,8 @@ const closeBrowser = async (proc, profile, ask, ms, line) => {
 // crash closes it with 1006 and exits with an exception code (0x80000003) and a dump; and the browser stopped from
 // outside (taskkill) closes it the same way and exits with 1, with no dump. gone(ms) waits up to ms for the exit, puts
 // the stderr's last lines in the log and says what it found; dumps() says where the dumps written since it last looked
-// went, or '', which close() puts in the log too (a GPU process's crash the browser lived through).
+// went, or '', which close() puts in the log too (a GPU process's crash the browser lived through). tail() is the
+// stderr's last lines while it runs, which a page's stderr() gives (play_page.mjs, a page with no WebGPU adapter).
 const watchBrowser = (proc, name, profile, dumpDir, line) => {
   const dir = path.join(profile, dumpDir), kept = `${profile}-crashes`;
   const list = () => { try { return fs.readdirSync(dir).filter((f) => f.endsWith('.dmp')); } catch { return []; } };
@@ -487,7 +488,7 @@ const watchBrowser = (proc, name, profile, dumpDir, line) => {
     if (tail.length) line(`page_driver: ${name}'s stderr ended:\n  ${tail.join('\n  ')}`);
     return `${name} ${exit === null ? `was still running ${ms / 1000} s later` : `exited with code ${exit}`}, ${dumps() || 'no crash dump'}`;
   };
-  return { gone, dumps };
+  return { gone, dumps, tail: () => tail.slice() };
 };
 
 export const open = async (browser, { profile, port, size = [1256, 645], executable, rom, planDir = '.', preload = '',
@@ -572,7 +573,7 @@ export const open = async (browser, { profile, port, size = [1256, 645], executa
         const re = new RegExp(a[0]);
         await new Promise((resolve) => {
           const waiter = (text) => { if (re.test(text)) { clearTimeout(timer); waiters.delete(waiter); resolve(); } };
-          const timer = setTimeout(() => { waiters.delete(waiter); log(`timed out waiting for /${a[0]}/`); resolve(); }, a[1]);
+          const timer = setTimeout(() => { waiters.delete(waiter); if (!stopped) log(`timed out waiting for /${a[0]}/`); resolve(); }, a[1]);
           waiters.add(waiter);
         });
       }
@@ -746,6 +747,7 @@ const openChrome = async ({ profile, port, width, height, executable, rom, prelo
   };
   return {
     pid: proc.pid,
+    stderr: () => watch.tail(),
     navigate: (url) => send('Page.navigate', { url }),
     evaluate: async (js, ms = evaluateMs) => {
       const r = await send('Runtime.evaluate', { expression: asJson(js), awaitPromise: true, returnByValue: true }, undefined, ms);
@@ -914,6 +916,7 @@ const openFirefox = async ({ profile, port, width, height, executable, rom, prel
   })()`);
   return {
     pid: proc.pid,
+    stderr: () => watch.tail(),
     // What about:memory says of the GPU process, in MB (null if Firefox has none): private bytes, Firefox's own heap
     // (mozjemalloc: Gecko's WebGPU code and wgpu), the system heap (Windows' heaps: the D3D12 runtime, the GPU's
     // driver, DXC) and the GPU memory it has committed, dedicated and shared. Read from nsIMemoryReporterManager in
@@ -933,6 +936,29 @@ const openFirefox = async ({ profile, port, width, height, executable, rom, prel
       })` });
       const value = r.result?.result?.value;
       return value && value !== '{}' ? JSON.parse(value) : null;
+    },
+    // What about:support says of the graphics, as lines (null if it can't be read): the compositor, every feature
+    // that isn't simply available (WebGPU, WebRender, the GPU process...) with the last line of its log, the failure
+    // log, and the WebGPU adapters, for a page that got none (play_page.mjs). Troubleshoot's own snapshot, in the
+    // chrome context as gpuProcessMemory reads.
+    graphicsReport: async () => {
+      const chrome = (await send('browsingContext.getTree', { 'moz:scope': 'chrome' })).result?.contexts?.[0]?.context;
+      if (!chrome) return null;
+      const r = await send('script.evaluate', { target: { context: chrome }, awaitPromise: true, expression: `(async () => {
+        const { Troubleshoot } = ChromeUtils.importESModule('resource://gre/modules/Troubleshoot.sys.mjs');
+        const g = (await Troubleshoot.snapshot()).graphics ?? {};
+        const lines = ['compositor ' + g.windowLayerManagerType];
+        for (const f of g.featureLog?.features ?? []) {
+          const entry = (f.log ?? []).at(-1);
+          if (f.status !== 'available' || /webgpu/i.test(f.name)) lines.push(f.name + ' ' + f.status + (entry?.message ? ': ' + entry.message : ''));
+        }
+        for (const x of g.featureLog?.fallbacks ?? []) lines.push('fallback ' + x.name + ': ' + x.message);
+        for (const x of g.failures ?? []) lines.push('failure: ' + x);
+        for (const [k, v] of Object.entries(g)) if (/webgpu/i.test(k)) lines.push(k + ' ' + JSON.stringify(v).slice(0, 400));
+        return lines.join('\\n');
+      })()` });
+      if (r.result?.type === 'exception') return `about:support unread: ${r.result.exceptionDetails?.text}`;
+      return r.result?.result?.value ?? null;
     },
     // The Gecko profiler over every process, the GPU process included (a profile Firefox writes at shutdown,
     // MOZ_PROFILER_SHUTDOWN, leaves that one out): start() samples the threads that carry a page's work, the page's

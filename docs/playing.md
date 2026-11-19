@@ -27,7 +27,11 @@ How a page is played and measured. `tools/play_page.mjs`'s and `tools/page_drive
   Such a host measures a page as a desktop does: Mario Golf's page uncapped in Chrome presented 357 a second at
   1256x645 and 352 at 3840x2000 on an RTX 5090 beside other jobs, held by the uncapped 360, where an RTX 2070 on
   Windows presents 345 and 239-287 (docs/findings.md, A Linux host's X server). A run there records `platform` and
-  the GPU's name, and is compared only with runs on Linux.
+  the GPU's name, and is compared only with runs on Linux. A browser there can find no WebGPU adapter for a moment
+  (one Firefox play found none a second after it started, as a big job started on the card beside it, where the same
+  build played before and after): play_page reads the page's "No WebGPU adapter." as the host's, says what the GPU
+  held, the browser's stderr and Firefox's about:support, and tries again in a new browser, three times in all, and
+  exits 5, not 1, where none came (its header).
 - A page served from a build dir needs `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy:
   require-corp` (threads need SharedArrayBuffer); on Pages `coi_serviceworker.js` sets them after one reload. Look at a
   page with CDP `Page.captureScreenshot` of that page.
