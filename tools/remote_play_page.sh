@@ -41,16 +41,24 @@
 # Or $PLAY_RUNNER, in place of the queue's client: a command (split on spaces) that is given the container's
 # `docker run` line, without --name or --rm, as its last argument, and runs it as a job of the queue from here: it
 # names the container itself, starts it on the host once the job is let in there, and exits with its code. Such a
-# runner may let the queue put the job on another of its machines instead, running the same play there by its own
-# means; the container then never started (it marks /work/.ran first thing), so nothing comes back from the host and the
-# exit code is the runner's. A --measure play isn't given to one.
+# runner may let the queue put the job on this machine instead: $PLAY_HERE is then the path of a file holding the
+# command that makes the same run here (NUL-separated: this script's --here form, below), and $PLAY_MODEL the job's
+# --model. The container then never started (it marks /work/.ran first thing), so nothing comes back from the host and
+# the exit code is the runner's. A --measure play isn't given to one: it takes the queue's client, the host's GPU alone.
+#
+#   tools/remote_play_page.sh --here <dir> <out dir> <tool> <its args...>
+#
+# makes the run on this machine instead, with the same arguments, relative to <dir>: each host: path fetched from the
+# host first (a folder's own files, as remote_build.sh's get takes a page: no subfolders and no build leftovers), out:
+# names and the tool's working directory the out dir, on a fresh profile, with $NODE (node unless set).
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
-measure="" model=""
+measure="" model="" from=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
     --measure) measure=1; shift ;;
     --model) model="$2"; shift 2 ;;
+    --here) from="$2"; shift 2 ;;
     *) break ;;
     esac
 done
@@ -61,10 +69,49 @@ case "$tool" in play_page.mjs|record_shaders.mjs) ;; *) echo "the tool is play_p
 host="${PLAY_HOST:?set PLAY_HOST to the host to play on}"
 mkdir -p "$out"
 out="$(cd "$out" && pwd)"
+remote() { ssh -o BatchMode=yes "$host" "$@"; }
+
+if [[ -n "$from" ]]; then
+    cd "$from"
+    fetched="$(mktemp -d)"
+    trap 'rm -rf "$fetched"' EXIT
+    largs=() n=0 prev=""
+    for a in "$@"; do
+        n=$((n + 1))
+        if [[ "$prev" == --record && "$a" != /* ]]; then
+            largs+=("$PWD/$a")
+        elif [[ "$a" == host:* ]]; then
+            p="~/$(printf %q "${a#host:}")"
+            mkdir -p "$fetched/$n"
+            if remote "test -d $p"; then
+                remote "cd $p && find . -maxdepth 1 -type f ! -name '*.ninja*' ! -name '*.log' ! -name '*.a' ! -name '*.json'                     ! -name CMakeCache.txt ! -name '*.cmake' ! -name '.*' ! -name '*.[ch]' | tar cf - -T -" | tar xf - -C "$fetched/$n"
+                largs+=("$fetched/$n")
+            else
+                remote "cat $p" > "$fetched/$n/$(basename "${a#host:}")"
+                largs+=("$fetched/$n/$(basename "${a#host:}")")
+            fi
+        elif [[ "$a" == out:* ]]; then
+            largs+=("$out/${a#out:}")
+        elif [[ -e "$a" ]]; then
+            largs+=("$(cd "$(dirname "$a")" && pwd)/$(basename "$a")")
+        else
+            largs+=("$a")
+        fi
+        prev="$a"
+    done
+    echo "here, not on $host"
+    cd "$out"
+    set +e
+    "${NODE:-node}" "$here/$tool" "${largs[@]}"
+    code=$?
+    set -e
+    echo "results in $out (exit $code)"
+    exit $code
+fi
+
 key="$(basename "$out")-$(printf %s "$out" | git hash-object --stdin | cut -c1-8)"
 dir="${PLAY_DIR:-page-plays}/$key"
 image="page-play:$(git hash-object "$here/page_play.Dockerfile" | cut -c1-12)-$(date -u +%G%V)"
-remote() { ssh -o BatchMode=yes "$host" "$@"; }
 # A run already there with this key (playing, or waiting for its turn) is left alone: this one stops before it
 # empties the folder under the other.
 if remote "docker container inspect page-play-$key >/dev/null 2>&1"; then
@@ -134,9 +181,10 @@ done
 if [[ -z "$model" ]]; then
     for ((i = 0; i < ${#targs[@]} - 1; i++)); do [[ "${targs[i]}" == --game ]] && model="${targs[i + 1]}"; done
 fi
-job=()
-if [[ -n "${PLAY_RUNNER:-}" ]]; then
-    [[ -z "$measure" ]] || { echo "--measure is a play on the host's GPU alone: unset PLAY_RUNNER" >&2; exit 3; }
+job=() runner="${PLAY_RUNNER:-}"
+[[ -z "$measure" ]] || runner=""
+if [[ -n "$runner" ]]; then
+    :
 elif [[ -n "${PLAY_QUEUE_CLIENT:-}" ]]; then
     [[ -n "$model" ]] || { echo "--model <game> (or the tool's --game) is needed to take a turn in the queue" >&2; exit 3; }
     cp "$PLAY_QUEUE_CLIENT" "$stage/queue.mjs"
@@ -159,10 +207,13 @@ run=(docker run --rm --name "page-play-$key" --gpus all --cpus "${PLAY_CPUS:-4}"
 [[ -n "${PLAY_NETWORK:-}" ]] && run+=(--network "$PLAY_NETWORK")
 [[ -n "${GPU_QUEUE_URL:-}" ]] && run+=(-e "GPU_QUEUE_URL=$GPU_QUEUE_URL")
 cmd=(node /work/tools/play_job.mjs "${job[@]}" -- node "/work/tools/$tool" "${targs[@]}")
-if [[ -n "${PLAY_RUNNER:-}" ]]; then
-    # The runner names, caps and stops the container; the play goes as play_job.mjs runs it with no queue.
+if [[ -n "$runner" ]]; then
+    # The runner names, caps and stops the container; the play goes as play_job.mjs runs it with no queue. Or it makes
+    # the run here, by the --here form of this one.
+    [[ -n "$model" ]] || { echo "--model <game> (or the tool's --game) is needed to take a turn in the queue" >&2; exit 3; }
+    printf '%s\0' "$BASH" "$here/remote_play_page.sh" --here "$PWD" "$out" "$tool" "$@" > "$stage/here"
     set +e
-    ${PLAY_RUNNER} "docker run $(q "${run[@]:5}")--user \$(id -u):\$(id -g) -v \$HOME/$dir:/work ${mounts[*]} $image \
+    PLAY_HERE="$stage/here" PLAY_MODEL="$model" ${runner} "docker run $(q "${run[@]:5}")--user \$(id -u):\$(id -g) -v \$HOME/$dir:/work ${mounts[*]} $image \
 $(q sh -c 'touch /work/.ran && exec "$@"' sh "${cmd[@]}")"
     code=$?
     set -e
