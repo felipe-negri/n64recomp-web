@@ -1357,4 +1357,6 @@ rt64 04c76f2           RT64_INTERPOLATE_SCREEN_VERTICES: a group of screen write
                        moved under half the view and within an eighth of it of the group's median motion: Mario Golf's
                        ball tracer, quads from a few vertices written again and again, paired other quads and drew one
                        stretched into a triangle across the course
+rt64 dd17c96           RT64_INTERPOLATE_SCREEN_VERTICES: the group's median by an insertion sort, the file's includes as
+                       before 04c76f2, whose <algorithm> met Beetle Adventure Racing's own includes (CI's beetle-patches)
 ```

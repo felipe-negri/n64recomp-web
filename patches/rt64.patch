@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 04c76f2356d9f92fbc0ff219c21088b7d28c9e17
+rt64: https://github.com/n64hub/rt64-web dd17c96c0342fd04f868aaf07b423e5aca029f86
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -9943,17 +9943,10 @@ index 0000000..9984c41
 +}
 +#endif
 diff --git a/src/render/rt64_projection_processor.cpp b/src/render/rt64_projection_processor.cpp
-index e842dcc..e2e59a6 100644
+index e842dcc..931be61 100644
 --- a/src/render/rt64_projection_processor.cpp
 +++ b/src/render/rt64_projection_processor.cpp
-@@ -2,12 +2,183 @@
- // RT64
- //
- 
-+#include <algorithm>
- #include "rt64_projection_processor.h"
- 
- #include "common/rt64_math.h"
+@@ -8,6 +8,186 @@
  #include "hle/rt64_workload_queue.h"
  
  namespace RT64 {
@@ -10089,14 +10082,24 @@ index e842dcc..e2e59a6 100644
 +            }
 +
 +            if (together && (curGroup.size() > 1)) {
++                // A group is a few writes, so an insertion sort finds the middle one.
 +                thread_local std::vector<float> sorted;
-+                const size_t middle = curGroup.size() / 2;
-+                sorted = moveX;
-+                std::nth_element(sorted.begin(), sorted.begin() + middle, sorted.end());
-+                const float medianX = sorted[middle];
-+                sorted = moveY;
-+                std::nth_element(sorted.begin(), sorted.begin() + middle, sorted.end());
-+                const float medianY = sorted[middle];
++                auto median = [](const std::vector<float> &values) {
++                    sorted = values;
++                    for (size_t i = 1; i < sorted.size(); i++) {
++                        const float v = sorted[i];
++                        size_t j = i;
++                        for (; (j > 0) && (sorted[j - 1] > v); j--) {
++                            sorted[j] = sorted[j - 1];
++                        }
++                        sorted[j] = v;
++                    }
++
++                    return sorted[sorted.size() / 2];
++                };
++
++                const float medianX = median(moveX);
++                const float medianY = median(moveY);
 +                for (size_t k = 0; (k < curGroup.size()) && together; k++) {
 +                    together = (std::abs(moveX[k] - medianX) <= (maxDx / 4.0f)) && (std::abs(moveY[k] - medianY) <= (maxDy / 4.0f));
 +                }
@@ -10130,7 +10133,7 @@ index e842dcc..e2e59a6 100644
      inline void adjustProjectionMatrix(interop::float4x4 &matrix, const float aspectRatioScale) {
          matrix[0][0] *= aspectRatioScale;
          matrix[1][0] *= aspectRatioScale;
-@@ -126,6 +297,18 @@ namespace RT64 {
+@@ -126,6 +306,18 @@ namespace RT64 {
  
                  // We only interpolate the projection if the view matrix has been interpolated.
                  const bool interpolateProjection = rigidBody->lerpTranslation || rigidBody->lerpRotation;
@@ -10149,7 +10152,7 @@ index e842dcc..e2e59a6 100644
                  if (interpolateProjection) {
                      projMatrix = lerpMatrix(adjustedPrevProj, curProjTransform, p.curFrameWeight);
                      prevProjTransform = lerpMatrix(adjustedPrevProj, curProjTransform, p.prevFrameWeight);
-@@ -149,6 +332,90 @@ namespace RT64 {
+@@ -149,6 +341,90 @@ namespace RT64 {
  
      void ProjectionProcessor::upload(const ProcessParams &p) {
          uploads.clear();
