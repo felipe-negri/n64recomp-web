@@ -934,6 +934,29 @@ const openFirefox = async ({ profile, port, width, height, executable, rom, prel
       const value = r.result?.result?.value;
       return value && value !== '{}' ? JSON.parse(value) : null;
     },
+    // What about:support says of the graphics, as lines (null if it can't be read): the compositor, every feature
+    // that isn't simply available (WebGPU, WebRender, the GPU process...) with the last line of its log, the failure
+    // log, and the WebGPU adapters, for a page that got none (play_page.mjs). Troubleshoot's own snapshot, in the
+    // chrome context as gpuProcessMemory reads.
+    graphicsReport: async () => {
+      const chrome = (await send('browsingContext.getTree', { 'moz:scope': 'chrome' })).result?.contexts?.[0]?.context;
+      if (!chrome) return null;
+      const r = await send('script.evaluate', { target: { context: chrome }, awaitPromise: true, expression: `(async () => {
+        const { Troubleshoot } = ChromeUtils.importESModule('resource://gre/modules/Troubleshoot.sys.mjs');
+        const g = (await Troubleshoot.snapshot()).graphics ?? {};
+        const lines = ['compositor ' + g.windowLayerManagerType];
+        for (const f of g.featureLog?.features ?? []) {
+          const entry = (f.log ?? []).at(-1);
+          if (f.status !== 'available' || /webgpu/i.test(f.name)) lines.push(f.name + ' ' + f.status + (entry ? ': ' + entry.message : ''));
+        }
+        for (const x of g.featureLog?.fallbacks ?? []) lines.push('fallback ' + x.name + ': ' + x.message);
+        for (const x of g.failures ?? []) lines.push('failure: ' + x);
+        for (const [k, v] of Object.entries(g)) if (/webgpu/i.test(k)) lines.push(k + ' ' + JSON.stringify(v));
+        return lines.join('\\n');
+      })()` });
+      if (r.result?.type === 'exception') return `about:support unread: ${r.result.exceptionDetails?.text}`;
+      return r.result?.result?.value ?? null;
+    },
     // The Gecko profiler over every process, the GPU process included (a profile Firefox writes at shutdown,
     // MOZ_PROFILER_SHUTDOWN, leaves that one out): start() samples the threads that carry a page's work, the page's
     // own and the GPU process's CanvasRenderer, which does all of a page's WebGPU, every interval ms with native
