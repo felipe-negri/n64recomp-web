@@ -2057,6 +2057,24 @@ short).
 Rush 2049's page keeps 100 ms of sound queued (its docs/web.md), and Mario Tennis' sound didn't need it: it ran short
 because the game ran at a third or half its rate, making that much of its sound, which no queue covers.
 
+## A press to the picture
+
+Turok 2's view turned 214-310 ms after a press on the stick or a key at the start of its first level (v0.2.9's Linux
+build with the page's options, played by a plan whose answer steps read the picture about 320 times a second and the
+game's yaw in RAM beside it). Perfect Dark's answers in about 80 ms. Turok 2's own frames took most of it:
+
+- The pad reached the game within about 1 ms of the press, and the yaw changed in RAM 56-122 ms after it: the game reads
+  the controller and turns the yaw once a frame at 30, and its frame runs two behind the frame it shows, so the camera
+  reads the yaw a frame late, about 65 ms of that.
+- The game queues a frame's present after its next frame's first workload, so RT64_GAME_FRAME_WORKLOADS ended every
+  frame there (`?frame-log`'s end=next) and drew it a game frame late: from the frame's last workload to its present
+  took about 48 ms. With rt64 5cbf5ff, which ends such a frame once it has drawn the framebuffer the VI shows, it takes
+  about 15 ms, and the median from the yaw turning in RAM to the picture fell from 170 ms to 150 ms over ten presses
+  each, in interleaved pairs.
+- Turok: Dinosaur Hunter's frames end the same way: its look and turn answered in 210-238 ms before and 164-206 ms
+  with 5cbf5ff. Of every page played with `?frame-log`, Jet Force Gemini, Mario Golf and Star Wars Episode I: Racer end
+  many frames there too; the others a few a play or none.
+
 ## A frame drawn in many workloads
 
 Mario Party 2's Tile Driver (minigame 0x46, its overlay 0x37) draws each game frame in 16 workloads, and
