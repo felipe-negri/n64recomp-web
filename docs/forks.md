@@ -17,7 +17,7 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
 2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, 8868f0d,
-55f42a3, e102336, 602dcd2, 9a1d37a, cf8bba7, ea78fc1, 12aa560, which it turns on too),
+55f42a3, e102336, 602dcd2, 9a1d37a, cf8bba7, ea78fc1, 12aa560, 84d36bd, 1d1a0ee, which it turns on too),
 `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES`
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
@@ -1359,4 +1359,16 @@ rt64 04c76f2           RT64_INTERPOLATE_SCREEN_VERTICES: a group of screen write
                        stretched into a triangle across the course
 rt64 dd17c96           RT64_INTERPOLATE_SCREEN_VERTICES: the group's median by an insertion sort, the file's includes as
                        before 04c76f2, whose <algorithm> met Beetle Adventure Racing's own includes (CI's beetle-patches)
+rt64 84d36bd           RT64_INTERPOLATE_RECT_SCROLLS: a rect still unpaired pairs with the nearest, less than its
+                       longer side away, that drew the same textures at another scale with the same texels at its
+                       corners, within a texel, each edge drawn between where it was and where it is and its texture
+                       stretched across it: Mario Golf's Play Modes wheel draws each mode's icon in two strips at a
+                       scale of its own as it turns, and its strips slid in the game frames whose scale stayed and
+                       stepped in the rest, off the pace of the wheel
+rt64 1d1a0ee           RT64_INTERPOLATE_RECT_SCROLLS: a rect drawn from a tile copy pairs by what the copy holds (the
+                       framebuffer, the part of it copied and where the tile samples it), not by the copy's ID, which
+                       is reused for whichever copy of its size comes next: Mario Golf's intro fades one shot into the
+                       next from a buffer it copies the old shot into in 38 strips, and on the fade's second frame
+                       each strip paired by its ID with a copy strip of the first that many rows lower, the frame
+                       between drawing the old shot's top half slid down, the new shot uncovered above it
 ```
