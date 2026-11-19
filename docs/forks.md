@@ -17,7 +17,7 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
 2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, 8868f0d,
-55f42a3, e102336, 602dcd2, which it turns on too),
+55f42a3, e102336, 602dcd2, 9a1d37a, which it turns on too),
 `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES`
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
@@ -1322,4 +1322,7 @@ rt64 602dcd2           RT64_INTERPOLATE_RECT_SCROLLS: a rect drawn in the same p
                        word or with its shadow, so the frames between drew "There is no saved data" as "Ther eis nos
                        aved dta". Where the frames drew a different number of rects and the look repeats where one came
                        or went, the rects both runs reach pair as before
+rt64 9a1d37a           RT64_INTERPOLATE_RECT_SCROLLS: a rect whose own moved pairs by place first when another rect of
+                       this frame stands in its own's place with its look: the same sprites drawn in the same places in
+                       another order paired crosswise with their owns, drawn swapping places in the frames between
 ```
