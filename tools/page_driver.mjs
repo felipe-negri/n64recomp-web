@@ -573,7 +573,7 @@ export const open = async (browser, { profile, port, size = [1256, 645], executa
         const re = new RegExp(a[0]);
         await new Promise((resolve) => {
           const waiter = (text) => { if (re.test(text)) { clearTimeout(timer); waiters.delete(waiter); resolve(); } };
-          const timer = setTimeout(() => { waiters.delete(waiter); log(`timed out waiting for /${a[0]}/`); resolve(); }, a[1]);
+          const timer = setTimeout(() => { waiters.delete(waiter); if (!stopped) log(`timed out waiting for /${a[0]}/`); resolve(); }, a[1]);
           waiters.add(waiter);
         });
       }
