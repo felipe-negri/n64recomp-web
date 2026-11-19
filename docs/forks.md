@@ -1349,4 +1349,12 @@ rt64 12aa560           RT64_INTERPOLATE_RECT_SCROLLS: a rect that samples no tex
 rt64 afdb738           RT64_FRAME_DUMP writes each frame of frames.bin as zstd ("RTFZ", 8 more header bytes: its size
                        and whether it is the bytes less the previous frame's), whole at least every 30, 4.7-5.5 times
                        smaller than raw; a browser's build writes them raw; no frames past 10 GB free
+rt64 57778cd           RT64_SKIP_CAMERA_CUTS: a camera that held still the game frame before (its eye moved under a
+                       twentieth of a near plane distance) and turned over 20 degrees or jumped over 4 cut too: Mario
+                       Golf's end credits cut from golfer to golfer by turning a still camera 30-43 degrees, and the
+                       frame between drew the next golfer partway from one camera to the other
+rt64 04c76f2           RT64_INTERPOLATE_SCREEN_VERTICES: a group of screen writes pairs whole, and only when every pair
+                       moved under half the view and within an eighth of it of the group's median motion: Mario Golf's
+                       ball tracer, quads from a few vertices written again and again, paired other quads and drew one
+                       stretched into a triangle across the course
 ```

@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web afdb738faf730373306d2db35b8b59c3a491ddaf
+rt64: https://github.com/n64hub/rt64-web 04c76f2356d9f92fbc0ff219c21088b7d28c9e17
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -3114,7 +3114,7 @@ index 5c3c4d2..cba893c 100644
  
          uint32_t rdramUsed;
 diff --git a/src/hle/rt64_game_frame.cpp b/src/hle/rt64_game_frame.cpp
-index 87392d0..9db1467 100644
+index 87392d0..f43ad28 100644
 --- a/src/hle/rt64_game_frame.cpp
 +++ b/src/hle/rt64_game_frame.cpp
 @@ -2,6 +2,8 @@
@@ -3204,7 +3204,7 @@ index 87392d0..9db1467 100644
          bool valid = false;
  
          float computeDifference() const {
-@@ -212,10 +271,136 @@ namespace RT64 {
+@@ -212,10 +271,149 @@ namespace RT64 {
                  totalDiff += screenSpaceDifference * ScreenSpaceDiffScale;
              }
  
@@ -3220,9 +3220,11 @@ index 87392d0..9db1467 100644
 +#if RT64_SKIP_CAMERA_CUTS
 +    // Whether a perspective camera cut from one shot to another between two game frames, rather than moved: it turned
 +    // more than 45 degrees in one game frame, or its eye jumped more than 8 of its near plane's distances and more than 4
-+    // times as far as it moved the frame before. eyeStep is set to how far the eye moved, in near plane distances, for
-+    // the next frame's check, or 0 after a cut, and to 0 for a camera these can't be read from (no near plane, a matrix
-+    // that isn't finite or can't be inverted), which is never called a cut.
++    // times as far as it moved the frame before, or it held still the frame before (its eye moved less than a twentieth
++    // of a near plane distance) and now turned more than 20 degrees or jumped more than 4. eyeStep is set to how far the
++    // eye moved, in near plane distances, for the next frame's check, or to -1 (not known) after a cut and for a camera
++    // these can't be read from (no near plane, a matrix that isn't finite or can't be inverted), which is never called a
++    // cut; prevEyeStep is -1 when the frame before's isn't known.
 +    //
 +    // A game that draws its frames with no matrix groups of its own pairs the camera of each frame with the one before,
 +    // and RT64's frames between drew the cut halfway: Mario Golf cuts from the golfer to the ball and from the ball to
@@ -3230,13 +3232,16 @@ index 87392d0..9db1467 100644
 +    // between drew its trees stretched to several times their height for a frame. Its cameras that move (its flyovers,
 +    // the ball's flight) moved at most about 7 near plane distances and turned at most about 24 degrees a game frame, and
 +    // its fastest moved as fast for many frames running, which the second check's ratio to the frame before leaves out.
++    // Its end credits cut from one golfer's shot to the next, each shot a camera that holds still, by turning it 30-43
++    // degrees and moving its eye 1-7 near plane distances, under both of those, and the frames between drew the next
++    // golfer partway from one camera to the other: a camera that moves from rest by that much in one game frame cut.
 +    //
 +    // The turn is the whole turn from one camera to the other, the angle of the rotation between their axes, and not only
 +    // how far the way the camera looks moved: San Francisco Rush 2049's attract race cuts between cameras that look
 +    // straight down at the cars by rolling about the way they look, turning the picture 86-180 degrees, which left the
 +    // way they look where it was.
 +    static bool isCameraCut(const hlslpp::float4x4 &curView, const hlslpp::float4x4 &curProj, const hlslpp::float4x4 &prevView, float prevEyeStep, float &eyeStep) {
-+        eyeStep = 0.0f;
++        eyeStep = -1.0f;
 +
 +        // The near plane's distance from a GL-style perspective (w = z * m23), whatever the scale it was built at.
 +        const float nearDenominator = float(curProj[2][2]) + float(curProj[2][3]);
@@ -3274,6 +3279,14 @@ index 87392d0..9db1467 100644
 +        const float MinJump = 8.0f;
 +        const float MinJumpRatio = 4.0f;
 +        if ((turnCosine < MaxTurnCosine) || ((step > MinJump) && (step > (prevEyeStep * MinJumpRatio)))) {
++            return true;
++        }
++
++        const float MaxStillStep = 0.05f;
++        const float MaxStillTurnCosine = 0.9397f;
++        const float MinStillJump = 4.0f;
++        const bool wasStill = (prevEyeStep >= 0.0f) && (prevEyeStep < MaxStillStep);
++        if (wasStill && ((turnCosine < MaxStillTurnCosine) || (step > MinStillJump))) {
 +            return true;
 +        }
 +
@@ -3341,7 +3354,7 @@ index 87392d0..9db1467 100644
      TransformMatchResult computeTransformMatch(const hlslpp::float4x4 &curTransform, const hlslpp::float4x4 &curViewProj, const hlslpp::float4x4 &prevTransform, const hlslpp::float4x4 &prevViewProj, const RigidBody *prevRigidBody) {
          TransformMatchResult matchResult;
  
-@@ -226,6 +411,18 @@ namespace RT64 {
+@@ -226,6 +424,18 @@ namespace RT64 {
              return matchResult;
          }
  
@@ -3360,7 +3373,7 @@ index 87392d0..9db1467 100644
          // Compute the difference between the translation components of the 4x4 matrices.
          const hlslpp::float3 curPos = curTransform[3].xyz;
          hlslpp::float3 prevPos = prevTransform[3].xyz;
-@@ -241,6 +438,18 @@ namespace RT64 {
+@@ -241,6 +451,18 @@ namespace RT64 {
              (1.0f - hlslpp::dot(hlslpp::normalize(curTransform[1].xyz), hlslpp::normalize(prevTransform[1].xyz))) +
              (1.0f - hlslpp::dot(hlslpp::normalize(curTransform[2].xyz), hlslpp::normalize(prevTransform[2].xyz)));
  
@@ -3379,7 +3392,7 @@ index 87392d0..9db1467 100644
          // Compute the difference between the screen-space position of both transforms on their respective projections.
          hlslpp::float4 prevScreenPos = hlslpp::mul(prevTransform[3], prevViewProj);
          hlslpp::float4 curScreenPos = hlslpp::mul(curTransform[3], curViewProj);
-@@ -252,6 +461,728 @@ namespace RT64 {
+@@ -252,6 +474,728 @@ namespace RT64 {
          return matchResult;
      }
  
@@ -4108,7 +4121,7 @@ index 87392d0..9db1467 100644
      void GameFrame::match(RenderWorker *worker, WorkloadQueue &workloadQueue, const GameFrame &prevFrame, BufferUploader *velocityUploader, bool &velocityUploaderUsed, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed) {
          tileInterpolationUsed = false;
          lookAtInterpolationUsed = false;
-@@ -260,17 +1191,49 @@ namespace RT64 {
+@@ -260,17 +1204,49 @@ namespace RT64 {
          thread_local std::unordered_map<uint32_t, ModifiedBuffers> workloadsModified;
          workloadsModified.clear();
  
@@ -4164,7 +4177,7 @@ index 87392d0..9db1467 100644
              const Workload &prevWorkload = workloadQueue.workloads[workloadMap.prevWorkloadIndex];
              workloadMap.viewProjections.clear();
              workloadMap.viewProjections.resize(curWorkload.drawData.viewProjTransforms.size());
-@@ -290,7 +1253,7 @@ namespace RT64 {
+@@ -290,7 +1266,7 @@ namespace RT64 {
              buildTransformIdMap(curWorkload, curWorkload.transformIdMap, curWorkload.transformIgnoredIds);
  
              // Retrieve the matching maps for the current and previous workload.
@@ -4173,7 +4186,7 @@ index 87392d0..9db1467 100644
              const GameFrameMap::WorkloadMap *prevWorkloadMap = nullptr;
              if (prevFrame.matched && prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex].mapped) {
                  prevWorkloadMap = &prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex];
-@@ -316,7 +1279,7 @@ namespace RT64 {
+@@ -316,7 +1292,7 @@ namespace RT64 {
              }
  
              if (!modifiedBuffers.empty()) {
@@ -4182,7 +4195,7 @@ index 87392d0..9db1467 100644
              }
  
              // Any transforms tagged with the empty ID will be instantly marked as used and skipped.
-@@ -343,6 +1306,14 @@ namespace RT64 {
+@@ -343,6 +1319,14 @@ namespace RT64 {
                  const hlslpp::float4x4 &curProjTransform = curWorkload.drawData.projTransforms[curProj.transformsIndex];
                  for (uint32_t j = 0; j < prevScenes.size(); j++) {
                      const GameIndices::Projection prevFirstProj = prevScenes[j].projections[0];
@@ -4197,7 +4210,7 @@ index 87392d0..9db1467 100644
                      const Workload &prevWorkload = workloadQueue.workloads[prevFirstProj.workloadIndex];
                      const FramebufferPair &prevFbPair = prevWorkload.fbPairs[prevFirstProj.fbPairIndex];
                      const Projection &prevProj = prevFbPair.projections[prevFirstProj.projectionIndex];
-@@ -356,6 +1327,40 @@ namespace RT64 {
+@@ -356,6 +1340,40 @@ namespace RT64 {
              prevScenesMatched.clear();
              curScenesMatched.resize(curScenes.size());
              prevScenesMatched.resize(prevScenes.size());
@@ -4238,7 +4251,7 @@ index 87392d0..9db1467 100644
              std::stable_sort(matchCandidates.begin(), matchCandidates.end());
              for (const MatchCandidate &candidate : matchCandidates) {
                  if (curScenesMatched[candidate.curIndex]) {
-@@ -396,6 +1401,15 @@ namespace RT64 {
+@@ -396,6 +1414,15 @@ namespace RT64 {
          else {
              velocityUploaderUsed = false;
          }
@@ -4254,7 +4267,7 @@ index 87392d0..9db1467 100644
      }
  
      void GameFrame::matchScene(WorkloadQueue &workloadQueue, const GameFrame &prevFrame, const GameScene &curScene, const GameScene &prevScene, std::unordered_map<uint32_t, ModifiedBuffers> &workloadsModified, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed) {
-@@ -403,8 +1417,10 @@ namespace RT64 {
+@@ -403,8 +1430,10 @@ namespace RT64 {
              return;
          }
  
@@ -4267,7 +4280,7 @@ index 87392d0..9db1467 100644
          curCallHashMap.clear();
          prevCallHashMap.clear();
  
-@@ -478,6 +1494,24 @@ namespace RT64 {
+@@ -478,6 +1507,24 @@ namespace RT64 {
                  }
                  else {
                      viewProjMap.mapped = (curProjGroup.matrixId == G_EX_ID_AUTO);
@@ -4276,7 +4289,7 @@ index 87392d0..9db1467 100644
 +                    // and neither does anything its scene draws: the frames between draw the new frame as it is, where
 +                    // a cut drawn halfway put the world between two places (isCameraCut()).
 +                    if (viewProjMap.mapped && (curProj.type == Projection::Type::Perspective) && (prevProj.type == Projection::Type::Perspective)) {
-+                        float prevEyeStep = 0.0f;
++                        float prevEyeStep = -1.0f;
 +                        if (firstPrevWorkloadMap != nullptr) {
 +                            prevEyeStep = firstPrevWorkloadMap->viewProjections[prevProj.transformsIndex].eyeStep;
 +                        }
@@ -4292,7 +4305,7 @@ index 87392d0..9db1467 100644
                  }
  
                  if (viewProjMap.mapped) {
-@@ -509,69 +1543,163 @@ namespace RT64 {
+@@ -509,69 +1556,163 @@ namespace RT64 {
              buildCallHashMap(p, prevWorkload, prevProj, prevCallHashMap);
          }
  
@@ -4502,7 +4515,7 @@ index 87392d0..9db1467 100644
          }
  
          // Compute all the differences between transforms and insert them into a vector that will be sorted according to the differences.
-@@ -592,6 +1720,51 @@ namespace RT64 {
+@@ -592,6 +1733,51 @@ namespace RT64 {
              }
          }
  
@@ -4554,7 +4567,7 @@ index 87392d0..9db1467 100644
          ModifiedBuffers modifiedBuffers;
          std::stable_sort(matchCandidates.begin(), matchCandidates.end());
          for (const MatchCandidate candidate : matchCandidates) {
-@@ -669,17 +1842,160 @@ namespace RT64 {
+@@ -669,17 +1855,160 @@ namespace RT64 {
              const bool wrappedUlt = (curTile.cmt == G_TX_WRAP) && (modulo(integerUlt, curTile.maskt * 4) == modulo(expectedUlt, curTile.maskt * 4));
              const bool wrappedLrs = (curTile.cms == G_TX_WRAP) && (modulo(integerLrs, curTile.masks * 4) == modulo(expectedLrs, curTile.masks * 4));
              const bool wrappedLrt = (curTile.cmt == G_TX_WRAP) && (modulo(integerLrt, curTile.maskt * 4) == modulo(expectedLrt, curTile.maskt * 4));
@@ -4720,7 +4733,7 @@ index 87392d0..9db1467 100644
          }
  
          // Check for look at matches.
-@@ -727,6 +2043,18 @@ namespace RT64 {
+@@ -727,6 +2056,18 @@ namespace RT64 {
          curTransformMap.mapped = true;
          curWorkloadMap.prevTransformsMapped[prevTransformIndex] = true;
  
@@ -4739,7 +4752,7 @@ index 87392d0..9db1467 100644
          uint64_t curVertexHash = 0;
          uint64_t prevVertexHash = 0;
          uint32_t curVertexIndex = curWorkload.drawData.worldTransformVertexIndices[curTransformIndex];
-@@ -782,9 +2110,78 @@ namespace RT64 {
+@@ -782,9 +2123,78 @@ namespace RT64 {
  
              modifiedBuffers.texcoordVelocity = true;
          }
@@ -4819,7 +4832,7 @@ index 87392d0..9db1467 100644
          for (uint32_t c = 0; c < proj.gameCallCount; c++) {
              const GameCall &call = proj.gameCalls[c];
              uint32_t matrixIdHash = 0;
-@@ -802,7 +2199,7 @@ namespace RT64 {
+@@ -802,7 +2212,7 @@ namespace RT64 {
                  doTileMatching = doTileMatching || (group.tileInterpolation == G_EX_COMPONENT_AUTO);
              }
  
@@ -4829,7 +4842,7 @@ index 87392d0..9db1467 100644
      }
  
 diff --git a/src/hle/rt64_game_frame.h b/src/hle/rt64_game_frame.h
-index 00a72f6..bc90990 100644
+index 00a72f6..c89f690 100644
 --- a/src/hle/rt64_game_frame.h
 +++ b/src/hle/rt64_game_frame.h
 @@ -47,10 +47,16 @@ namespace RT64 {
@@ -4838,8 +4851,8 @@ index 00a72f6..bc90990 100644
              bool mapped = false;
 +
 +            // How far the camera's eye moved from the game frame before, in its near plane's distances, for the next
-+            // frame's cut check (RT64_SKIP_CAMERA_CUTS); 0 after a cut, or with no frame before.
-+            float eyeStep = 0.0f;
++            // frame's cut check (RT64_SKIP_CAMERA_CUTS); -1 when that isn't known (after a cut, or with no frame before).
++            float eyeStep = -1.0f;
          };
  
          struct TransformMap {
@@ -9930,10 +9943,17 @@ index 0000000..9984c41
 +}
 +#endif
 diff --git a/src/render/rt64_projection_processor.cpp b/src/render/rt64_projection_processor.cpp
-index e842dcc..1a6b24c 100644
+index e842dcc..e2e59a6 100644
 --- a/src/render/rt64_projection_processor.cpp
 +++ b/src/render/rt64_projection_processor.cpp
-@@ -8,6 +8,141 @@
+@@ -2,12 +2,183 @@
+ // RT64
+ //
+ 
++#include <algorithm>
+ #include "rt64_projection_processor.h"
+ 
+ #include "common/rt64_math.h"
  #include "hle/rt64_workload_queue.h"
  
  namespace RT64 {
@@ -9966,8 +9986,8 @@ index e842dcc..1a6b24c 100644
 +    // can pair a projection with an equal one the writes didn't go through (Mario Golf's flagstick writes, through its
 +    // sixth projection, which the map paired with the frame before's third, of none). Each pair is drawn between its
 +    // two by the frame's weight, in the quarter pixels the RSP takes. A projection the map pairs with none (a camera
-+    // cut, RT64_SKIP_CAMERA_CUTS) leaves its writes the game's, and so does a pair further apart than half the view,
-+    // which is no motion of one thing between two frames. Returns whether any write was paired, so the copy is
++    // cut, RT64_SKIP_CAMERA_CUTS) leaves its writes the game's, and so does a group whose writes didn't move together
++    // (below), which is no motion of one thing between two frames. Returns whether any write was paired, so the copy is
 +    // uploaded in every present of the frame, its last (weight 1) included, which puts the game's own positions back
 +    // over the frames between.
 +    bool ProjectionProcessor::interpolateScreenWrites(const ProcessParams &p, uint32_t w, std::vector<uint32_t> &modifyPosUints) {
@@ -10040,29 +10060,64 @@ index e842dcc..1a6b24c 100644
 +                continue;
 +            }
 +
++            // The group is paired whole or not at all, and only when its writes moved together: each no further from the
++            // group's median motion than an eighth of the view each way, and none further than half the view. A game that
++            // draws a strip of quads from a few vertices it writes again and again (Mario Golf's ball tracer) writes a
++            // varying number of them in a varying order, so two frames' groups of one size can be other quads, and a pair
++            // of the wrong ones drawn between stretched a quad across the picture; and a pair left out of a group that
++            // moved by about the limit left that quad's other corners drawn between, a quad as long as half the view.
 +            const interop::RSPViewport &viewport = curData.rspViewports[t];
 +            const float maxDx = std::abs(float(viewport.scale.x)) * 4.0f;
 +            const float maxDy = std::abs(float(viewport.scale.y)) * 4.0f;
++            auto unpack = [](uint32_t value, float &x, float &y) {
++                x = float(int16_t((value >> 16) & 0xFFFF));
++                y = float(int16_t(value & 0xFFFF));
++            };
++
++            thread_local std::vector<float> moveX;
++            thread_local std::vector<float> moveY;
++            moveX.resize(curGroup.size());
++            moveY.resize(curGroup.size());
++            bool together = true;
++            for (size_t k = 0; (k < curGroup.size()) && together; k++) {
++                float curX, curY, prevX, prevY;
++                unpack(curData.modifyPosUints[curGroup[k] + 1], curX, curY);
++                unpack(prevData.modifyPosUints[(*prevGroup)[k] + 1], prevX, prevY);
++                moveX[k] = curX - prevX;
++                moveY[k] = curY - prevY;
++                together = (std::abs(moveX[k]) <= maxDx) && (std::abs(moveY[k]) <= maxDy);
++            }
++
++            if (together && (curGroup.size() > 1)) {
++                thread_local std::vector<float> sorted;
++                const size_t middle = curGroup.size() / 2;
++                sorted = moveX;
++                std::nth_element(sorted.begin(), sorted.begin() + middle, sorted.end());
++                const float medianX = sorted[middle];
++                sorted = moveY;
++                std::nth_element(sorted.begin(), sorted.begin() + middle, sorted.end());
++                const float medianY = sorted[middle];
++                for (size_t k = 0; (k < curGroup.size()) && together; k++) {
++                    together = (std::abs(moveX[k] - medianX) <= (maxDx / 4.0f)) && (std::abs(moveY[k] - medianY) <= (maxDy / 4.0f));
++                }
++            }
++
++            if (!together) {
++                continue;
++            }
++
++            auto quarters = [](float v) {
++                int32_t rounded = int32_t(v + ((v >= 0.0f) ? 0.5f : -0.5f));
++                rounded = (rounded < -32768) ? -32768 : ((rounded > 32767) ? 32767 : rounded);
++                return uint32_t(uint16_t(int16_t(rounded)));
++            };
++
 +            for (size_t k = 0; k < curGroup.size(); k++) {
 +                const size_t m = curGroup[k];
-+                const uint32_t curValue = curData.modifyPosUints[m + 1];
-+                const uint32_t prevValue = prevData.modifyPosUints[(*prevGroup)[k] + 1];
-+                const float curX = float(int16_t((curValue >> 16) & 0xFFFF));
-+                const float curY = float(int16_t(curValue & 0xFFFF));
-+                const float prevX = float(int16_t((prevValue >> 16) & 0xFFFF));
-+                const float prevY = float(int16_t(prevValue & 0xFFFF));
-+                if ((std::abs(curX - prevX) > maxDx) || (std::abs(curY - prevY) > maxDy)) {
-+                    continue;
-+                }
-+
-+                auto quarters = [](float v) {
-+                    int32_t rounded = int32_t(v + ((v >= 0.0f) ? 0.5f : -0.5f));
-+                    rounded = (rounded < -32768) ? -32768 : ((rounded > 32767) ? 32767 : rounded);
-+                    return uint32_t(uint16_t(int16_t(rounded)));
-+                };
-+
-+                const float x = prevX + (curX - prevX) * p.curFrameWeight;
-+                const float y = prevY + (curY - prevY) * p.curFrameWeight;
++                float prevX, prevY;
++                unpack(prevData.modifyPosUints[(*prevGroup)[k] + 1], prevX, prevY);
++                const float x = prevX + moveX[k] * p.curFrameWeight;
++                const float y = prevY + moveY[k] * p.curFrameWeight;
 +                modifyPosUints[m + 1] = (quarters(x) << 16) | quarters(y);
 +                pairedAny = true;
 +            }
@@ -10075,7 +10130,7 @@ index e842dcc..1a6b24c 100644
      inline void adjustProjectionMatrix(interop::float4x4 &matrix, const float aspectRatioScale) {
          matrix[0][0] *= aspectRatioScale;
          matrix[1][0] *= aspectRatioScale;
-@@ -126,6 +261,18 @@ namespace RT64 {
+@@ -126,6 +297,18 @@ namespace RT64 {
  
                  // We only interpolate the projection if the view matrix has been interpolated.
                  const bool interpolateProjection = rigidBody->lerpTranslation || rigidBody->lerpRotation;
@@ -10094,7 +10149,7 @@ index e842dcc..1a6b24c 100644
                  if (interpolateProjection) {
                      projMatrix = lerpMatrix(adjustedPrevProj, curProjTransform, p.curFrameWeight);
                      prevProjTransform = lerpMatrix(adjustedPrevProj, curProjTransform, p.prevFrameWeight);
-@@ -149,6 +296,90 @@ namespace RT64 {
+@@ -149,6 +332,90 @@ namespace RT64 {
  
      void ProjectionProcessor::upload(const ProcessParams &p) {
          uploads.clear();
