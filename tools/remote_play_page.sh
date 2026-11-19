@@ -198,7 +198,7 @@ if [[ -n "$runner" ]]; then
     # The runner names, caps and stops the container; the play goes as play_job.mjs runs it with no queue. Or it makes
     # the run here, by the --here form of this one.
     [[ -n "$model" ]] || { echo "--model <game> (or the tool's --game) is needed to take a turn in the queue" >&2; exit 3; }
-    printf '%s ' "$BASH" "$here/remote_play_page.sh" --here "$PWD" "$out" "$tool" "$@" > "$stage/here"
+    printf '%s\0' "$BASH" "$here/remote_play_page.sh" --here "$PWD" "$out" "$tool" "$@" > "$stage/here"
     set +e
     PLAY_HERE="$stage/here" PLAY_MODEL="$model" ${runner} "docker run $(q "${run[@]:5}")--user \$(id -u):\$(id -g) -v \$HOME/$dir:/work ${mounts[*]} $image \
 $(q sh -c 'touch /work/.ran && exec "$@"' sh "${cmd[@]}")"
