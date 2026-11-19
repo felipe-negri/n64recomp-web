@@ -17,7 +17,7 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
 2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, 8868f0d,
-55f42a3, e102336, 602dcd2, 9a1d37a, cf8bba7, ea78fc1, 12aa560, 84d36bd, 1d1a0ee, 3a0fdea, which it turns on too),
+55f42a3, e102336, 602dcd2, 9a1d37a, cf8bba7, ea78fc1, 12aa560, 84d36bd, 1d1a0ee, 3a0fdea, 53ce431, which it turns on too),
 `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES`
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
@@ -1376,4 +1376,8 @@ rt64 3a0fdea           RT64_INTERPOLATE_RECT_SCROLLS: what a tile copy holds is 
                        as before 1d1a0ee and the web support merges into game ports with checks or fields of their
                        own there (Rogue Squadron, SSSV and WWF No Mercy's checkTileCopyTMEM(), Pokemon Snap's
                        tileCopyRowOffset)
+rt64 53ce431           RT64_INTERPOLATE_RECT_SCROLLS: tileCopySource() takes the tile's own TMEM address and finds
+                       the region as the checks do (masked to TMEM's lower half, or the first with the ID for a range
+                       that wrapped), so the call names no local of the web's check, which Rogue Squadron's and WWF
+                       No Mercy's state.cpp don't have
 ```
