@@ -1346,4 +1346,7 @@ rt64 12aa560           RT64_INTERPOLATE_RECT_SCROLLS: a rect that samples no tex
                        same size, moved less than its longer side or 16 pixels, and one that moved is drawn between, at
                        the corners the game gave it to a quarter pixel: Mario Golf's ball far from the camera, a dot of
                        primitive colour two pixels by one, held its place for a game frame and then stepped a pixel
+rt64 afdb738           RT64_FRAME_DUMP writes each frame of frames.bin as zstd ("RTFZ", 8 more header bytes: its size
+                       and whether it is the bytes less the previous frame's), whole at least every 30, 4.7-5.5 times
+                       smaller than raw; a browser's build writes them raw; no frames past 10 GB free
 ```
