@@ -37,6 +37,13 @@
 # set, $PLAY_NETWORK names the docker network the queue answers on, $PLAY_JOB_URL is the job's link, and
 # $PLAY_PRIORITY its priority (low). The exit code is the tool's (play_page.mjs's header), 75 when the queue stopped
 # it, 3 for a mistake in the arguments.
+#
+# Or $PLAY_RUNNER, in place of the queue's client: a command (split on spaces) that is given the container's
+# `docker run` line, without --name or --rm, as its last argument, and runs it as a job of the queue from here: it
+# names the container itself, starts it on the host once the job is let in there, and exits with its code. Such a
+# runner may let the queue put the job on another of its machines instead, running the same play there by its own
+# means; the container then never started (it marks /work/.ran first thing), so nothing comes back from the host and the
+# exit code is the runner's. A --measure play isn't given to one.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 measure="" model=""
@@ -128,7 +135,9 @@ if [[ -z "$model" ]]; then
     for ((i = 0; i < ${#targs[@]} - 1; i++)); do [[ "${targs[i]}" == --game ]] && model="${targs[i + 1]}"; done
 fi
 job=()
-if [[ -n "${PLAY_QUEUE_CLIENT:-}" ]]; then
+if [[ -n "${PLAY_RUNNER:-}" ]]; then
+    [[ -z "$measure" ]] || { echo "--measure is a play on the host's GPU alone: unset PLAY_RUNNER" >&2; exit 3; }
+elif [[ -n "${PLAY_QUEUE_CLIENT:-}" ]]; then
     [[ -n "$model" ]] || { echo "--model <game> (or the tool's --game) is needed to take a turn in the queue" >&2; exit 3; }
     cp "$PLAY_QUEUE_CLIENT" "$stage/queue.mjs"
     job=(--queue /work/queue.mjs --model "$model" --priority "${PLAY_PRIORITY:-low}")
@@ -150,15 +159,29 @@ run=(docker run --rm --name "page-play-$key" --gpus all --cpus "${PLAY_CPUS:-4}"
 [[ -n "${PLAY_NETWORK:-}" ]] && run+=(--network "$PLAY_NETWORK")
 [[ -n "${GPU_QUEUE_URL:-}" ]] && run+=(-e "GPU_QUEUE_URL=$GPU_QUEUE_URL")
 cmd=(node /work/tools/play_job.mjs "${job[@]}" -- node "/work/tools/$tool" "${targs[@]}")
-stopped() { remote "docker stop page-play-$key >/dev/null 2>&1" || true; exit 75; }
-trap 'rm -rf "$stage"; stopped' INT TERM
-set +e
-printf %s "${GPU_QUEUE_KEY:-}" | remote "cd ~ && GPU_QUEUE_KEY=\$(cat) && export GPU_QUEUE_KEY && \
-    $(q "${run[@]}") --user \$(id -u):\$(id -g) -e GPU_QUEUE_KEY -v \$HOME/$dir:/work ${mounts[*]} $image $(q "${cmd[@]}")"
-code=$?
-set -e
-trap 'rm -rf "$stage"' EXIT
-trap - INT TERM
+if [[ -n "${PLAY_RUNNER:-}" ]]; then
+    # The runner names, caps and stops the container; the play goes as play_job.mjs runs it with no queue.
+    set +e
+    ${PLAY_RUNNER} "docker run $(q "${run[@]:5}")--user \$(id -u):\$(id -g) -v \$HOME/$dir:/work ${mounts[*]} $image \
+$(q sh -c 'touch /work/.ran && exec "$@"' sh "${cmd[@]}")"
+    code=$?
+    set -e
+    if ! remote "test -e $dir/.ran"; then
+        remote "rm -rf $dir"
+        echo "not played on $host: the runner played it elsewhere (exit $code)"
+        exit $code
+    fi
+else
+    stopped() { remote "docker stop page-play-$key >/dev/null 2>&1" || true; exit 75; }
+    trap 'rm -rf "$stage"; stopped' INT TERM
+    set +e
+    printf %s "${GPU_QUEUE_KEY:-}" | remote "cd ~ && GPU_QUEUE_KEY=\$(cat) && export GPU_QUEUE_KEY && \
+        $(q "${run[@]}") --user \$(id -u):\$(id -g) -e GPU_QUEUE_KEY -v \$HOME/$dir:/work ${mounts[*]} $image $(q "${cmd[@]}")"
+    code=$?
+    set -e
+    trap 'rm -rf "$stage"' EXIT
+    trap - INT TERM
+fi
 
 # What the play wrote, and the runs it recorded.
 remote "tar -C $dir/out -cf - ." 2>/dev/null | tar -C "$out" -xf - || echo "nothing came back from $host:$dir/out" >&2

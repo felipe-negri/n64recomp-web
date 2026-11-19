@@ -17,7 +17,7 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
 2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, 8868f0d,
-55f42a3, e102336, 602dcd2, 9a1d37a, cf8bba7, ea78fc1, which it turns on too),
+55f42a3, e102336, 602dcd2, 9a1d37a, cf8bba7, ea78fc1, 12aa560, which it turns on too),
 `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES`
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
@@ -1341,4 +1341,12 @@ rt64 ea78fc1           RT64_INTERPOLATE_RECT_SCROLLS: an edge that came onto the
                        as at an edge that stayed: as the Mini-Golf flyover pitches down, Mario Golf's top strip of hills
                        leaves the picture over the top and the strip under it is cut there, and drawn between where its
                        top was and the scissor it left the picture's top row to the clear color's dark blue
+rt64 12aa560           RT64_INTERPOLATE_RECT_SCROLLS: a rect that samples no texture (a combiner of colour alone, or
+                       a fill) pairs too, among such rects alone, by the same combiner, other modes and colours, at the
+                       same size, moved less than its longer side or 16 pixels, and one that moved is drawn between, at
+                       the corners the game gave it to a quarter pixel: Mario Golf's ball far from the camera, a dot of
+                       primitive colour two pixels by one, held its place for a game frame and then stepped a pixel
+rt64 afdb738           RT64_FRAME_DUMP writes each frame of frames.bin as zstd ("RTFZ", 8 more header bytes: its size
+                       and whether it is the bytes less the previous frame's), whole at least every 30, 4.7-5.5 times
+                       smaller than raw; a browser's build writes them raw; no frames past 10 GB free
 ```

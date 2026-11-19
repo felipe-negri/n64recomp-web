@@ -1,8 +1,8 @@
-rt64: https://github.com/n64hub/rt64-web ea78fc1cff742fea1328bbebb6e8bf1835ae3822
+rt64: https://github.com/n64hub/rt64-web afdb738faf730373306d2db35b8b59c3a491ddaf
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 79dfc38..2e1db73 100644
+index 79dfc38..2919d32 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -11,7 +11,28 @@ endif()
@@ -193,7 +193,15 @@ index 79dfc38..2e1db73 100644
  else()
      find_package(SDL2 REQUIRED)
  endif()
-@@ -439,9 +535,73 @@ endif()
+@@ -347,6 +443,7 @@ set (SOURCES
+     "${PROJECT_SOURCE_DIR}/src/hle/rt64_color_converter.cpp"
+     "${PROJECT_SOURCE_DIR}/src/hle/rt64_command_warning.cpp"
+     "${PROJECT_SOURCE_DIR}/src/hle/rt64_draw_call.cpp"
++    "${PROJECT_SOURCE_DIR}/src/hle/rt64_frame_dump.cpp"
+     "${PROJECT_SOURCE_DIR}/src/hle/rt64_framebuffer.cpp"
+     "${PROJECT_SOURCE_DIR}/src/hle/rt64_framebuffer_changes.cpp"
+     "${PROJECT_SOURCE_DIR}/src/hle/rt64_framebuffer_manager.cpp"
+@@ -439,9 +536,73 @@ endif()
  set_target_properties(rt64 PROPERTIES OUTPUT_NAME "rt64")
  set_target_properties(rt64 PROPERTIES PREFIX "")
  
@@ -268,7 +276,7 @@ index 79dfc38..2e1db73 100644
  target_link_libraries(rt64 libzstd_static)
  target_link_libraries(rt64 plume)
  
-@@ -504,9 +664,141 @@ build_pixel_shader_spec_constants(rt64 "src/shaders/RasterPS.hlsl" "src/shaders/
+@@ -504,9 +665,141 @@ build_pixel_shader_spec_constants(rt64 "src/shaders/RasterPS.hlsl" "src/shaders/
  build_pixel_shader_spec_constants(rt64 "src/shaders/RasterPS.hlsl" "src/shaders/RasterPSSpecConstantMS.hlsl" "-D SPEC_CONSTANT_RENDER_PARAMS" "-D MULTISAMPLING")
  build_pixel_shader_spec_constants(rt64 "src/shaders/RasterPS.hlsl" "src/shaders/RasterPSSpecConstantFlat.hlsl" "-D SPEC_CONSTANT_RENDER_PARAMS" "-D VERTEX_FLAT_COLOR")
  build_pixel_shader_spec_constants(rt64 "src/shaders/RasterPS.hlsl" "src/shaders/RasterPSSpecConstantFlatMS.hlsl" "-D SPEC_CONSTANT_RENDER_PARAMS" "-D VERTEX_FLAT_COLOR" "-D MULTISAMPLING")
@@ -1876,12 +1884,52 @@ index 0e62be1..58f07d8 100644
          uint16_t tileCopyWidth;
          uint16_t tileCopyHeight;
          bool reinterpretTile;
+diff --git a/src/hle/rt64_frame_dump.cpp b/src/hle/rt64_frame_dump.cpp
+new file mode 100644
+index 0000000..c83613f
+--- /dev/null
++++ b/src/hle/rt64_frame_dump.cpp
+@@ -0,0 +1,34 @@
++//
++// RT64
++//
++
++#include "rt64_frame_dump.h"
++
++#if !defined(__EMSCRIPTEN__)
++#   include <zstd.h>
++#endif
++
++namespace RT64 {
++    // RT64_FRAME_DUMP's compression (rt64_frame_dump.h, FrameDump::writeCompressed()): here, where zstd's header is,
++    // and a browser's build, which writes its frames raw, links no compressor.
++    bool frameDumpCompress(void *&context, const std::vector<uint8_t> &src, std::vector<uint8_t> &dst, int level, const char *&error) {
++#   if defined(__EMSCRIPTEN__)
++        error = "a browser's build doesn't compress";
++        return false;
++#   else
++        if (context == nullptr) {
++            context = ZSTD_createCCtx();
++        }
++
++        dst.resize(ZSTD_compressBound(src.size()));
++        const size_t bytes = ZSTD_compressCCtx(static_cast<ZSTD_CCtx *>(context), dst.data(), dst.size(), src.data(), src.size(), level);
++        if (ZSTD_isError(bytes)) {
++            error = ZSTD_getErrorName(bytes);
++            return false;
++        }
++
++        dst.resize(bytes);
++        return true;
++#   endif
++    }
++};
 diff --git a/src/hle/rt64_frame_dump.h b/src/hle/rt64_frame_dump.h
 new file mode 100644
-index 0000000..58d55bb
+index 0000000..59bd877
 --- /dev/null
 +++ b/src/hle/rt64_frame_dump.h
-@@ -0,0 +1,346 @@
+@@ -0,0 +1,443 @@
 +//
 +// RT64
 +//
@@ -1893,6 +1941,13 @@ index 0000000..58d55bb
 +//
 +// - <dir>/frames.bin: every frame presented, the frames interpolated between the game's included, each as its 40-byte
 +//   header (FrameHeader) and its pixels, 8-bit RGB, rows top down, the picture box-filtered to at most MaxWidth wide.
++//   A desktop build writes the pixels compressed (writeLoop()): the header's magic is MagicCompressed, and 8 more bytes
++//   follow it (CompressedHeader), the compressed size and whether the pixels are less the previous frame's, then that
++//   many bytes of zstd. A reader still reads a frame without the ones before it from the frame written whole at most
++//   KeyEvery frames before it, each header saying where the next one is. A 640x360 frame is 690 KB raw, 40 MB a second at
++//   60, and a dump of a whole plan was tens of GB a window: compressed it is about a third of that (Mario Golf's,
++//   3.4-3.7 times smaller less the previous frame, 1.8-2.1 alone), at 1-3 ms a frame on the writer's thread. A
++//   browser's build writes them raw (Magic), so its wasm carries no compressor.
 +//   The picture is the box of the frame's color target the VI draws from (VIRenderer::render()'s videoResolution, from
 +//   its top left corner), not the whole target, which can be larger: the targets of the frames drawn between the
 +//   game's are kept at the largest size drawn (a 1692x960 target for a 1280x720 picture), and one kept from a larger
@@ -1929,8 +1984,12 @@ index 0000000..58d55bb
 +// swapChainCreated() and the shared resources' swapChainRate(), and everything else is here: a game's own changes to
 +// RT64 meet its lines in as few places as can be.
 +//
-+// Frames go to a thread of their own, a few in hand at most: one that finds the queue full is dropped and counted in
-+// the next header's dropped field, so a slow disk shows as a gap the tool knows, never as a slower game.
++// Frames go to a thread of their own, about a second's in hand at most (MaxQueued, 44 MB of 640x360 frames: a dump of
++// Mario Golf's lost 22 frames at once to a stall of the writer, with 8 in hand, in one of three windows that dumped
++// the same scene): one that finds the queue full is dropped and counted in
++// the next header's dropped field, so a slow disk shows as a gap the tool knows, never as a slower game. The writer
++// stops writing frames, and says so once, when its disk has less than MinFreeBytes free: a dump run by hand, with no
++// tool watching its size, never fills the disk under the game and whatever else uses it.
 +
 +#include <algorithm>
 +#include <atomic>
@@ -1953,12 +2012,21 @@ index 0000000..58d55bb
 +#include "render/rt64_vi_renderer.h"
 +
 +namespace RT64 {
++    // rt64_frame_dump.cpp: src as zstd at level into dst, sized to fit, a context kept in context between calls. False,
++    // and why in error, where it fails. The one part of the dump not in this header: zstd's header is RT64's own, and
++    // programs include this one without it (RecompFrontend's renderer).
++    bool frameDumpCompress(void *&context, const std::vector<uint8_t> &src, std::vector<uint8_t> &dst, int level, const char *&error);
++
 +    struct FrameDump {
-+        static constexpr uint32_t Magic = 0x44465452; // "RTFD"
++        static constexpr uint32_t Magic = 0x44465452; // "RTFD": the pixels follow raw.
++        static constexpr uint32_t MagicCompressed = 0x5A465452; // "RTFZ": a CompressedHeader and zstd follow.
++        static constexpr uint32_t KeyEvery = 30; // A frame written whole at least this often.
++        static constexpr int CompressionLevel = 3;
++        static constexpr uint64_t MinFreeBytes = 10ULL << 30;
 +        static constexpr uint32_t MaxWidth = 640;
 +        static constexpr int BandsPerView = 20;
 +        static constexpr int Bands = BandsPerView * 3;
-+        static constexpr size_t MaxQueued = 8;
++        static constexpr size_t MaxQueued = 64;
 +
 +        struct FrameHeader {
 +            uint32_t magic;
@@ -1969,6 +2037,11 @@ index 0000000..58d55bb
 +            uint32_t dropped; // Frames dropped since the last one written: the writer fell behind.
 +            uint64_t presentId;
 +            uint64_t timeMs; // Milliseconds since 1970, RT64_FRAME_LOG's clock.
++        };
++
++        struct CompressedHeader {
++            uint32_t bytes; // The zstd's size, which follows.
++            uint32_t previous; // 1: what it decompresses to is each byte of the pixels less the previous frame's, mod 256.
 +        };
 +
 +        struct Frame {
@@ -1988,6 +2061,13 @@ index 0000000..58d55bb
 +        std::condition_variable condition;
 +        std::deque<Frame> queue;
 +        std::thread writer;
++        bool outOfRoom = false; // Writer thread's, as are the rest.
++        uint64_t framesWritten = 0;
++        uint32_t sinceKey = 0;
++        std::vector<uint8_t> previousRgb;
++        std::vector<uint8_t> difference;
++        std::vector<uint8_t> compressed;
++        void *compressContext = nullptr;
 +        uint32_t droppedSinceLast = 0;
 +        uint32_t bands[Bands] = {};
 +        const void *bandsWorkload = nullptr;
@@ -2221,11 +2301,76 @@ index 0000000..58d55bb
 +                    queue.pop_front();
 +                }
 +
++                if (!roomToWrite()) {
++                    continue;
++                }
++
++#           if defined(__EMSCRIPTEN__)
 +                fwrite(&frame.header, sizeof(frame.header), 1, framesFile);
 +                fwrite(frame.rgb.data(), 1, frame.rgb.size(), framesFile);
++#           else
++                writeCompressed(frame);
++#           endif
 +                fflush(framesFile);
 +            }
 +        }
++
++        // Whether the dump's disk has room: read every 64 frames, and once it hasn't, never again. Writer thread.
++        bool roomToWrite() {
++            if (outOfRoom) {
++                return false;
++            }
++
++            if ((framesWritten++ % 64) == 0) {
++                std::error_code error;
++                const std::filesystem::space_info space = std::filesystem::space(std::filesystem::path(dir), error);
++                if (!error && (space.available < MinFreeBytes)) {
++                    fprintf(stderr, "RT64_FRAME_DUMP: stopped writing frames, %s has under %llu GB free\n", dir.c_str(),
++                        (unsigned long long)(MinFreeBytes >> 30));
++                    outOfRoom = true;
++                    return false;
++                }
++            }
++
++            return true;
++        }
++
++#   if !defined(__EMSCRIPTEN__)
++        // A frame as MagicCompressed's header and zstd: whole, at the dump's first frame, a size change or KeyEvery
++        // frames since the last whole one, and otherwise each byte less the previous frame's, which leaves the parts
++        // that didn't change zeros (most of a frame between two of the game's, and every still part of a scene).
++        // Writer thread.
++        void writeCompressed(Frame &frame) {
++            const bool previous = (sinceKey < KeyEvery) && (previousRgb.size() == frame.rgb.size());
++            const std::vector<uint8_t> *source = &frame.rgb;
++            if (previous) {
++                difference.resize(frame.rgb.size());
++                for (size_t i = 0; i < frame.rgb.size(); i++) {
++                    difference[i] = uint8_t(frame.rgb[i] - previousRgb[i]);
++                }
++
++                source = &difference;
++                sinceKey++;
++            }
++            else {
++                sinceKey = 1;
++            }
++
++            const char *error = nullptr;
++            if (!frameDumpCompress(compressContext, *source, compressed, CompressionLevel, error)) {
++                fprintf(stderr, "RT64_FRAME_DUMP: a frame didn't compress: %s\n", error);
++                return;
++            }
++
++            FrameHeader header = frame.header;
++            header.magic = MagicCompressed;
++            const CompressedHeader extra = { uint32_t(compressed.size()), previous ? 1U : 0U };
++            fwrite(&header, sizeof(header), 1, framesFile);
++            fwrite(&extra, sizeof(extra), 1, framesFile);
++            fwrite(compressed.data(), 1, compressed.size(), framesFile);
++            previousRgb.swap(frame.rgb);
++        }
++#   endif
 +    };
 +};
 diff --git a/src/hle/rt64_framebuffer.cpp b/src/hle/rt64_framebuffer.cpp
@@ -2969,7 +3114,7 @@ index 5c3c4d2..cba893c 100644
  
          uint32_t rdramUsed;
 diff --git a/src/hle/rt64_game_frame.cpp b/src/hle/rt64_game_frame.cpp
-index 87392d0..751d551 100644
+index 87392d0..9db1467 100644
 --- a/src/hle/rt64_game_frame.cpp
 +++ b/src/hle/rt64_game_frame.cpp
 @@ -2,6 +2,8 @@
@@ -3234,7 +3379,7 @@ index 87392d0..751d551 100644
          // Compute the difference between the screen-space position of both transforms on their respective projections.
          hlslpp::float4 prevScreenPos = hlslpp::mul(prevTransform[3], prevViewProj);
          hlslpp::float4 curScreenPos = hlslpp::mul(curTransform[3], curViewProj);
-@@ -252,6 +461,706 @@ namespace RT64 {
+@@ -252,6 +461,728 @@ namespace RT64 {
          return matchResult;
      }
  
@@ -3369,13 +3514,21 @@ index 87392d0..751d551 100644
 +    // there in the frames between, its texels moving with its other edge, as at an edge that stayed: the strip of
 +    // Mario Golf's hills under one that has just left the picture over the top as the camera pitches down, drawn between
 +    // where its top was and the scissor, showed the clear color's dark blue in the picture's top row.
-+    static void matchRectScrolls(const Workload &curWorkload, const Workload &prevWorkload, GameFrameMap::WorkloadMap &workloadMap, bool &tileInterpolationUsed) {
++    // Rects that sample no texture are paired among themselves, apart from the textured ones, so a rect of either kind
++    // never changes what the other's runs of owns are: one that draws a colour (a combiner of primitive or environment
++    // colour alone, or a fill) has the same look as one that draws it with the same combiner, other modes and colours,
++    // and pairs, as a textured one does, in its place, or with the nearest of its size less than its longer side or 16
++    // pixels away. It is never paired with one of another size, having no texels to say it is the same thing cut. One
++    // that moved is drawn between where it was and where it is, and at the corners the game gave it to a quarter pixel
++    // (the framebuffer renderer): Mario Golf draws a ball far from the camera as a dot of primitive colour two pixels
++    // by one, which held its place for a game frame and then stepped a pixel.
++    static void matchRectScrolls(const Workload &curWorkload, const Workload &prevWorkload, GameFrameMap::WorkloadMap &workloadMap, bool &tileInterpolationUsed, bool untextured) {
 +        struct RectCall {
 +            const DrawCall *call;
 +            uint32_t rawVertex;
 +        };
 +
-+        auto collect = [](const Workload &workload, std::vector<RectCall> &rects) {
++        auto collect = [untextured](const Workload &workload, std::vector<RectCall> &rects) {
 +            rects.clear();
 +            uint32_t rawVertex = 0;
 +            const size_t rawVertexCount = workload.drawData.triTcFloats.size() / 2;
@@ -3390,7 +3543,8 @@ index 87392d0..751d551 100644
 +                    for (uint32_t c = 0; c < proj.gameCallCount; c++) {
 +                        const DrawCall &call = proj.gameCalls[c].callDesc;
 +                        const bool oneRect = (call.triangleCount == 2) && ((rawVertex + 6) <= rawVertexCount);
-+                        if ((proj.type == Projection::Type::Rectangle) && oneRect && call.textureOn && (call.tileCount > 0) && (call.tileCount <= 8)) {
++                        const bool kind = untextured ? (call.tileCount == 0) : (call.textureOn && (call.tileCount > 0) && (call.tileCount <= 8));
++                        if ((proj.type == Projection::Type::Rectangle) && oneRect && kind) {
 +                            rects.push_back({ &call, rawVertex });
 +                        }
 +
@@ -3413,10 +3567,21 @@ index 87392d0..751d551 100644
 +            return ((a.gameRect.lrx - a.gameRect.ulx) == (b.gameRect.lrx - b.gameRect.ulx)) && ((a.gameRect.lry - a.gameRect.uly) == (b.gameRect.lry - b.gameRect.uly));
 +        };
 +
++        // The same colours drawn the same way, for a rect that samples no texture.
++        auto sameColor = [](const hlslpp::float4 &a, const hlslpp::float4 &b) {
++            return (float(a.x) == float(b.x)) && (float(a.y) == float(b.y)) && (float(a.z) == float(b.z)) && (float(a.w) == float(b.w));
++        };
++
 +        // The same textures at the same scale, whatever the rect's size.
 +        auto sameLook = [&](const DrawCall &a, const DrawCall &b) {
 +            if ((a.rectDsdx != b.rectDsdx) || (a.rectDtdy != b.rectDtdy) || (a.tileCount != b.tileCount)) {
 +                return false;
++            }
++
++            if (untextured) {
++                return (a.colorCombiner.L == b.colorCombiner.L) && (a.colorCombiner.H == b.colorCombiner.H) && (a.otherMode.L == b.otherMode.L) &&
++                    (a.otherMode.H == b.otherMode.H) && (a.fillColor == b.fillColor) && sameColor(a.rdpParams.primColor, b.rdpParams.primColor) &&
++                    sameColor(a.rdpParams.envColor, b.rdpParams.envColor);
 +            }
 +
 +            for (uint32_t t = 0; t < a.tileCount; t++) {
@@ -3442,9 +3607,11 @@ index 87392d0..751d551 100644
 +            return (a.gameRect.ulx == b.gameRect.ulx) && (a.gameRect.uly == b.gameRect.uly) && sameTextures(a, b);
 +        };
 +
-+        // Moved by less than the rect's longer side each way, in quarter pixels.
-+        auto movedLess = [](const DrawCall &a, const DrawCall &b) {
-+            const int32_t side = std::max(a.gameRect.lrx - a.gameRect.ulx, a.gameRect.lry - a.gameRect.uly);
++        // Moved by less than the rect's longer side each way, in quarter pixels, or, for one with no texture, less than
++        // 16 pixels: a dot of colour has no glyph of a font to be taken for, and Mario Golf's far ball, two pixels by
++        // one, falls 3 to 6 pixels a game frame at the end of a drive.
++        auto movedLess = [untextured](const DrawCall &a, const DrawCall &b) {
++            const int32_t side = std::max(untextured ? (16 * 4) : 0, std::max(a.gameRect.lrx - a.gameRect.ulx, a.gameRect.lry - a.gameRect.uly));
 +            return (abs(b.gameRect.ulx - a.gameRect.ulx) < side) && (abs(b.gameRect.uly - a.gameRect.uly) < side);
 +        };
 +
@@ -3676,7 +3843,7 @@ index 87392d0..751d551 100644
 +            }
 +        }
 +
-+        for (size_t r = 0; r < curRects.size(); r++) {
++        for (size_t r = 0; (r < curRects.size()) && !untextured; r++) {
 +            if (curFound[r] < prevRects.size()) {
 +                continue;
 +            }
@@ -3729,11 +3896,11 @@ index 87392d0..751d551 100644
 +            const float dt = curTc[1] - prevTc[1];
 +
 +            // A rect that changed size keeps its texels a pixel, so its texcoords moved by its upper left's. Its
-+            // texcoords follow the rect drawn, so this is the drawn rect's size.
++            // texcoords follow the rect drawn, so this is the drawn rect's size. One with no texture has none to keep.
 +            const bool sameDrawnSize = ((curCall.rect.lrx - curCall.rect.ulx) == (prevCall.rect.lrx - prevCall.rect.ulx)) &&
 +                ((curCall.rect.lry - curCall.rect.uly) == (prevCall.rect.lry - prevCall.rect.uly));
 +            bool together = true;
-+            for (uint32_t v = 1; (v < 6) && together && sameDrawnSize; v++) {
++            for (uint32_t v = 1; (v < 6) && together && sameDrawnSize && !untextured; v++) {
 +                together = (fabsf((curTc[v * 2 + 0] - prevTc[v * 2 + 0]) - ds) < 1.0e-3f) && (fabsf((curTc[v * 2 + 1] - prevTc[v * 2 + 1]) - dt) < 1.0e-3f);
 +            }
 +
@@ -3893,7 +4060,7 @@ index 87392d0..751d551 100644
 +
 +        // A strip that slides so passes it on to the next unpaired one: at a faster pitch the strip under the new one
 +        // went from cut to whole, and paired with nothing either.
-+        bool passedOn = true;
++        bool passedOn = !untextured;
 +        while (passedOn) {
 +            passedOn = false;
 +            for (size_t r = 0; r < curRects.size(); r++) {
@@ -3941,7 +4108,7 @@ index 87392d0..751d551 100644
      void GameFrame::match(RenderWorker *worker, WorkloadQueue &workloadQueue, const GameFrame &prevFrame, BufferUploader *velocityUploader, bool &velocityUploaderUsed, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed) {
          tileInterpolationUsed = false;
          lookAtInterpolationUsed = false;
-@@ -260,17 +1169,49 @@ namespace RT64 {
+@@ -260,17 +1191,49 @@ namespace RT64 {
          thread_local std::unordered_map<uint32_t, ModifiedBuffers> workloadsModified;
          workloadsModified.clear();
  
@@ -3959,7 +4126,7 @@ index 87392d0..751d551 100644
 +                if (workloadQueue.workloads[workloadIndex].fbPairCount > 0) {
 +                    drawn.emplace_back(workloadIndex);
 +                }
-             }
++            }
 +        };
 +
 +        drawnWorkloads(workloads, curDrawn);
@@ -3979,7 +4146,7 @@ index 87392d0..751d551 100644
 +        {
 +            for (uint32_t w = 0; (w < curDrawn.size()) && (w < prevDrawn.size()); w++) {
 +                drawnPairs.emplace_back(curDrawn[w], prevDrawn[w]);
-+            }
+             }
 +        }
 +
 +        for (const std::pair<uint32_t, uint32_t> &drawnPair : drawnPairs) {
@@ -3997,7 +4164,7 @@ index 87392d0..751d551 100644
              const Workload &prevWorkload = workloadQueue.workloads[workloadMap.prevWorkloadIndex];
              workloadMap.viewProjections.clear();
              workloadMap.viewProjections.resize(curWorkload.drawData.viewProjTransforms.size());
-@@ -290,7 +1231,7 @@ namespace RT64 {
+@@ -290,7 +1253,7 @@ namespace RT64 {
              buildTransformIdMap(curWorkload, curWorkload.transformIdMap, curWorkload.transformIgnoredIds);
  
              // Retrieve the matching maps for the current and previous workload.
@@ -4006,7 +4173,7 @@ index 87392d0..751d551 100644
              const GameFrameMap::WorkloadMap *prevWorkloadMap = nullptr;
              if (prevFrame.matched && prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex].mapped) {
                  prevWorkloadMap = &prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex];
-@@ -316,7 +1257,7 @@ namespace RT64 {
+@@ -316,7 +1279,7 @@ namespace RT64 {
              }
  
              if (!modifiedBuffers.empty()) {
@@ -4015,7 +4182,7 @@ index 87392d0..751d551 100644
              }
  
              // Any transforms tagged with the empty ID will be instantly marked as used and skipped.
-@@ -343,6 +1284,14 @@ namespace RT64 {
+@@ -343,6 +1306,14 @@ namespace RT64 {
                  const hlslpp::float4x4 &curProjTransform = curWorkload.drawData.projTransforms[curProj.transformsIndex];
                  for (uint32_t j = 0; j < prevScenes.size(); j++) {
                      const GameIndices::Projection prevFirstProj = prevScenes[j].projections[0];
@@ -4030,7 +4197,7 @@ index 87392d0..751d551 100644
                      const Workload &prevWorkload = workloadQueue.workloads[prevFirstProj.workloadIndex];
                      const FramebufferPair &prevFbPair = prevWorkload.fbPairs[prevFirstProj.fbPairIndex];
                      const Projection &prevProj = prevFbPair.projections[prevFirstProj.projectionIndex];
-@@ -356,6 +1305,40 @@ namespace RT64 {
+@@ -356,6 +1327,40 @@ namespace RT64 {
              prevScenesMatched.clear();
              curScenesMatched.resize(curScenes.size());
              prevScenesMatched.resize(prevScenes.size());
@@ -4071,7 +4238,7 @@ index 87392d0..751d551 100644
              std::stable_sort(matchCandidates.begin(), matchCandidates.end());
              for (const MatchCandidate &candidate : matchCandidates) {
                  if (curScenesMatched[candidate.curIndex]) {
-@@ -396,6 +1379,14 @@ namespace RT64 {
+@@ -396,6 +1401,15 @@ namespace RT64 {
          else {
              velocityUploaderUsed = false;
          }
@@ -4080,13 +4247,14 @@ index 87392d0..751d551 100644
 +        // match() returns.
 +#if RT64_INTERPOLATE_RECT_SCROLLS
 +        for (const std::pair<uint32_t, uint32_t> &drawnPair : drawnPairs) {
-+            matchRectScrolls(workloadQueue.workloads[drawnPair.first], workloadQueue.workloads[drawnPair.second], frameMap.workloads[drawnPair.first], tileInterpolationUsed);
++            matchRectScrolls(workloadQueue.workloads[drawnPair.first], workloadQueue.workloads[drawnPair.second], frameMap.workloads[drawnPair.first], tileInterpolationUsed, false);
++            matchRectScrolls(workloadQueue.workloads[drawnPair.first], workloadQueue.workloads[drawnPair.second], frameMap.workloads[drawnPair.first], tileInterpolationUsed, true);
 +        }
 +#endif
      }
  
      void GameFrame::matchScene(WorkloadQueue &workloadQueue, const GameFrame &prevFrame, const GameScene &curScene, const GameScene &prevScene, std::unordered_map<uint32_t, ModifiedBuffers> &workloadsModified, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed) {
-@@ -403,8 +1394,10 @@ namespace RT64 {
+@@ -403,8 +1417,10 @@ namespace RT64 {
              return;
          }
  
@@ -4099,7 +4267,7 @@ index 87392d0..751d551 100644
          curCallHashMap.clear();
          prevCallHashMap.clear();
  
-@@ -478,6 +1471,24 @@ namespace RT64 {
+@@ -478,6 +1494,24 @@ namespace RT64 {
                  }
                  else {
                      viewProjMap.mapped = (curProjGroup.matrixId == G_EX_ID_AUTO);
@@ -4124,7 +4292,7 @@ index 87392d0..751d551 100644
                  }
  
                  if (viewProjMap.mapped) {
-@@ -509,69 +1520,163 @@ namespace RT64 {
+@@ -509,69 +1543,163 @@ namespace RT64 {
              buildCallHashMap(p, prevWorkload, prevProj, prevCallHashMap);
          }
  
@@ -4334,7 +4502,7 @@ index 87392d0..751d551 100644
          }
  
          // Compute all the differences between transforms and insert them into a vector that will be sorted according to the differences.
-@@ -592,6 +1697,51 @@ namespace RT64 {
+@@ -592,6 +1720,51 @@ namespace RT64 {
              }
          }
  
@@ -4386,7 +4554,7 @@ index 87392d0..751d551 100644
          ModifiedBuffers modifiedBuffers;
          std::stable_sort(matchCandidates.begin(), matchCandidates.end());
          for (const MatchCandidate candidate : matchCandidates) {
-@@ -669,17 +1819,160 @@ namespace RT64 {
+@@ -669,17 +1842,160 @@ namespace RT64 {
              const bool wrappedUlt = (curTile.cmt == G_TX_WRAP) && (modulo(integerUlt, curTile.maskt * 4) == modulo(expectedUlt, curTile.maskt * 4));
              const bool wrappedLrs = (curTile.cms == G_TX_WRAP) && (modulo(integerLrs, curTile.masks * 4) == modulo(expectedLrs, curTile.masks * 4));
              const bool wrappedLrt = (curTile.cmt == G_TX_WRAP) && (modulo(integerLrt, curTile.maskt * 4) == modulo(expectedLrt, curTile.maskt * 4));
@@ -4552,7 +4720,7 @@ index 87392d0..751d551 100644
          }
  
          // Check for look at matches.
-@@ -727,6 +2020,18 @@ namespace RT64 {
+@@ -727,6 +2043,18 @@ namespace RT64 {
          curTransformMap.mapped = true;
          curWorkloadMap.prevTransformsMapped[prevTransformIndex] = true;
  
@@ -4571,7 +4739,7 @@ index 87392d0..751d551 100644
          uint64_t curVertexHash = 0;
          uint64_t prevVertexHash = 0;
          uint32_t curVertexIndex = curWorkload.drawData.worldTransformVertexIndices[curTransformIndex];
-@@ -782,9 +2087,78 @@ namespace RT64 {
+@@ -782,9 +2110,78 @@ namespace RT64 {
  
              modifiedBuffers.texcoordVelocity = true;
          }
@@ -4651,7 +4819,7 @@ index 87392d0..751d551 100644
          for (uint32_t c = 0; c < proj.gameCallCount; c++) {
              const GameCall &call = proj.gameCalls[c];
              uint32_t matrixIdHash = 0;
-@@ -802,7 +2176,7 @@ namespace RT64 {
+@@ -802,7 +2199,7 @@ namespace RT64 {
                  doTileMatching = doTileMatching || (group.tileInterpolation == G_EX_COMPONENT_AUTO);
              }
  
@@ -8748,7 +8916,7 @@ index 69a82ac..1dd31f7 100644
              dstNorm = builder.addReadWriteStructuredBuffer(9);
              dstVel = builder.addReadWriteStructuredBuffer(10);
 diff --git a/src/render/rt64_framebuffer_renderer.cpp b/src/render/rt64_framebuffer_renderer.cpp
-index 9fae0d4..a97e1e2 100644
+index 9fae0d4..1e97012 100644
 --- a/src/render/rt64_framebuffer_renderer.cpp
 +++ b/src/render/rt64_framebuffer_renderer.cpp
 @@ -63,17 +63,35 @@ namespace RT64 {
@@ -9092,16 +9260,29 @@ index 9fae0d4..a97e1e2 100644
                              instanceDrawCall.type = InstanceDrawCall::Type::IndexedTriangles;
                              triangles.indexStart = triangles.vertexTestZ ? vertexTestZFaceIndicesStart : call.meshDesc.faceIndicesStart;
                              invRatioScale = projInvRatioScale;
-@@ -1656,6 +1809,20 @@ namespace RT64 {
+@@ -1656,6 +1809,33 @@ namespace RT64 {
                              triangles.screenScale = { viewportRect.width / framebuffer.viewport.width, viewportRect.height / framebuffer.viewport.height };
                              triangles.screenOffset.x = halfPixelOffset.x + ((viewportRect.x + viewportRect.width / 2.0f) - halfViewportSize.x) / halfViewportSize.x;
                              triangles.screenOffset.y = halfPixelOffset.y + (halfViewportSize.y - (viewportRect.y + viewportRect.height / 2.0f)) / halfViewportSize.y;
 +#                       if RT64_INTERPOLATE_RECT_SCROLLS
 +                            // A rect the game frame before drew elsewhere with the same textures has each edge drawn between
 +                            // there and here: its center moves by the mean of its edges' moves, and its size by their
-+                            // difference. Here, after the lines that place it, which games' own RT64 changes rewrite.
++                            // difference. Here, after the lines that place it, which games' own RT64 changes rewrite. One
++                            // that samples no texture is drawn at the corners the game gave it, to a quarter pixel, and not
++                            // on the whole pixels a rect is placed on (convertViewportRect), so a dot of colour the game
++                            // moves by fractions of a pixel (Mario Golf's ball far from the camera) moves on every frame,
++                            // not a pixel at a time; it has no texels to keep on the pixels.
 +                            if ((p.rectMoves != nullptr) && (call.callDesc.callIndex < p.rectMoves->size())) {
-+                                const hlslpp::float4 edges = (*p.rectMoves)[call.callDesc.callIndex] * (1.0f - p.curFrameWeight);
++                                const hlslpp::float4 move = (*p.rectMoves)[call.callDesc.callIndex];
++                                hlslpp::float4 edges = move * (1.0f - p.curFrameWeight);
++                                const FixedRect &rect = call.callDesc.rect;
++                                const uint32_t cycleType = call.callDesc.otherMode.cycleType();
++                                const bool moved = (float(move.x) != 0.0f) || (float(move.y) != 0.0f) || (float(move.z) != 0.0f) || (float(move.w) != 0.0f);
++                                if (moved && (call.callDesc.tileCount == 0) && (cycleType != G_CYC_FILL) && (cycleType != G_CYC_COPY)) {
++                                    edges += hlslpp::float4(float(rect.ulx) / 4.0f - float(rect.left(true)), float(rect.uly) / 4.0f - float(rect.top(true)),
++                                        float(rect.lrx) / 4.0f - float(rect.right(true)), float(rect.lry) / 4.0f - float(rect.bottom(true)));
++                                }
++
 +                                const float scaleX = invRatioScale * p.resolutionScale.x;
 +                                const float scaleY = p.resolutionScale.y;
 +                                triangles.screenOffset.x += ((float(edges.x) + float(edges.z)) * 0.5f * scaleX) / halfViewportSize.x;
@@ -9113,7 +9294,7 @@ index 9fae0d4..a97e1e2 100644
  
                              if (p.postBlendNoise) {
                                  // Indicate if post blend dither noise should be applied.
-@@ -1760,7 +1927,215 @@ namespace RT64 {
+@@ -1760,7 +1940,215 @@ namespace RT64 {
          checkRasterScene(rasterScene);
      }
  
@@ -9330,7 +9511,7 @@ index 9fae0d4..a97e1e2 100644
          bool shaderViewRtEnabled = false;
          std::vector<BufferUploader::Upload> shaderUploads = {
              { renderIndicesVector.data(), { 0, renderIndicesVector.size() }, sizeof(interop::RenderIndices), RenderBufferFlag::STORAGE, { }, &renderIndicesBuffer},
-@@ -1816,8 +2191,16 @@ namespace RT64 {
+@@ -1816,8 +2204,16 @@ namespace RT64 {
          }
  #   endif
  
