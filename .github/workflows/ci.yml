@@ -1307,7 +1307,18 @@ jobs:
           key: em-cache-${{ env.EMSDK_VERSION }}-${{ matrix.source }}-sdl2-mt-freetype-legacysjlj-${{ runner.os }}
       - name: Emscripten's SDL2 and FreeType
         run: embuilder build sdl2-mt freetype-legacysjlj
-      # frontend/build_speed.cmake puts ccache in front of every compile once it is on PATH.
+      # frontend/build_speed.cmake puts ccache in front of every compile once it is on PATH. ccache 4.9.1, the runner's
+      # apt version, from ccache's own release, which ccache-action then finds and doesn't install: its apt-get install
+      # fetched from whichever Ubuntu mirror the runner had, and one answering 503 failed the job three runs running.
+      - name: ccache
+        run: |
+          curl -fsSL --retry 5 -o ccache.tar.xz \
+            https://github.com/ccache/ccache/releases/download/v4.9.1/ccache-4.9.1-linux-x86_64.tar.xz
+          echo "d33f17ca6e02918cdc44738ce3adacb586bca65374ff1ceb0c4b2f1c87a24bef  ccache.tar.xz" | sha256sum -c
+          tar -xJf ccache.tar.xz
+          sudo install ccache-4.9.1-linux-x86_64/ccache /usr/local/bin/ccache
+          rm -rf ccache.tar.xz ccache-4.9.1-linux-x86_64
+          ccache --version | head -1
       - uses: hendrikmuhs/ccache-action@v1.2
         with:
           key: emscripten-${{ matrix.source }}
