@@ -9,7 +9,7 @@
 // launcher took clicks) it clicks Load ROM again, twice at most, and says so each time. Headless Chrome draws to no display, so its
 // presents never go through the desktop's compositor or wait for the display; with headed it runs in a window of its own,
 // moved off the desktop as Firefox's is below, with its throttling of hidden windows off, which presents as a player's
-// Chrome does. On Linux with an X display (Xvfb in tools/page_play.Dockerfile's container) Chrome always runs in a
+// Chrome does. On Linux with an X display (Xorg on NVIDIA's X driver in tools/page_play.Dockerfile's container) Chrome always runs in a
 // window on it, since headless it gets no GPU adapter from NVIDIA's driver (openChrome says why). Firefox has no WebGPU adapter headless, so
 // it runs in a window of its own, moved off the desktop and sized from a DPI-aware process on Windows, with the
 // viewport set to the size asked for, and is driven over WebDriver BiDi. A window off the desktop never has focus, so
