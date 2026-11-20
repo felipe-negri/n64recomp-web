@@ -1389,11 +1389,14 @@ rt64 1542af1           RT64_GAME_FRAME_WORKLOADS: a frame is interpolated into, 
                        its own that SkipBuffering's last three VIs hold: Mario Golf, as a putt's aim turns, draws the
                        course alone into the framebuffer it showed two frames before, then the whole picture into a
                        third, and 3-5 of 10 taps showed a frame of the course alone
-rt64 a9a6970          RT64_SUBPIXEL_TEXRECTS, off on every build, Emscripten's too, for a game to turn on: a texrect
-                       that samples a texture in 1 or 2 cycle mode is drawn at its quarter-pixel corners, its texture
+rt64 a9a6970, 5674b91, RT64_SUBPIXEL_TEXRECTS, off on every build, Emscripten's too, for a game to turn on: a texrect
+     15f91ad, 9e16563  that samples a texture in 1 or 2 cycle mode is drawn at its quarter-pixel corners, its texture
                        from its top, not on the whole pixels they round up to: Mario Golf's lens flare, which it places
                        by fractions of a pixel, stepped 4, 4, 3 and 3 pixels a game frame against the sun's light at
-                       120 Hz
+                       120 Hz. The last three only move it out of lines games' own RT64 changes touch: it adds lines
+                       only, after drawCall.triangleCount += 2 and in the renderer's rect case, with no parameter or
+                       DrawCall field of its own (PaxDino renames drawRect's last parameter, 1080 and Pokémon Snap
+                       change the fields after rectAspect, Rogue Squadron the texcoord lines)
 rt64 be196c9           RT64_STRETCH_SCREEN_COVERS: a triangle with no area holds none of the viewport's corners, where
                        its edge tests, all 0, held all four, and a call of one alone was a cover: Rogue Squadron places
                        its terrain pass by such a marker and takes its screen scale from it, so at 16:9 its terrain was
