@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 5674b91aa4321789f0c0f9f15a0eb19d6f106bb4
+rt64: https://github.com/n64hub/rt64-web 9e1656388b4fd1c6b9322f4a2a46d498e1062602
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -1838,18 +1838,10 @@ index 08f83e5..75800e1 100755
          MONITORINFOEX info = {};
          info.cbSize = sizeof(info);
 diff --git a/src/hle/rt64_draw_call.h b/src/hle/rt64_draw_call.h
-index 0e62be1..1fd6d9a 100644
+index 0e62be1..2b39dd6 100644
 --- a/src/hle/rt64_draw_call.h
 +++ b/src/hle/rt64_draw_call.h
-@@ -77,11 +77,19 @@ namespace RT64 {
-         FixedRect rect;
-         int16_t rectDsdx;
-         int16_t rectDtdy;
-+
-+        // A texrect drawn at its quarter-pixel corners (RT64_SUBPIXEL_TEXRECTS): set by every rect.
-+        uint8_t rectSubpixel;
-         uint16_t rectLeftOrigin;
-         uint16_t rectRightOrigin;
+@@ -82,6 +82,11 @@ namespace RT64 {
          FixedRect scissorRect;
          uint16_t scissorLeftOrigin;
          uint16_t scissorRightOrigin;
@@ -1861,7 +1853,7 @@ index 0e62be1..1fd6d9a 100644
          interop::ColorCombiner colorCombiner;
          interop::OtherMode otherMode;
          interop::RDPParams rdpParams;
-@@ -105,6 +113,13 @@ namespace RT64 {
+@@ -105,6 +110,13 @@ namespace RT64 {
          uint32_t cullBothMask;
          uint32_t shadingSmoothMask;
  
@@ -1875,7 +1867,7 @@ index 0e62be1..1fd6d9a 100644
          // GBI extended parameters.
          DrawExtendedType extendedType;
          DrawExtendedData extendedData;
-@@ -146,6 +161,20 @@ namespace RT64 {
+@@ -146,6 +158,20 @@ namespace RT64 {
          interop::int2 maxTexcoord;
          bool syncRequired;
          bool tileCopyUsed;
@@ -1896,7 +1888,7 @@ index 0e62be1..1fd6d9a 100644
          uint16_t tileCopyWidth;
          uint16_t tileCopyHeight;
          bool reinterpretTile;
-@@ -154,6 +183,10 @@ namespace RT64 {
+@@ -154,6 +180,10 @@ namespace RT64 {
          bool rawTMEM;
          bool valid;
  
@@ -5774,7 +5766,7 @@ index e08b02c..c87aebd 100644
          void threadAdvanceBarrier();
          void threadLoop();
 diff --git a/src/hle/rt64_rdp.cpp b/src/hle/rt64_rdp.cpp
-index a10c11a..a5aca95 100644
+index a10c11a..e873148 100644
 --- a/src/hle/rt64_rdp.cpp
 +++ b/src/hle/rt64_rdp.cpp
 @@ -149,6 +149,15 @@ namespace RT64 {
@@ -5961,7 +5953,7 @@ index a10c11a..a5aca95 100644
  
              const FixedRect intRect = scissorRect.intersection(drawRect);
              if (!intRect.isNull()) {
-@@ -1227,11 +1326,19 @@ namespace RT64 {
+@@ -1227,6 +1326,7 @@ namespace RT64 {
  
          // We only change these once the draw state has been checked.
          DrawCall &drawCall = state->drawCall;
@@ -5969,37 +5961,32 @@ index a10c11a..a5aca95 100644
          drawCall.minWorldMatrix = 0;
          drawCall.maxWorldMatrix = 0;
          drawCall.rect = drawRect;
-         drawCall.rectDsdx = dsdx;
-         drawCall.rectDtdy = dtdy;
+@@ -1288,6 +1388,25 @@ namespace RT64 {
+         triTcFloats.emplace_back(flip ? u2 : u1);
+         triTcFloats.emplace_back(flip ? v1 : v2);
+         drawCall.triangleCount += 2;
 +#   if RT64_SUBPIXEL_TEXRECTS
-+        // A texrect in 1 or 2 cycle mode is drawn at its quarter-pixel corners (FramebufferRenderer). A rect that
-+        // steps no texture (a fill rect, or one of a single texel) is drawn as before.
-+        drawCall.rectSubpixel = !usesFillMode && !usesCopyMode && ((dsdx != 0) || (dtdy != 0));
-+#   else
-+        drawCall.rectSubpixel = false;
-+#   endif
-         drawCall.rectLeftOrigin = extAlignment.leftOrigin;
-         drawCall.rectRightOrigin = extAlignment.rightOrigin;
-         drawCall.rectAspect = extended.global.rectAspect;
-@@ -1275,6 +1382,18 @@ namespace RT64 {
-         float v1 = ult / 32.0f + vFractionOffset;
-         float u2 = lrs / 32.0f;
-         float v2 = lrt / 32.0f + vFractionOffset;
-+#   if RT64_SUBPIXEL_TEXRECTS
-+        if (drawCall.rectSubpixel) {
-+            // Drawn at its quarter-pixel corners, its texture spans its own size from its top, not the whole pixels it
-+            // rounds out to, and without the row added above for a top inside a pixel, which is for the whole pixel the
-+            // rect would start on.
++        if (!usesFillMode && !usesCopyMode && ((dsdx != 0) || (dtdy != 0))) {
++            // A texrect in 1 or 2 cycle mode (one that steps a texture: a fill rect steps none) is drawn at its
++            // quarter-pixel corners (FramebufferRenderer). Drawn there, its texture spans its own size from its top,
++            // not the whole pixels it rounds out to, and without a row added for a top inside a pixel, which is for the
++            // whole pixel the rect would start on. Its two triangles' texcoords, just added, are written again so.
 +            const int32_t subWidth = drawRect.lrx - drawRect.ulx;
 +            const int32_t subHeight = drawRect.lry - drawRect.uly;
 +            v1 = ult / 32.0f;
 +            u2 = (((uls << 7) + dsdx * (flip ? subHeight : subWidth)) >> 7) / 32.0f;
 +            v2 = (((ult << 7) + dtdy * (flip ? subWidth : subHeight)) >> 7) / 32.0f;
++            const float subTcFloats[] = {
++                u1, v1, flip ? u1 : u2, flip ? v2 : v1, flip ? u2 : u1, flip ? v1 : v2,
++                u2, v2, flip ? u1 : u2, flip ? v2 : v1, flip ? u2 : u1, flip ? v1 : v2
++            };
++
++            std::copy(subTcFloats, subTcFloats + std::size(subTcFloats), triTcFloats.end() - std::size(subTcFloats));
 +        }
 +#   endif
-         triTcFloats.emplace_back(u1);
-         triTcFloats.emplace_back(v1);
-         triTcFloats.emplace_back(flip ? u1 : u2);
+ 
+         // Update the tracked texcoords for the used tiles. Use scissor intersection to figure out 
+         // what the bounds of the real sampling will be if necessary.
 @@ -1311,6 +1430,28 @@ namespace RT64 {
              updateCallTexcoords(u1, v1);
              updateCallTexcoords(u2, v2);
@@ -9177,7 +9164,7 @@ index 69a82ac..1dd31f7 100644
              dstNorm = builder.addReadWriteStructuredBuffer(9);
              dstVel = builder.addReadWriteStructuredBuffer(10);
 diff --git a/src/render/rt64_framebuffer_renderer.cpp b/src/render/rt64_framebuffer_renderer.cpp
-index 9fae0d4..da9b268 100644
+index 9fae0d4..37a9241 100644
 --- a/src/render/rt64_framebuffer_renderer.cpp
 +++ b/src/render/rt64_framebuffer_renderer.cpp
 @@ -63,17 +63,35 @@ namespace RT64 {
@@ -9521,15 +9508,18 @@ index 9fae0d4..da9b268 100644
                              instanceDrawCall.type = InstanceDrawCall::Type::IndexedTriangles;
                              triangles.indexStart = triangles.vertexTestZ ? vertexTestZFaceIndicesStart : call.meshDesc.faceIndicesStart;
                              invRatioScale = projInvRatioScale;
-@@ -1656,6 +1809,51 @@ namespace RT64 {
+@@ -1656,6 +1809,54 @@ namespace RT64 {
                              triangles.screenScale = { viewportRect.width / framebuffer.viewport.width, viewportRect.height / framebuffer.viewport.height };
                              triangles.screenOffset.x = halfPixelOffset.x + ((viewportRect.x + viewportRect.width / 2.0f) - halfViewportSize.x) / halfViewportSize.x;
                              triangles.screenOffset.y = halfPixelOffset.y + (halfViewportSize.y - (viewportRect.y + viewportRect.height / 2.0f)) / halfViewportSize.y;
 +#                       if RT64_SUBPIXEL_TEXRECTS
 +                            // A texrect drawn at the corners the game gave it, to a quarter pixel, not on the whole pixels
 +                            // they round up to (convertViewportRect): its texcoords span that size from its top
-+                            // (RDP::drawRect), so its texture moves with it by fractions of a pixel.
-+                            if (call.callDesc.rectSubpixel) {
++                            // (RDP::drawRect), so its texture moves with it by fractions of a pixel: one in 1 or 2 cycle mode
++                            // that steps a texture (a fill rect steps none).
++                            const uint32_t rectCycleType = call.callDesc.otherMode.cycleType();
++                            if ((rectCycleType != G_CYC_FILL) && (rectCycleType != G_CYC_COPY) &&
++                                ((call.callDesc.rectDsdx != 0) || (call.callDesc.rectDtdy != 0))) {
 +                                const FixedRect &rect = call.callDesc.rect;
 +                                const float edgeL = float(rect.ulx) / 4.0f - float(rect.left(true));
 +                                const float edgeT = float(rect.uly) / 4.0f - float(rect.top(true));
@@ -9573,7 +9563,7 @@ index 9fae0d4..da9b268 100644
  
                              if (p.postBlendNoise) {
                                  // Indicate if post blend dither noise should be applied.
-@@ -1760,7 +1958,215 @@ namespace RT64 {
+@@ -1760,7 +1961,215 @@ namespace RT64 {
          checkRasterScene(rasterScene);
      }
  
@@ -9790,7 +9780,7 @@ index 9fae0d4..da9b268 100644
          bool shaderViewRtEnabled = false;
          std::vector<BufferUploader::Upload> shaderUploads = {
              { renderIndicesVector.data(), { 0, renderIndicesVector.size() }, sizeof(interop::RenderIndices), RenderBufferFlag::STORAGE, { }, &renderIndicesBuffer},
-@@ -1816,8 +2222,16 @@ namespace RT64 {
+@@ -1816,8 +2225,16 @@ namespace RT64 {
          }
  #   endif
  
