@@ -62,10 +62,11 @@ the game forks take no PRs: a change is a commit pushed to the fork's `main` as 
   with no AI and consents to no AI fork bundling it, so neither is forked here. Each fork's README opens with a banner,
   and its GitHub description with "AI-written fork:", saying it is AI-written, not upstream's, and offered to nobody
   upstream (hlslpp-web's says only the first two: hlslpp has no ban). Keep that true of a new fork and of a game fork's
-  README. A game's own repo is decided case by case: a game fork offers it only what it takes, said to be AI-written
-  (GoldenEye64Recomp-web: to podulator's, which takes fixes, features and build work, each a PR of its own from a
-  `fix/<topic>` branch of the fork cut from its `main`, played on its desktop build, without the web code;
-  the game fork's README).
+  README. A game fork has its GitHub issues turned on (`gh repo edit --enable-issues`: a fork starts with them off), so
+  its players and its game's developers can reach it. A game's own repo is decided case by case: a game fork offers it
+  only what it takes, said to be AI-written (GoldenEye64Recomp-web: to podulator's, which takes fixes, features and
+  build work, each a PR of its own from a `fix/<topic>` branch of the fork cut from its `main`, played on its desktop
+  build, without the web code; the game fork's README).
 - No ROMs, ROM-derived assets or extracted game data in git, CI, PRs or pages. A page holds the recompiled code, so it
   is built where the ROM is, never in CI, and its `.data` holds only what it preloads.
 - Nothing here names a game, includes from a game's repo or needs its ROM: the web side gets what it needs through the
