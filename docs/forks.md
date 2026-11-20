@@ -1384,4 +1384,9 @@ rt64 82c7d86           RT64_SKIP_CAMERA_CUTS: a cut's step is kept for the next 
                        unknown and any jump over 8 near plane distances the frame after read as a cut again: Mario
                        Golf's flyovers of Yoshi's Island's holes 14 and 17, which fly fast from the doors that open on
                        them, stepped at the game's 30 a second for one to two seconds
+rt64 1542af1           RT64_GAME_FRAME_WORKLOADS: a frame is interpolated into, and presented from, the framebuffer it
+                       shows (the last one its workloads draw that the VI has shown), not an earlier color image of
+                       its own that SkipBuffering's last three VIs hold: Mario Golf, as a putt's aim turns, draws the
+                       course alone into the framebuffer it showed two frames before, then the whole picture into a
+                       third, and 3-5 of 10 taps showed a frame of the course alone
 ```
