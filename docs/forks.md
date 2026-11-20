@@ -17,7 +17,8 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SKIP_CAMERA_CUTS` (rt64 b12ecad, which Mario Golf's desktop build turns on), `RT64_SKIP_PLACE_SWAPS` (rt64
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
 2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, 8868f0d,
-55f42a3, e102336, 602dcd2, 9a1d37a, cf8bba7, ea78fc1, 12aa560, 84d36bd, 1d1a0ee, 3a0fdea, 53ce431, which it turns on too),
+55f42a3, e102336, 602dcd2, 9a1d37a, cf8bba7, ea78fc1, 12aa560, 84d36bd, 1d1a0ee, 3a0fdea,
+53ce431, fbf407f, which it turns on too),
 `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES`
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
@@ -1401,4 +1402,9 @@ rt64 be196c9           RT64_STRETCH_SCREEN_COVERS: a triangle with no area holds
                        its edge tests, all 0, held all four, and a call of one alone was a cover: Rogue Squadron places
                        its terrain pass by such a marker and takes its screen scale from it, so at 16:9 its terrain was
                        drawn about 1.33 times wider than what stands on it and slid under it as the camera turned
+rt64 fbf407f           RT64_INTERPOLATE_RECT_SCROLLS: a textured rect that no other rect of either frame looks like
+                       (the same textures at the same size and scale) pairs with its one look-alike in the frame
+                       before up to four times its longer side away, past less than its side: Mario Golf's pin flag in
+                       the sky, 8 by 16 pixels, moves 22 to 26 pixels a game frame as the view turns fast, and held
+                       still between the game's frames and stepped once each against the course turning behind it
 ```
