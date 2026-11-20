@@ -1394,4 +1394,8 @@ rt64 a9a6970          RT64_SUBPIXEL_TEXRECTS, off on every build, Emscripten's t
                        from its top, not on the whole pixels they round up to: Mario Golf's lens flare, which it places
                        by fractions of a pixel, stepped 4, 4, 3 and 3 pixels a game frame against the sun's light at
                        120 Hz
+rt64 be196c9           RT64_STRETCH_SCREEN_COVERS: a triangle with no area holds none of the viewport's corners, where
+                       its edge tests, all 0, held all four, and a call of one alone was a cover: Rogue Squadron places
+                       its terrain pass by such a marker and takes its screen scale from it, so at 16:9 its terrain was
+                       drawn about 1.33 times wider than what stands on it and slid under it as the camera turned
 ```
