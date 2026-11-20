@@ -647,6 +647,9 @@ jobs:
           git -C "$game/lib/rt64" -c protocol.version=2 submodule update -q --init --depth 1 --jobs 4 src/contrib/plume \
             src/contrib/hlslpp src/contrib/imgui src/contrib/im3d src/contrib/implot src/contrib/re-spirv \
             src/contrib/xxHash src/contrib/zstd src/contrib/stb src/contrib/ddspp
+          # rt64_inspector.cpp includes plume_vulkan.h (volk, VMA, Vulkan's headers) on every platform.
+          git -C "$game/lib/rt64/src/contrib/plume" -c protocol.version=2 submodule update -q --init --depth 1 --jobs 3 \
+            contrib/volk contrib/Vulkan-Headers contrib/VulkanMemoryAllocator
           git -C "$game/lib/N64ModernRuntime" -c protocol.version=2 submodule update -q --init --depth 1 --jobs 4 \
             thirdparty/miniz thirdparty/o1heap thirdparty/xxHash N64Recomp/lib/rabbitizer
           rmdir "$game/lib/N64Recomp-browser"
@@ -671,7 +674,8 @@ jobs:
             -DRT64_STRETCH_SCREEN_COVERS=1 -DRT64_UNEVEN_FRAME_RATES=1 -DRT64_WGSL=1)
           for dir in src src/contrib src/contrib/plume src/contrib/imgui src/contrib/hlslpp/include src/contrib/stb \
             src/contrib/ddspp src/contrib/mupen64plus-core/src/api src/contrib/nativefiledialog-extended/src/include \
-            src/contrib/zstd/lib; do
+            src/contrib/zstd/lib src/contrib/plume/contrib/volk src/contrib/plume/contrib/Vulkan-Headers/include \
+            src/contrib/plume/contrib/VulkanMemoryAllocator/include; do
             rt64_flags+=("-I$rt64/$dir")
           done
           runtime_flags=(-std=c++20 -DULTRAMODERN_HOLD_BLOCKED_MESSAGES=1 -DULTRAMODERN_LIBULTRA_THREAD_STOP=1
