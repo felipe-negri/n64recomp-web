@@ -1397,4 +1397,8 @@ rt64 a9a6970, 5674b91, RT64_SUBPIXEL_TEXRECTS, off on every build, Emscripten's 
                        only, after drawCall.triangleCount += 2 and in the renderer's rect case, with no parameter or
                        DrawCall field of its own (PaxDino renames drawRect's last parameter, 1080 and Pokémon Snap
                        change the fields after rectAspect, Rogue Squadron the texcoord lines)
+rt64 be196c9           RT64_STRETCH_SCREEN_COVERS: a triangle with no area holds none of the viewport's corners, where
+                       its edge tests, all 0, held all four, and a call of one alone was a cover: Rogue Squadron places
+                       its terrain pass by such a marker and takes its screen scale from it, so at 16:9 its terrain was
+                       drawn about 1.33 times wider than what stands on it and slid under it as the camera turned
 ```
