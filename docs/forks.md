@@ -1380,4 +1380,8 @@ rt64 53ce431           RT64_INTERPOLATE_RECT_SCROLLS: tileCopySource() takes the
                        the region as the checks do (masked to TMEM's lower half, or the first with the ID for a range
                        that wrapped), so the call names no local of the web's check, which Rogue Squadron's and WWF
                        No Mercy's state.cpp don't have
+rt64 82c7d86           RT64_SKIP_CAMERA_CUTS: a cut's step is kept for the next frame's check, where it was left
+                       unknown and any jump over 8 near plane distances the frame after read as a cut again: Mario
+                       Golf's flyovers of Yoshi's Island's holes 14 and 17, which fly fast from the doors that open on
+                       them, stepped at the game's 30 a second for one to two seconds
 ```
