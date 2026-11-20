@@ -1389,4 +1389,9 @@ rt64 1542af1           RT64_GAME_FRAME_WORKLOADS: a frame is interpolated into, 
                        its own that SkipBuffering's last three VIs hold: Mario Golf, as a putt's aim turns, draws the
                        course alone into the framebuffer it showed two frames before, then the whole picture into a
                        third, and 3-5 of 10 taps showed a frame of the course alone
+rt64 a9a6970          RT64_SUBPIXEL_TEXRECTS, off on every build, Emscripten's too, for a game to turn on: a texrect
+                       that samples a texture in 1 or 2 cycle mode is drawn at its quarter-pixel corners, its texture
+                       from its top, not on the whole pixels they round up to: Mario Golf's lens flare, which it places
+                       by fractions of a pixel, stepped 4, 4, 3 and 3 pixels a game frame against the sun's light at
+                       120 Hz
 ```

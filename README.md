@@ -382,7 +382,9 @@ n64hub/rt64-web                     rt64/rt64                RT64 on WebGPU: WGS
                                                                   off, each one was a new texture); what the
                                                                   CPU writes stretched across a wide picture,
                                                                   with RT64_STRETCH_CPU_CHANGES, an option a
-                                                                  game turns on
+                                                                  game turns on; a texrect drawn at its
+                                                                  quarter-pixel corners, with
+                                                                  RT64_SUBPIXEL_TEXRECTS, one too
 n64hub/N64Recomp-web                N64Recomp/N64Recomp      the FPU rounding mode on wasm; funcs.h
                                                                   declares every function the C calls; a mod
                                                                   recompiled to C ahead of time; functions a mod
@@ -422,8 +424,8 @@ change is behind `__EMSCRIPTEN__` or `__wasm__` (or a CMake option on by default
 of the forks is the upstream one, but for the declarations N64Recomp-web adds to `funcs.h` and plume-web's
 `RenderSwapChain::isWaitReady()` (always true but on WebGPU) and `waitOnCaller()` (always false but on WebGPU), which
 change nothing there, fixes to bugs a desktop build has too (a crash, a hang, a wrong frame), which docs/forks.md
-says are "on every build", and `RT64_STRETCH_CPU_CHANGES`, off on every build until a game turns it on. Each commit's
-message says what it does and why.
+says are "on every build", and `RT64_STRETCH_CPU_CHANGES` and `RT64_SUBPIXEL_TEXRECTS`, off on every build until a game
+turns them on. Each commit's message says what it does and why.
 
 `patches/` holds each fork as one patch, everything its `main` adds to the upstream commit it is on, so a recomp can
 take the web support without moving its submodules to the forks (Using it in a recomp).
