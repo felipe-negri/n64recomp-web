@@ -1407,4 +1407,18 @@ rt64 fbf407f           RT64_INTERPOLATE_RECT_SCROLLS: a textured rect that no ot
                        before up to four times its longer side away, past less than its side: Mario Golf's pin flag in
                        the sky, 8 by 16 pixels, moves 22 to 26 pixels a game frame as the view turns fast, and held
                        still between the game's frames and stepped once each against the course turning behind it
+N64ModernRuntime       a file-backed Controller Pak (librecomp/src/pak.cpp) in the ports a game's
+481338b                GameEntry sets in controller_pak_ports, bit 0 for controller 1, as saves/controllerpak_<port>.mpk
+                       in the config folder: a 32 KiB pak in the .mpk layout emulators use, written whole on each
+                       change. Every other port answers PFS_ERR_NOPACK as before, and a game sets no port by default;
+                       a game that defines every osPfs function keeps its own pak. Excitebike 64 holds its Time Trial
+                       ghosts there
+N64ModernRuntime       controller_pak_ports beside save_type in GameEntry, away from the lines after on_init_callback
+ecfbc79                that a game fork's own field patches in (CBFD-Recompiled-web's accept_rom)
+N64ModernRuntime       controller_pak_ports after has_compressed_code and get_controller_pak_ports() after
+cd4a7f4                get_project_version(), lines every game fork's runtime has as upstream's (RogueSquadron64Recomp-web's
+                       has an older GameEntry and no get_config_path()), and the pak files in the folder of the game's
+                       own save (ultramodern::get_save_file_path()), saves/ or the game's subfolder of it
+N64ModernRuntime       recomp::get_controller_pak_ports() after run_thread_function, away from the lines Rogue
+9c1766b                Squadron's runtime adds after game_status
 ```
