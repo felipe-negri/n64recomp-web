@@ -8,7 +8,7 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Twenty-seven options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Twenty-eight options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
@@ -23,6 +23,7 @@ eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLL
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
 `RT64_REJ_WITHOUT_NEAR_CLIP` (rt64 19014a4, which it turns on too),
+`RT64_PAIR_SAME_MESHES` (rt64 153d053, which it turns on too),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
@@ -1444,6 +1445,12 @@ rt64 a75df38           RT64_INTERPOLATE_RECT_SCROLLS: a rect of colour where the
                        Excitebike 64's fades, columns whose alpha ramps across the screen, paired each column with the
                        one that had its alpha a game frame before, and the frames between slid them, a bright strip of
                        the picture where the ramp met the black
+rt64 153d053           RT64_PAIR_SAME_MESHES: a transform no call paired pairs with the frame before's that no call
+                       paired either and drew the very same mesh, when the scene left only those two with it. An
+                       object a game draws with another call as it nears stood at its own place in the frames between
+                       while its neighbours moved: Excitebike 64's track sections, fogged under one render mode past
+                       a distance and plain nearer, left a line of the sky's colour across the track and up the canyon
+                       walls on Mountain Quarry
 N64ModernRuntime       GameEntry::controller_pak_banks, asked each time a game initializes a port's pak: its banks, 1
 706c5f1                to 62, which a pak of another size has its files moved to if they fit, or 0 for a Rumble Pak
                        in the slot, which osPfsInitPak fails as libultra's does (status, queue and channel filled in,
