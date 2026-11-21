@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 59df529d19ff0a54f52330ca56bb27e3596e899f
+rt64: https://github.com/n64hub/rt64-web 08533e4ac5293f860a615ab8f16082b2d4e3c198
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -5571,7 +5571,7 @@ index 87392d0..2cf9ecd 100644
      }
  
 diff --git a/src/hle/rt64_game_frame.h b/src/hle/rt64_game_frame.h
-index 00a72f6..c17ce7e 100644
+index 00a72f6..5907961 100644
 --- a/src/hle/rt64_game_frame.h
 +++ b/src/hle/rt64_game_frame.h
 @@ -47,12 +47,26 @@ namespace RT64 {
@@ -5627,7 +5627,7 @@ index 00a72f6..c17ce7e 100644
          };
  
          struct LookAtMap {
-@@ -74,6 +106,10 @@ namespace RT64 {
+@@ -74,6 +106,15 @@ namespace RT64 {
          };
  
          struct WorkloadMap {
@@ -5635,21 +5635,15 @@ index 00a72f6..c17ce7e 100644
 +            // frame before drew them, in pixels, its upper left's in xy and its lower right's in zw, for one that moved
 +            // and kept its textures; empty past the last that moved.
 +            std::vector<hlslpp::float4> rectMoves;
-             std::vector<ViewProjectionMap> viewProjections;
-             std::vector<TransformMap> transforms;
-             std::vector<TileMap> tiles;
-@@ -83,6 +119,10 @@ namespace RT64 {
-             std::vector<bool> prevLookAtMapped;
-             uint32_t prevWorkloadIndex = 0;
-             bool mapped = false;
 +
 +            // RT64_SKIP_CAMERA_CUTS: a camera of the workload's cut to another shot (isCameraCut()), so its rects pair
 +            // with none of the frame before either.
 +            bool cameraCut = false;
-         };
- 
-         std::vector<WorkloadMap> workloads;
-@@ -126,9 +166,12 @@ namespace RT64 {
++
+             std::vector<ViewProjectionMap> viewProjections;
+             std::vector<TransformMap> transforms;
+             std::vector<TileMap> tiles;
+@@ -126,9 +167,12 @@ namespace RT64 {
          bool isSceneCompatible(const WorkloadQueue &workloadQueue, const GameScene &scene, const GameIndices::Projection &proj);
          void set(WorkloadQueue &workloadQueue, const uint32_t *workloadIndices, uint32_t indicesCount);
          void match(RenderWorker *worker, WorkloadQueue &workloadQueue, const GameFrame &prevFrame, BufferUploader *velocityUploader, bool &velocityUploaderUsed, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed);
