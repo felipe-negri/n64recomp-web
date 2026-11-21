@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 18066b51beed2cdd67341cb2756e6b2ed0ed2b6a
+rt64: https://github.com/n64hub/rt64-web e6c18c38fc4f48ef995a54082b750492979861be
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -3258,7 +3258,7 @@ index 5c3c4d2..cba893c 100644
  
          uint32_t rdramUsed;
 diff --git a/src/hle/rt64_game_frame.cpp b/src/hle/rt64_game_frame.cpp
-index 87392d0..2cf9ecd 100644
+index 87392d0..474d109 100644
 --- a/src/hle/rt64_game_frame.cpp
 +++ b/src/hle/rt64_game_frame.cpp
 @@ -2,6 +2,9 @@
@@ -3285,7 +3285,7 @@ index 87392d0..2cf9ecd 100644
          if (!areFramebufferPairsCompatible(workloadQueue, { firstProj.workloadIndex, firstProj.fbPairIndex }, { proj.workloadIndex, proj.fbPairIndex })) {
              return false;
          }
-@@ -168,89 +178,1370 @@ namespace RT64 {
+@@ -168,6 +178,55 @@ namespace RT64 {
          return (lhs.first < rhs.first) || ((lhs.first == rhs.first) && lhs.second < rhs.second);
      }
  
@@ -3341,44 +3341,21 @@ index 87392d0..2cf9ecd 100644
      struct MatchCandidate {
          uint32_t curIndex = 0;
          uint32_t prevIndex = 0;
-         float difference = FLT_MAX;
- 
--        MatchCandidate(uint32_t curIndex, uint32_t prevIndex, float difference) {
--            this->curIndex = curIndex;
--            this->prevIndex = prevIndex;
--            this->difference = difference;
--        }
--    };
-+        MatchCandidate(uint32_t curIndex, uint32_t prevIndex, float difference) {
-+            this->curIndex = curIndex;
-+            this->prevIndex = prevIndex;
-+            this->difference = difference;
-+        }
-+    };
-+
-+    bool operator<(const MatchCandidate &lhs, const MatchCandidate &rhs) {
-+        return lhs.difference < rhs.difference;
-+    }
-+
-+    struct TransformMatchResult {
-+        float positionDifference = FLT_MAX;
-+        float orientationDifference = FLT_MAX;
-+        float screenSpaceDifference = FLT_MAX;
+@@ -188,6 +247,7 @@ namespace RT64 {
+         float positionDifference = FLT_MAX;
+         float orientationDifference = FLT_MAX;
+         float screenSpaceDifference = FLT_MAX;
 +        float scaleDifference = FLT_MAX;
-+        bool valid = false;
-+
-+        float computeDifference() const {
-+            if (!valid) {
-+                return FLT_MAX;
-+            }
-+
-+            float totalDiff = 0.0f;
-+
-+            const float PositionDiffScale = 1.0f;
-+            if (positionDifference < FLT_MAX) {
-+                totalDiff += positionDifference * PositionDiffScale;
-+            }
-+
+         bool valid = false;
+ 
+         float computeDifference() const {
+@@ -202,55 +262,1286 @@ namespace RT64 {
+                 totalDiff += positionDifference * PositionDiffScale;
+             }
+ 
+-            const float OrientationDiffScale = 1.0f;
+-            if (orientationDifference < FLT_MAX) {
+-                totalDiff += orientationDifference * OrientationDiffScale;
 +            const float OrientationDiffScale = 1.0f;
 +            if (orientationDifference < FLT_MAX) {
 +                totalDiff += orientationDifference * OrientationDiffScale;
@@ -4484,38 +4461,26 @@ index 87392d0..2cf9ecd 100644
 +                    replaced = (c != r) && (leftCall.gameRect.uly == prevCall.gameRect.uly) && sameScale(leftCall, prevCall) && mostOf(prevCall, leftCall);
 +                }
 +            }
- 
--    bool operator<(const MatchCandidate &lhs, const MatchCandidate &rhs) {
--        return lhs.difference < rhs.difference;
--    }
++
 +            if (replaced) {
 +                continue;
 +            }
- 
--    struct TransformMatchResult {
--        float positionDifference = FLT_MAX;
--        float orientationDifference = FLT_MAX;
--        float screenSpaceDifference = FLT_MAX;
--        bool valid = false;
++
 +            // Whether its texture slides or jumps: a sprite the game moves and animates by stepping its texcoords
 +            // across a strip of its frames jumps a frame at a time, and moves on every game frame.
 +            if (moved) {
 +                if (workloadMap.rectMoves.size() <= curCall.callIndex) {
 +                    workloadMap.rectMoves.resize(curCall.callIndex + 1, hlslpp::float4(0.0f, 0.0f, 0.0f, 0.0f));
 +                }
- 
--        float computeDifference() const {
--            if (!valid) {
--                return FLT_MAX;
++
 +                // An edge the game holds where it cuts the rect stays there in the frames between: one that came onto
 +                // the scissor's left the strip beyond it no rect in this frame, and drawn between where it was and the
 +                // scissor it showed a row of what lies behind (the clear color's sky, over Mario Golf's hills).
 +                workloadMap.rectMoves[curCall.callIndex] = hlslpp::float4(
 +                    (heldS == 1) ? 0.0f : float(prevCall.rect.ulx - curCall.rect.ulx), (heldT == 1) ? 0.0f : float(prevCall.rect.uly - curCall.rect.uly),
 +                    (heldS == 2) ? 0.0f : float(prevCall.rect.lrx - curCall.rect.lrx), (heldT == 2) ? 0.0f : float(prevCall.rect.lry - curCall.rect.lry)) / 4.0f;
-             }
- 
--            float totalDiff = 0.0f;
++            }
++
 +            // A rect cut at an edge it holds that changed size is drawn wider or narrower in the frames between, its
 +            // texcoords at its corners as this frame has them, which stretches its texture across it: Mario Golf
 +            // opens Course Select by moving Play Modes' halves out 12 pixels a side each game frame, each cut by the
@@ -4540,10 +4505,7 @@ index 87392d0..2cf9ecd 100644
 +                if (!cut || (curLr <= curUl) || (ulMove == lrMove)) {
 +                    return false;
 +                }
- 
--            const float PositionDiffScale = 1.0f;
--            if (positionDifference < FLT_MAX) {
--                totalDiff += positionDifference * PositionDiffScale;
++
 +                const float width = float(curLr - curUl) / 4.0f;
 +                const float dU = float(ulMove) / 4.0f;
 +                const float dW = float(lrMove - ulMove) / 4.0f;
@@ -4561,11 +4523,8 @@ index 87392d0..2cf9ecd 100644
 +            const bool stepped = slides && scrolled;
 +            if (!stepped && !resizedS && !resizedT) {
 +                continue;
-             }
- 
--            const float OrientationDiffScale = 1.0f;
--            if (orientationDifference < FLT_MAX) {
--                totalDiff += orientationDifference * OrientationDiffScale;
++            }
++
 +            // A tile's corners are in quarter texels, and the shader subtracts them from the texcoords it scaled.
 +            for (uint32_t t = 0; t < curCall.tileCount; t++) {
 +                const uint32_t tileIndex = curCall.tileIndex + t;
@@ -5216,7 +5175,7 @@ index 87392d0..2cf9ecd 100644
          ModifiedBuffers modifiedBuffers;
          std::stable_sort(matchCandidates.begin(), matchCandidates.end());
          for (const MatchCandidate candidate : matchCandidates) {
-@@ -606,6 +2188,136 @@ namespace RT64 {
+@@ -606,6 +2188,243 @@ namespace RT64 {
              matchTransform(firstCurWorkload, firstPrevWorkload, firstCurWorkloadMap, firstPrevWorkloadMap, candidate.curIndex, candidate.prevIndex, modifiedBuffers);
          }
  
@@ -5232,7 +5191,8 @@ index 87392d0..2cf9ecd 100644
 +        // that came into view at the picture's side, stood still in the frames between, and the background colour showed
 +        // between it and the next in a light line across the track and up the canyon walls, for a frame at a time. A game
 +        // whose camera is in the projection leaves what holds still at the same matrix, so the step is none, and a scene
-+        // whose paired transforms agree on no step (a cut, or most of it moving on its own) is left as it was.
++        // whose paired transforms agree on no step, nor most of its transforms by place (below), is left as it was: a
++        // cut, or most of it moving on its own.
 +        //
 +        // Nor is anything moved when the step jumped, its eye moving more than 4 times as far as the frame before's step
 +        // did, or when the frame before's scene agreed on none: a cut too small for the cut check (RT64_SKIP_CAMERA_CUTS)
@@ -5321,15 +5281,110 @@ index 87392d0..2cf9ecd 100644
 +            }
 +
 +            const hlslpp::float4x4 Identity(1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
-+            const bool agreed = (bestIndex != UINT32_MAX) && (bestCount >= 3) && ((bestCount * 2) > pairedCount);
++            bool agreed = (bestIndex != UINT32_MAX) && (bestCount >= 3) && ((bestCount * 2) > pairedCount);
++
++            // Where the pairs agree on no step, the step that brings the most of the scene's transforms each onto one of
++            // the frame before's scene's matrices, tried from each of up to 8 of them onto each of the frame before's: a
++            // game that draws its world in blocks of its own making each frame, numbered as each first comes up and with
++            // other vertices under each as the view moves, leaves few of them paired, but each block that stays in view
++            // has its matrix of the frame before at the camera's step from its own. Excitebike 64's Desert draws its
++            // ground as patches under up to 32 blocks, each a matrix of the block's place less the camera's, and its
++            // pairs agreed in a third of the race's frames: the light lines across the dunes stayed in a quarter of the
++            // frames that had them. The step is taken only when it brings more than half the scene's transforms, at
++            // least 3, onto a matrix of the frame before's, and only in a scene of up to 32 on each side, so its cost
++            // stays small. Nor is it looked for where more than 3 pairs agreed on no step: those are enough to judge by,
++            // and what they say is that the scene moves on its own, where a step found by place is one between two of
++            // a row of like objects. Excitebike 64's riders lined up at the start, as the camera swept past them, took
++            // a step of one rider's place to the next, and the start's banner was drawn in pieces in the frames between.
++            bool stepByPlace = false;
++            if (!agreed && (pairedCount <= 3)) {
++                thread_local std::vector<uint32_t> prevSceneTransforms;
++                prevSceneTransforms.clear();
++                for (const std::pair<uint64_t, GameCallMap> &it : prevCallHashMap) {
++                    const GameCallMap &callMap = it.second;
++                    const GameIndices::Projection &projIndices = prevScene.projections[callMap.sceneProjIndex];
++                    if (!callMap.doTransformMatching || (projIndices.workloadIndex != firstPrevProjIndices.workloadIndex)) {
++                        continue;
++                    }
++
++                    const GameCall &call = firstPrevWorkload.fbPairs[projIndices.fbPairIndex].projections[projIndices.projectionIndex].gameCalls[callMap.callIndex];
++                    for (uint32_t m = call.callDesc.minWorldMatrix; m <= call.callDesc.maxWorldMatrix; m++) {
++                        const TransformGroup &group = prevData.transformGroups[prevData.worldTransformGroups[m]];
++                        if (group.matrixId == G_EX_ID_AUTO) {
++                            prevSceneTransforms.emplace_back(m);
++                        }
++                    }
++                }
++
++                std::sort(prevSceneTransforms.begin(), prevSceneTransforms.end());
++                prevSceneTransforms.erase(std::unique(prevSceneTransforms.begin(), prevSceneTransforms.end()), prevSceneTransforms.end());
++                const uint32_t MaxPlaceTransforms = 32;
++                const uint32_t sceneCount = uint32_t(sceneTransforms.size());
++                if ((sceneCount >= 3) && (sceneCount <= MaxPlaceTransforms) && !prevSceneTransforms.empty() && (prevSceneTransforms.size() <= MaxPlaceTransforms)) {
++                    // How far a step leaves a transform's matrix from the nearest of the frame before's, as stepMiss reads it.
++                    auto placeMiss = [&](const hlslpp::float4x4 &step, uint32_t m) {
++                        const hlslpp::float4x4 moved = hlslpp::mul(hlslpp::float4x4(curData.worldTransforms[m]), step);
++                        float nearest = FLT_MAX;
++                        for (uint32_t q : prevSceneTransforms) {
++                            const hlslpp::float4x4 prev = prevData.worldTransforms[q];
++                            float miss = 0.0f;
++                            float size = 0.0f;
++                            for (int r = 0; r < 4; r++) {
++                                miss = std::max(miss, float(hlslpp::length(moved[r] - prev[r])));
++                                size = std::max(size, float(hlslpp::length(prev[r])));
++                            }
++
++                            if (size > 0.0f) {
++                                nearest = std::min(nearest, miss / size);
++                            }
++                        }
++
++                        return nearest;
++                    };
++
++                    const uint32_t placeTries = std::min(sceneCount, 8U);
++                    uint32_t placeCount = 0;
++                    for (uint32_t t = 0; t < placeTries; t++) {
++                        const uint32_t c = sceneTransforms[(uint64_t(t) * sceneCount) / placeTries];
++                        const hlslpp::float4x4 cur = curData.worldTransforms[c];
++                        if (fabsf(float(hlslpp::determinant(extract3x3(cur)))) < 1e-12f) {
++                            continue;
++                        }
++
++                        const hlslpp::float4x4 inverseCur = hlslpp::inverse(cur);
++                        for (uint32_t q : prevSceneTransforms) {
++                            const hlslpp::float4x4 step = hlslpp::mul(inverseCur, hlslpp::float4x4(prevData.worldTransforms[q]));
++                            uint32_t count = 0;
++                            for (uint32_t m : sceneTransforms) {
++                                count += (placeMiss(step, m) < StepTolerance) ? 1 : 0;
++                            }
++
++                            if (count > placeCount) {
++                                placeCount = count;
++                                bestStep = step;
++                            }
++                        }
++                    }
++
++                    stepByPlace = (placeCount >= 3) && ((placeCount * 2) > sceneCount);
++                    agreed = stepByPlace;
++                }
++            }
++
 +            const float MaxJumpRatio = 4.0f;
 +            const float stepLength = agreed ? float(hlslpp::length(hlslpp::float3(bestStep[3].xyz))) : -1.0f;
 +            const float prevStepLength = (firstPrevWorkloadMap != nullptr) ? firstPrevWorkloadMap->viewProjections[firstPrevProj.transformsIndex].cameraStep : -1.0f;
 +            const bool jumped = (prevStepLength < 0.0f) || (stepLength > (prevStepLength * MaxJumpRatio));
 +            firstCurWorkloadMap.viewProjections[firstCurProj.transformsIndex].cameraStep = stepLength;
-+            if (agreed && !jumped && (stepMiss(Identity, bestIndex) >= (StepTolerance * 0.1f))) {
-+                // Drawn as the transform whose step it takes is, from its own pair of matrices.
-+                const RigidBody &stepBody = firstCurWorkloadMap.transforms[bestIndex].rigidBody;
++            float stepFromIdentity = 0.0f;
++            for (int r = 0; r < 4; r++) {
++                stepFromIdentity = std::max(stepFromIdentity, float(hlslpp::length(bestStep[r] - Identity[r])));
++            }
++
++            const bool stepMoves = stepByPlace ? (stepFromIdentity >= (StepTolerance * 0.1f)) : (agreed && (stepMiss(Identity, bestIndex) >= (StepTolerance * 0.1f)));
++            if (agreed && !jumped && stepMoves) {
++                // Drawn as the transform whose step it takes is, from its own pair of matrices; with a step found by place,
++                // as a transform paired with its own matrix moved back by the step.
 +                for (uint32_t m : sceneTransforms) {
 +                    GameFrameMap::TransformMap &transformMap = firstCurWorkloadMap.transforms[m];
 +                    if (transformMap.mapped) {
@@ -5339,7 +5394,18 @@ index 87392d0..2cf9ecd 100644
 +                    const hlslpp::float4x4 cur = curData.worldTransforms[m];
 +                    const hlslpp::float4x4 moved = hlslpp::mul(cur, bestStep);
 +                    const TransformGroup &group = curData.transformGroups[curData.worldTransformGroups[m]];
-+                    transformMap.rigidBody = stepBody;
++                    if (stepByPlace) {
++                        // Moving at the step already, so the step itself reads as no jump.
++                        transformMap.rigidBody = RigidBody();
++                        transformMap.rigidBody.linearVelocity = cur[3].xyz - moved[3].xyz;
++                        transformMap.rigidBody.updateLinear(moved, cur, group.positionInterpolation);
++                        transformMap.rigidBody.updateAngular(moved, cur, group.rotationInterpolation, group.scaleInterpolation, group.skewInterpolation);
++                        transformMap.rigidBody.updatePerspective(moved, cur, group.perspectiveInterpolation);
++                    }
++                    else {
++                        transformMap.rigidBody = firstCurWorkloadMap.transforms[bestIndex].rigidBody;
++                    }
++
 +                    transformMap.rigidBody.linearVelocity = cur[3].xyz - moved[3].xyz;
 +                    transformMap.rigidBody.updateDecomposition(moved, group.decompose);
 +                    transformMap.rigidBody.updateDecomposition(cur, group.decompose);
@@ -5353,7 +5419,7 @@ index 87392d0..2cf9ecd 100644
          if (!modifiedBuffers.empty()) {
              workloadsModified[firstCurProjIndices.workloadIndex].merge(modifiedBuffers);
          }
-@@ -669,17 +2381,160 @@ namespace RT64 {
+@@ -669,17 +2488,160 @@ namespace RT64 {
              const bool wrappedUlt = (curTile.cmt == G_TX_WRAP) && (modulo(integerUlt, curTile.maskt * 4) == modulo(expectedUlt, curTile.maskt * 4));
              const bool wrappedLrs = (curTile.cms == G_TX_WRAP) && (modulo(integerLrs, curTile.masks * 4) == modulo(expectedLrs, curTile.masks * 4));
              const bool wrappedLrt = (curTile.cmt == G_TX_WRAP) && (modulo(integerLrt, curTile.maskt * 4) == modulo(expectedLrt, curTile.maskt * 4));
@@ -5519,7 +5585,7 @@ index 87392d0..2cf9ecd 100644
          }
  
          // Check for look at matches.
-@@ -727,6 +2582,18 @@ namespace RT64 {
+@@ -727,6 +2689,18 @@ namespace RT64 {
          curTransformMap.mapped = true;
          curWorkloadMap.prevTransformsMapped[prevTransformIndex] = true;
  
@@ -5538,7 +5604,7 @@ index 87392d0..2cf9ecd 100644
          uint64_t curVertexHash = 0;
          uint64_t prevVertexHash = 0;
          uint32_t curVertexIndex = curWorkload.drawData.worldTransformVertexIndices[curTransformIndex];
-@@ -782,9 +2649,78 @@ namespace RT64 {
+@@ -782,9 +2756,78 @@ namespace RT64 {
  
              modifiedBuffers.texcoordVelocity = true;
          }
@@ -5618,7 +5684,7 @@ index 87392d0..2cf9ecd 100644
          for (uint32_t c = 0; c < proj.gameCallCount; c++) {
              const GameCall &call = proj.gameCalls[c];
              uint32_t matrixIdHash = 0;
-@@ -802,7 +2738,7 @@ namespace RT64 {
+@@ -802,7 +2845,7 @@ namespace RT64 {
                  doTileMatching = doTileMatching || (group.tileInterpolation == G_EX_COMPONENT_AUTO);
              }
  
