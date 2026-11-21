@@ -8,7 +8,7 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Twenty-seven options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Twenty-eight options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
@@ -23,6 +23,7 @@ eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLL
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
 `RT64_REJ_WITHOUT_NEAR_CLIP` (rt64 19014a4, which it turns on too),
+`RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, which it turns on too),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
@@ -1457,9 +1458,20 @@ N64ModernRuntime       GameEntry::controller_pak_banks, asked each time a game i
                        accessory in its settings, and kept its own copy of pak.cpp for them
 N64ModernRuntime       pak.cpp's header within 120 columns
 179897d
+rt64 153d053           RT64_PAIR_SAME_MESHES: a transform no call paired pairs with the frame before's that no call
+                       paired either and drew the very same mesh, when the scene left only those two with it. Taken
+                       out by rt64 7cec4af: Mario Golf's credits paired a sparkle that went with one that came
+                       elsewhere, and trees across a cut to the shot's next view
 rt64 782b673           renderToRAMLateDepthOnly: render to RAM's late copy brings only the framebuffers drawn as depth
 RecompFrontend b2e6d31 buffers into RDRAM (set_render_to_ram_late_depth_only), for a game whose CPU reads its depth but
                        never its frames; a late batch that leaves nothing to copy waits for the GPU as it ends. Each
                        framebuffer copied is a readback of its own in a browser: Excitebike 64's page in Chrome at
                        3840x2000 drew 342 presents a second with it against 258
+rt64 7cec4af           RT64_MOVE_UNPAIRED_WITH_CAMERA, in place of RT64_PAIR_SAME_MESHES: a transform no call paired
+                       is drawn in the frames between as holding still in the world, moved back from its matrix by
+                       the step most of its scene's paired transforms agree on, unless that step is more than 4 times
+                       the frame before's. An object a game draws with another call as it nears, or that comes into
+                       view, stood at its own place while its neighbours moved: Excitebike 64's track sections, fogged
+                       under one render mode past a distance and plain nearer, left a line of the sky's colour across
+                       the track and up the canyon walls on Mountain Quarry
 ```
