@@ -1445,6 +1445,12 @@ rt64 a75df38           RT64_INTERPOLATE_RECT_SCROLLS: a rect of colour where the
                        Excitebike 64's fades, columns whose alpha ramps across the screen, paired each column with the
                        one that had its alpha a game frame before, and the frames between slid them, a bright strip of
                        the picture where the ramp met the black
+rt64 ea1d8e7           RT64_SKIP_CAMERA_CUTS: a projection RT64 left whole, a perspective turned by a view with no
+                       translation, has its turn split from it for the check, and a camera whose eye then sits at the
+                       world's origin has its step read from what most of the scene's transforms moved by, exactly
+                       alike: Excitebike 64 puts its camera's place in each section's matrix on its outdoor tracks,
+                       the check read every turn as 0, and at two cuts of its credits fly-through the frames between
+                       drew the world halfway, a tree trunk filling the picture
 rt64 153d053           RT64_PAIR_SAME_MESHES: a transform no call paired pairs with the frame before's that no call
                        paired either and drew the very same mesh, when the scene left only those two with it. An
                        object a game draws with another call as it nears stood at its own place in the frames between
