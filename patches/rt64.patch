@@ -1,8 +1,8 @@
-rt64: https://github.com/n64hub/rt64-web 5e192d23d5e913583ed63c8e4bb2a2d380e17e62
+rt64: https://github.com/n64hub/rt64-web bf5c70d229ab014ed9cf6d0b418bd19dc469b072
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 79dfc38..da000cd 100644
+index 79dfc38..03fdffd 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -11,7 +11,30 @@ endif()
@@ -24,7 +24,7 @@ index 79dfc38..da000cd 100644
 +option(RT64_PARTIAL_SCREEN_PAIRS "Judge a framebuffer pair that draws only part of a framebuffer the VI shows (a view of a split screen the game sends in an RSP task of its own) by the whole screen, so its views and rects are kept at 4:3 in a wide window as they are beside the rest of the screen in one task (always on with Emscripten)" OFF)
 +option(RT64_STRETCH_SCREEN_COVERS "Stretch a call of a few triangles in front of a perspective camera that covers its whole viewport (a plate or a fade a game draws in 3D, sized to the 4:3 screen) across a picture RT64 draws wider than 4:3, as a rect that spans the scissor's width is, so it still covers the picture (always on with Emscripten)" OFF)
 +option(RT64_KEEP_THIN_RECTS "Leave a rect one pixel tall or wide as the game drew it when Fix LR with Scissor would stretch it to the scissor's edge, so a game that copies a framebuffer back a row at a time draws no row twice, the second from texels it never loaded (always on with Emscripten)" OFF)
-+option(RT64_HASH_DRAWN_FRAMEBUFFERS "Without Render to RAM, take a framebuffer a display list drew to hold what RDRAM holds when the list ends, so the screen's check of RAM puts over the picture only what the CPU writes after the draw, not what it wrote before that the draw covered (a game's scratch in its spare framebuffer, cleared by the draw on the console) (always on with Emscripten)" OFF)
++option(RT64_HASH_FILLED_FRAMEBUFFERS "Without Render to RAM, take a framebuffer a display list filled across its whole width and height to hold what RDRAM holds when the list ends, so the screen's check of RAM puts over the picture only what the CPU writes after the fill, not what it wrote before that the fill covered on the console (a game's scratch in its spare framebuffer) (always on with Emscripten)" OFF)
 +option(RT64_EXACT_PRIM_DEPTH "Draw a G_ZS_PRIM triangle through a perspective or orthographic projection at exactly its prim depth, by a viewport depth range of no height, not at the vertex shader's z = primDepth * w, which the perspective divide leaves an ulp off on some vertices, so that under a strict depth test only the first of its triangles to cover a pixel draws there, as on the console (always on with Emscripten)" OFF)
 +option(RT64_SKIP_CAMERA_CUTS "Pair nothing across a camera the game gives no matrix group of its own that cut to another shot between two game frames (it turned more than 45 degrees, or its eye jumped more than 8 near plane distances and 4 times its last step), nor anything its scene draws, so the frames between draw the new shot as it is, not the world halfway between two places (always on with Emscripten)" OFF)
 +option(RT64_SKIP_PLACE_SWAPS "Never pair a transform with one of the game frame before at another place when both frames drew something at both places, nor one whose vertices are others than its pair's when that one's held still or had just come, so that a model the game draws at many places, in another order or with another call each frame, is not interpolated from one of its places to another, nor a block of a level that came into view from one that left it (always on with Emscripten)" OFF)
@@ -247,8 +247,8 @@ index 79dfc38..da000cd 100644
 +if (RT64_KEEP_THIN_RECTS OR RT64_WGSL)
 +    target_compile_definitions(rt64 PRIVATE RT64_KEEP_THIN_RECTS=1)
 +endif()
-+if (RT64_HASH_DRAWN_FRAMEBUFFERS OR RT64_WGSL)
-+    target_compile_definitions(rt64 PRIVATE RT64_HASH_DRAWN_FRAMEBUFFERS=1)
++if (RT64_HASH_FILLED_FRAMEBUFFERS OR RT64_WGSL)
++    target_compile_definitions(rt64 PRIVATE RT64_HASH_FILLED_FRAMEBUFFERS=1)
 +endif()
 +if (RT64_EXACT_PRIM_DEPTH OR RT64_WGSL)
 +    target_compile_definitions(rt64 PRIVATE RT64_EXACT_PRIM_DEPTH=1)
@@ -2935,7 +2935,7 @@ index 8d36b51..f15faa6 100644
          void discardRegionsTMEM(uint32_t tmemStart, uint32_t tmemWords, uint32_t tmemMask);
          void synchronizeRegionsTMEM();
 diff --git a/src/hle/rt64_framebuffer_pair.cpp b/src/hle/rt64_framebuffer_pair.cpp
-index c944393..cd9fbc7 100644
+index c944393..54c99b5 100644
 --- a/src/hle/rt64_framebuffer_pair.cpp
 +++ b/src/hle/rt64_framebuffer_pair.cpp
 @@ -7,6 +7,29 @@
@@ -2968,7 +2968,16 @@ index c944393..cd9fbc7 100644
      // FramebufferPair
  
      void FramebufferPair::reset() {
-@@ -27,6 +50,7 @@ namespace RT64 {
+@@ -21,12 +44,16 @@ namespace RT64 {
+         depthWrite = false;
+         syncRequired = false;
+         fillRectOnly = true;
++#   if RT64_HASH_FILLED_FRAMEBUFFERS
++        filledRows = 0;
++#   endif
+         ditherPatterns.fill(0);
+         scissorRect.reset();
+         startFbDiscards.clear();
          startFbOperations.clear();
          endFbOperations.clear();
          drawColorRect.reset();
@@ -2976,7 +2985,7 @@ index c944393..cd9fbc7 100644
          drawDepthRect.reset();
      }
  
-@@ -39,11 +63,37 @@ namespace RT64 {
+@@ -39,11 +66,37 @@ namespace RT64 {
          fillRectOnly = fillRectOnly && (proj.type == Projection::Type::Rectangle) && (gameCall.callDesc.otherMode.cycleType() == G_CYC_FILL);
          gameCallCount++;
  
@@ -3017,10 +3026,20 @@ index c944393..cd9fbc7 100644
          if (projectionCount > 0) {
              const Projection &lastProj = projections[projectionCount - 1];
 diff --git a/src/hle/rt64_framebuffer_pair.h b/src/hle/rt64_framebuffer_pair.h
-index 60b0fa4..4531833 100644
+index 60b0fa4..b04be36 100644
 --- a/src/hle/rt64_framebuffer_pair.h
 +++ b/src/hle/rt64_framebuffer_pair.h
-@@ -50,12 +50,31 @@ namespace RT64 {
+@@ -45,17 +45,41 @@ namespace RT64 {
+         bool depthWrite;
+         bool syncRequired;
+         bool fillRectOnly; // This only applies if there's at least one draw call.
++        // How many rows from the top a fill-cycle rect covered across the color image's whole width (RDP::drawRect()):
++        // on the console those rows of RDRAM hold the fill, whatever the CPU wrote there before. Kept only with
++        // RT64_HASH_FILLED_FRAMEBUFFERS (State::fullSync()), and outside its #if so the struct is the same in every
++        // file that includes it.
++        uint32_t filledRows = 0;
+         std::vector<uint32_t> startFbDiscards;
+         std::vector<FramebufferOperation> startFbOperations;
          std::vector<FramebufferOperation> endFbOperations;
          std::array<uint32_t, 4> ditherPatterns;
          FixedRect scissorRect;
@@ -5803,7 +5822,7 @@ index e08b02c..c87aebd 100644
          void threadAdvanceBarrier();
          void threadLoop();
 diff --git a/src/hle/rt64_rdp.cpp b/src/hle/rt64_rdp.cpp
-index a10c11a..e873148 100644
+index a10c11a..295a953 100644
 --- a/src/hle/rt64_rdp.cpp
 +++ b/src/hle/rt64_rdp.cpp
 @@ -149,6 +149,15 @@ namespace RT64 {
@@ -5990,7 +6009,21 @@ index a10c11a..e873148 100644
  
              const FixedRect intRect = scissorRect.intersection(drawRect);
              if (!intRect.isNull()) {
-@@ -1227,6 +1326,7 @@ namespace RT64 {
+@@ -1220,6 +1319,13 @@ namespace RT64 {
+                 if (otherMode.zUpd()) {
+                     fbPair.drawDepthRect.merge(intRect);
+                 }
++
++#           if RT64_HASH_FILLED_FRAMEBUFFERS
++                const bool fillCycle = ((otherMode.H & (3U << G_MDSFT_CYCLETYPE)) == G_CYC_FILL);
++                if (fillCycle && (intRect.left(false) <= 0) && (intRect.top(false) <= 0) && (intRect.right(true) >= int32_t(fbPair.colorImage.width))) {
++                    fbPair.filledRows = std::max(fbPair.filledRows, uint32_t(intRect.bottom(true)));
++                }
++#           endif
+             }
+         }
+         
+@@ -1227,6 +1333,7 @@ namespace RT64 {
  
          // We only change these once the draw state has been checked.
          DrawCall &drawCall = state->drawCall;
@@ -5998,7 +6031,7 @@ index a10c11a..e873148 100644
          drawCall.minWorldMatrix = 0;
          drawCall.maxWorldMatrix = 0;
          drawCall.rect = drawRect;
-@@ -1288,6 +1388,25 @@ namespace RT64 {
+@@ -1288,6 +1395,25 @@ namespace RT64 {
          triTcFloats.emplace_back(flip ? u2 : u1);
          triTcFloats.emplace_back(flip ? v1 : v2);
          drawCall.triangleCount += 2;
@@ -6024,7 +6057,7 @@ index a10c11a..e873148 100644
  
          // Update the tracked texcoords for the used tiles. Use scissor intersection to figure out 
          // what the bounds of the real sampling will be if necessary.
-@@ -1311,6 +1430,28 @@ namespace RT64 {
+@@ -1311,6 +1437,28 @@ namespace RT64 {
              updateCallTexcoords(u1, v1);
              updateCallTexcoords(u2, v2);
          }
@@ -6377,7 +6410,7 @@ index 8858dac..06c7d9b 100644
  
          void setUserConfig(const UserConfiguration &newUserConfig, bool discardFBs) {
 diff --git a/src/hle/rt64_state.cpp b/src/hle/rt64_state.cpp
-index 2970e71..33b1885 100644
+index 2970e71..840129c 100644
 --- a/src/hle/rt64_state.cpp
 +++ b/src/hle/rt64_state.cpp
 @@ -7,6 +7,13 @@
@@ -6972,7 +7005,7 @@ index 2970e71..33b1885 100644
              // Do not render anything, just wait for the data to be uploaded.
              ext.framebufferGraphicsWorker->commandList->begin();
              ext.drawDataUploader->commandListBeforeBarriers(ext.framebufferGraphicsWorker);
-@@ -1591,17 +1958,37 @@ namespace RT64 {
+@@ -1591,17 +1958,52 @@ namespace RT64 {
              textureManager.removeHashes(evictedTextureHashes);
          }
  
@@ -6995,23 +7028,38 @@ index 2970e71..33b1885 100644
              // Indicate the next time a display list is parsed, RDRAM should be checked.
              rdramCheckPending = true;
          }
-+#   if RT64_HASH_DRAWN_FRAMEBUFFERS
++#   if RT64_HASH_FILLED_FRAMEBUFFERS
 +        else {
-+            // RT64_HASH_DRAWN_FRAMEBUFFERS: without Render to RAM, what RDRAM holds of a framebuffer is only what the CPU
++            // RT64_HASH_FILLED_FRAMEBUFFERS: without Render to RAM, what RDRAM holds of a framebuffer is only what the CPU
 +            // wrote there, and updateScreen() puts what differs from its hash over the picture, as a write made after the
 +            // draw. The hash is otherwise only taken there, at a VI that shows the framebuffer, so what the CPU wrote before
-+            // a list that drew over it came back over the draw at the next VI that showed it. Excitebike 64 copies a
-+            // track's models into its spare framebuffer as a race loads, and the race's first frame clears it black: the
-+            // console's RDP overwrote the copy in RDRAM, and RT64 showed it over the black for a frame. So the framebuffers
-+            // this list drew are hashed as it ends: what the CPU wrote before it is taken as drawn over, and only what it
-+            // writes after is put over the picture.
-+            framebufferManager.hashTracking(RDRAM);
++            // a list that cleared the framebuffer came back over the clear at the next VI that showed it. Excitebike 64
++            // copies a track's models into its spare framebuffer as a race loads, and the race's first frame fills it
++            // black: the console's RDP overwrote the copy in RDRAM, and RT64 showed it over the black for a frame. So a
++            // framebuffer this list filled across its whole width and every row RDRAM holds of it is hashed as the list
++            // ends: what the CPU wrote before is taken as filled over, and only what it writes after is put over the
++            // picture. One the list drew only part of keeps its hash, so what the CPU wrote where the list didn't draw
++            // still shows, as on the console (a picture a game decodes into a framebuffer and draws text over). Checking
++            // RAM at the next list's start instead, as render to RAM does, still showed Excitebike's copy.
++            for (uint32_t f = 0; f < workload.fbPairCount; f++) {
++                const FramebufferPair &fbPair = workload.fbPairs[f];
++                if (fbPair.filledRows == 0) {
++                    continue;
++                }
++
++                Framebuffer *colorFb = framebufferManager.find(fbPair.colorImage.address);
++                if ((colorFb != nullptr) && (colorFb->width == fbPair.colorImage.width) && (colorFb->RAMBytes > 0) &&
++                    ((colorFb->imageRowBytes(colorFb->width) * fbPair.filledRows) >= colorFb->RAMBytes))
++                {
++                    colorFb->RAMHash = XXH3_64bits(&RDRAM[colorFb->addressStart], colorFb->RAMBytes);
++                }
++            }
 +        }
 +#   endif
  
  #   if SCRIPT_ENABLED
          // Notify the current script the frame is about to end and should be processed.
-@@ -1621,6 +2008,7 @@ namespace RT64 {
+@@ -1621,6 +2023,7 @@ namespace RT64 {
  
          if (viHistory.top().vi.visible()) {
              workload.viFbSize = viHistory.top().vi.fbSize();
@@ -7019,7 +7067,7 @@ index 2970e71..33b1885 100644
          }
  
          // Log and reset profilers.
-@@ -1805,7 +2193,7 @@ namespace RT64 {
+@@ -1805,7 +2208,7 @@ namespace RT64 {
  
                  for (size_t h = 0; (h < viHistory.history.size()) && !viPresented; h++) {
                      const VIHistory::Present &entry = viHistory.history[h];
@@ -7028,7 +7076,7 @@ index 2970e71..33b1885 100644
                      const hlslpp::uint2 fbSize = entry.vi.fbSize();
                      const uint8_t fbSiz = entry.vi.fbSiz();
                      if ((colorImg.address == fbAddress) &&
-@@ -1824,6 +2212,12 @@ namespace RT64 {
+@@ -1824,6 +2227,12 @@ namespace RT64 {
          Workload &nextWorkload = ext.workloadQueue->workloads[workloadCursor];
          nextWorkload.begin(workloadCounter++);
  
@@ -7041,7 +7089,7 @@ index 2970e71..33b1885 100644
          // Indicate on the framebuffer manager that all tile copies are free to be used again.
          framebufferManager.clearUsedTileCopies();
  
-@@ -1836,6 +2230,10 @@ namespace RT64 {
+@@ -1836,6 +2245,10 @@ namespace RT64 {
      }
      
      void State::updateScreen(const VI &newVI, bool fromEarlyPresent) {
@@ -7052,7 +7100,7 @@ index 2970e71..33b1885 100644
          // If the debugger has paused the plugin, keep submitting the last workload and screen VI for rendering and a present event.
          if (debuggerInspector.paused && !fromEarlyPresent) {
              if (ext.userConfig->developerMode) {
-@@ -1871,18 +2269,36 @@ namespace RT64 {
+@@ -1871,18 +2284,36 @@ namespace RT64 {
          const hlslpp::uint2 screenFbSize = newVI.fbSize();
          const uint8_t screenFbSiz = newVI.fbSiz();
          const bool viVisible = newVI.visible();
@@ -7091,7 +7139,7 @@ index 2970e71..33b1885 100644
              }
              else if (viVisible) {
                  lastScreenFactorCounter++;
-@@ -1897,11 +2313,12 @@ namespace RT64 {
+@@ -1897,11 +2328,12 @@ namespace RT64 {
          screenCpuProfiler.start();
          bool fbChangesMade = false;
          bool screenChangesMade = false;
@@ -7105,7 +7153,7 @@ index 2970e71..33b1885 100644
              if (screenFb != nullptr) {
                  // Check compatibility of the high resolution framebuffer with the VI first.
                  // Ensure both the siz and width are the same.
-@@ -1909,6 +2326,7 @@ namespace RT64 {
+@@ -1909,6 +2341,7 @@ namespace RT64 {
                      const uint8_t *fbRAM = &RDRAM[screenFb->addressStart];
                      uint64_t currentHash = XXH3_64bits(fbRAM, screenFb->RAMBytes);
                      if (currentHash != screenFb->RAMHash) {
@@ -7113,7 +7161,7 @@ index 2970e71..33b1885 100644
                          {
                              RenderWorkerExecution workerExecution(worker);
                              thread_local std::vector<uint32_t> fbDiscards;
-@@ -1924,12 +2342,16 @@ namespace RT64 {
+@@ -1924,12 +2357,16 @@ namespace RT64 {
                          // Only update the hash if it's not a discard.
                          if (present.fbOperations.front().type == FramebufferOperation::Type::WriteChanges) {
                              screenFb->RAMHash = currentHash;
@@ -7130,7 +7178,7 @@ index 2970e71..33b1885 100644
                  }
                  else {
                      screenFb = nullptr;
-@@ -1943,6 +2365,15 @@ namespace RT64 {
+@@ -1943,6 +2380,15 @@ namespace RT64 {
                  memcpy(present.storage.data(), &RDRAM[screenFbAddress], screenFbBytes);
                  uint64_t newScreenHash = XXH3_64bits(present.storage.data(), screenFbBytes);
                  screenChangesMade = (newScreenHash != lastScreenHash);
@@ -7146,7 +7194,7 @@ index 2970e71..33b1885 100644
                  lastScreenHash = newScreenHash;
              }
          }
-@@ -1950,9 +2381,18 @@ namespace RT64 {
+@@ -1950,9 +2396,18 @@ namespace RT64 {
          // We only push a new present event to the timeline when it's necessary.
          if (fromEarlyPresent || viDifferent || fbChangesMade || screenChangesMade) {
              // Push a new renderer event to the timeline for presenting this VI.
@@ -7166,7 +7214,7 @@ index 2970e71..33b1885 100644
  
              // This presentation originates from screen changes being made manually by the CPU
              // or the game somehow not doing some form of buffering (instant input romhacks).
-@@ -1971,6 +2411,9 @@ namespace RT64 {
+@@ -1971,6 +2426,9 @@ namespace RT64 {
          renderTargetManager.destroyAll();
          renderTargetManager.setMultisampling(multisampling);
          dummyDepthTarget.reset();
@@ -7176,7 +7224,7 @@ index 2970e71..33b1885 100644
          framebufferRenderer->updateMultisampling();
          updateRenderFlagSampleCount();
      }
-@@ -2660,12 +3103,106 @@ namespace RT64 {
+@@ -2660,12 +3118,106 @@ namespace RT64 {
          workload.debuggerCamera = debuggerInspector.camera;
          workload.debuggerRenderer = debuggerInspector.renderer;
          workload.paused = paused;
@@ -7283,7 +7331,7 @@ index 2970e71..33b1885 100644
          present.debuggerFramebuffer.address = debuggerInspector.renderer.framebufferAddress;
          present.debuggerFramebuffer.view = (debuggerInspector.renderer.framebufferIndex >= 0);
      }
-@@ -2724,6 +3261,25 @@ namespace RT64 {
+@@ -2724,6 +3276,25 @@ namespace RT64 {
          extended.renderToRAM = renderToRAM;
      }
  

@@ -21,7 +21,7 @@ eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLL
 53ce431, fbf407f, which it turns on too),
 `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES`
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
-too), `RT64_HASH_DRAWN_FRAMEBUFFERS` (rt64 5e192d2, which Excitebike 64's desktop build turns on),
+too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, which Excitebike 64's desktop build turns on),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
@@ -1412,4 +1412,8 @@ rt64 5e192d2           RT64_HASH_DRAWN_FRAMEBUFFERS: without render to RAM, the 
                        it ends, so the VI's check of RAM puts over the picture only what the CPU writes after a draw:
                        Excitebike 64 copies a track's models into its spare framebuffer as a race loads and the race's
                        first frame clears it black, and the copy, still in RDRAM, came back over the black for a frame
+rt64 bf5c70d           RT64_HASH_FILLED_FRAMEBUFFERS, renamed from 5e192d2's option: only a framebuffer a fill-cycle
+                       rect covered across its whole width and every row RDRAM holds of it is hashed as the list ends,
+                       so what the CPU wrote where a list drew only part of a framebuffer still shows, as on the
+                       console; checking RAM at the next list's start, as render to RAM does, still showed the copy
 ```
