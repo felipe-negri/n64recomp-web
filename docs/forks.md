@@ -8,7 +8,7 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Twenty-six options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Twenty-seven options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
@@ -22,6 +22,7 @@ eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLL
 `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES`
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
+`RT64_REJ_WITHOUT_NEAR_CLIP` (rt64 19014a4, which it turns on too),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
@@ -1432,4 +1433,10 @@ rt64 bf5c70d           RT64_HASH_FILLED_FRAMEBUFFERS, renamed from 5e192d2's opt
                        console; checking RAM at the next list's start, as render to RAM does, still showed the copy
 rt64 1ff931b           RT64_HASH_FILLED_FRAMEBUFFERS: FramebufferPair::filledRows and its reset moved away from
                        fillRectOnly, where BeetleRecomp-web's own patch adds a field, so that patch applies over it
+rt64 19014a4           RT64_REJ_WITHOUT_NEAR_CLIP: a Rej microcode (F3DLX2.Rej, F3DEX2.Rej, F3DLX.Rej, F3DLP.Rej)
+                       draws what lies past the near plane as a NoN one does: its reject box has no near plane, so
+                       the console draws it, and RasterPS discarded it. Excitebike 64 draws its riders into their
+                       shadow textures there, and no bike had a shadow. NoN is in a shader's key, so a Rej game's
+                       list wants its triangles' entries again with it: 1080 Snowboarding's, WWF No Mercy's and
+                       Mario Party 1-3's (Rej beside a clipping microcode) take them in their next update
 ```
