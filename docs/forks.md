@@ -1419,4 +1419,6 @@ N64ModernRuntime       controller_pak_ports after has_compressed_code and get_co
 cd4a7f4                get_project_version(), lines every game fork's runtime has as upstream's (RogueSquadron64Recomp-web's
                        has an older GameEntry and no get_config_path()), and the pak files in the folder of the game's
                        own save (ultramodern::get_save_file_path()), saves/ or the game's subfolder of it
+N64ModernRuntime       recomp::get_controller_pak_ports() after run_thread_function, away from the lines Rogue
+9c1766b                Squadron's runtime adds after game_status
 ```
