@@ -18,7 +18,7 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
 2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, 8868f0d,
 55f42a3, e102336, 602dcd2, 9a1d37a, cf8bba7, ea78fc1, 12aa560, 84d36bd, 1d1a0ee, 3a0fdea,
-53ce431, fbf407f, which it turns on too),
+53ce431, fbf407f, a75df38, which it turns on too),
 `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES`
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
@@ -1439,4 +1439,9 @@ rt64 19014a4           RT64_REJ_WITHOUT_NEAR_CLIP: a Rej microcode (F3DLX2.Rej, 
                        shadow textures there, and no bike had a shadow. NoN is in a shader's key, so a Rej game's
                        list wants its triangles' entries again with it: 1080 Snowboarding's, WWF No Mercy's and
                        Mario Party 1-3's (Rej beside a clipping microcode) take them in their next update
+rt64 a75df38           RT64_INTERPOLATE_RECT_SCROLLS: a rect of colour where the frame before drew one of its size,
+                       in another colour, pairs with no look-alike elsewhere and is drawn where the game put it:
+                       Excitebike 64's fades, columns whose alpha ramps across the screen, paired each column with the
+                       one that had its alpha a game frame before, and the frames between slid them, a bright strip of
+                       the picture where the ramp met the black
 ```
