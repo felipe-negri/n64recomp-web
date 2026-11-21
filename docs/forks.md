@@ -32,6 +32,9 @@ too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Exc
 (N64ModernRuntime 684377c), `RECOMPINPUT_SINGLE_PLAYER_UNTIL_ASSIGNED` (RecompFrontend bf01590) and
 `RECOMPINPUT_RECONNECT_PLAYERS` (RecompFrontend 9fc3d68, on with `RECOMPINPUT_PADS_IN_ORDER` too).
 
+Two are off with Emscripten too, on only where a game turns them on, which Mario Party 3 does:
+`RT64_DRAW_LINES` (rt64 73a58f0, 18066b5) and `RT64_FILTER_BY_ALPHA` (rt64 11878b7, 18066b5).
+
 ## Every commit
 
 ```
@@ -1487,4 +1490,13 @@ rt64 59df529, 08533e4  RT64_SKIP_CAMERA_CUTS: a workload whose camera cut to ano
                        the game put them: at Mario Golf's cut from the tee to the ball's flight, its far hills' texrect
                        strips paired with strips of the shot before 112 lines lower, and the frame between drew a row
                        of dashed hills or a band of vertical stripes across the fog at the top of the picture
+rt64 73a58f0, 18066b5  RT64_DRAW_LINES, off unless a game turns it on: G_LINE3D (the line microcode's, which RT64 left
+                       undrawn) drawn as a quad on the screen 1.5 pixels wide and half a pixel more a step of its
+                       width, unlit, its corners moved apart on the GPU after the vertices are placed, so it follows its
+                       ends in a wider picture and in the frames between. Mario Party 3's fishing line in Hand Line and
+                       Sinker was missing, and lit from its white vertex bytes it was its ambient's dark grey-blue
+rt64 11878b7, 18066b5  RT64_FILTER_BY_ALPHA, off unless a game turns it on: where a draw's alpha decides its coverage
+                       or alpha compare, a texture's colour filtered weighted by its texels' alpha, so a sprite's edge
+                       takes none of the colour of the texels it leaves out: Mario Party 3's crowds had a green line
+                       round each sprite (Slot Synch), their palette's transparent green
 ```
