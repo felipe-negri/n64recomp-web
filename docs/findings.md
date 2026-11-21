@@ -2273,6 +2273,14 @@ on WebGPU and no shader indexes a texture array. Both builds with it ran 240 s o
 Dark's first picture comes later there, by 30 s where it came within 10 s (twice each, alone on an idle host); Rush
 2049's comes at 10 s either way. A GPU's driver is unchanged.
 
+A crash there can also be the game's own. Turok 2's Linux release died on lavapipe with SIGSEGV at 25-60 s in most
+boots on a busy host, with no crash trace from the runtime. Under gdb it was a recompiled game thread storing to
+address 0 (`sb $zero, 0($zero)`) in the game's retrace handler: a watchdog that counts retraces, is reset by each
+finished graphics task, and stops the game once 1200 retraces (20 s) pass without one, since on a console that means
+the RCP has hung. On lavapipe a task can take that long, and so can it on a slow GPU. The recomp's own configuration
+turns the store into a nop. A watchdog of this kind is worth looking for in a game whose lavapipe boot dies with no
+trace of its own.
+
 ## Firefox slow to start
 
 On some stretches of an afternoon, every Firefox play on one host (an RTX 2070, other pages beside it) took 50
