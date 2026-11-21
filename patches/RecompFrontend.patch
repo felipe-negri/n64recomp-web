@@ -1,4 +1,4 @@
-RecompFrontend: https://github.com/n64hub/RecompFrontend-web aeb4157c12bc6d0c33cc6762a7122cc9dfb3adfb
+RecompFrontend: https://github.com/n64hub/RecompFrontend-web b2e6d3136e1d7d73960a1934c6f5e17a9022dcd6
 on upstream b2c5c18d73054416c844486611fd2c2b9d8a4927 (tools/export_patches.sh)
 
 diff --git a/recompinput/CMakeLists.txt b/recompinput/CMakeLists.txt
@@ -834,7 +834,7 @@ index 4dce8e0..dd78891 100644
  
  target_compile_options(recompui PRIVATE
 diff --git a/recompui/include/recompui/renderer.h b/recompui/include/recompui/renderer.h
-index 33f79ab..0c88281 100644
+index 33f79ab..800a7a1 100644
 --- a/recompui/include/recompui/renderer.h
 +++ b/recompui/include/recompui/renderer.h
 @@ -29,6 +29,10 @@ namespace recompui {
@@ -848,7 +848,7 @@ index 33f79ab..0c88281 100644
              void shutdown() override;
              uint32_t get_display_framerate() const override;
              float get_resolution_scale() const override;
-@@ -45,6 +49,15 @@ namespace recompui {
+@@ -45,6 +49,20 @@ namespace recompui {
  
          std::unique_ptr<ultramodern::renderer::RendererContext> create_render_context(uint8_t *rdram, ultramodern::renderer::WindowHandle window_handle, ultramodern::renderer::PresentationMode presentation_mode, bool developer_mode);
  
@@ -860,6 +860,11 @@ index 33f79ab..0c88281 100644
 +        // Whether that copy reaches RDRAM a display list late (RT64's renderToRAMLate, off unless turned on), so a list
 +        // doesn't wait for it. A game whose CPU reads a frame it has just drawn reads the one before then.
 +        void set_render_to_ram_late(bool late);
++
++        // Whether that late copy brings only the framebuffers drawn as depth buffers (RT64's renderToRAMLateDepthOnly, off
++        // unless turned on), for a game whose CPU reads its depth but never its frames. In a browser each framebuffer
++        // copied is a readback of its own, and the colour ones cost a page with a large canvas the most.
++        void set_render_to_ram_late_depth_only(bool depth_only);
 +
          RT64::UserConfiguration::Antialiasing RT64MaxMSAA();
          bool RT64SamplePositionsSupported();
@@ -1116,19 +1121,20 @@ index e99229a..d732a2b 100644
  #include "RmlUi/Core/StreamMemory.h"
  #include "RmlUi/../../Source/Core/DocumentHeader.h"
 diff --git a/recompui/src/renderer/rt64_render_context.cpp b/recompui/src/renderer/rt64_render_context.cpp
-index a7954c7..ae85526 100644
+index a7954c7..5d371a0 100644
 --- a/recompui/src/renderer/rt64_render_context.cpp
 +++ b/recompui/src/renderer/rt64_render_context.cpp
-@@ -20,6 +20,8 @@ using namespace recompui;
+@@ -20,6 +20,9 @@ using namespace recompui;
  static RT64::UserConfiguration::Antialiasing device_max_msaa = RT64::UserConfiguration::Antialiasing::None;
  static bool sample_positions_supported = false;
  static bool high_precision_fb_enabled = false;
 +static bool render_to_ram = true;
 +static bool render_to_ram_late = false;
++static bool render_to_ram_late_depth_only = false;
  
  static uint8_t DMEM[0x1000];
  static uint8_t IMEM[0x1000];
-@@ -60,6 +62,20 @@ unsigned int DPC_TMEM_REG = 0;
+@@ -60,6 +63,20 @@ unsigned int DPC_TMEM_REG = 0;
  
  void dummy_check_interrupts() {}
  
@@ -1149,7 +1155,7 @@ index a7954c7..ae85526 100644
  RT64::UserConfiguration::Antialiasing compute_max_supported_aa(plume::RenderSampleCounts bits) {
      if (bits & plume::RenderSampleCount::Bits::COUNT_2) {
          if (bits & plume::RenderSampleCount::Bits::COUNT_4) {
-@@ -227,12 +243,18 @@ renderer::RT64Context::RT64Context(uint8_t* rdram, ultramodern::renderer::Window
+@@ -227,12 +244,18 @@ renderer::RT64Context::RT64Context(uint8_t* rdram, ultramodern::renderer::Window
      appCore.window = window_handle.window;
  #elif defined(__linux__) || defined(__ANDROID__)
      appCore.window = window_handle;
@@ -1168,16 +1174,17 @@ index a7954c7..ae85526 100644
  
      appCore.HEADER = dummy_rom_header;
      appCore.RDRAM = rdram;
-@@ -272,6 +294,8 @@ renderer::RT64Context::RT64Context(uint8_t* rdram, ultramodern::renderer::Window
+@@ -272,6 +295,9 @@ renderer::RT64Context::RT64Context(uint8_t* rdram, ultramodern::renderer::Window
  
      // Create the RT64 application.
      app = std::make_unique<RT64::Application>(appCore, appConfig);
 +    app->emulatorConfig.framebuffer.renderToRAM = render_to_ram;
 +    app->emulatorConfig.framebuffer.renderToRAMLate = render_to_ram_late;
++    app->emulatorConfig.framebuffer.renderToRAMLateDepthOnly = render_to_ram_late_depth_only;
  
      // Set initial user config settings based on the current settings.
      auto& cur_config = ultramodern::renderer::get_graphics_config();
-@@ -313,6 +337,10 @@ renderer::RT64Context::RT64Context(uint8_t* rdram, ultramodern::renderer::Window
+@@ -313,6 +339,10 @@ renderer::RT64Context::RT64Context(uint8_t* rdram, ultramodern::renderer::Window
          return;
      }
  
@@ -1188,7 +1195,7 @@ index a7954c7..ae85526 100644
      // Set the application's fullscreen state.
      app->setFullScreen(cur_config.wm_option == ultramodern::renderer::WindowMode::Fullscreen);
  
-@@ -341,7 +369,14 @@ void renderer::RT64Context::send_dl(const OSTask* task) {
+@@ -341,7 +371,14 @@ void renderer::RT64Context::send_dl(const OSTask* task) {
      check_texture_pack_actions();
      app->state->rsp->reset();
      app->interpreter->loadUCodeGBI(task->t.ucode & 0x3FFFFFF, task->t.ucode_data & 0x3FFFFFF, true);
@@ -1203,7 +1210,7 @@ index a7954c7..ae85526 100644
  }
  
  void renderer::RT64Context::send_dummy_workload(uint32_t fb_address) {
-@@ -351,6 +386,12 @@ void renderer::RT64Context::send_dummy_workload(uint32_t fb_address) {
+@@ -351,6 +388,12 @@ void renderer::RT64Context::send_dummy_workload(uint32_t fb_address) {
      // G_AC_NONE | G_ZS_PIXEL | G_RM_NOOP | G_RM_NOOP2
      app->state->rdp->setOtherMode(0x382C30, 0);
      app->state->rdp->fillRect(0, 0, 320 << 2, 240 << 2);
@@ -1216,7 +1223,7 @@ index a7954c7..ae85526 100644
      app->state->fullSync();
      app->state->listProcessEnd();
  }
-@@ -360,6 +401,12 @@ void renderer::RT64Context::update_screen() {
+@@ -360,6 +403,12 @@ void renderer::RT64Context::update_screen() {
      app->updateScreen();
  }
  
@@ -1229,7 +1236,7 @@ index a7954c7..ae85526 100644
  void renderer::RT64Context::shutdown() {
      if (app != nullptr) {
          app->end();
-@@ -498,6 +545,14 @@ std::unique_ptr<ultramodern::renderer::RendererContext> renderer::create_render_
+@@ -498,6 +547,18 @@ std::unique_ptr<ultramodern::renderer::RendererContext> renderer::create_render_
      return std::make_unique<renderer::RT64Context>(rdram, window_handle, presentation_mode, developer_mode);
  }
  
@@ -1239,6 +1246,10 @@ index a7954c7..ae85526 100644
 +
 +void renderer::set_render_to_ram_late(bool late) {
 +    render_to_ram_late = late;
++}
++
++void renderer::set_render_to_ram_late_depth_only(bool depth_only) {
++    render_to_ram_late_depth_only = depth_only;
 +}
 +
  bool renderer::RT64SamplePositionsSupported() {
