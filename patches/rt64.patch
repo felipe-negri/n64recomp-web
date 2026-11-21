@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 7cec4af23eb08c711c6b454c907d2fae9bbd4822
+rt64: https://github.com/n64hub/rt64-web 1a688aa1e95b30eaf5ecda2a706681a2558e20dc
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -3201,7 +3201,7 @@ index 5c3c4d2..cba893c 100644
  
          uint32_t rdramUsed;
 diff --git a/src/hle/rt64_game_frame.cpp b/src/hle/rt64_game_frame.cpp
-index 87392d0..391213e 100644
+index 87392d0..02d5c11 100644
 --- a/src/hle/rt64_game_frame.cpp
 +++ b/src/hle/rt64_game_frame.cpp
 @@ -2,6 +2,9 @@
@@ -3228,7 +3228,7 @@ index 87392d0..391213e 100644
          if (!areFramebufferPairsCompatible(workloadQueue, { firstProj.workloadIndex, firstProj.fbPairIndex }, { proj.workloadIndex, proj.fbPairIndex })) {
              return false;
          }
-@@ -168,89 +178,1281 @@ namespace RT64 {
+@@ -168,89 +178,1370 @@ namespace RT64 {
          return (lhs.first < rhs.first) || ((lhs.first == rhs.first) && lhs.second < rhs.second);
      }
  
@@ -3806,6 +3806,11 @@ index 87392d0..391213e 100644
 +    // 64 columns as high as the screen) paired each column with the one that had its alpha a game frame before, up to
 +    // the screen's height away, and the frames between slid the columns from there, a strip of the picture uncovered
 +    // where the ramp met the black.
++    // A textured rect whose texture jumped as it changed size or moved half of itself along its row, where the frame
++    // before drew other rects with its look (the glyphs of a font packed into one texture page), is another picture there,
++    // drawn where the game put it, unless the jump is a cut at the scissor's edge (below). So is one that moved along its
++    // row onto the place of a rect nothing paired with while another took the place it left, a line of glyphs whose values
++    // changed.
 +    static void matchRectScrolls(const Workload &curWorkload, const Workload &prevWorkload, GameFrameMap::WorkloadMap &workloadMap, bool &tileInterpolationUsed, bool untextured) {
 +        struct RectCall {
 +            const DrawCall *call;
@@ -3958,6 +3963,21 @@ index 87392d0..391213e 100644
 +            const bool ulOnto = (aUl <= (vertical ? ca.scissorRect.uly : ca.scissorRect.ulx)) && (ulMove > 0);
 +            const bool lrOnto = (aLr >= (vertical ? ca.scissorRect.lry : ca.scissorRect.lrx)) && (lrMove < 0);
 +            return (ulOnto == lrOnto) ? 0 : (ulOnto ? 1 : 2);
++        };
++
++        // Whether the edge the game holds one way (heldEdge) lies on the scissor's, within a pixel: where it cuts a rect
++        // at the screen's edge, as a panorama or a sliding menu goes on past it.
++        auto heldAtScissor = [&](const DrawCall &ca, const DrawCall &cb, bool vertical) {
++            const int held = heldEdge(ca, cb, vertical);
++            if (held == 1) {
++                return (vertical ? ca.gameRect.uly : ca.gameRect.ulx) <= ((vertical ? ca.scissorRect.uly : ca.scissorRect.ulx) + 4);
++            }
++
++            if (held == 2) {
++                return (vertical ? ca.gameRect.lry : ca.gameRect.lrx) >= ((vertical ? ca.scissorRect.lry : ca.scissorRect.lrx) - 4);
++            }
++
++            return false;
 +        };
 +
 +        // A rect the game cuts at an edge it holds (a strip of a panorama that crosses the top of the picture, held at
@@ -4316,10 +4336,7 @@ index 87392d0..391213e 100644
 +            if (!together) {
 +                continue;
 +            }
- 
--    bool operator<(const MatchCandidate &lhs, const MatchCandidate &rhs) {
--        return lhs.difference < rhs.difference;
--    }
++
 +            // The texels the rect spans in each direction: its size in pixels times its texels a pixel.
 +            const float spanS = (float(curCall.rect.lrx - curCall.rect.ulx) / 4.0f) * (fabsf(float(curCall.rectDsdx)) / 1024.0f);
 +            const float spanT = (float(curCall.rect.lry - curCall.rect.uly) / 4.0f) * (fabsf(float(curCall.rectDtdy)) / 1024.0f);
@@ -4339,15 +4356,87 @@ index 87392d0..391213e 100644
 +                    (cutT || (stepT[t] == 0.0f) || (fabsf(stepT[t]) < (spanT * tile.shiftt / 4.0f)));
 +                scrolled = scrolled || (stepS[t] != 0.0f) || (stepT[t] != 0.0f);
 +            }
++
++            const bool moved = (prevCall.rect.ulx != curCall.rect.ulx) || (prevCall.rect.uly != curCall.rect.uly) ||
++                (prevCall.rect.lrx != curCall.rect.lrx) || (prevCall.rect.lry != curCall.rect.lry);
++            if (!moved && (!slides || !scrolled)) {
++                continue;
++            }
++
++            // A rect whose texture jumped (its texcoords moved a quarter of what it spans or more, not a scroll inside
++            // it), where the frame before drew other rects with its look, is another picture of a texture they share,
++            // not this one moved, cut or resized: a glyph of a font the game packs into one texture page with the rest
++            // and draws by its texcoords (Excitebike 64's, its race's times and score one 64x64 page). As the race's
++            // timer counted, a digit paired with the frame before's digit in its place, a glyph of another size, or
++            // with one a cell along the line, and the frames between drew it stretched between the two sizes, slid
++            // across its neighbours, or cut as a panorama's strip is (cutAt), the page's texels sliding through it and
++            // the glyphs beside it in the page showing as columns. A step taken on an axis the rect is cut at the
++            // scissor's edge it holds stays a cut: a strip of a texture several rects share, sliding off the screen.
++            // So does one whose top edge moved, or of its size that moved along its row less than half of it: a sprite
++            // among others that animates by stepping its texcoords across a strip of its frames as it drifts (Mario
++            // Golf's sparkles in its credits), where a line of glyphs keeps its row.
++            bool jumped = false;
++            for (uint32_t t = 0; (t < curCall.tileCount) && !jumped && !untextured; t++) {
++                const interop::RDPTile &tile = curData.rdpTiles[curCall.tileIndex + t];
++                const float jumpS = fabsf(insidePeriod(ds * tile.shifts, tile.masks, tile.cms));
++                const float jumpT = fabsf(insidePeriod(dt * tile.shiftt, tile.maskt, tile.cmt));
++                jumped = (!(cutS && heldAtScissor(curCall, prevCall, false)) && (jumpS > 0.0f) && (jumpS >= (spanS * tile.shifts / 4.0f))) ||
++                    (!(cutT && heldAtScissor(curCall, prevCall, true)) && (jumpT > 0.0f) && (jumpT >= (spanT * tile.shiftt / 4.0f)));
++            }
++
++            const bool movedHalf = (abs(prevCall.gameRect.ulx - curCall.gameRect.ulx) * 2 >= (curCall.gameRect.lrx - curCall.gameRect.ulx));
++            const bool another = jumped && (prevCall.gameRect.uly == curCall.gameRect.uly) && (!sameSize(curCall, prevCall) || movedHalf);
++            bool shared = false;
++            for (size_t k = 0; (k < prevRects.size()) && another && !shared; k++) {
++                shared = (k != found) && sameLook(curCall, *prevRects[k].call);
++            }
++
++            if (shared) {
++                continue;
++            }
++
++            // A textured rect that moved along its row onto most of the place of a rect of that row the frame before
++            // drew at its scale that nothing of this frame paired with, while another rect of this frame at that scale
++            // took most of the place it left, in its row too, is another picture in each place: a line of glyphs whose
++            // values changed, not a glyph moved along it. Excitebike 64 draws its race timer's glyphs page by page, so
++            // as it went from 59.01 to 58.98 the tenths' 9 paired with the seconds' 9 as its own, a glyph and the point
++            // to its left, and the frames between slid it across them. A line that slides pairs the glyphs in the
++            // places its glyphs move onto, all used.
++            auto sameScale = [](const DrawCall &a, const DrawCall &b) {
++                return (a.rectDsdx == b.rectDsdx) && (a.rectDtdy == b.rectDtdy);
++            };
++
++            auto mostOf = [](const DrawCall &a, const DrawCall &b) {
++                const int64_t w = std::min(a.gameRect.lrx, b.gameRect.lrx) - std::max(a.gameRect.ulx, b.gameRect.ulx);
++                const int64_t h = std::min(a.gameRect.lry, b.gameRect.lry) - std::max(a.gameRect.uly, b.gameRect.uly);
++                const int64_t area = int64_t(a.gameRect.lrx - a.gameRect.ulx) * int64_t(a.gameRect.lry - a.gameRect.uly);
++                return (w > 0) && (h > 0) && ((w * h * 2) > area);
++            };
++
++            bool replaced = false;
++            if (moved && !untextured && (prevCall.gameRect.uly == curCall.gameRect.uly)) {
++                bool placeTaken = false;
++                for (size_t k = 0; (k < prevRects.size()) && !placeTaken; k++) {
++                    const DrawCall &placeCall = *prevRects[k].call;
++                    placeTaken = (k != found) && !prevUsed[k] && (placeCall.gameRect.uly == curCall.gameRect.uly) && sameScale(curCall, placeCall) &&
++                        mostOf(curCall, placeCall);
++                }
+ 
+-    bool operator<(const MatchCandidate &lhs, const MatchCandidate &rhs) {
+-        return lhs.difference < rhs.difference;
+-    }
++                for (size_t c = 0; (c < curRects.size()) && placeTaken && !replaced; c++) {
++                    const DrawCall &leftCall = *curRects[c].call;
++                    replaced = (c != r) && (leftCall.gameRect.uly == prevCall.gameRect.uly) && sameScale(leftCall, prevCall) && mostOf(prevCall, leftCall);
++                }
++            }
  
 -    struct TransformMatchResult {
 -        float positionDifference = FLT_MAX;
 -        float orientationDifference = FLT_MAX;
 -        float screenSpaceDifference = FLT_MAX;
 -        bool valid = false;
-+            const bool moved = (prevCall.rect.ulx != curCall.rect.ulx) || (prevCall.rect.uly != curCall.rect.uly) ||
-+                (prevCall.rect.lrx != curCall.rect.lrx) || (prevCall.rect.lry != curCall.rect.lry);
-+            if (!moved && (!slides || !scrolled)) {
++            if (replaced) {
 +                continue;
 +            }
  
@@ -4568,7 +4657,7 @@ index 87392d0..391213e 100644
  
      void GameFrame::match(RenderWorker *worker, WorkloadQueue &workloadQueue, const GameFrame &prevFrame, BufferUploader *velocityUploader, bool &velocityUploaderUsed, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed) {
          tileInterpolationUsed = false;
-@@ -260,17 +1462,49 @@ namespace RT64 {
+@@ -260,17 +1551,49 @@ namespace RT64 {
          thread_local std::unordered_map<uint32_t, ModifiedBuffers> workloadsModified;
          workloadsModified.clear();
  
@@ -4624,7 +4713,7 @@ index 87392d0..391213e 100644
              const Workload &prevWorkload = workloadQueue.workloads[workloadMap.prevWorkloadIndex];
              workloadMap.viewProjections.clear();
              workloadMap.viewProjections.resize(curWorkload.drawData.viewProjTransforms.size());
-@@ -290,7 +1524,7 @@ namespace RT64 {
+@@ -290,7 +1613,7 @@ namespace RT64 {
              buildTransformIdMap(curWorkload, curWorkload.transformIdMap, curWorkload.transformIgnoredIds);
  
              // Retrieve the matching maps for the current and previous workload.
@@ -4633,7 +4722,7 @@ index 87392d0..391213e 100644
              const GameFrameMap::WorkloadMap *prevWorkloadMap = nullptr;
              if (prevFrame.matched && prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex].mapped) {
                  prevWorkloadMap = &prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex];
-@@ -316,7 +1550,7 @@ namespace RT64 {
+@@ -316,7 +1639,7 @@ namespace RT64 {
              }
  
              if (!modifiedBuffers.empty()) {
@@ -4642,7 +4731,7 @@ index 87392d0..391213e 100644
              }
  
              // Any transforms tagged with the empty ID will be instantly marked as used and skipped.
-@@ -343,6 +1577,14 @@ namespace RT64 {
+@@ -343,6 +1666,14 @@ namespace RT64 {
                  const hlslpp::float4x4 &curProjTransform = curWorkload.drawData.projTransforms[curProj.transformsIndex];
                  for (uint32_t j = 0; j < prevScenes.size(); j++) {
                      const GameIndices::Projection prevFirstProj = prevScenes[j].projections[0];
@@ -4657,7 +4746,7 @@ index 87392d0..391213e 100644
                      const Workload &prevWorkload = workloadQueue.workloads[prevFirstProj.workloadIndex];
                      const FramebufferPair &prevFbPair = prevWorkload.fbPairs[prevFirstProj.fbPairIndex];
                      const Projection &prevProj = prevFbPair.projections[prevFirstProj.projectionIndex];
-@@ -356,6 +1598,40 @@ namespace RT64 {
+@@ -356,6 +1687,40 @@ namespace RT64 {
              prevScenesMatched.clear();
              curScenesMatched.resize(curScenes.size());
              prevScenesMatched.resize(prevScenes.size());
@@ -4698,7 +4787,7 @@ index 87392d0..391213e 100644
              std::stable_sort(matchCandidates.begin(), matchCandidates.end());
              for (const MatchCandidate &candidate : matchCandidates) {
                  if (curScenesMatched[candidate.curIndex]) {
-@@ -396,6 +1672,15 @@ namespace RT64 {
+@@ -396,6 +1761,15 @@ namespace RT64 {
          else {
              velocityUploaderUsed = false;
          }
@@ -4714,7 +4803,7 @@ index 87392d0..391213e 100644
      }
  
      void GameFrame::matchScene(WorkloadQueue &workloadQueue, const GameFrame &prevFrame, const GameScene &curScene, const GameScene &prevScene, std::unordered_map<uint32_t, ModifiedBuffers> &workloadsModified, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed) {
-@@ -403,8 +1688,10 @@ namespace RT64 {
+@@ -403,8 +1777,10 @@ namespace RT64 {
              return;
          }
  
@@ -4727,7 +4816,7 @@ index 87392d0..391213e 100644
          curCallHashMap.clear();
          prevCallHashMap.clear();
  
-@@ -423,6 +1710,12 @@ namespace RT64 {
+@@ -423,6 +1799,12 @@ namespace RT64 {
              firstPrevWorkloadMap = &prevFrame.frameMap.workloads[firstPrevProjIndices.workloadIndex];
          }
  
@@ -4740,7 +4829,7 @@ index 87392d0..391213e 100644
          // Build a multimap with all potential compatibilities between draw calls in the projections.
          uint32_t mappedViewProjIndex = UINT32_MAX;
          for (uint32_t p = 0; p < curScene.projections.size(); p++) {
-@@ -478,6 +1771,39 @@ namespace RT64 {
+@@ -478,6 +1860,39 @@ namespace RT64 {
                  }
                  else {
                      viewProjMap.mapped = (curProjGroup.matrixId == G_EX_ID_AUTO);
@@ -4780,7 +4869,7 @@ index 87392d0..391213e 100644
                  }
  
                  if (viewProjMap.mapped) {
-@@ -509,69 +1835,163 @@ namespace RT64 {
+@@ -509,69 +1924,163 @@ namespace RT64 {
              buildCallHashMap(p, prevWorkload, prevProj, prevCallHashMap);
          }
  
@@ -4990,7 +5079,7 @@ index 87392d0..391213e 100644
          }
  
          // Compute all the differences between transforms and insert them into a vector that will be sorted according to the differences.
-@@ -592,6 +2012,71 @@ namespace RT64 {
+@@ -592,6 +2101,71 @@ namespace RT64 {
              }
          }
  
@@ -5062,7 +5151,7 @@ index 87392d0..391213e 100644
          ModifiedBuffers modifiedBuffers;
          std::stable_sort(matchCandidates.begin(), matchCandidates.end());
          for (const MatchCandidate candidate : matchCandidates) {
-@@ -606,6 +2091,136 @@ namespace RT64 {
+@@ -606,6 +2180,136 @@ namespace RT64 {
              matchTransform(firstCurWorkload, firstPrevWorkload, firstCurWorkloadMap, firstPrevWorkloadMap, candidate.curIndex, candidate.prevIndex, modifiedBuffers);
          }
  
@@ -5199,7 +5288,7 @@ index 87392d0..391213e 100644
          if (!modifiedBuffers.empty()) {
              workloadsModified[firstCurProjIndices.workloadIndex].merge(modifiedBuffers);
          }
-@@ -669,17 +2284,160 @@ namespace RT64 {
+@@ -669,17 +2373,160 @@ namespace RT64 {
              const bool wrappedUlt = (curTile.cmt == G_TX_WRAP) && (modulo(integerUlt, curTile.maskt * 4) == modulo(expectedUlt, curTile.maskt * 4));
              const bool wrappedLrs = (curTile.cms == G_TX_WRAP) && (modulo(integerLrs, curTile.masks * 4) == modulo(expectedLrs, curTile.masks * 4));
              const bool wrappedLrt = (curTile.cmt == G_TX_WRAP) && (modulo(integerLrt, curTile.maskt * 4) == modulo(expectedLrt, curTile.maskt * 4));
@@ -5365,7 +5454,7 @@ index 87392d0..391213e 100644
          }
  
          // Check for look at matches.
-@@ -727,6 +2485,18 @@ namespace RT64 {
+@@ -727,6 +2574,18 @@ namespace RT64 {
          curTransformMap.mapped = true;
          curWorkloadMap.prevTransformsMapped[prevTransformIndex] = true;
  
@@ -5384,7 +5473,7 @@ index 87392d0..391213e 100644
          uint64_t curVertexHash = 0;
          uint64_t prevVertexHash = 0;
          uint32_t curVertexIndex = curWorkload.drawData.worldTransformVertexIndices[curTransformIndex];
-@@ -782,9 +2552,78 @@ namespace RT64 {
+@@ -782,9 +2641,78 @@ namespace RT64 {
  
              modifiedBuffers.texcoordVelocity = true;
          }
@@ -5464,7 +5553,7 @@ index 87392d0..391213e 100644
          for (uint32_t c = 0; c < proj.gameCallCount; c++) {
              const GameCall &call = proj.gameCalls[c];
              uint32_t matrixIdHash = 0;
-@@ -802,7 +2641,7 @@ namespace RT64 {
+@@ -802,7 +2730,7 @@ namespace RT64 {
                  doTileMatching = doTileMatching || (group.tileInterpolation == G_EX_COMPONENT_AUTO);
              }
  
