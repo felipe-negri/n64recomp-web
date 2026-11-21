@@ -1504,7 +1504,7 @@ rt64 e6c18c3           RT64_MOVE_UNPAIRED_WITH_CAMERA: where at most 3 of a scen
                        each onto one of the frame before's matrices. Excitebike 64's Desert draws its ground under
                        blocks it numbers afresh each frame, each a matrix of its place less the camera's, so few were
                        paired, and the light lines across the dunes stayed in a quarter of the frames that had them
-rt64 5cb5768           RT64_FRAME_DUMP's draws.bin: beside each game frame, each workload's pair and camera cut, each call
+rt64 5cb5768, d729981  RT64_FRAME_DUMP's draws.bin: beside each game frame, each workload's pair and camera cut, each call
                        as it was paired (transforms, vertices, texture hash and tiles, a rect's move), the frames
                        drawn from it with their weights, and where each call landed in the target after its scissor
                        and the widescreen adjustments, and presents.tsv the game frame of each frame dumped, so a

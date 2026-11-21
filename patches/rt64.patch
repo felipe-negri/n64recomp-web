@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 5cb5768d078c0f95f35bce9361f3004882348e27
+rt64: https://github.com/n64hub/rt64-web d729981ccb8b2b10d224e662a21e5911661256e9
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -9120,7 +9120,7 @@ index 8ea27d5..6c24741 100644
          void resetDrawDataRanges();
          void resetRSPOutputBuffers();
 diff --git a/src/hle/rt64_workload_queue.cpp b/src/hle/rt64_workload_queue.cpp
-index 5a331aa..0cac22f 100644
+index 5a331aa..569a3a6 100644
 --- a/src/hle/rt64_workload_queue.cpp
 +++ b/src/hle/rt64_workload_queue.cpp
 @@ -8,6 +8,13 @@
@@ -9988,6 +9988,12 @@ index 5a331aa..0cac22f 100644
                  bool skipWorkloadNow = false;
                  uint32_t targetIndex = 0;
                  uint32_t framesRendered = 0;
++                // RT64_FRAME_DUMP's draws.bin: the game frame as it was paired, and below each frame drawn from it.
++                FrameDump *frameDump = FrameDump::get();
++                if (frameDump != nullptr) {
++                    frameDump->addGameFrame(*this, curFrame);
++                }
++
 +                auto newerWorkloadQueued = [&]() {
 +                    std::scoped_lock<std::mutex> cursorLock(cursorMutex);
 +#               if RT64_GAME_FRAME_WORKLOADS
@@ -10003,12 +10009,6 @@ index 5a331aa..0cac22f 100644
 +                    return (writeCursor != threadCursor);
 +#               endif
 +                };
-+                // RT64_FRAME_DUMP's draws.bin: the game frame as it was paired, and below each frame drawn from it.
-+                FrameDump *frameDump = FrameDump::get();
-+                if (frameDump != nullptr) {
-+                    frameDump->addGameFrame(*this, curFrame);
-+                }
-+
                  int64_t renderTimeTotalMicro = 0;
                  for (uint32_t frame = 0; (frame < displayFrames) && !skipWorkloadNow; frame++) {
                      // Evaluate if this frame should be skipped. Measure the current time and compare it to what frame is estimated should be have been rendered by now.
@@ -10652,18 +10652,20 @@ index 69a82ac..1dd31f7 100644
              dstNorm = builder.addReadWriteStructuredBuffer(9);
              dstVel = builder.addReadWriteStructuredBuffer(10);
 diff --git a/src/render/rt64_framebuffer_renderer.cpp b/src/render/rt64_framebuffer_renderer.cpp
-index 9fae0d4..19be38f 100644
+index 9fae0d4..81c10a9 100644
 --- a/src/render/rt64_framebuffer_renderer.cpp
 +++ b/src/render/rt64_framebuffer_renderer.cpp
-@@ -9,6 +9,7 @@
- #include "common/rt64_elapsed_timer.h"
- #include "common/rt64_math.h"
- #include "hle/rt64_color_converter.h"
+@@ -49,6 +49,9 @@ namespace interop {
+     };
+ };
+ 
++// RT64_FRAME_DUMP's draws.bin, apart from the includes above, which games' own changes to RT64 change.
 +#include "hle/rt64_frame_dump.h"
- #include "gbi/rt64_f3d.h"
- #include "shared/rt64_framebuffer_params.h"
- #include "shared/rt64_raster_params.h"
-@@ -63,17 +64,35 @@ namespace RT64 {
++
+ namespace RT64 {
+     // Helper functions.
+     
+@@ -63,17 +66,35 @@ namespace RT64 {
                  }
              };
  
@@ -10702,7 +10704,7 @@ index 9fae0d4..19be38f 100644
              int32_t top = lround(rect.top(true) * resScale.y);
              int32_t bottom = lround(rect.bottom(true) * resScale.y);
              left = correctMisalignment(left, leftOrigin);
-@@ -95,8 +114,14 @@ namespace RT64 {
+@@ -95,8 +116,14 @@ namespace RT64 {
              }
          };
          
@@ -10717,7 +10719,7 @@ index 9fae0d4..19be38f 100644
                  return (coord - std::fmod(coord, resScale[1])) - horizontalMisalignment;
              }
              else {
-@@ -151,6 +176,7 @@ namespace RT64 {
+@@ -151,6 +178,7 @@ namespace RT64 {
  
          shaderUploader = std::make_unique<BufferUploader>(worker->device);
          descCommonSet = std::make_unique<FramebufferRendererDescriptorCommonSet>(shaderLibrary->samplerLibrary, worker->device->getCapabilities().raytracing, worker->device);
@@ -10725,7 +10727,7 @@ index 9fae0d4..19be38f 100644
  
  #   if RT_ENABLED
          if (rtSupport) {
-@@ -161,6 +187,8 @@ namespace RT64 {
+@@ -161,6 +189,8 @@ namespace RT64 {
      }
  
      FramebufferRenderer::~FramebufferRenderer() {
@@ -10734,7 +10736,7 @@ index 9fae0d4..19be38f 100644
          dummyColorTargetView.reset();
          dummyDepthTargetView.reset();
          dummyColorTarget.reset();
-@@ -187,7 +215,7 @@ namespace RT64 {
+@@ -187,7 +217,7 @@ namespace RT64 {
  
          // Create dummy depth target if it hasn't been created yet.
          if (dummyDepthTarget == nullptr) {
@@ -10743,7 +10745,7 @@ index 9fae0d4..19be38f 100644
              dummyDepthTarget = worker->device->createTexture(dummyDepthDesc);
              dummyDepthTarget->setName("Framebuffer Renderer Depth Dummy");
              dummyDepthTargetView = dummyDepthTarget->createTextureView(RenderTextureViewDesc::Texture2D(dummyDepthDesc.format));
-@@ -310,12 +338,12 @@ namespace RT64 {
+@@ -310,12 +340,12 @@ namespace RT64 {
          assert(worker != nullptr);
          assert(drawBuffers != nullptr);
          
@@ -10758,7 +10760,7 @@ index 9fae0d4..19be38f 100644
              descriptorTextureVersions.clear();
              descriptorTextureGlobalVersion = 0;
              descriptorTextureReplacementMapEnabled = textureCacheReplacementMapEnabled;
-@@ -373,10 +401,36 @@ namespace RT64 {
+@@ -373,10 +403,36 @@ namespace RT64 {
  
          descCommonSet->setBuffer(descCommonSet->FrParams, frameParamsBuffer.get(), sizeof(interop::FrameParams));
          descCommonSet->setBuffer(descCommonSet->instanceRenderIndices, renderIndicesBuffer.get(), RenderBufferStructuredView(sizeof(interop::RenderIndices)));
@@ -10795,7 +10797,7 @@ index 9fae0d4..19be38f 100644
  
          // Make sure the versions vector matches the texture cache size.
          descriptorTextureVersions.resize(textureCacheSize, 0);
-@@ -473,16 +527,30 @@ namespace RT64 {
+@@ -473,16 +529,30 @@ namespace RT64 {
          interop::RasterParams rasterParams;
          RenderDescriptorSet *descRealFbSet = framebuffer.descRealFbSet->get();
          RenderDescriptorSet *descDummyFbSet = framebuffer.descDummyFbSet->get();
@@ -10828,7 +10830,7 @@ index 9fae0d4..19be38f 100644
              worker->commandList->setGraphicsDescriptorSet(depthState ? descRealFbSet : descDummyFbSet, 3);
              worker->commandList->setViewports(framebuffer.viewport);
          };
-@@ -499,12 +567,13 @@ namespace RT64 {
+@@ -499,12 +569,13 @@ namespace RT64 {
              }
          };
  
@@ -10844,7 +10846,7 @@ index 9fae0d4..19be38f 100644
              }
          };
  
-@@ -551,13 +620,14 @@ namespace RT64 {
+@@ -551,13 +622,14 @@ namespace RT64 {
                  }
  
                  // A new pass must be started if decals are required and something wrote to the depth buffer before this call.
@@ -10861,7 +10863,7 @@ index 9fae0d4..19be38f 100644
                      switchToDepthWrite();
                  }
  
-@@ -570,10 +640,49 @@ namespace RT64 {
+@@ -570,10 +642,49 @@ namespace RT64 {
                      worker->commandList->setPipeline(triangles.pipeline);
                      previousPipeline = triangles.pipeline;
                  }
@@ -10911,7 +10913,7 @@ index 9fae0d4..19be38f 100644
                  worker->commandList->setGraphicsPushConstants(0, &rasterParams);
  
                  drawCallTriangles(drawCall);
-@@ -618,7 +727,12 @@ namespace RT64 {
+@@ -618,7 +729,12 @@ namespace RT64 {
                  const interop::RSPVertexTestZCB &testZCB = drawCall.vertexTestZ;
                  switchToDepthRead();
  
@@ -10924,7 +10926,7 @@ index 9fae0d4..19be38f 100644
                  const auto &rspVertexTestZ = useMSAA ? shaderLibrary->rspVertexTestZMS : shaderLibrary->rspVertexTestZ;
                  worker->commandList->barriers(RenderBarrierStage::COMPUTE, RenderBufferBarrier(testZIndexBuffer, RenderBufferAccess::WRITE));
                  worker->commandList->setPipeline(rspVertexTestZ.pipeline.get());
-@@ -1335,12 +1449,22 @@ namespace RT64 {
+@@ -1335,12 +1451,22 @@ namespace RT64 {
          }
  
          Framebuffer &framebuffer = framebufferVector[framebufferCount - 1];
@@ -10949,7 +10951,7 @@ index 9fae0d4..19be38f 100644
          framebuffer.descRealFbSet->setBuffer(framebuffer.descRealFbSet->FbParams, framebuffer.paramsBuffer.get(), sizeof(interop::FramebufferParams));
          framebuffer.descRealFbSet->setTexture(framebuffer.descRealFbSet->gBackgroundColor, backgroundColorTexture, RenderTextureLayout::SHADER_READ, backgroundColorTextureView);
          framebuffer.descRealFbSet->setTexture(framebuffer.descRealFbSet->gBackgroundDepth, p.fbStorage->depthTarget->texture.get(), RenderTextureLayout::DEPTH_READ, p.fbStorage->depthTarget->textureView.get());
-@@ -1450,6 +1574,7 @@ namespace RT64 {
+@@ -1450,6 +1576,7 @@ namespace RT64 {
          uint32_t vertexTestZFaceIndicesStart = 0;
          int32_t vertexTestZCallIndex = -1;
          RenderViewport viewportClip;
@@ -10957,7 +10959,7 @@ index 9fae0d4..19be38f 100644
          for (uint32_t pr = 0; (pr < fbPair.projectionCount) && (globalCallIndex < p.maxGameCall); pr++) {
              const Projection &proj = fbPair.projections[pr];
              if (proj.scissorRect.isNull()) {
-@@ -1548,6 +1673,11 @@ namespace RT64 {
+@@ -1548,6 +1675,11 @@ namespace RT64 {
                      }
  
                      clearRect.rect = convertFixedRect(call.callDesc.rect, p.resolutionScale, p.fbWidth, invRatioScale, extOriginPercentage, horizontalMisalignment, call.callDesc.rectLeftOrigin, call.callDesc.rectRightOrigin);
@@ -10969,7 +10971,7 @@ index 9fae0d4..19be38f 100644
                  }
                  else if (call.callDesc.extendedType != DrawExtendedType::None) {
                      switch (call.callDesc.extendedType) {
-@@ -1608,8 +1738,28 @@ namespace RT64 {
+@@ -1608,8 +1740,28 @@ namespace RT64 {
                          triangles.shaderDesc = call.shaderDesc;
  
                          RasterShader *gpuShader = p.ubershadersOnly ? nullptr : p.rasterShaderCache->getGPUShader(call.shaderDesc);
@@ -10998,7 +11000,7 @@ index 9fae0d4..19be38f 100644
                          }
                          else {
                              const bool copyMode = (call.shaderDesc.otherMode.cycleType() == G_CYC_COPY);
-@@ -1619,7 +1769,7 @@ namespace RT64 {
+@@ -1619,7 +1771,7 @@ namespace RT64 {
                                  (call.shaderDesc.otherMode.cvgDst() == CVG_DST_WRAP) || (call.shaderDesc.otherMode.cvgDst() == CVG_DST_SAVE));
                          }
                          
@@ -11007,7 +11009,7 @@ index 9fae0d4..19be38f 100644
                          triangles.vertexTestZ = (vertexTestZCallIndex >= 0);
                          triangles.postBlendDitherNoise = false;
  
-@@ -1628,6 +1778,16 @@ namespace RT64 {
+@@ -1628,6 +1780,16 @@ namespace RT64 {
                          switch (proj.type) {
                          case Projection::Type::Perspective:
                          case Projection::Type::Orthographic: {
@@ -11024,7 +11026,7 @@ index 9fae0d4..19be38f 100644
                              instanceDrawCall.type = InstanceDrawCall::Type::IndexedTriangles;
                              triangles.indexStart = triangles.vertexTestZ ? vertexTestZFaceIndicesStart : call.meshDesc.faceIndicesStart;
                              invRatioScale = projInvRatioScale;
-@@ -1656,6 +1816,54 @@ namespace RT64 {
+@@ -1656,6 +1818,54 @@ namespace RT64 {
                              triangles.screenScale = { viewportRect.width / framebuffer.viewport.width, viewportRect.height / framebuffer.viewport.height };
                              triangles.screenOffset.x = halfPixelOffset.x + ((viewportRect.x + viewportRect.width / 2.0f) - halfViewportSize.x) / halfViewportSize.x;
                              triangles.screenOffset.y = halfPixelOffset.y + (halfViewportSize.y - (viewportRect.y + viewportRect.height / 2.0f)) / halfViewportSize.y;
@@ -11079,7 +11081,7 @@ index 9fae0d4..19be38f 100644
  
                              if (p.postBlendNoise) {
                                  // Indicate if post blend dither noise should be applied.
-@@ -1683,6 +1891,16 @@ namespace RT64 {
+@@ -1683,6 +1893,16 @@ namespace RT64 {
                              triangles.scissor = viewportScissorIntersection(viewportClip, triangles.scissor);
                          }
                          
@@ -11096,7 +11098,7 @@ index 9fae0d4..19be38f 100644
                          if (triangles.vertexTestZ && usesViewport) {
                              instanceDrawCallVector[vertexTestZCallIndex].vertexTestZ.indexCount += call.callDesc.triangleCount * 3;
                              vertexTestZFaceIndicesStart += call.callDesc.triangleCount * 3;
-@@ -1760,7 +1978,215 @@ namespace RT64 {
+@@ -1760,7 +1980,215 @@ namespace RT64 {
          checkRasterScene(rasterScene);
      }
  
@@ -11313,7 +11315,7 @@ index 9fae0d4..19be38f 100644
          bool shaderViewRtEnabled = false;
          std::vector<BufferUploader::Upload> shaderUploads = {
              { renderIndicesVector.data(), { 0, renderIndicesVector.size() }, sizeof(interop::RenderIndices), RenderBufferFlag::STORAGE, { }, &renderIndicesBuffer},
-@@ -1816,8 +2242,16 @@ namespace RT64 {
+@@ -1816,8 +2244,16 @@ namespace RT64 {
          }
  #   endif
  
