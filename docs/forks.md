@@ -1444,6 +1444,12 @@ rt64 a75df38           RT64_INTERPOLATE_RECT_SCROLLS: a rect of colour where the
                        Excitebike 64's fades, columns whose alpha ramps across the screen, paired each column with the
                        one that had its alpha a game frame before, and the frames between slid them, a bright strip of
                        the picture where the ramp met the black
+rt64 ea1d8e7           RT64_SKIP_CAMERA_CUTS: a projection RT64 left whole, a perspective turned by a view with no
+                       translation, has its turn split from it for the check, and a camera whose eye then sits at the
+                       world's origin has its step read from what most of the scene's transforms moved by, exactly
+                       alike: Excitebike 64 puts its camera's place in each section's matrix on its outdoor tracks,
+                       the check read every turn as 0, and at two cuts of its credits fly-through the frames between
+                       drew the world halfway, a tree trunk filling the picture
 N64ModernRuntime       GameEntry::controller_pak_banks, asked each time a game initializes a port's pak: its banks, 1
 706c5f1                to 62, which a pak of another size has its files moved to if they fit, or 0 for a Rumble Pak
                        in the slot, which osPfsInitPak fails as libultra's does (status, queue and channel filled in,
