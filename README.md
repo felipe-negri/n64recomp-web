@@ -404,7 +404,9 @@ n64hub/N64ModernRuntime-web         N64Recomp/N64ModernRuntime  Emscripten: no l
                                                                   on a Status write, no thread put in a queue
                                                                   twice, a sound buffer's KSEG1 address read
                                                                   through KSEG0's; TLB-mapped memory opened by
-                                                                  make_kuseg_accessible, in a window on the web
+                                                                  make_kuseg_accessible, in a window on the web;
+                                                                  a file-backed Controller Pak in the ports a
+                                                                  game's GameEntry names
 n64hub/RecompFrontend-web           N64Recomp/RecompFrontend recompui on WebGPU, the canvas as the window,
                                                                   a file picker on a thread of its own, render
                                                                   to RAM as an option and its copy a display

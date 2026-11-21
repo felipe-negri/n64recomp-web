@@ -1407,4 +1407,10 @@ rt64 fbf407f           RT64_INTERPOLATE_RECT_SCROLLS: a textured rect that no ot
                        before up to four times its longer side away, past less than its side: Mario Golf's pin flag in
                        the sky, 8 by 16 pixels, moves 22 to 26 pixels a game frame as the view turns fast, and held
                        still between the game's frames and stepped once each against the course turning behind it
+N64ModernRuntime       a file-backed Controller Pak (librecomp/src/pak.cpp) in the ports a game's
+481338b                GameEntry sets in controller_pak_ports, bit 0 for controller 1, as saves/controllerpak_<port>.mpk
+                       in the config folder: a 32 KiB pak in the .mpk layout emulators use, written whole on each
+                       change. Every other port answers PFS_ERR_NOPACK as before, and a game sets no port by default;
+                       a game that defines every osPfs function keeps its own pak. Excitebike 64 holds its Time Trial
+                       ghosts there
 ```
