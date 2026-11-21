@@ -1457,4 +1457,9 @@ N64ModernRuntime       GameEntry::controller_pak_banks, asked each time a game i
                        accessory in its settings, and kept its own copy of pak.cpp for them
 N64ModernRuntime       pak.cpp's header within 120 columns
 179897d
+rt64 782b673           renderToRAMLateDepthOnly: render to RAM's late copy brings only the framebuffers drawn as depth
+RecompFrontend b2e6d31 buffers into RDRAM (set_render_to_ram_late_depth_only), for a game whose CPU reads its depth but
+                       never its frames; a late batch that leaves nothing to copy waits for the GPU as it ends. Each
+                       framebuffer copied is a readback of its own in a browser: Excitebike 64's page in Chrome at
+                       3840x2000 drew 342 presents a second with it against 258
 ```
