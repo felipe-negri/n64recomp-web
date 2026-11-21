@@ -1413,4 +1413,6 @@ N64ModernRuntime       a file-backed Controller Pak (librecomp/src/pak.cpp) in t
                        change. Every other port answers PFS_ERR_NOPACK as before, and a game sets no port by default;
                        a game that defines every osPfs function keeps its own pak. Excitebike 64 holds its Time Trial
                        ghosts there
+N64ModernRuntime       controller_pak_ports beside save_type in GameEntry, away from the lines after on_init_callback
+ecfbc79                that a game fork's own field patches in (CBFD-Recompiled-web's accept_rom)
 ```

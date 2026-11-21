@@ -1,4 +1,4 @@
-N64ModernRuntime: https://github.com/n64hub/N64ModernRuntime-web 481338b9f71b57f818708bc07e4a41e87daf01b3
+N64ModernRuntime: https://github.com/n64hub/N64ModernRuntime-web ecfbc79c2d8bc7e60da013c3efcbe57242c97b71
 on upstream cdf5abbd5026fef5c364c676e4667c45e42b6863 (tools/export_patches.sh)
 
 diff --git a/librecomp/CMakeLists.txt b/librecomp/CMakeLists.txt
@@ -63,21 +63,20 @@ index b1b50cb..4c11af7 100644
      void init_heap(uint8_t* rdram, uint32_t address);
      void* alloc(uint8_t* rdram, size_t size);
 diff --git a/librecomp/include/librecomp/game.hpp b/librecomp/include/librecomp/game.hpp
-index a4cf7e8..d3c2eb3 100644
+index a4cf7e8..6060d6a 100644
 --- a/librecomp/include/librecomp/game.hpp
 +++ b/librecomp/include/librecomp/game.hpp
-@@ -38,6 +38,10 @@ namespace recomp {
- 
-         void (*on_init_callback)(uint8_t* rdram, recomp_context* context) = nullptr;
- 
+@@ -25,6 +25,9 @@ namespace recomp {
+         std::u8string game_id;
+         std::string mod_game_id;
+         SaveType save_type = SaveType::None;
 +        // A bit for each port holding a file-backed Controller Pak (librecomp/src/pak.cpp), bit 0 for controller 1.
 +        // None by default: a port without its bit answers that no pak is plugged in.
 +        uint8_t controller_pak_ports = 0;
-+
-         std::u8string stored_filename() const;
-     };
-     struct Version {
-@@ -85,6 +89,8 @@ namespace recomp {
+         std::span<const char> thumbnail_bytes;
+         bool is_enabled;
+         // Only needed for mod function hooking support, not needed if `has_compressed_code` is false.
+@@ -85,6 +88,8 @@ namespace recomp {
      };
      void register_config_path(std::filesystem::path path);
      std::filesystem::path get_config_path();
