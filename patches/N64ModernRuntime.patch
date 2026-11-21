@@ -1,4 +1,4 @@
-N64ModernRuntime: https://github.com/n64hub/N64ModernRuntime-web ecfbc79c2d8bc7e60da013c3efcbe57242c97b71
+N64ModernRuntime: https://github.com/n64hub/N64ModernRuntime-web cd4a7f45f8ae34129e2d1c01d695b38e455ec98d
 on upstream cdf5abbd5026fef5c364c676e4667c45e42b6863 (tools/export_patches.sh)
 
 diff --git a/librecomp/CMakeLists.txt b/librecomp/CMakeLists.txt
@@ -63,28 +63,28 @@ index b1b50cb..4c11af7 100644
      void init_heap(uint8_t* rdram, uint32_t address);
      void* alloc(uint8_t* rdram, size_t size);
 diff --git a/librecomp/include/librecomp/game.hpp b/librecomp/include/librecomp/game.hpp
-index a4cf7e8..6060d6a 100644
+index a4cf7e8..b5a823d 100644
 --- a/librecomp/include/librecomp/game.hpp
 +++ b/librecomp/include/librecomp/game.hpp
-@@ -25,6 +25,9 @@ namespace recomp {
-         std::u8string game_id;
-         std::string mod_game_id;
-         SaveType save_type = SaveType::None;
+@@ -30,6 +30,9 @@ namespace recomp {
+         // Only needed for mod function hooking support, not needed if `has_compressed_code` is false.
+         std::vector<uint8_t> (*decompression_routine)(std::span<const uint8_t> compressed_rom) = nullptr;
+         bool has_compressed_code = false;
 +        // A bit for each port holding a file-backed Controller Pak (librecomp/src/pak.cpp), bit 0 for controller 1.
 +        // None by default: a port without its bit answers that no pak is plugged in.
 +        uint8_t controller_pak_ports = 0;
-         std::span<const char> thumbnail_bytes;
-         bool is_enabled;
-         // Only needed for mod function hooking support, not needed if `has_compressed_code` is false.
-@@ -85,6 +88,8 @@ namespace recomp {
-     };
-     void register_config_path(std::filesystem::path path);
-     std::filesystem::path get_config_path();
+ 
+         gpr entrypoint_address;
+         void (*entrypoint)(uint8_t* rdram, recomp_context* context) = nullptr;
+@@ -96,6 +99,8 @@ namespace recomp {
+     void do_rom_read(uint8_t* rdram, gpr ram_address, uint32_t physical_addr, size_t num_bytes);
+     void do_rom_pio(uint8_t* rdram, gpr ram_address, uint32_t physical_addr);
+     const Version& get_project_version();
 +    // The running game's GameEntry::controller_pak_ports, 0 before a game starts.
 +    uint8_t get_controller_pak_ports();
-     bool register_game(const recomp::GameEntry& entry);
-     void check_all_stored_roms();
-     bool load_stored_rom(const std::u8string& game_id);
+ 
+     /// Specify the input configuration to the recomp runtime.
+     /// 
 diff --git a/librecomp/include/librecomp/mods.hpp b/librecomp/include/librecomp/mods.hpp
 index 37556bd..9380157 100644
 --- a/librecomp/include/librecomp/mods.hpp
@@ -757,10 +757,10 @@ index 8c8e5d1..68771e8 100644
      }
  }
 diff --git a/librecomp/src/pak.cpp b/librecomp/src/pak.cpp
-index 0be1513..20a37f3 100644
+index 0be1513..f44c94f 100644
 --- a/librecomp/src/pak.cpp
 +++ b/librecomp/src/pak.cpp
-@@ -1,51 +1,581 @@
+@@ -1,51 +1,582 @@
 -#include "ultramodern/ultra64.h"
 -#include "ultramodern/ultramodern.hpp"
 +// The Controller Pak: libultra's osPfs* functions, over a file-backed pak in each port the game asks for.
@@ -784,11 +784,11 @@ index 0be1513..20a37f3 100644
 +//   pages 5-127     data, 256 bytes a page (123 pages, the "123 pages" games' menus count)
 +// A larger pak (1 to 62 banks, libultra's PFS_MAX_BANKS) has an inode table and a backup for each bank after page 0,
 +// the note table after them, and its other banks' pages from page 1 on all data.
-+// Files are saves/controllerpak_<port>.mpk in the config folder, port 1 to 4, so a page's save sync keeps them like any
-+// other save. A port without a file gets a freshly formatted pak, written out on the first change, and a file of more
-+// banks (an emulator's larger pak) has its files moved to one bank when the game initializes it, if they fit. Each
-+// write is whole: to <file>.tmp, renamed over the file, and a file that is a symlink, as when saves are shared through a
-+// synced folder, has the file it points at replaced and stays a link.
++// Files are controllerpak_<port>.mpk, port 1 to 4, in the folder of the game's own save (saves/ in the config folder),
++// so a page's save sync keeps them like any other save. A port without a file gets a freshly formatted pak, written
++// out on the first change, and a file of more banks (an emulator's larger pak) has its files moved to one bank when
++// the game initializes it, if they fit. Each write is whole: to <file>.tmp, renamed over the file, and a file that is
++// a symlink, as when saves are shared through a synced folder, has the file it points at replaced and stays a link.
 +
 +#include <array>
 +#include <cstdio>
@@ -803,6 +803,7 @@ index 0be1513..20a37f3 100644
  #include "recomp.h"
 -#include "helpers.hpp"
 +#include "librecomp/game.hpp"
++#include "ultramodern/ultramodern.hpp"
 +
 +namespace {
 +
@@ -842,7 +843,7 @@ index 0be1513..20a37f3 100644
 +}
 +
 +std::filesystem::path pak_path(int port) {
-+    return recomp::get_config_path() / "saves" / ("controllerpak_" + std::to_string(port + 1) + ".mpk");
++    return ultramodern::get_save_file_path().parent_path() / ("controllerpak_" + std::to_string(port + 1) + ".mpk");
 +}
 +
 +uint16_t read16(const uint8_t* p) { return (uint16_t)((p[0] << 8) | p[1]); }
@@ -947,9 +948,7 @@ index 0be1513..20a37f3 100644
 +    }
 +    return count;
 +}
- 
--extern "C" void osPfsInitPak_recomp(uint8_t * rdram, recomp_context* ctx) {
--    ctx->r2 = 1; // PFS_ERR_NOPACK
++
 +// Chains the lowest `count` free pages together and zeroes them. Empty when there aren't that many.
 +std::vector<Page> allocate_pages(Pak& pak, int count) {
 +    std::vector<Page> pages;
@@ -970,10 +969,8 @@ index 0be1513..20a37f3 100644
 +    }
 +    update_inode_checksums(pak);
 +    return pages;
- }
- 
--extern "C" void osPfsFreeBlocks_recomp(uint8_t * rdram, recomp_context * ctx) {
--    ctx->r2 = 1; // PFS_ERR_NOPACK
++}
++
 +// Moves the pak's files, in the same note slots, to a freshly formatted pak of `banks` banks.
 +bool resize(Pak& pak, int port, int banks) {
 +    Pak resized;
@@ -997,10 +994,8 @@ index 0be1513..20a37f3 100644
 +    }
 +    pak = std::move(resized);
 +    return true;
- }
- 
--extern "C" void osPfsAllocateFile_recomp(uint8_t * rdram, recomp_context * ctx) {
--    ctx->r2 = 1; // PFS_ERR_NOPACK
++}
++
 +std::filesystem::path follow_links(std::filesystem::path path) {
 +    std::error_code ec;
 +    // 40 is Linux's own limit on a chain of links; it also ends a loop of them.
@@ -1012,10 +1007,8 @@ index 0be1513..20a37f3 100644
 +        path = target.is_absolute() ? target : path.parent_path() / target;
 +    }
 +    return path;
- }
- 
--extern "C" void osPfsDeleteFile_recomp(uint8_t * rdram, recomp_context * ctx) {
--    ctx->r2 = 1; // PFS_ERR_NOPACK
++}
++
 +// Writes the file in one piece: to <file>.tmp beside the link's target, renamed over it.
 +std::string replace_file(const std::filesystem::path& path, const void* data, size_t size) {
 +    std::filesystem::path target = follow_links(path);
@@ -1035,19 +1028,17 @@ index 0be1513..20a37f3 100644
 +        return "could not replace " + target.string() + ": " + ec.message();
 +    }
 +    return {};
- }
- 
--extern "C" void osPfsFileState_recomp(uint8_t * rdram, recomp_context * ctx) {
--    ctx->r2 = 1; // PFS_ERR_NOPACK
++}
++
 +void save(int port) {
 +    const Pak& pak = paks[port];
 +    std::string error = replace_file(pak_path(port), pak.data.data(), pak.data.size());
 +    if (!error.empty()) {
 +        fprintf(stderr, "[pak] %s\n", error.c_str());
 +    }
- }
++}
  
--extern "C" void osPfsFindFile_recomp(uint8_t * rdram, recomp_context * ctx) {
+-extern "C" void osPfsInitPak_recomp(uint8_t * rdram, recomp_context* ctx) {
 -    ctx->r2 = 1; // PFS_ERR_NOPACK
 +Pak& get_pak(int port) {
 +    Pak& pak = paks[port];
@@ -1071,14 +1062,14 @@ index 0be1513..20a37f3 100644
 +    return pak;
  }
  
--extern "C" void osPfsReadWriteFile_recomp(uint8_t * rdram, recomp_context * ctx) {
+-extern "C" void osPfsFreeBlocks_recomp(uint8_t * rdram, recomp_context * ctx) {
 -    ctx->r2 = 1; // PFS_ERR_NOPACK
 +// The pak's port, from OSPfs.channel.
 +int pfs_port(uint8_t* rdram, gpr pfs) {
 +    return MEM_W(0x08, pfs) & 3;
  }
  
--extern "C" void osPfsChecker_recomp(uint8_t * rdram, recomp_context * ctx) {
+-extern "C" void osPfsAllocateFile_recomp(uint8_t * rdram, recomp_context * ctx) {
 -    ctx->r2 = 1; // PFS_ERR_NOPACK
 +void read_guest(uint8_t* rdram, gpr addr, uint8_t* out, size_t count) {
 +    for (size_t i = 0; i < count; i++) {
@@ -1086,15 +1077,16 @@ index 0be1513..20a37f3 100644
 +    }
  }
  
--extern "C" void osPfsNumFiles_recomp(uint8_t * rdram, recomp_context * ctx) {
--    s32* max_files = _arg<1, s32*>(rdram, ctx);
--    s32* files_used = _arg<2, s32*>(rdram, ctx);
+-extern "C" void osPfsDeleteFile_recomp(uint8_t * rdram, recomp_context * ctx) {
+-    ctx->r2 = 1; // PFS_ERR_NOPACK
 +void write_guest(uint8_t* rdram, gpr addr, const uint8_t* in, size_t count) {
 +    for (size_t i = 0; i < count; i++) {
 +        MEM_B(i, addr) = (int8_t)in[i];
 +    }
-+}
-+
+ }
+ 
+-extern "C" void osPfsFileState_recomp(uint8_t * rdram, recomp_context * ctx) {
+-    ctx->r2 = 1; // PFS_ERR_NOPACK
 +int find_note(uint8_t* rdram, Pak& pak, uint16_t company, uint32_t game_code, gpr game_name, gpr ext_name) {
 +    uint8_t name[16];
 +    uint8_t ext[4];
@@ -1108,8 +1100,10 @@ index 0be1513..20a37f3 100644
 +        }
 +    }
 +    return -1;
-+}
-+
+ }
+ 
+-extern "C" void osPfsFindFile_recomp(uint8_t * rdram, recomp_context * ctx) {
+-    ctx->r2 = 1; // PFS_ERR_NOPACK
 +} // namespace
 +
 +// s32 osPfsInitPak(OSMesgQueue* mq, OSPfs* pfs, int channel)
@@ -1151,18 +1145,25 @@ index 0be1513..20a37f3 100644
 +    MEM_B(0x64, pfs) = (int8_t)pak.banks; // banks
 +    MEM_B(0x65, pfs) = 0;                 // activebank
 +    ctx->r2 = 0;
-+}
-+
+ }
+ 
+-extern "C" void osPfsReadWriteFile_recomp(uint8_t * rdram, recomp_context * ctx) {
+-    ctx->r2 = 1; // PFS_ERR_NOPACK
 +// s32 osPfsRepairId(OSPfs* pfs)
 +extern "C" void osPfsRepairId_recomp(uint8_t* rdram, recomp_context* ctx) {
 +    ctx->r2 = has_pak(pfs_port(rdram, ctx->r4)) ? 0 : PFS_ERR_NOPACK;
-+}
-+
+ }
+ 
+-extern "C" void osPfsChecker_recomp(uint8_t * rdram, recomp_context * ctx) {
+-    ctx->r2 = 1; // PFS_ERR_NOPACK
 +// s32 osPfsChecker(OSPfs* pfs)
 +extern "C" void osPfsChecker_recomp(uint8_t* rdram, recomp_context* ctx) {
 +    ctx->r2 = has_pak(pfs_port(rdram, ctx->r4)) ? 0 : PFS_ERR_NOPACK;
-+}
-+
+ }
+ 
+-extern "C" void osPfsNumFiles_recomp(uint8_t * rdram, recomp_context * ctx) {
+-    s32* max_files = _arg<1, s32*>(rdram, ctx);
+-    s32* files_used = _arg<2, s32*>(rdram, ctx);
 +// s32 osPfsFreeBlocks(OSPfs* pfs, s32* bytes_not_used)
 +extern "C" void osPfsFreeBlocks_recomp(uint8_t* rdram, recomp_context* ctx) {
 +    int port = pfs_port(rdram, ctx->r4);
@@ -1174,7 +1175,9 @@ index 0be1513..20a37f3 100644
 +    MEM_W(0, ctx->r5) = free_pages(get_pak(port)) * (int32_t)page_size;
 +    ctx->r2 = 0;
 +}
-+
+ 
+-    *max_files = 0;
+-    *files_used = 0;
 +// s32 osPfsNumFiles(OSPfs* pfs, s32* max_files, s32* files_used)
 +extern "C" void osPfsNumFiles_recomp(uint8_t* rdram, recomp_context* ctx) {
 +    int port = pfs_port(rdram, ctx->r4);
@@ -1194,7 +1197,8 @@ index 0be1513..20a37f3 100644
 +    MEM_W(0, ctx->r6) = used;
 +    ctx->r2 = 0;
 +}
-+
+ 
+-    _return<s32>(ctx, 1); // PFS_ERR_NOPACK
 +// s32 osPfsFileState(OSPfs* pfs, s32 file_no, OSPfsState* state)
 +extern "C" void osPfsFileState_recomp(uint8_t* rdram, recomp_context* ctx) {
 +    int port = pfs_port(rdram, ctx->r4);
@@ -1217,8 +1221,10 @@ index 0be1513..20a37f3 100644
 +    write_guest(rdram, state + 0x0A, n + 0x0C, 4);                   // ext_name
 +    write_guest(rdram, state + 0x0E, n + 0x10, 16);                  // game_name
 +    ctx->r2 = 0;
-+}
-+
+ }
+ 
+-extern "C" void osPfsRepairId_recomp(uint8_t * rdram, recomp_context * ctx) {
+-    _return<s32>(ctx, 1); // PFS_ERR_NOPACK
 +// s32 osPfsFindFile(OSPfs* pfs, u16 company_code, u32 game_code, u8* game_name, u8* ext_name, s32* file_no)
 +extern "C" void osPfsFindFile_recomp(uint8_t* rdram, recomp_context* ctx) {
 +    int port = pfs_port(rdram, ctx->r4);
@@ -1255,9 +1261,7 @@ index 0be1513..20a37f3 100644
 +    gpr ext_name = (gpr)(int32_t)MEM_W(0x10, ctx->r29);
 +    int size = (int)MEM_W(0x14, ctx->r29);
 +    gpr file_no = (gpr)(int32_t)MEM_W(0x18, ctx->r29);
- 
--    *max_files = 0;
--    *files_used = 0;
++
 +    if (company == 0 || game_code == 0 || size <= 0) {
 +        ctx->r2 = PFS_ERR_INVALID;
 +        return;
@@ -1281,8 +1285,7 @@ index 0be1513..20a37f3 100644
 +        ctx->r2 = PFS_DATA_FULL;
 +        return;
 +    }
- 
--    _return<s32>(ctx, 1); // PFS_ERR_NOPACK
++
 +    uint8_t* n = note(pak, slot);
 +    std::memset(n, 0, note_size);
 +    write32(n, game_code);
@@ -1295,10 +1298,8 @@ index 0be1513..20a37f3 100644
 +    save(port);
 +    MEM_W(0, file_no) = slot;
 +    ctx->r2 = 0;
- }
- 
--extern "C" void osPfsRepairId_recomp(uint8_t * rdram, recomp_context * ctx) {
--    _return<s32>(ctx, 1); // PFS_ERR_NOPACK
++}
++
 +// s32 osPfsDeleteFile(OSPfs* pfs, u16 company_code, u32 game_code, u8* game_name, u8* ext_name)
 +extern "C" void osPfsDeleteFile_recomp(uint8_t* rdram, recomp_context* ctx) {
 +    int port = pfs_port(rdram, ctx->r4);
