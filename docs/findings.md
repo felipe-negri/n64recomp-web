@@ -1649,7 +1649,11 @@ on a desktop).
   Silicon Valley's late copy measured no faster (148 against 167, with Pages' own two plays at 178 and 157), so it keeps
   the exact copy. Beetle Adventure Racing's went from 217 to 238, and its races from about 30 frames a second to 50-60,
   once a yield its scheduler asks of a queued graphics task was answered: unanswered, its page never got from the menus
-  into a race with the late copy. Through the device thread, the main thread checks a READBACK buffer at each replay and
+  into a race with the late copy. Each framebuffer copied is a readback of its own, and at a large canvas the colour
+  ones cost the most: Excitebike 64, which reads its depth for its stadium lights and copies a colour frame, its depth
+  and the depth's clear each list, drew 258 presents a second with the whole late copy and 342 with only its depth
+  (rt64 782b673, an interleaved pair as above), a p99 gap of 20 ms against 8, as many as with render to RAM off
+  (336-347). Through the device thread, the main thread checks a READBACK buffer at each replay and
   present once a copy into it is replayed, maps it when the browser has delivered the data, and publishes the answer,
   which `isMapReady()` reads and `map()` waits for without waiting behind the main thread's queue; a build without
   threads would need `-sJSPI` (or ASYNCIFY) to wait in place. A call that waits for the main thread costs 50-120 µs from

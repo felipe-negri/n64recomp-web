@@ -206,7 +206,11 @@ What changes in the game's own code (behind `__EMSCRIPTEN__`) and files:
   already held looks untouched, though, and gets the frame, so it is also wrong for a game that puts code or data in
   a framebuffer's memory once the RDP is done: Jet Force Gemini's CPU reworks its shadows' render targets once the RDP
   has drawn them, and keeps the exact copy too. Conker's, GoldenEye's, Donkey Kong 64's, Perfect Dark's and F-Zero
-  X's pages take the copy late.
+  X's pages take the copy late. A game whose CPU reads its depth but never its frames calls
+  `recompui::renderer::set_render_to_ram_late_depth_only(true)` as well (rt64-web's `renderToRAMLateDepthOnly`): the
+  late copy then brings only the framebuffers drawn as depth buffers, since in a browser each framebuffer copied is a
+  readback of its own. Excitebike 64's page, whose stadium lights look for what stands in front of them in its depth,
+  drew 342 presents a second with it in Chrome at 3840x2000 against 258 with the whole copy.
 - Give RT64 a list of the game's shaders, so the page builds them before the game draws with them.
   This is part of every port, not an optional extra: without it the page is unplayable on most machines. Until a
   shader is built RT64 draws with its ubershader, which costs several times as much a pixel: on a laptop's Intel

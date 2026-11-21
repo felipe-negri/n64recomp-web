@@ -18,12 +18,12 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
 2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, 8868f0d,
 55f42a3, e102336, 602dcd2, 9a1d37a, cf8bba7, ea78fc1, 12aa560, 84d36bd, 1d1a0ee, 3a0fdea,
-53ce431, fbf407f, a75df38, which it turns on too),
+53ce431, fbf407f, a75df38, 1a688aa, which it turns on too),
 `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES`
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
 `RT64_REJ_WITHOUT_NEAR_CLIP` (rt64 19014a4, which it turns on too),
-`RT64_PAIR_SAME_MESHES` (rt64 153d053, which it turns on too),
+`RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, which it turns on too),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
@@ -1451,12 +1451,6 @@ rt64 ea1d8e7           RT64_SKIP_CAMERA_CUTS: a projection RT64 left whole, a pe
                        alike: Excitebike 64 puts its camera's place in each section's matrix on its outdoor tracks,
                        the check read every turn as 0, and at two cuts of its credits fly-through the frames between
                        drew the world halfway, a tree trunk filling the picture
-rt64 153d053           RT64_PAIR_SAME_MESHES: a transform no call paired pairs with the frame before's that no call
-                       paired either and drew the very same mesh, when the scene left only those two with it. An
-                       object a game draws with another call as it nears stood at its own place in the frames between
-                       while its neighbours moved: Excitebike 64's track sections, fogged under one render mode past
-                       a distance and plain nearer, left a line of the sky's colour across the track and up the canyon
-                       walls on Mountain Quarry
 N64ModernRuntime       GameEntry::controller_pak_banks, asked each time a game initializes a port's pak: its banks, 1
 706c5f1                to 62, which a pak of another size has its files moved to if they fit, or 0 for a Rumble Pak
                        in the slot, which osPfsInitPak fails as libultra's does (status, queue and channel filled in,
@@ -1464,4 +1458,28 @@ N64ModernRuntime       GameEntry::controller_pak_banks, asked each time a game i
                        accessory in its settings, and kept its own copy of pak.cpp for them
 N64ModernRuntime       pak.cpp's header within 120 columns
 179897d
+rt64 153d053           RT64_PAIR_SAME_MESHES: a transform no call paired pairs with the frame before's that no call
+                       paired either and drew the very same mesh, when the scene left only those two with it. Taken
+                       out by rt64 7cec4af: Mario Golf's credits paired a sparkle that went with one that came
+                       elsewhere, and trees across a cut to the shot's next view
+rt64 782b673           renderToRAMLateDepthOnly: render to RAM's late copy brings only the framebuffers drawn as depth
+RecompFrontend b2e6d31 buffers into RDRAM (set_render_to_ram_late_depth_only), for a game whose CPU reads its depth but
+                       never its frames; a late batch that leaves nothing to copy waits for the GPU as it ends. Each
+                       framebuffer copied is a readback of its own in a browser: Excitebike 64's page in Chrome at
+                       3840x2000 drew 342 presents a second with it against 258
+rt64 7cec4af           RT64_MOVE_UNPAIRED_WITH_CAMERA, in place of RT64_PAIR_SAME_MESHES: a transform no call paired
+                       is drawn in the frames between as holding still in the world, moved back from its matrix by
+                       the step most of its scene's paired transforms agree on, unless that step is more than 4 times
+                       the frame before's. An object a game draws with another call as it nears, or that comes into
+                       view, stood at its own place while its neighbours moved: Excitebike 64's track sections, fogged
+                       under one render mode past a distance and plain nearer, left a line of the sky's colour across
+                       the track and up the canyon walls on Mountain Quarry
+rt64 1a688aa           RT64_INTERPOLATE_RECT_SCROLLS: a textured rect whose texture jumped, its texcoords moved a
+                       quarter of what it spans or more, as it kept its top edge and changed size or moved along its
+                       row half of it, where the frame before drew other rects with its look, pairs with nothing and
+                       is drawn where the game put it, unless it is cut at the scissor's edge it holds; so does one
+                       that moved along its row onto the place of a rect nothing paired with while another took the
+                       place it left. Excitebike 64 draws each glyph of a font as a texrect of one texture page, so
+                       its race timer's and score's digits paired with the frame before's, and the frames between cut,
+                       stretched or slid them, the page's other glyphs showing through as vertical strips
 ```
