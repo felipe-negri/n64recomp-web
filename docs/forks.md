@@ -1444,4 +1444,11 @@ rt64 a75df38           RT64_INTERPOLATE_RECT_SCROLLS: a rect of colour where the
                        Excitebike 64's fades, columns whose alpha ramps across the screen, paired each column with the
                        one that had its alpha a game frame before, and the frames between slid them, a bright strip of
                        the picture where the ramp met the black
+N64ModernRuntime       GameEntry::controller_pak_banks, asked each time a game initializes a port's pak: its banks, 1
+706c5f1                to 62, which a pak of another size has its files moved to if they fit, or 0 for a Rumble Pak
+                       in the slot, which osPfsInitPak fails as libultra's does (status, queue and channel filled in,
+                       then PFS_ERR_DEVICE). Null is one bank, as before. Rush 2049 picks its pak's size and its
+                       accessory in its settings, and kept its own copy of pak.cpp for them
+N64ModernRuntime       pak.cpp's header within 120 columns
+179897d
 ```
