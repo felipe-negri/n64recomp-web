@@ -23,7 +23,7 @@ eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLL
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
 `RT64_REJ_WITHOUT_NEAR_CLIP` (rt64 19014a4, which it turns on too),
-`RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, which it turns on too),
+`RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, e6c18c3, which it turns on too),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
@@ -1499,4 +1499,9 @@ rt64 11878b7, 18066b5  RT64_FILTER_BY_ALPHA, off unless a game turns it on: wher
                        or alpha compare, a texture's colour filtered weighted by its texels' alpha, so a sprite's edge
                        takes none of the colour of the texels it leaves out: Mario Party 3's crowds had a green line
                        round each sprite (Slot Synch), their palette's transparent green
+rt64 e6c18c3           RT64_MOVE_UNPAIRED_WITH_CAMERA: where at most 3 of a scene's transforms are paired and they
+                       agree on no step, the step is the one that brings more than half its transforms, at least 3,
+                       each onto one of the frame before's matrices. Excitebike 64's Desert draws its ground under
+                       blocks it numbers afresh each frame, each a matrix of its place less the camera's, so few were
+                       paired, and the light lines across the dunes stayed in a quarter of the frames that had them
 ```
