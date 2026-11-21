@@ -1,8 +1,8 @@
-rt64: https://github.com/n64hub/rt64-web 870776f (TEST, not yet on the fork)
+rt64: https://github.com/n64hub/rt64-web a0e016a (TEST, not yet on the fork)
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 79dfc38..596f702 100644
+index 79dfc38..9699ae2 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -11,7 +11,32 @@ endif()
@@ -27,7 +27,7 @@ index 79dfc38..596f702 100644
 +option(RT64_HASH_FILLED_FRAMEBUFFERS "Without Render to RAM, take a framebuffer a display list filled across its whole width and height to hold what RDRAM holds when the list ends, so the screen's check of RAM puts over the picture only what the CPU writes after the fill, not what it wrote before that the fill covered on the console (a game's scratch in its spare framebuffer) (always on with Emscripten)" OFF)
 +option(RT64_EXACT_PRIM_DEPTH "Draw a G_ZS_PRIM triangle through a perspective or orthographic projection at exactly its prim depth, by a viewport depth range of no height, not at the vertex shader's z = primDepth * w, which the perspective divide leaves an ulp off on some vertices, so that under a strict depth test only the first of its triangles to cover a pixel draws there, as on the console (always on with Emscripten)" OFF)
 +option(RT64_SKIP_CAMERA_CUTS "Pair nothing across a camera the game gives no matrix group of its own that cut to another shot between two game frames (it turned more than 45 degrees, or its eye jumped more than 8 near plane distances and 4 times its last step, an eye the game leaves at the origin read from what the world matrices moved by), nor anything its scene draws, so the frames between draw the new shot as it is, not the world halfway between two places (always on with Emscripten)" OFF)
-+option(RT64_MOVE_UNPAIRED_WITH_CAMERA "Draw a transform the game frame before has no pair for as holding still in the world in the frames between, moved back from its matrix by the step that most of its scene's paired transforms agree on, so that in a game that puts its camera in each object's matrix an object it draws with another call as it nears, or that comes into view, moves with its neighbours instead of standing at its own place in the frames between, with the gaps between them open; nothing is moved where the camera jumped, or where RT64_SKIP_CAMERA_CUTS is off and its step is not measured (always on with Emscripten)" OFF)
++option(RT64_MOVE_UNPAIRED_WITH_CAMERA "Draw a transform the game frame before has no pair for as holding still in the world in the frames between, moved back from its matrix by the step that most of its scene's paired transforms agree on, so that in a game that puts its camera in each object's matrix an object it draws with another call as it nears, or that comes into view, moves with its neighbours instead of standing at its own place in the frames between, with the gaps between them open; nothing is moved where that step is more than 4 times the frame before's, a cut too small for RT64_SKIP_CAMERA_CUTS (always on with Emscripten)" OFF)
 +option(RT64_SKIP_PLACE_SWAPS "Never pair a transform with one of the game frame before at another place when both frames drew something at both places, nor one whose vertices are others than its pair's when that one's held still or had just come, so that a model the game draws at many places, in another order or with another call each frame, is not interpolated from one of its places to another, nor a block of a level that came into view from one that left it (always on with Emscripten)" OFF)
 +option(RT64_INTERPOLATE_RECT_SCROLLS "Pair a texrect with one of the game frame before that drew the same place with the same textures, and when its texture only scrolled inside it, by less than a quarter of what it spans, slide the texture there in the frames between, as a scroll on a 3D draw is; one with none there pairs with the nearest that drew the same textures at the same size less than its longer side away, and is drawn between where it stood and where it is, so that a background the game draws as 2D strips, scrolls as the camera turns and moves as it pitches (a horizon panorama) moves on every frame with the world in front of it, not a step a game frame (always on with Emscripten)" OFF)
 +option(RT64_INTERPOLATE_SCREEN_VERTICES "Draw a screen position a game writes into a vertex itself (G_MODIFYVTX's XYSCREEN) between the game frame before's and its own in the frames between, paired in the order the game wrote them through each projection, so that a game that projects its own geometry (a pin's flagstick) moves on every frame with the world drawn around it, not a step a game frame (always on with Emscripten)" OFF)
@@ -3201,7 +3201,7 @@ index 5c3c4d2..cba893c 100644
  
          uint32_t rdramUsed;
 diff --git a/src/hle/rt64_game_frame.cpp b/src/hle/rt64_game_frame.cpp
-index 87392d0..64a7b91 100644
+index 87392d0..391213e 100644
 --- a/src/hle/rt64_game_frame.cpp
 +++ b/src/hle/rt64_game_frame.cpp
 @@ -2,6 +2,9 @@
@@ -5062,7 +5062,7 @@ index 87392d0..64a7b91 100644
          ModifiedBuffers modifiedBuffers;
          std::stable_sort(matchCandidates.begin(), matchCandidates.end());
          for (const MatchCandidate candidate : matchCandidates) {
-@@ -606,6 +2091,137 @@ namespace RT64 {
+@@ -606,6 +2091,136 @@ namespace RT64 {
              matchTransform(firstCurWorkload, firstPrevWorkload, firstCurWorkloadMap, firstPrevWorkloadMap, candidate.curIndex, candidate.prevIndex, modifiedBuffers);
          }
  
@@ -5080,15 +5080,14 @@ index 87392d0..64a7b91 100644
 +        // whose camera is in the projection leaves what holds still at the same matrix, so the step is none, and a scene
 +        // whose paired transforms agree on no step (a cut, or most of it moving on its own) is left as it was.
 +        //
-+        // Nor is anything moved when the camera's eye jumped, more than half a near plane distance and 4 times as far as
-+        // it moved the frame before, or when its step or the frame before's isn't known (RT64_SKIP_CAMERA_CUTS measures
-+        // them, and without it nothing is moved): a cut too small for the cut check is then drawn as before. Excitebike 64
-+        // cuts to a camera on the ground where a rider crashed into a wall, with the world's sections paired across the
-+        // cut, and the nearest sections of the shot before, which the shot after doesn't draw, left the bottom third of
-+        // the picture the background colour in the frames between, where the unpaired sections of the shot after had
-+        // been drawn over it at their own places. Its eye otherwise moves 0.3-1.1 near plane distances a game frame on
-+        // Mountain Quarry, at most about 4 at speed, and more than 4 times as far as the frame before only as it starts
-+        // from rest.
++        // Nor is anything moved when the step jumped, its eye moving more than 4 times as far as the frame before's step
++        // did, or when the frame before's scene agreed on none: a cut too small for the cut check (RT64_SKIP_CAMERA_CUTS)
++        // is then drawn as before. Excitebike 64 cuts to a camera on the ground where a rider crashed into a wall, with
++        // the world's sections paired across the cut, and the nearest sections of the shot before, which the shot after
++        // doesn't draw, left the bottom third of the picture the background colour in the frames between, where the
++        // unpaired sections of the shot after had been drawn over it at their own places. Its camera's step otherwise grew
++        // more than 4 times from one game frame to the next in 3 of 3095 on Mountain Quarry: twice as it started from
++        // near rest, and once at speed.
 +        {
 +            const DrawData &curData = firstCurWorkload.drawData;
 +            const DrawData &prevData = firstPrevWorkload.drawData;
@@ -5169,11 +5168,11 @@ index 87392d0..64a7b91 100644
 +
 +            const hlslpp::float4x4 Identity(1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
 +            const bool agreed = (bestIndex != UINT32_MAX) && (bestCount >= 3) && ((bestCount * 2) > pairedCount);
-+            const float MinJump = 0.5f;
 +            const float MaxJumpRatio = 4.0f;
-+            const float eyeStep = firstCurWorkloadMap.viewProjections[firstCurProj.transformsIndex].eyeStep;
-+            const float prevEyeStep = (firstPrevWorkloadMap != nullptr) ? firstPrevWorkloadMap->viewProjections[firstPrevProj.transformsIndex].eyeStep : -1.0f;
-+            const bool jumped = (eyeStep < 0.0f) || (prevEyeStep < 0.0f) || ((eyeStep > MinJump) && (eyeStep > (prevEyeStep * MaxJumpRatio)));
++            const float stepLength = agreed ? float(hlslpp::length(hlslpp::float3(bestStep[3].xyz))) : -1.0f;
++            const float prevStepLength = (firstPrevWorkloadMap != nullptr) ? firstPrevWorkloadMap->viewProjections[firstPrevProj.transformsIndex].cameraStep : -1.0f;
++            const bool jumped = (prevStepLength < 0.0f) || (stepLength > (prevStepLength * MaxJumpRatio));
++            firstCurWorkloadMap.viewProjections[firstCurProj.transformsIndex].cameraStep = stepLength;
 +            if (agreed && !jumped && (stepMiss(Identity, bestIndex) >= (StepTolerance * 0.1f))) {
 +                // Drawn as the transform whose step it takes is, from its own pair of matrices.
 +                const RigidBody &stepBody = firstCurWorkloadMap.transforms[bestIndex].rigidBody;
@@ -5200,7 +5199,7 @@ index 87392d0..64a7b91 100644
          if (!modifiedBuffers.empty()) {
              workloadsModified[firstCurProjIndices.workloadIndex].merge(modifiedBuffers);
          }
-@@ -669,17 +2285,160 @@ namespace RT64 {
+@@ -669,17 +2284,160 @@ namespace RT64 {
              const bool wrappedUlt = (curTile.cmt == G_TX_WRAP) && (modulo(integerUlt, curTile.maskt * 4) == modulo(expectedUlt, curTile.maskt * 4));
              const bool wrappedLrs = (curTile.cms == G_TX_WRAP) && (modulo(integerLrs, curTile.masks * 4) == modulo(expectedLrs, curTile.masks * 4));
              const bool wrappedLrt = (curTile.cmt == G_TX_WRAP) && (modulo(integerLrt, curTile.maskt * 4) == modulo(expectedLrt, curTile.maskt * 4));
@@ -5366,7 +5365,7 @@ index 87392d0..64a7b91 100644
          }
  
          // Check for look at matches.
-@@ -727,6 +2486,18 @@ namespace RT64 {
+@@ -727,6 +2485,18 @@ namespace RT64 {
          curTransformMap.mapped = true;
          curWorkloadMap.prevTransformsMapped[prevTransformIndex] = true;
  
@@ -5385,7 +5384,7 @@ index 87392d0..64a7b91 100644
          uint64_t curVertexHash = 0;
          uint64_t prevVertexHash = 0;
          uint32_t curVertexIndex = curWorkload.drawData.worldTransformVertexIndices[curTransformIndex];
-@@ -782,9 +2553,78 @@ namespace RT64 {
+@@ -782,9 +2552,78 @@ namespace RT64 {
  
              modifiedBuffers.texcoordVelocity = true;
          }
@@ -5465,7 +5464,7 @@ index 87392d0..64a7b91 100644
          for (uint32_t c = 0; c < proj.gameCallCount; c++) {
              const GameCall &call = proj.gameCalls[c];
              uint32_t matrixIdHash = 0;
-@@ -802,7 +2642,7 @@ namespace RT64 {
+@@ -802,7 +2641,7 @@ namespace RT64 {
                  doTileMatching = doTileMatching || (group.tileInterpolation == G_EX_COMPONENT_AUTO);
              }
  
@@ -5475,10 +5474,10 @@ index 87392d0..64a7b91 100644
      }
  
 diff --git a/src/hle/rt64_game_frame.h b/src/hle/rt64_game_frame.h
-index 00a72f6..5cca88c 100644
+index 00a72f6..cac396f 100644
 --- a/src/hle/rt64_game_frame.h
 +++ b/src/hle/rt64_game_frame.h
-@@ -47,12 +47,22 @@ namespace RT64 {
+@@ -47,12 +47,26 @@ namespace RT64 {
              RigidBody rigidBody;
              uint32_t prevTransformIndex = 0;
              bool mapped = false;
@@ -5486,6 +5485,10 @@ index 00a72f6..5cca88c 100644
 +            // How far the camera's eye moved from the game frame before, in its near plane's distances, for the next
 +            // frame's cut check (RT64_SKIP_CAMERA_CUTS); -1 when that isn't known (after a cut, or with no frame before).
 +            float eyeStep = -1.0f;
++
++            // How far the eye moved in the step most of its scene's paired transforms agreed on, in the world's units, for
++            // the next frame's jump check (RT64_MOVE_UNPAIRED_WITH_CAMERA); -1 when they agreed on none.
++            float cameraStep = -1.0f;
          };
  
          struct TransformMap {
@@ -5501,7 +5504,7 @@ index 00a72f6..5cca88c 100644
          };
  
          struct TileMap {
-@@ -64,7 +74,25 @@ namespace RT64 {
+@@ -64,7 +78,25 @@ namespace RT64 {
              float prevUlt = 0;
              float prevLrs = 0;
              float prevLrt = 0;
@@ -5527,7 +5530,7 @@ index 00a72f6..5cca88c 100644
          };
  
          struct LookAtMap {
-@@ -74,6 +102,10 @@ namespace RT64 {
+@@ -74,6 +106,10 @@ namespace RT64 {
          };
  
          struct WorkloadMap {
@@ -5538,7 +5541,7 @@ index 00a72f6..5cca88c 100644
              std::vector<ViewProjectionMap> viewProjections;
              std::vector<TransformMap> transforms;
              std::vector<TileMap> tiles;
-@@ -126,9 +158,12 @@ namespace RT64 {
+@@ -126,9 +162,12 @@ namespace RT64 {
          bool isSceneCompatible(const WorkloadQueue &workloadQueue, const GameScene &scene, const GameIndices::Projection &proj);
          void set(WorkloadQueue &workloadQueue, const uint32_t *workloadIndices, uint32_t indicesCount);
          void match(RenderWorker *worker, WorkloadQueue &workloadQueue, const GameFrame &prevFrame, BufferUploader *velocityUploader, bool &velocityUploaderUsed, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed);
