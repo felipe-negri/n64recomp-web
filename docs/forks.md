@@ -1482,4 +1482,9 @@ rt64 1a688aa           RT64_INTERPOLATE_RECT_SCROLLS: a textured rect whose text
                        place it left. Excitebike 64 draws each glyph of a font as a texrect of one texture page, so
                        its race timer's and score's digits paired with the frame before's, and the frames between cut,
                        stretched or slid them, the page's other glyphs showing through as vertical strips
+rt64 59df529           RT64_SKIP_CAMERA_CUTS: a workload whose camera cut to another shot pairs none of its rects with
+                       the frame before's either (RT64_INTERPOLATE_RECT_SCROLLS), and the frames between draw them where
+                       the game put them: at Mario Golf's cut from the tee to the ball's flight, its far hills' texrect
+                       strips paired with strips of the shot before 112 lines lower, and the frame between drew a row
+                       of dashed hills or a band of vertical stripes across the fog at the top of the picture
 ```
