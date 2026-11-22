@@ -8,7 +8,7 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Twenty-eight options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Twenty-nine options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
@@ -29,7 +29,8 @@ too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Exc
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
 `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
 `ULTRAMODERN_VIS_WAIT_FOR_RENDERER` (N64ModernRuntime 05d95be), `ULTRAMODERN_YIELDS_END_QUEUED_GRAPHICS`
-(N64ModernRuntime 684377c), `RECOMPINPUT_SINGLE_PLAYER_UNTIL_ASSIGNED` (RecompFrontend bf01590) and
+(N64ModernRuntime 684377c), `RECOMP_ROM_ARCHIVES` (N64ModernRuntime 6184b47, which Rush 2049's desktop build turns
+on), `RECOMPINPUT_SINGLE_PLAYER_UNTIL_ASSIGNED` (RecompFrontend bf01590) and
 `RECOMPINPUT_RECONNECT_PLAYERS` (RecompFrontend 9fc3d68, on with `RECOMPINPUT_PADS_IN_ORDER` too).
 
 Two are off with Emscripten too, on only where a game turns them on, which Mario Party 3 does:
@@ -1514,4 +1515,11 @@ rt64 5cb5768, d729981, RT64_FRAME_DUMP's draws.bin: beside each game frame, each
                        Adventure Racing's, Banjo-Tooie's, 1080°'s, WWF's, Jet Force Gemini's, THPS2's, Space Station
                        Silicon Valley's and Rogue Squadron's own rt64 changes to the files (aee1652's frame line has no
                        loop frame)
+N64ModernRuntime       RECOMP_ROM_ARCHIVES: Load ROM (select_rom) takes the ROM inside a .zip, .7z, .gz, .xz or .tar
+6184b47                (a .tar inside a .gz or .xz too), known by its first bytes: every N64 ROM in it, in any byte
+                       order, is checked against the game's hash and the first that matches is stored; with none, it
+                       says the closest (another version, another game, no ROM). .zip and .gz with miniz, .7z and .xz
+                       with the LZMA SDK's decoders (thirdparty/lzma-sdk, public domain), sizes read before unpacking
+                       and nothing unpacked past 256 MiB. Every archive was "not a valid ROM file"
+                       (tests/rom_archive_test.sh)
 ```
