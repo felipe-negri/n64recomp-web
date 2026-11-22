@@ -15,7 +15,8 @@
 // result (docs/playing.md). The host memory each asks is the container's own cap (its docker run's --memory, read from its
 // cgroup), so what the queue reserves is what the play can hold, never the queue's 8 GiB for a game it hasn't measured;
 // with no cap it is the queue's reading of the game's last runs. The cores are capped by the docker run (--cpus). Both
-// are --priority (low) and linked to --url. A stop the queue asks for ends the play, and this, with 75.
+// are --priority (low), linked to --url and filed from $GPU_QUEUE_BOARD where it is set (the label of what files them,
+// which a queue may require of its key's jobs). A stop the queue asks for ends the play, and this, with 75.
 //
 // Where the command records a run (play_page's --record <file>) and gives no --host-reading, the line it appended is
 // given one from the queue's account of the job once it ends: gpuOthers, the jobs that ran on the GPU beside it, and
@@ -98,6 +99,7 @@ else {
     type: measure ? 'page-measure' : 'page-play', label: measure ? 'Page play, measured alone' : 'Page play',
     vramMiB: measure ? 32768 : 'auto', ...(measure ? {} : { guessMiB: 2048 }), model, ramMiB: capMiB(),
     priority: opt('--priority', 'low'), url: opt('--url') || null, ref: os.hostname(),
+    ...(process.env.GPU_QUEUE_BOARD && { board: process.env.GPU_QUEUE_BOARD }),
     onUpdate: (j) => {
       job = j;
       if (j.state === 'waiting' && Date.now() - said > 60000) {
