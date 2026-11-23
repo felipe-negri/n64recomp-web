@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web d2bdb55a68b1b2e0142d5956d02f9f0c76770855
+rt64: https://github.com/n64hub/rt64-web 749b22e242c57387ca37b825d8d12ddb8d94342c
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -2414,10 +2414,10 @@ index 0000000..cc2b97c
 +};
 diff --git a/src/hle/rt64_frame_dump.h b/src/hle/rt64_frame_dump.h
 new file mode 100644
-index 0000000..7da1bfe
+index 0000000..a137f13
 --- /dev/null
 +++ b/src/hle/rt64_frame_dump.h
-@@ -0,0 +1,564 @@
+@@ -0,0 +1,566 @@
 +//
 +// RT64
 +//
@@ -2622,6 +2622,9 @@ index 0000000..7da1bfe
 +        uint64_t workloadNumber = 0;
 +        std::unique_ptr<RenderBuffer> readbackBuffer;
 +        uint64_t readbackBufferSize = 0;
++        // readbackFrame's color image address of the framebuffer it is (readback()'s shownAddress), which addFrame()
++        // writes in its presents.tsv line.
++        uint32_t readbackShownAddress = 0;
 +        struct {
 +            uint64_t presentId;
 +            uint32_t index;
@@ -2631,7 +2634,6 @@ index 0000000..7da1bfe
 +            uint32_t rowPitch;
 +            bool sixteenBits;
 +            uint64_t workloadId;
-+            uint32_t shownAddress;
 +        } readbackFrame = {};
 +
 +        static FrameDump *get() {
@@ -2747,8 +2749,7 @@ index 0000000..7da1bfe
 +                const uint8_t *data = reinterpret_cast<const uint8_t *>(readbackBuffer->map());
 +                if (data != nullptr) {
 +                    addFrame(readbackFrame.presentId, readbackFrame.index, readbackFrame.count, data, readbackFrame.width,
-+                        readbackFrame.height, readbackFrame.rowPitch, readbackFrame.sixteenBits, readbackFrame.workloadId,
-+                        readbackFrame.shownAddress);
++                        readbackFrame.height, readbackFrame.rowPitch, readbackFrame.sixteenBits, readbackFrame.workloadId);
 +                    readbackBuffer->unmap();
 +                }
 +
@@ -2770,6 +2771,7 @@ index 0000000..7da1bfe
 +                return;
 +            }
 +
++            readbackShownAddress = shownAddress;
 +            const uint32_t pixelSize = sixteenBits ? 8 : 4;
 +            const uint32_t rowPitch = ((width * pixelSize) + 255) & ~255U;
 +            const uint64_t size = uint64_t(rowPitch) * height;
@@ -2785,13 +2787,13 @@ index 0000000..7da1bfe
 +            commandList->copyTextureRegion(RenderTextureCopyLocation::PlacedFootprint(readbackBuffer.get(), p.textureFormat, width, height, 1, rowPitch / pixelSize),
 +                RenderTextureCopyLocation::Subresource(p.texture), 0, 0, 0, &box);
 +            commandList->barriers(RenderBarrierStage::GRAPHICS, RenderTextureBarrier(p.texture, RenderTextureLayout::SHADER_READ));
-+            readbackFrame = { presentId, index, count, width, height, rowPitch, sixteenBits, workloadId, shownAddress };
++            readbackFrame = { presentId, index, count, width, height, rowPitch, sixteenBits, workloadId };
 +        }
 +
 +        // A presented frame's pixels, as a readback of its color target holds them: rows rowPitch bytes apart, 4
 +        // channels of 8 or of 16 bits. Present thread.
 +        void addFrame(uint64_t presentId, uint32_t index, uint32_t count, const uint8_t *data, uint32_t width, uint32_t height,
-+            uint32_t rowPitch, bool sixteenBits, uint64_t workloadId, uint32_t shownAddress)
++            uint32_t rowPitch, bool sixteenBits, uint64_t workloadId)
 +        {
 +            if (!started.exchange(true)) {
 +                start = std::chrono::steady_clock::now();
@@ -2847,7 +2849,7 @@ index 0000000..7da1bfe
 +            queue.emplace_back(std::move(frame));
 +            condition.notify_one();
 +            fprintf(presentsFile, "%llu\t%u\t%u\t%llu\t%08x\n", (unsigned long long)(presentId), index, count,
-+                (unsigned long long)(workloadId), shownAddress);
++                (unsigned long long)(workloadId), readbackShownAddress);
 +            fflush(presentsFile);
 +        }
 +
@@ -6488,7 +6490,7 @@ index e1889e5..3a6cb10 100644
  };
 \ No newline at end of file
 diff --git a/src/hle/rt64_present_queue.cpp b/src/hle/rt64_present_queue.cpp
-index 3227ab1..0a426f1 100644
+index 3227ab1..09c9d32 100644
 --- a/src/hle/rt64_present_queue.cpp
 +++ b/src/hle/rt64_present_queue.cpp
 @@ -7,6 +7,10 @@
@@ -6545,11 +6547,11 @@ index 3227ab1..0a426f1 100644
 +        uint32_t rowsBeforeOrigin = 0;
 +
          RenderTarget *colorTarget = nullptr;
-+        // RT64_FRAME_DUMP: the color image's address of the framebuffer colorTarget holds, for its presents.tsv.
-+        uint32_t shownAddress = 0;
          int32_t framesToPresent = 1;
 +        bool shownAgain = false;
          bool lockedWorkloadMutex = false;
++        // RT64_FRAME_DUMP: the color image's address of the framebuffer colorTarget holds, for its presents.tsv.
++        uint32_t shownAddress = 0;
 +#   if RT64_GAME_FRAME_WORKLOADS
 +        // The counters are taken under the lock the workload thread switches them under, and held until this present ends
 +        // (InterpolatedFrameCounters::inUse).
