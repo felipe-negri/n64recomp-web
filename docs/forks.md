@@ -1514,4 +1514,10 @@ rt64 5cb5768, d729981, RT64_FRAME_DUMP's draws.bin: beside each game frame, each
                        Adventure Racing's, Banjo-Tooie's, 1080°'s, WWF's, Jet Force Gemini's, THPS2's, Space Station
                        Silicon Valley's and Rogue Squadron's own rt64 changes to the files (aee1652's frame line has no
                        loop frame)
+rt64 c229457           RT64_INTERPOLATE_RECT_SCROLLS: a rect whose edges both moved by the same amount kept its size,
+                       so it holds no edge at the scissor's: it is drawn between where it was and where it is, and the
+                       scissor cuts it. Excitebike 64 slides its Rider Select bio's glyphs through the box's scissor as
+                       the box opens and closes, and its stats' labels out through their panel's, and each glyph past
+                       the scissor was held there and stretched from its other edge, the font page's texels showing
+                       through it as vertical slivers in the frames between
 ```
