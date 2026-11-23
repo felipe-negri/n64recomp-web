@@ -8,7 +8,7 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Twenty-nine options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Thirty options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
@@ -23,7 +23,8 @@ eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLL
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
 `RT64_REJ_WITHOUT_NEAR_CLIP` (rt64 19014a4, which it turns on too),
-`RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, e6c18c3, which it turns on too),
+`RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, e6c18c3, which it turns on too), `RT64_RECT_OWN_PIXEL_GRID` (rt64
+5e9e621, which it turns on too),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
@@ -1548,4 +1549,10 @@ rt64 be37c65           RT64_INTERPOLATE_RECT_SCROLLS: a rect that moved, with a 
                        quit prompt replaces its pause menu in place, and a few of its glyphs paired with the same
                        letters of the menu's words less than a glyph away, so the one frame between drew them out of
                        their lines
+rt64 5e9e621           RT64_RECT_OWN_PIXEL_GRID: without Upscale 2D, a texrect steps its texture a native pixel at a
+                       time from its own left and top edges, its native pixels as wide as its own scale draws them,
+                       not on the screen's grid of square ones. A rect stretched across a picture RT64 draws wider than
+                       4:3 started partway along a native pixel of that grid, and its first high-res columns took the
+                       texel before its first: Excitebike 64's Original Excitebike, 8x8 tiles wrapped at 16 texels,
+                       drew a green or black line of each tile's unfilled 16th texel down every tile's left edge
 ```
