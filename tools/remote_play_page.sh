@@ -33,8 +33,9 @@
 # gpuRun(spec, run), sent with the run, and the play waits for a turn as one job of it (play_job.mjs's header says what
 # each asks), one that checks beside other jobs, and --measure gives a play whose numbers are the result the GPU to
 # itself (docs/playing.md). --model is the game's name, which the queue sizes the job by (the tool's --game when it
-# has one). The queue's key is $GPU_QUEUE_KEY, sent on ssh's stdin, never on a command line; $GPU_QUEUE_URL is passed on if
-# set, $PLAY_NETWORK names the docker network the queue answers on, $PLAY_JOB_URL is the job's link, and
+# has one). The queue's key is $GPU_QUEUE_KEY, sent on ssh's stdin, never on a command line; $GPU_QUEUE_URL and
+# $GPU_QUEUE_BOARD (the label of what files the job, which a queue may require of its key's jobs) are passed on if set,
+# $PLAY_NETWORK names the docker network the queue answers on, $PLAY_JOB_URL is the job's link, and
 # $PLAY_PRIORITY its priority (low). The exit code is the tool's (play_page.mjs's header), 75 when the queue stopped
 # it, 3 for a mistake in the arguments.
 #
@@ -209,6 +210,7 @@ run=(docker run --rm --name "page-play-$key" --gpus all --cpus "${PLAY_CPUS:-4}"
     --shm-size 2g -e HOME=/work/home -w /work/out)
 [[ -n "${PLAY_NETWORK:-}" ]] && run+=(--network "$PLAY_NETWORK")
 [[ -n "${GPU_QUEUE_URL:-}" ]] && run+=(-e "GPU_QUEUE_URL=$GPU_QUEUE_URL")
+[[ -n "${GPU_QUEUE_BOARD:-}" ]] && run+=(-e "GPU_QUEUE_BOARD=$GPU_QUEUE_BOARD")
 cmd=(node /work/tools/play_job.mjs "${job[@]}" -- node "/work/tools/$tool" "${targs[@]}")
 if [[ -n "$runner" ]]; then
     # The runner names, caps and stops the container; the play goes as play_job.mjs runs it with no queue. Or it makes

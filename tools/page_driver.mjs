@@ -69,7 +69,9 @@
 // (in HOME/.config/<program id>; every recomp's launcher calls it), and on a busy host that came after a plan's fixed
 // wait: its click hit Load ROM, the game never started and the run failed later at 'RDRAM not found'. So a rom step
 // ends once a file the ROM's size is in the page's file system outside /tmp (where the picker puts what is picked),
-// polled for up to romStoredMs, and says how long that took; with none by then it says so and goes on as before.
+// polled for up to romStoredMs, and says how long that took; with none by then it says so and goes on as before. An
+// archive given as the ROM (a file that doesn't start as a ROM does: N64ModernRuntime-web's RECOMP_ROM_ARCHIVES, on
+// with Emscripten, stores the ROM inside it) is stored at another size, so for one any .z64 of 1 MiB or more counts.
 // Chrome holds an open picker's input only weakly, and a page whose picker held it no better (one built before
 // RecompFrontend-web's and frontend/file_picker.cpp's fix) lost it to a GC within seconds now and then: the file went
 // nowhere, no copy came, and the run failed a minute later at 'RDRAM not found'. In Chrome the step says so and fails.
@@ -283,6 +285,7 @@ const romStoredMs = 30000;
 const listBuiltMs = 120000;
 // The path of a file of size bytes in the page's file system, outside /tmp, /dev and /proc, or null; false with no FS.
 const storedFile = (size) => `(() => {
+  const size = ${size};
   if (typeof FS === 'undefined') return false;
   const find = (dir) => {
     for (const name of FS.readdir(dir)) {
@@ -290,7 +293,8 @@ const storedFile = (size) => `(() => {
       if (name === '.' || name === '..' || p === '/tmp' || p === '/dev' || p === '/proc') continue;
       let st;
       try { st = FS.stat(p); } catch { continue; }
-      const found = FS.isDir(st.mode) ? find(p) : st.size === ${size} ? p : null;
+      const found = FS.isDir(st.mode) ? find(p)
+        : (size === null ? name.endsWith('.z64') && st.size >= 1 << 20 : st.size === size) ? p : null;
       if (found) return found;
     }
     return null;
@@ -617,7 +621,9 @@ export const open = async (browser, { profile, port, size = [1256, 645], executa
         else if (waited !== '0.0') log(`Load ROM waited ${waited} s for the prebuilt shader list building behind the launcher`);
         page.romPresses = await page.rom(typeof a[0] === 'string' ? async () => { await page.key('down', a); await page.key('up', a); }
           : async () => page.click(...await place(a[0], a[1])));
-        const given = Date.now(), size = (fs.statSync(rom).size + 3) & ~3;
+        const start = fs.readFileSync(rom).subarray(0, 4).toString('hex');
+        const archive = !['80371240', '37804012', '40123780'].includes(start);
+        const given = Date.now(), size = archive ? null : (fs.statSync(rom).size + 3) & ~3;
         let at = null;
         while (!at && Date.now() - given < romStoredMs) {
           at = await page.evaluate(storedFile(size));
