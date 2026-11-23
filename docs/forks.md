@@ -1525,4 +1525,10 @@ N64ModernRuntime       RECOMP_ROM_ARCHIVES: Load ROM (select_rom) takes the ROM 
                        has only the call (rom_archive_select.cpp has the rest) and the CMake block sits after miniz's
                        add_subdirectory, so it merges onto the runtimes Mario Tennis, Pokémon Snap and WWF No Mercy
                        are on, which change those lines
+rt64 c229457           RT64_INTERPOLATE_RECT_SCROLLS: a rect whose edges both moved by the same amount kept its size,
+                       so it holds no edge at the scissor's: it is drawn between where it was and where it is, and the
+                       scissor cuts it. Excitebike 64 slides its Rider Select bio's glyphs through the box's scissor as
+                       the box opens and closes, and its stats' labels out through their panel's, and each glyph past
+                       the scissor was held there and stretched from its other edge, the font page's texels showing
+                       through it as vertical slivers in the frames between
 ```
