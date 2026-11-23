@@ -29,8 +29,8 @@ too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Exc
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
 `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
 `ULTRAMODERN_VIS_WAIT_FOR_RENDERER` (N64ModernRuntime 05d95be), `ULTRAMODERN_YIELDS_END_QUEUED_GRAPHICS`
-(N64ModernRuntime 684377c), `RECOMP_ROM_ARCHIVES` (N64ModernRuntime 6184b47 and 5083f4a, which Rush 2049's desktop build turns
-on), `RECOMPINPUT_SINGLE_PLAYER_UNTIL_ASSIGNED` (RecompFrontend bf01590) and
+(N64ModernRuntime 684377c), `RECOMP_ROM_ARCHIVES` (N64ModernRuntime 6184b47 and 5083f4a, which Rush 2049's desktop
+build turns on), `RECOMPINPUT_SINGLE_PLAYER_UNTIL_ASSIGNED` (RecompFrontend bf01590) and
 `RECOMPINPUT_RECONNECT_PLAYERS` (RecompFrontend 9fc3d68, on with `RECOMPINPUT_PADS_IN_ORDER` too).
 
 Two are off with Emscripten too, on only where a game turns them on, which Mario Party 3 does:
