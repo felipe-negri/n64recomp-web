@@ -29,7 +29,7 @@ too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Exc
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
 `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
 `ULTRAMODERN_VIS_WAIT_FOR_RENDERER` (N64ModernRuntime 05d95be), `ULTRAMODERN_YIELDS_END_QUEUED_GRAPHICS`
-(N64ModernRuntime 684377c), `RECOMP_ROM_ARCHIVES` (N64ModernRuntime 6184b47 and 5083f4a, which Rush 2049's desktop
+(N64ModernRuntime 684377c), `RECOMP_ROM_ARCHIVES` (N64ModernRuntime 6184b47, 6f9303d, which Rush 2049's desktop
 build turns on), `RECOMPINPUT_SINGLE_PLAYER_UNTIL_ASSIGNED` (RecompFrontend bf01590) and
 `RECOMPINPUT_RECONNECT_PLAYERS` (RecompFrontend 9fc3d68, on with `RECOMPINPUT_PADS_IN_ORDER` too).
 
@@ -1516,11 +1516,13 @@ rt64 5cb5768, d729981, RT64_FRAME_DUMP's draws.bin: beside each game frame, each
                        Silicon Valley's and Rogue Squadron's own rt64 changes to the files (aee1652's frame line has no
                        loop frame)
 N64ModernRuntime       RECOMP_ROM_ARCHIVES: Load ROM (select_rom) takes the ROM inside a .zip, .7z, .gz, .xz or .tar
-6184b47, 5083f4a       (a .tar inside a .gz or .xz too), known by its first bytes: every N64 ROM in it, in any byte
-                       order, is checked against the game's hash and the first that matches is stored; with none, it
-                       says the closest (another version, another game, no ROM). .zip and .gz with miniz, .7z and .xz
-                       with the LZMA SDK's decoders (thirdparty/lzma-sdk, public domain), sizes read before unpacking
-                       and nothing unpacked past 256 MiB. Every archive was "not a valid ROM file"
-                       (tests/rom_archive_test.sh); 5083f4a keeps select_rom's first lines as upstream's, so it merges
-                       onto the older upstream commits Mario Tennis is on
+6184b47, 5083f4a,      (a .tar inside a .gz or .xz too), known by its first bytes: every N64 ROM in it, in any byte
+6f9303d                order, is given to select_rom as a temporary file, so the game's runtime checks and stores it
+                       as a ROM picked by itself, until one is the game's; with none, it says the closest (another
+                       version, another game, no ROM). .zip and .gz with miniz, .7z and .xz with the LZMA SDK's
+                       decoders (thirdparty/lzma-sdk, public domain), sizes read before unpacking and nothing unpacked
+                       past 256 MiB. Every archive was "not a valid ROM file" (tests/rom_archive_test.sh). select_rom
+                       has only the call (rom_archive_select.cpp has the rest) and the CMake block sits after miniz's
+                       add_subdirectory, so it merges onto the runtimes Mario Tennis, Pokémon Snap and WWF No Mercy
+                       are on, which change those lines
 ```

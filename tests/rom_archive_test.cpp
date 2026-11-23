@@ -1,8 +1,10 @@
-// recomp::for_each_rom_in_archive (N64ModernRuntime-web's librecomp/src/rom_archive.cpp, RECOMP_ROM_ARCHIVES): what
-// Load ROM finds in each archive tests/rom_archive_test.sh makes. Each argument pair is a file and what it should
+// recomp::for_each_rom_in_archive and is_rom_archive (N64ModernRuntime-web's librecomp/src/rom_archive.cpp,
+// RECOMP_ROM_ARCHIVES): what Load ROM finds in each archive tests/rom_archive_test.sh makes, and that a file's first
+// 512 bytes say it is an archive exactly when it is searched as one. Each argument pair is a file and what it should
 // give: "N" for a file that isn't an archive, else "A:" and the byte order of every ROM found, in order ("A:z64,v64;"
 // and "A:" for an archive with none).
 
+#include <algorithm>
 #include <cstdio>
 #include <fstream>
 #include <iterator>
@@ -22,6 +24,10 @@ int main(int argc, char** argv) {
             return false;
         });
         got = archive ? "A:" + got : "N";
+        bool start_says = recomp::is_rom_archive(std::span<const uint8_t>(data.data(), std::min<size_t>(data.size(), 512)));
+        if (start_says != archive) {
+            got += start_says ? " (but its start says archive)" : " (but its start says not one)";
+        }
         bool ok = got == argv[i + 1];
         failures += !ok;
         printf("%s %s: %s%s%s\n", ok ? "ok  " : "FAIL", argv[i], got.c_str(), ok ? "" : ", expected ", ok ? "" : argv[i + 1]);

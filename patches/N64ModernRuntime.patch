@@ -1,8 +1,8 @@
-N64ModernRuntime: https://github.com/n64hub/N64ModernRuntime-web 5083f4a01e1bf8a5e5fcf0b13c87b8dd79ad8acc
+N64ModernRuntime: https://github.com/n64hub/N64ModernRuntime-web 6f9303de86cc793b0a479630d2dc1c7e2248aff5
 on upstream cdf5abbd5026fef5c364c676e4667c45e42b6863 (tools/export_patches.sh)
 
 diff --git a/librecomp/CMakeLists.txt b/librecomp/CMakeLists.txt
-index 716d48b..a696da4 100644
+index 716d48b..538ba09 100644
 --- a/librecomp/CMakeLists.txt
 +++ b/librecomp/CMakeLists.txt
 @@ -18,6 +18,7 @@ add_library(librecomp STATIC
@@ -13,20 +13,12 @@ index 716d48b..a696da4 100644
      "${CMAKE_CURRENT_SOURCE_DIR}/src/math_routines.cpp"
      "${CMAKE_CURRENT_SOURCE_DIR}/src/mods.cpp"
      "${CMAKE_CURRENT_SOURCE_DIR}/src/mod_events.cpp"
-@@ -63,5 +64,47 @@ endif()
- add_subdirectory(${PROJECT_SOURCE_DIR}/../thirdparty/miniz ${CMAKE_CURRENT_BINARY_DIR}/miniz)
- add_subdirectory(${PROJECT_SOURCE_DIR}/../N64Recomp ${CMAKE_CURRENT_BINARY_DIR}/N64Recomp EXCLUDE_FROM_ALL)
+@@ -61,7 +62,53 @@ if (WIN32)
+ endif()
  
--target_link_libraries(librecomp PRIVATE ultramodern N64Recomp LiveRecomp)
-+# WebAssembly can't generate code at runtime, so Emscripten builds have no live recompiler (mods that need it don't load).
-+if (EMSCRIPTEN)
-+    target_link_libraries(librecomp PRIVATE ultramodern N64Recomp)
-+else()
-+    target_link_libraries(librecomp PRIVATE ultramodern N64Recomp LiveRecomp)
-+endif()
- target_link_libraries(librecomp PUBLIC miniz)
+ add_subdirectory(${PROJECT_SOURCE_DIR}/../thirdparty/miniz ${CMAKE_CURRENT_BINARY_DIR}/miniz)
 +
-+# Load ROM (select_rom) takes the ROM inside a .zip, .7z, .gz, .xz or .tar (src/rom_archive.cpp), with the LZMA SDK's
++# Load ROM (select_rom) takes the ROM inside a .zip, .7z, .gz, .xz or .tar (src/rom_archive*.cpp), with the LZMA SDK's
 +# 7z and xz decoders (thirdparty/lzma-sdk).
 +option(RECOMP_ROM_ARCHIVES "Load ROM takes a ROM inside a .zip, .7z, .gz, .xz or .tar (always on with Emscripten)" OFF)
 +if (RECOMP_ROM_ARCHIVES OR EMSCRIPTEN)
@@ -58,10 +50,24 @@ index 716d48b..a696da4 100644
 +    )
 +    target_compile_definitions(recomp_lzma_sdk PUBLIC Z7_ST Z7_PPMD_SUPPORT)
 +    target_include_directories(recomp_lzma_sdk PUBLIC "${RECOMP_LZMA_SDK_DIR}")
-+    target_sources(librecomp PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/rom_archive.cpp")
++    target_sources(librecomp PRIVATE
++        "${CMAKE_CURRENT_SOURCE_DIR}/src/rom_archive.cpp"
++        "${CMAKE_CURRENT_SOURCE_DIR}/src/rom_archive_select.cpp"
++    )
 +    target_compile_definitions(librecomp PRIVATE RECOMP_ROM_ARCHIVES=1)
 +    target_link_libraries(librecomp PRIVATE recomp_lzma_sdk)
 +endif()
++
+ add_subdirectory(${PROJECT_SOURCE_DIR}/../N64Recomp ${CMAKE_CURRENT_BINARY_DIR}/N64Recomp EXCLUDE_FROM_ALL)
+ 
+-target_link_libraries(librecomp PRIVATE ultramodern N64Recomp LiveRecomp)
++# WebAssembly can't generate code at runtime, so Emscripten builds have no live recompiler (mods that need it don't load).
++if (EMSCRIPTEN)
++    target_link_libraries(librecomp PRIVATE ultramodern N64Recomp)
++else()
++    target_link_libraries(librecomp PRIVATE ultramodern N64Recomp LiveRecomp)
++endif()
+ target_link_libraries(librecomp PUBLIC miniz)
 diff --git a/librecomp/include/librecomp/addresses.hpp b/librecomp/include/librecomp/addresses.hpp
 index b1b50cb..4c11af7 100644
 --- a/librecomp/include/librecomp/addresses.hpp
@@ -1450,22 +1456,20 @@ index 43509ba..71ee4d9 100644
              recomp::do_rom_read(rdram, rdram_address, physical_addr, size);
  
 diff --git a/librecomp/src/recomp.cpp b/librecomp/src/recomp.cpp
-index 850689d..5c2b021 100644
+index 850689d..f5df252 100644
 --- a/librecomp/src/recomp.cpp
 +++ b/librecomp/src/recomp.cpp
-@@ -24,6 +24,11 @@
+@@ -24,6 +24,9 @@
  #include "librecomp/addresses.hpp"
  #include "librecomp/mods.hpp"
  #include "recompiler/live_recompiler.h"
 +#ifdef RECOMP_ROM_ARCHIVES
 +#include "rom_archive.hpp"
 +#endif
-+
-+static recomp::RomValidationError check_rom(std::vector<uint8_t>& rom_data, const recomp::GameEntry& game_entry);
  
  #ifdef _WIN32
  #    define WIN32_LEAN_AND_MEAN
-@@ -32,6 +37,13 @@
+@@ -32,6 +35,13 @@
  #    include <sys/mman.h>
  #endif
  
@@ -1479,7 +1483,7 @@ index 850689d..5c2b021 100644
  #if defined(_WIN32)
  #define PATHFMT "%ls"
  #else
-@@ -90,7 +102,9 @@ bool recomp::register_game(const recomp::GameEntry& entry) {
+@@ -90,7 +100,9 @@ bool recomp::register_game(const recomp::GameEntry& entry) {
  }
  
  void recomp::mods::initialize_mods() {
@@ -1489,7 +1493,7 @@ index 850689d..5c2b021 100644
      std::filesystem::create_directories(config_path / mods_directory);
      std::filesystem::create_directories(config_path / mod_config_directory);
      mod_context->set_mods_config_path(config_path / "mods.json");
-@@ -102,6 +116,11 @@ void recomp::mods::register_embedded_mod(const std::string &mod_id, std::span<co
+@@ -102,6 +114,11 @@ void recomp::mods::register_embedded_mod(const std::string &mod_id, std::span<co
      mod_context->register_embedded_mod(mod_id, mod_bytes);
  }
  
@@ -1501,7 +1505,7 @@ index 850689d..5c2b021 100644
  void recomp::mods::register_deprecated_mod(const std::string& mod_id, recomp::mods::DeprecationStatus deprecation_status, const Version& maximum_version) {
      std::lock_guard<std::mutex> lock(mod_context_mutex);
      mod_context->register_deprecated_mod(mod_id, deprecation_status, maximum_version);
-@@ -169,6 +188,29 @@ bool check_hash(const std::vector<uint8_t>& rom_data, uint64_t expected_hash) {
+@@ -169,6 +186,29 @@ bool check_hash(const std::vector<uint8_t>& rom_data, uint64_t expected_hash) {
  static std::vector<uint8_t> read_file(const std::filesystem::path& path) {
      std::vector<uint8_t> ret;
  
@@ -1531,7 +1535,7 @@ index 850689d..5c2b021 100644
      std::ifstream file{ path, std::ios::binary};
  
      if (file.good()) {
-@@ -180,9 +222,31 @@ static std::vector<uint8_t> read_file(const std::filesystem::path& path) {
+@@ -180,9 +220,31 @@ static std::vector<uint8_t> read_file(const std::filesystem::path& path) {
      }
  
      return ret;
@@ -1563,7 +1567,7 @@ index 850689d..5c2b021 100644
      std::ofstream out_file{ path, std::ios::binary };
  
      if (!out_file.good()) {
-@@ -192,6 +256,7 @@ bool write_file(const std::filesystem::path& path, const std::vector<uint8_t>& d
+@@ -192,6 +254,7 @@ bool write_file(const std::filesystem::path& path, const std::vector<uint8_t>& d
      out_file.write(reinterpret_cast<const char*>(data.data()), data.size());
  
      return true;
@@ -1571,64 +1575,21 @@ index 850689d..5c2b021 100644
  }
  
  bool check_stored_rom(const recomp::GameEntry& game_entry) {
-@@ -372,6 +437,47 @@ recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_p
-         return recomp::RomValidationError::FailedToOpen;
+@@ -364,6 +427,13 @@ recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_p
+         return recomp::RomValidationError::OtherError;
      }
  
 +#ifdef RECOMP_ROM_ARCHIVES
-+    // An archive (rom_archive.hpp): the first ROM in it that is this game's is stored. With none, what the closest one
-+    // was (the game in another version before another game before no ROM at all), so an archive of the wrong version
-+    // says so.
-+    recomp::RomValidationError archive_result = recomp::RomValidationError::NotARom;
-+    auto closeness = [](recomp::RomValidationError error) {
-+        switch (error) {
-+            case recomp::RomValidationError::IncorrectVersion: return 3;
-+            case recomp::RomValidationError::NotYet: return 2;
-+            case recomp::RomValidationError::IncorrectRom: return 1;
-+            default: return 0;
-+        }
-+    };
-+    if (recomp::for_each_rom_in_archive(rom_data, [&](std::vector<uint8_t>&& rom) {
-+            recomp::RomValidationError result = check_rom(rom, game_entry);
-+            if (result == recomp::RomValidationError::Good) {
-+                write_file(config_path / game_entry.stored_filename(), rom);
-+                archive_result = result;
-+                return true;
-+            }
-+            if (closeness(result) > closeness(archive_result)) {
-+                archive_result = result;
-+            }
-+            return false;
-+        })) {
-+        return archive_result;
++    // An archive: the ROM inside it (rom_archive_select.cpp).
++    if (std::optional<recomp::RomValidationError> archive_result = recomp::select_rom_in_archive(rom_path, game_id)) {
++        return *archive_result;
 +    }
 +#endif
 +
-+    recomp::RomValidationError result = check_rom(rom_data, game_entry);
-+    if (result != recomp::RomValidationError::Good) {
-+        return result;
-+    }
-+
-+    write_file(config_path / game_entry.stored_filename(), rom_data);
-+    
-+    return recomp::RomValidationError::Good;
-+}
-+
-+// Whether rom_data is game_entry's ROM, put in big-endian byte order if it is.
-+static recomp::RomValidationError check_rom(std::vector<uint8_t>& rom_data, const recomp::GameEntry& game_entry) {
-     // Pad the rom to the nearest multiple of 4 bytes.
-     rom_data.resize((rom_data.size() + 3) & ~3);
+     const recomp::GameEntry& game_entry = find_it->second;
  
-@@ -405,8 +511,6 @@ recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_p
-         }
-     }
- 
--    write_file(config_path / game_entry.stored_filename(), rom_data);
--    
-     return recomp::RomValidationError::Good;
- }
- 
-@@ -442,13 +546,9 @@ extern "C" void cop0_status_write(recomp_context* ctx, gpr value) {
+     std::vector<uint8_t> rom_data = read_file(rom_path);
+@@ -442,13 +512,9 @@ extern "C" void cop0_status_write(recomp_context* ctx, gpr value) {
          changed &= ~(uint32_t)StatusReg::FR;
      }
  
@@ -1645,7 +1606,7 @@ index 850689d..5c2b021 100644
      // Update the status register in the context
      ctx->status_reg = new_sr;
  }
-@@ -491,6 +591,25 @@ void run_thread_function(uint8_t* rdram, uint64_t addr, uint64_t sp, uint64_t ar
+@@ -491,6 +557,25 @@ void run_thread_function(uint8_t* rdram, uint64_t addr, uint64_t sp, uint64_t ar
      func(rdram, &ctx);
  }
  
@@ -1671,7 +1632,7 @@ index 850689d..5c2b021 100644
  void init(uint8_t* rdram, recomp_context* ctx, gpr entrypoint) {
      // Initialize the overlays
      recomp::overlays::init_overlays();
-@@ -707,6 +826,16 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
+@@ -707,6 +792,16 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
              {
                  if (!recomp::load_stored_rom(current_game.value())) {
                      ultramodern::error_handling::message_box("Error opening stored ROM! Please restart this program.");
@@ -1688,7 +1649,7 @@ index 850689d..5c2b021 100644
                  }
  
                  auto find_it = game_roms.find(current_game.value());
-@@ -753,6 +882,16 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
+@@ -753,6 +848,16 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
                  save_type = game_entry.save_type;
                  ultramodern::init_saving(rdram);
  
@@ -1705,7 +1666,7 @@ index 850689d..5c2b021 100644
                  try {
                      game_entry.entrypoint(rdram, context);
                  } catch (ultramodern::thread_terminated& terminated) {
-@@ -936,12 +1075,13 @@ void recomp::start(const recomp::Configuration& cfg) {
+@@ -936,12 +1041,13 @@ void recomp::start(const recomp::Configuration& cfg) {
      uint8_t* rdram;
      bool alloc_failed;
  #ifdef _WIN32
@@ -1725,10 +1686,10 @@ index 850689d..5c2b021 100644
          }
 diff --git a/librecomp/src/rom_archive.cpp b/librecomp/src/rom_archive.cpp
 new file mode 100644
-index 0000000..8710a34
+index 0000000..d4311a2
 --- /dev/null
 +++ b/librecomp/src/rom_archive.cpp
-@@ -0,0 +1,315 @@
+@@ -0,0 +1,331 @@
 +// recomp::for_each_rom_in_archive (rom_archive.hpp). An archive is known by its first bytes, never by its name: .zip
 +// and .gz with miniz (already here for mods), .7z and .xz with the LZMA SDK's decoders (thirdparty/lzma-sdk), and
 +// .tar read here. A .gz or .xz holds one file, which is a ROM or a .tar of them. Each file's size is read from the
@@ -2015,27 +1976,39 @@ index 0000000..8710a34
 +    }
 +}
 +
++enum class Kind { None, Zip, SevenZip, Gzip, Xz, Tar };
++
++// What data is, by its first bytes (a .tar's 512). A .gz or .xz is one only outside another (depth 0).
++Kind kind_of(std::span<const uint8_t> data, int depth) {
++    if (starts_with(data, { 'P', 'K', 3, 4 }) || starts_with(data, { 'P', 'K', 5, 6 })) {
++        return Kind::Zip;
++    }
++    if (starts_with(data, { '7', 'z', 0xBC, 0xAF, 0x27, 0x1C })) {
++        return Kind::SevenZip;
++    }
++    if (depth == 0 && starts_with(data, { 0x1F, 0x8B })) {
++        return Kind::Gzip;
++    }
++    if (depth == 0 && starts_with(data, { 0xFD, '7', 'z', 'X', 'Z', 0 })) {
++        return Kind::Xz;
++    }
++    if (data.size() >= 512 && std::memcmp(data.data() + 257, "ustar", 5) == 0) {
++        return Kind::Tar;
++    }
++    return Kind::None;
++}
++
 +// Whether data is an archive (and so was searched).
 +bool scan(std::span<const uint8_t> data, int depth, const FoundFunc& found, bool& stop) {
-+    if (starts_with(data, { 'P', 'K', 3, 4 }) || starts_with(data, { 'P', 'K', 5, 6 })) {
-+        scan_zip(data, found, stop);
++    switch (kind_of(data, depth)) {
++        case Kind::Zip: scan_zip(data, found, stop); return true;
++        case Kind::SevenZip: scan_7z(data, found, stop); return true;
++        case Kind::Gzip: scan_gzip(data, depth, found, stop); return true;
++        case Kind::Xz: scan_xz(data, depth, found, stop); return true;
++        case Kind::Tar: scan_tar(data, found, stop); return true;
++        case Kind::None: break;
 +    }
-+    else if (starts_with(data, { '7', 'z', 0xBC, 0xAF, 0x27, 0x1C })) {
-+        scan_7z(data, found, stop);
-+    }
-+    else if (depth == 0 && starts_with(data, { 0x1F, 0x8B })) {
-+        scan_gzip(data, depth, found, stop);
-+    }
-+    else if (depth == 0 && starts_with(data, { 0xFD, '7', 'z', 'X', 'Z', 0 })) {
-+        scan_xz(data, depth, found, stop);
-+    }
-+    else if (data.size() >= 512 && std::memcmp(data.data() + 257, "ustar", 5) == 0) {
-+        scan_tar(data, found, stop);
-+    }
-+    else {
-+        return false;
-+    }
-+    return true;
++    return false;
 +}
 +
 +} // namespace
@@ -2044,12 +2017,16 @@ index 0000000..8710a34
 +    bool stop = false;
 +    return scan(data, 0, found, stop);
 +}
++
++bool recomp::is_rom_archive(std::span<const uint8_t> start) {
++    return kind_of(start, 0) != Kind::None;
++}
 diff --git a/librecomp/src/rom_archive.hpp b/librecomp/src/rom_archive.hpp
 new file mode 100644
-index 0000000..24e5bdd
+index 0000000..21bfc58
 --- /dev/null
 +++ b/librecomp/src/rom_archive.hpp
-@@ -0,0 +1,20 @@
+@@ -0,0 +1,35 @@
 +#ifndef __RECOMP_ROM_ARCHIVE_HPP__
 +#define __RECOMP_ROM_ARCHIVE_HPP__
 +
@@ -2057,19 +2034,126 @@ index 0000000..24e5bdd
 +// downloaded packed, and Load ROM said "not a valid ROM file" of every one.
 +
 +#include <cstdint>
++#include <filesystem>
 +#include <functional>
++#include <optional>
 +#include <span>
++#include <string>
 +#include <vector>
 +
 +namespace recomp {
++    enum class RomValidationError; // librecomp/game.hpp
++
 +    // If data is a .zip, .7z, .gz, .xz or .tar (a .tar inside a .gz or .xz too), calls found with each file in it that
 +    // starts as an N64 ROM does in any byte order, and is from 4 KiB to 64 MiB, in the archive's order, until found
 +    // returns true, and returns true. Returns false, calling nothing, for anything else (a ROM itself). A file that
 +    // unpacks to more than 256 MiB, or is damaged, ends the search where it is.
 +    bool for_each_rom_in_archive(std::span<const uint8_t> data, const std::function<bool(std::vector<uint8_t>&& rom)>& found);
++
++    // Whether a file that starts with these bytes (its first 512, or all of a shorter one) is an archive
++    // for_each_rom_in_archive searches.
++    bool is_rom_archive(std::span<const uint8_t> start);
++
++    // select_rom of an archive (rom_archive_select.cpp), called first thing by select_rom: if the file at rom_path is
++    // an archive, select_rom is given each ROM in it, unpacked to a temporary file, until one is game_id's, and what it
++    // said of that one is returned, or, with none, of the closest (the game in another version before another game
++    // before no ROM at all). nullopt for a file that isn't an archive, which select_rom goes on to check itself.
++    std::optional<RomValidationError> select_rom_in_archive(const std::filesystem::path& rom_path, const std::u8string& game_id);
 +}
 +
 +#endif
+diff --git a/librecomp/src/rom_archive_select.cpp b/librecomp/src/rom_archive_select.cpp
+new file mode 100644
+index 0000000..636da2d
+--- /dev/null
++++ b/librecomp/src/rom_archive_select.cpp
+@@ -0,0 +1,86 @@
++// recomp::select_rom_in_archive (rom_archive.hpp). Each ROM found in the archive is written to a temporary file and
++// given to select_rom, so it is checked and stored exactly as a ROM picked by itself is, by whatever select_rom a game's
++// runtime has. select_rom only gets this one call (and the include) so that the change merges onto runtimes that
++// change select_rom's own lines.
++
++#include "rom_archive.hpp"
++
++#include <fstream>
++#include <random>
++
++#include "librecomp/game.hpp"
++
++namespace {
++
++constexpr uint64_t max_archive_size = 256 << 20;
++
++// How near an error is to the game's ROM: another version of it, before one too new, before another game's ROM.
++int closeness(recomp::RomValidationError error) {
++    switch (error) {
++        case recomp::RomValidationError::IncorrectVersion: return 3;
++        case recomp::RomValidationError::NotYet: return 2;
++        case recomp::RomValidationError::IncorrectRom: return 1;
++        default: return 0;
++    }
++}
++
++} // namespace
++
++std::optional<recomp::RomValidationError> recomp::select_rom_in_archive(const std::filesystem::path& rom_path, const std::u8string& game_id) {
++    std::ifstream file{ rom_path, std::ios::binary };
++    if (!file) {
++        return std::nullopt;
++    }
++    std::vector<uint8_t> data(512);
++    file.read(reinterpret_cast<char*>(data.data()), data.size());
++    data.resize(static_cast<size_t>(file.gcount()));
++    if (!is_rom_archive(data)) {
++        return std::nullopt;
++    }
++
++    file.clear();
++    file.seekg(0, std::ios::end);
++    std::streamoff size = file.tellg();
++    if (size < 0 || static_cast<uint64_t>(size) > max_archive_size) {
++        return RomValidationError::NotARom;
++    }
++    data.resize(static_cast<size_t>(size));
++    file.seekg(0);
++    file.read(reinterpret_cast<char*>(data.data()), size);
++    if (!file) {
++        return RomValidationError::FailedToOpen;
++    }
++    file.close();
++
++    std::error_code ec;
++    std::filesystem::path temp_dir = std::filesystem::temp_directory_path(ec);
++    if (ec) {
++        return RomValidationError::FailedToOpen;
++    }
++    std::filesystem::path temp_path = temp_dir / ("recomp-rom-" + std::to_string(std::random_device{}()) + ".z64");
++
++    // A copy, as select_rom took game_id without const in older runtimes.
++    std::u8string id = game_id;
++    RomValidationError result = RomValidationError::NotARom;
++    for_each_rom_in_archive(data, [&](std::vector<uint8_t>&& rom) {
++        {
++            std::ofstream out{ temp_path, std::ios::binary | std::ios::trunc };
++            out.write(reinterpret_cast<const char*>(rom.data()), static_cast<std::streamsize>(rom.size()));
++            if (!out) {
++                result = RomValidationError::FailedToOpen;
++                return true;
++            }
++        }
++        RomValidationError rom_result = select_rom(temp_path, id);
++        if (rom_result == RomValidationError::Good) {
++            result = rom_result;
++            return true;
++        }
++        if (closeness(rom_result) > closeness(result)) {
++            result = rom_result;
++        }
++        return false;
++    });
++    std::filesystem::remove(temp_path, ec);
++    return result;
++}
 diff --git a/librecomp/src/sp.cpp b/librecomp/src/sp.cpp
 index ae0f44f..7eff56f 100644
 --- a/librecomp/src/sp.cpp
