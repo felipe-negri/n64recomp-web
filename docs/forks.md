@@ -1537,4 +1537,9 @@ rt64 93c7078           RT64_INTERPOLATE_RECT_SCROLLS: where the frames drew a di
                        or went. Excitebike 64 culls each row of its Rider Select bio as it scrolls out of the box, and
                        the glyphs after it took the glyph a place along for their own, failed to pair and stepped at
                        the game's rate while the rest of their lines glided
+rt64 b3fdb32           RT64_INTERPOLATE_RECT_SCROLLS: a rect pairs with its one look-alike up to four of its sides away
+                       (fbf407f) only where no other rect of either frame draws its textures at any scale or size, not
+                       only at its own. Mario Golf's sparkles over the pictures of its credits, a few textures at a
+                       dozen sizes, were each the only one of their size, so a sparkle paired with another 20 to 71
+                       pixels away and the frames between slid it across the picture
 ```
