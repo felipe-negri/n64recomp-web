@@ -1548,7 +1548,12 @@ rt64 be37c65           RT64_INTERPOLATE_RECT_SCROLLS: a rect that moved, with a 
                        quit prompt replaces its pause menu in place, and a few of its glyphs paired with the same
                        letters of the menu's words less than a glyph away, so the one frame between drew them out of
                        their lines
-rt64 3e6eb12           RT64_FRAME_DUMP's presents.tsv names the framebuffer each frame shows (its color image's
+rt64 1713fee           RT64_INTERPOLATE_RECT_SCROLLS: a slide goes to a tile entry several rects share (RT64 gives a
+                       call new ones only when the texture's state changed) only where every paired rect drawn from it
+                       asks for the same, an unpaired one having no say. Mario Golf's lens flare draws its eight
+                       circles from one texture, and the slide of the one cut at the screen's corner moved the other
+                       seven's textures too, so between the game's frames each showed a cap over it
+rt64 6915fcd           RT64_FRAME_DUMP's presents.tsv names the framebuffer each frame shows (its color image's
                        address, a fifth field): the one the present took for the game's own frame, the interpolation
                        target for one between. A frame can draw several and show any one, and a tool took the largest:
                        Mario Golf's credits fill one the window's size and draw the picture into another, 226 rows high
