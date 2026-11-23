@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web aee1652044fc712e8fdd27ecb2c3fe3de388990a
+rt64: https://github.com/n64hub/rt64-web c229457a1471ee3746602f43dc0cee0c785b32a2
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -3763,7 +3763,7 @@ index 5c3c4d2..cba893c 100644
  
          uint32_t rdramUsed;
 diff --git a/src/hle/rt64_game_frame.cpp b/src/hle/rt64_game_frame.cpp
-index 87392d0..474d109 100644
+index 87392d0..c1f12f8 100644
 --- a/src/hle/rt64_game_frame.cpp
 +++ b/src/hle/rt64_game_frame.cpp
 @@ -2,6 +2,9 @@
@@ -3854,7 +3854,7 @@ index 87392d0..474d109 100644
          bool valid = false;
  
          float computeDifference() const {
-@@ -202,55 +262,1286 @@ namespace RT64 {
+@@ -202,55 +262,1290 @@ namespace RT64 {
                  totalDiff += positionDifference * PositionDiffScale;
              }
  
@@ -4480,10 +4480,14 @@ index 87392d0..474d109 100644
 +        };
 +
 +        // The edge the game holds one way, of a rect (a) and the one it pairs with in the frame before (b): 1 its upper
-+        // left, 2 its lower right, 0 neither. One that stayed while the other moved, or, with both moved, one that came
-+        // onto the scissor's from inside it, where the game cuts the rect: the strip of a panorama under one that left
-+        // the picture over the top, whole in the frame before and cut at the top in this one (Mario Golf's hills as
-+        // the camera pitches down).
++        // left, 2 its lower right, 0 neither. One that stayed while the other moved, or, with both moved by different
++        // amounts, one that came onto the scissor's from inside it, where the game cuts the rect: the strip of a
++        // panorama under one that left the picture over the top, whole in the frame before and cut at the top in this
++        // one (Mario Golf's hills as the camera pitches down). A rect whose edges both moved by the same amount kept its
++        // size, so the game moved it whole and cut nothing, wherever the scissor cuts what is drawn of it: Excitebike
++        // 64 slides the glyphs of its Rider Select bio up and down through its box's scissor as the box opens and
++        // closes, and its stats' labels sideways out through their panel's, and with the edge past the scissor held
++        // there the frames between stretched each glyph from its other edge, its texels sliding across it as columns.
 +        auto heldEdge = [](const DrawCall &ca, const DrawCall &cb, bool vertical) {
 +            const int32_t aUl = vertical ? ca.gameRect.uly : ca.gameRect.ulx;
 +            const int32_t aLr = vertical ? ca.gameRect.lry : ca.gameRect.lrx;
@@ -4495,7 +4499,7 @@ index 87392d0..474d109 100644
 +                return (ulMove == 0) ? 1 : 2;
 +            }
 +
-+            if (ulMove == 0) {
++            if (ulMove == lrMove) {
 +                return 0;
 +            }
 +
@@ -5178,7 +5182,7 @@ index 87392d0..474d109 100644
  
      void GameFrame::match(RenderWorker *worker, WorkloadQueue &workloadQueue, const GameFrame &prevFrame, BufferUploader *velocityUploader, bool &velocityUploaderUsed, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed) {
          tileInterpolationUsed = false;
-@@ -260,17 +1551,50 @@ namespace RT64 {
+@@ -260,17 +1555,50 @@ namespace RT64 {
          thread_local std::unordered_map<uint32_t, ModifiedBuffers> workloadsModified;
          workloadsModified.clear();
  
@@ -5235,7 +5239,7 @@ index 87392d0..474d109 100644
              const Workload &prevWorkload = workloadQueue.workloads[workloadMap.prevWorkloadIndex];
              workloadMap.viewProjections.clear();
              workloadMap.viewProjections.resize(curWorkload.drawData.viewProjTransforms.size());
-@@ -290,7 +1614,7 @@ namespace RT64 {
+@@ -290,7 +1618,7 @@ namespace RT64 {
              buildTransformIdMap(curWorkload, curWorkload.transformIdMap, curWorkload.transformIgnoredIds);
  
              // Retrieve the matching maps for the current and previous workload.
@@ -5244,7 +5248,7 @@ index 87392d0..474d109 100644
              const GameFrameMap::WorkloadMap *prevWorkloadMap = nullptr;
              if (prevFrame.matched && prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex].mapped) {
                  prevWorkloadMap = &prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex];
-@@ -316,7 +1640,7 @@ namespace RT64 {
+@@ -316,7 +1644,7 @@ namespace RT64 {
              }
  
              if (!modifiedBuffers.empty()) {
@@ -5253,7 +5257,7 @@ index 87392d0..474d109 100644
              }
  
              // Any transforms tagged with the empty ID will be instantly marked as used and skipped.
-@@ -343,6 +1667,14 @@ namespace RT64 {
+@@ -343,6 +1671,14 @@ namespace RT64 {
                  const hlslpp::float4x4 &curProjTransform = curWorkload.drawData.projTransforms[curProj.transformsIndex];
                  for (uint32_t j = 0; j < prevScenes.size(); j++) {
                      const GameIndices::Projection prevFirstProj = prevScenes[j].projections[0];
@@ -5268,7 +5272,7 @@ index 87392d0..474d109 100644
                      const Workload &prevWorkload = workloadQueue.workloads[prevFirstProj.workloadIndex];
                      const FramebufferPair &prevFbPair = prevWorkload.fbPairs[prevFirstProj.fbPairIndex];
                      const Projection &prevProj = prevFbPair.projections[prevFirstProj.projectionIndex];
-@@ -356,6 +1688,40 @@ namespace RT64 {
+@@ -356,6 +1692,40 @@ namespace RT64 {
              prevScenesMatched.clear();
              curScenesMatched.resize(curScenes.size());
              prevScenesMatched.resize(prevScenes.size());
@@ -5309,7 +5313,7 @@ index 87392d0..474d109 100644
              std::stable_sort(matchCandidates.begin(), matchCandidates.end());
              for (const MatchCandidate &candidate : matchCandidates) {
                  if (curScenesMatched[candidate.curIndex]) {
-@@ -396,6 +1762,20 @@ namespace RT64 {
+@@ -396,6 +1766,20 @@ namespace RT64 {
          else {
              velocityUploaderUsed = false;
          }
@@ -5330,7 +5334,7 @@ index 87392d0..474d109 100644
      }
  
      void GameFrame::matchScene(WorkloadQueue &workloadQueue, const GameFrame &prevFrame, const GameScene &curScene, const GameScene &prevScene, std::unordered_map<uint32_t, ModifiedBuffers> &workloadsModified, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed) {
-@@ -403,8 +1783,10 @@ namespace RT64 {
+@@ -403,8 +1787,10 @@ namespace RT64 {
              return;
          }
  
@@ -5343,7 +5347,7 @@ index 87392d0..474d109 100644
          curCallHashMap.clear();
          prevCallHashMap.clear();
  
-@@ -423,6 +1805,12 @@ namespace RT64 {
+@@ -423,6 +1809,12 @@ namespace RT64 {
              firstPrevWorkloadMap = &prevFrame.frameMap.workloads[firstPrevProjIndices.workloadIndex];
          }
  
@@ -5356,7 +5360,7 @@ index 87392d0..474d109 100644
          // Build a multimap with all potential compatibilities between draw calls in the projections.
          uint32_t mappedViewProjIndex = UINT32_MAX;
          for (uint32_t p = 0; p < curScene.projections.size(); p++) {
-@@ -478,6 +1866,40 @@ namespace RT64 {
+@@ -478,6 +1870,40 @@ namespace RT64 {
                  }
                  else {
                      viewProjMap.mapped = (curProjGroup.matrixId == G_EX_ID_AUTO);
@@ -5397,7 +5401,7 @@ index 87392d0..474d109 100644
                  }
  
                  if (viewProjMap.mapped) {
-@@ -509,69 +1931,163 @@ namespace RT64 {
+@@ -509,69 +1935,163 @@ namespace RT64 {
              buildCallHashMap(p, prevWorkload, prevProj, prevCallHashMap);
          }
  
@@ -5607,7 +5611,7 @@ index 87392d0..474d109 100644
          }
  
          // Compute all the differences between transforms and insert them into a vector that will be sorted according to the differences.
-@@ -592,6 +2108,72 @@ namespace RT64 {
+@@ -592,6 +2112,72 @@ namespace RT64 {
              }
          }
  
@@ -5680,7 +5684,7 @@ index 87392d0..474d109 100644
          ModifiedBuffers modifiedBuffers;
          std::stable_sort(matchCandidates.begin(), matchCandidates.end());
          for (const MatchCandidate candidate : matchCandidates) {
-@@ -606,6 +2188,243 @@ namespace RT64 {
+@@ -606,6 +2192,243 @@ namespace RT64 {
              matchTransform(firstCurWorkload, firstPrevWorkload, firstCurWorkloadMap, firstPrevWorkloadMap, candidate.curIndex, candidate.prevIndex, modifiedBuffers);
          }
  
@@ -5924,7 +5928,7 @@ index 87392d0..474d109 100644
          if (!modifiedBuffers.empty()) {
              workloadsModified[firstCurProjIndices.workloadIndex].merge(modifiedBuffers);
          }
-@@ -669,17 +2488,160 @@ namespace RT64 {
+@@ -669,17 +2492,160 @@ namespace RT64 {
              const bool wrappedUlt = (curTile.cmt == G_TX_WRAP) && (modulo(integerUlt, curTile.maskt * 4) == modulo(expectedUlt, curTile.maskt * 4));
              const bool wrappedLrs = (curTile.cms == G_TX_WRAP) && (modulo(integerLrs, curTile.masks * 4) == modulo(expectedLrs, curTile.masks * 4));
              const bool wrappedLrt = (curTile.cmt == G_TX_WRAP) && (modulo(integerLrt, curTile.maskt * 4) == modulo(expectedLrt, curTile.maskt * 4));
@@ -6090,7 +6094,7 @@ index 87392d0..474d109 100644
          }
  
          // Check for look at matches.
-@@ -727,6 +2689,18 @@ namespace RT64 {
+@@ -727,6 +2693,18 @@ namespace RT64 {
          curTransformMap.mapped = true;
          curWorkloadMap.prevTransformsMapped[prevTransformIndex] = true;
  
@@ -6109,7 +6113,7 @@ index 87392d0..474d109 100644
          uint64_t curVertexHash = 0;
          uint64_t prevVertexHash = 0;
          uint32_t curVertexIndex = curWorkload.drawData.worldTransformVertexIndices[curTransformIndex];
-@@ -782,9 +2756,78 @@ namespace RT64 {
+@@ -782,9 +2760,78 @@ namespace RT64 {
  
              modifiedBuffers.texcoordVelocity = true;
          }
@@ -6189,7 +6193,7 @@ index 87392d0..474d109 100644
          for (uint32_t c = 0; c < proj.gameCallCount; c++) {
              const GameCall &call = proj.gameCalls[c];
              uint32_t matrixIdHash = 0;
-@@ -802,7 +2845,7 @@ namespace RT64 {
+@@ -802,7 +2849,7 @@ namespace RT64 {
                  doTileMatching = doTileMatching || (group.tileInterpolation == G_EX_COMPONENT_AUTO);
              }
  
