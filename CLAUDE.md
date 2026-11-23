@@ -53,6 +53,12 @@ the game forks take no PRs: a change is a commit pushed to the fork's `main` as 
   Auto, in every game fork and new port, whatever its recomp's desktop build defaults to (README, The recomp's own
   code). A page held to its game's own rate reads that rate uncapped whatever a change costs or saves (DKR-R 29.8-30.0,
   Jet Force Gemini 19-22, on Original), so one that shows its game's own 20 or 30 because of a default is a bug.
+- A game fork fills a wide window's sides (Aspect Ratio Expand) beside a 4:3 picture only with more of what the game
+  has there (its scene, a picture wider than the screen) or with a wrap, the picture's opposite edge, where that edge
+  meets this one without a seam. It never mirrors a picture's edge into the sides unless the mirror looks perfect, which
+  it almost never does (reversed logos and letters, a reflected line), and doesn't stretch a picture with text or logos
+  in it. Where nothing fits, the picture keeps its black bars: Excitebike 64's boot screens do, since none of their
+  pictures' right edges meets its left.
 - Every web port records a prebuilt shader list and builds it, as part of the port: without one a page is unplayable
   (docs/porting.md, Prebuilt shader lists).
 - Never open a PR, issue or discussion upstream at rt64, plume, N64Recomp, N64ModernRuntime, RecompFrontend,
