@@ -1548,4 +1548,9 @@ rt64 be37c65           RT64_INTERPOLATE_RECT_SCROLLS: a rect that moved, with a 
                        quit prompt replaces its pause menu in place, and a few of its glyphs paired with the same
                        letters of the menu's words less than a glyph away, so the one frame between drew them out of
                        their lines
+rt64 1713fee           RT64_INTERPOLATE_RECT_SCROLLS: a slide goes to a tile entry several rects share (RT64 gives a
+                       call new ones only when the texture's state changed) only where every paired rect drawn from it
+                       asks for the same, an unpaired one having no say. Mario Golf's lens flare draws its eight
+                       circles from one texture, and the slide of the one cut at the screen's corner moved the other
+                       seven's textures too, so between the game's frames each showed a cap over it
 ```
