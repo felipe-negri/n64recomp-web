@@ -1542,4 +1542,10 @@ rt64 b3fdb32           RT64_INTERPOLATE_RECT_SCROLLS: a rect pairs with its one 
                        only at its own. Mario Golf's sparkles over the pictures of its credits, a few textures at a
                        dozen sizes, were each the only one of their size, so a sparkle paired with another 20 to 71
                        pixels away and the frames between slid it across the picture
+rt64 be37c65           RT64_INTERPOLATE_RECT_SCROLLS: a rect that moved, with a look the frame before drew more than
+                       once (a glyph), is left unpaired where its line (rects of one scale and alike size along a row)
+                       has at least three times as many rects unpaired as rects that moved with it. Excitebike 64's
+                       quit prompt replaces its pause menu in place, and a few of its glyphs paired with the same
+                       letters of the menu's words less than a glyph away, so the one frame between drew them out of
+                       their lines
 ```
