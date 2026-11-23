@@ -1554,9 +1554,10 @@ rt64 1713fee           RT64_INTERPOLATE_RECT_SCROLLS: a slide goes to a tile ent
                        asks for the same, an unpaired one having no say. Mario Golf's lens flare draws its eight
                        circles from one texture, and the slide of the one cut at the screen's corner moved the other
                        seven's textures too, so between the game's frames each showed a cap over it
-rt64 6915fcd           RT64_FRAME_DUMP's presents.tsv has a fifth field, the color image's address of the framebuffer
-                       each frame shows (for a frame between, its interpolation target), 0 for none: a frame can draw
-                       several framebuffers, and a tool reading what drew a part of one took the largest
+rt64 6915fcd           RT64_FRAME_DUMP's presents.tsv names the framebuffer each frame shows (its color image's
+                       address, a fifth field): the one the present took for the game's own frame, the interpolation
+                       target for one between. A frame can draw several and show any one, and a tool took the largest:
+                       Mario Golf's credits fill one the window's size and draw the picture into another, 226 rows high
 rt64 f754c0d           RT64_RECT_OWN_PIXEL_GRID: without Upscale 2D, a texrect steps its texture a native pixel at a
                        time from its own left and top edges, its native pixels as wide as its own scale draws them,
                        not on the screen's grid of square ones. A rect stretched across a picture RT64 draws wider than
