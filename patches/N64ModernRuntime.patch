@@ -1,4 +1,4 @@
-N64ModernRuntime: https://github.com/n64hub/N64ModernRuntime-web 6184b47910706e96e99093baa8a9afcaecdd6f6a
+N64ModernRuntime: https://github.com/n64hub/N64ModernRuntime-web 5083f4a01e1bf8a5e5fcf0b13c87b8dd79ad8acc
 on upstream cdf5abbd5026fef5c364c676e4667c45e42b6863 (tools/export_patches.sh)
 
 diff --git a/librecomp/CMakeLists.txt b/librecomp/CMakeLists.txt
@@ -1450,20 +1450,22 @@ index 43509ba..71ee4d9 100644
              recomp::do_rom_read(rdram, rdram_address, physical_addr, size);
  
 diff --git a/librecomp/src/recomp.cpp b/librecomp/src/recomp.cpp
-index 850689d..750a8bc 100644
+index 850689d..5c2b021 100644
 --- a/librecomp/src/recomp.cpp
 +++ b/librecomp/src/recomp.cpp
-@@ -24,6 +24,9 @@
+@@ -24,6 +24,11 @@
  #include "librecomp/addresses.hpp"
  #include "librecomp/mods.hpp"
  #include "recompiler/live_recompiler.h"
 +#ifdef RECOMP_ROM_ARCHIVES
 +#include "rom_archive.hpp"
 +#endif
++
++static recomp::RomValidationError check_rom(std::vector<uint8_t>& rom_data, const recomp::GameEntry& game_entry);
  
  #ifdef _WIN32
  #    define WIN32_LEAN_AND_MEAN
-@@ -32,6 +35,13 @@
+@@ -32,6 +37,13 @@
  #    include <sys/mman.h>
  #endif
  
@@ -1477,7 +1479,7 @@ index 850689d..750a8bc 100644
  #if defined(_WIN32)
  #define PATHFMT "%ls"
  #else
-@@ -90,7 +100,9 @@ bool recomp::register_game(const recomp::GameEntry& entry) {
+@@ -90,7 +102,9 @@ bool recomp::register_game(const recomp::GameEntry& entry) {
  }
  
  void recomp::mods::initialize_mods() {
@@ -1487,7 +1489,7 @@ index 850689d..750a8bc 100644
      std::filesystem::create_directories(config_path / mods_directory);
      std::filesystem::create_directories(config_path / mod_config_directory);
      mod_context->set_mods_config_path(config_path / "mods.json");
-@@ -102,6 +114,11 @@ void recomp::mods::register_embedded_mod(const std::string &mod_id, std::span<co
+@@ -102,6 +116,11 @@ void recomp::mods::register_embedded_mod(const std::string &mod_id, std::span<co
      mod_context->register_embedded_mod(mod_id, mod_bytes);
  }
  
@@ -1499,7 +1501,7 @@ index 850689d..750a8bc 100644
  void recomp::mods::register_deprecated_mod(const std::string& mod_id, recomp::mods::DeprecationStatus deprecation_status, const Version& maximum_version) {
      std::lock_guard<std::mutex> lock(mod_context_mutex);
      mod_context->register_deprecated_mod(mod_id, deprecation_status, maximum_version);
-@@ -169,6 +186,29 @@ bool check_hash(const std::vector<uint8_t>& rom_data, uint64_t expected_hash) {
+@@ -169,6 +188,29 @@ bool check_hash(const std::vector<uint8_t>& rom_data, uint64_t expected_hash) {
  static std::vector<uint8_t> read_file(const std::filesystem::path& path) {
      std::vector<uint8_t> ret;
  
@@ -1529,7 +1531,7 @@ index 850689d..750a8bc 100644
      std::ifstream file{ path, std::ios::binary};
  
      if (file.good()) {
-@@ -180,9 +220,31 @@ static std::vector<uint8_t> read_file(const std::filesystem::path& path) {
+@@ -180,9 +222,31 @@ static std::vector<uint8_t> read_file(const std::filesystem::path& path) {
      }
  
      return ret;
@@ -1561,7 +1563,7 @@ index 850689d..750a8bc 100644
      std::ofstream out_file{ path, std::ios::binary };
  
      if (!out_file.good()) {
-@@ -192,6 +254,7 @@ bool write_file(const std::filesystem::path& path, const std::vector<uint8_t>& d
+@@ -192,6 +256,7 @@ bool write_file(const std::filesystem::path& path, const std::vector<uint8_t>& d
      out_file.write(reinterpret_cast<const char*>(data.data()), data.size());
  
      return true;
@@ -1569,52 +1571,10 @@ index 850689d..750a8bc 100644
  }
  
  bool check_stored_rom(const recomp::GameEntry& game_entry) {
-@@ -357,21 +420,8 @@ void byteswap_data(std::vector<uint8_t>& rom_data, size_t index_xor) {
-     }
- }
- 
--recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_path, const std::u8string& game_id) {
--    auto find_it = game_roms.find(game_id);
--
--    if (find_it == game_roms.end()) {
--        return recomp::RomValidationError::OtherError;
--    }
--
--    const recomp::GameEntry& game_entry = find_it->second;
--
--    std::vector<uint8_t> rom_data = read_file(rom_path);
--
--    if (rom_data.empty()) {
--        return recomp::RomValidationError::FailedToOpen;
--    }
--
-+// Whether rom_data is game_entry's ROM, put in big-endian byte order if it is.
-+static recomp::RomValidationError check_rom(std::vector<uint8_t>& rom_data, const recomp::GameEntry& game_entry) {
-     // Pad the rom to the nearest multiple of 4 bytes.
-     rom_data.resize((rom_data.size() + 3) & ~3);
- 
-@@ -405,6 +455,58 @@ recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_p
-         }
+@@ -372,6 +437,47 @@ recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_p
+         return recomp::RomValidationError::FailedToOpen;
      }
  
-+    return recomp::RomValidationError::Good;
-+}
-+
-+recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_path, const std::u8string& game_id) {
-+    auto find_it = game_roms.find(game_id);
-+
-+    if (find_it == game_roms.end()) {
-+        return recomp::RomValidationError::OtherError;
-+    }
-+
-+    const recomp::GameEntry& game_entry = find_it->second;
-+
-+    std::vector<uint8_t> rom_data = read_file(rom_path);
-+
-+    if (rom_data.empty()) {
-+        return recomp::RomValidationError::FailedToOpen;
-+    }
-+
 +#ifdef RECOMP_ROM_ARCHIVES
 +    // An archive (rom_archive.hpp): the first ROM in it that is this game's is stored. With none, what the closest one
 +    // was (the game in another version before another game before no ROM at all), so an archive of the wrong version
@@ -1649,10 +1609,26 @@ index 850689d..750a8bc 100644
 +        return result;
 +    }
 +
-     write_file(config_path / game_entry.stored_filename(), rom_data);
-     
++    write_file(config_path / game_entry.stored_filename(), rom_data);
++    
++    return recomp::RomValidationError::Good;
++}
++
++// Whether rom_data is game_entry's ROM, put in big-endian byte order if it is.
++static recomp::RomValidationError check_rom(std::vector<uint8_t>& rom_data, const recomp::GameEntry& game_entry) {
+     // Pad the rom to the nearest multiple of 4 bytes.
+     rom_data.resize((rom_data.size() + 3) & ~3);
+ 
+@@ -405,8 +511,6 @@ recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_p
+         }
+     }
+ 
+-    write_file(config_path / game_entry.stored_filename(), rom_data);
+-    
      return recomp::RomValidationError::Good;
-@@ -442,13 +544,9 @@ extern "C" void cop0_status_write(recomp_context* ctx, gpr value) {
+ }
+ 
+@@ -442,13 +546,9 @@ extern "C" void cop0_status_write(recomp_context* ctx, gpr value) {
          changed &= ~(uint32_t)StatusReg::FR;
      }
  
@@ -1669,7 +1645,7 @@ index 850689d..750a8bc 100644
      // Update the status register in the context
      ctx->status_reg = new_sr;
  }
-@@ -491,6 +589,25 @@ void run_thread_function(uint8_t* rdram, uint64_t addr, uint64_t sp, uint64_t ar
+@@ -491,6 +591,25 @@ void run_thread_function(uint8_t* rdram, uint64_t addr, uint64_t sp, uint64_t ar
      func(rdram, &ctx);
  }
  
@@ -1695,7 +1671,7 @@ index 850689d..750a8bc 100644
  void init(uint8_t* rdram, recomp_context* ctx, gpr entrypoint) {
      // Initialize the overlays
      recomp::overlays::init_overlays();
-@@ -707,6 +824,16 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
+@@ -707,6 +826,16 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
              {
                  if (!recomp::load_stored_rom(current_game.value())) {
                      ultramodern::error_handling::message_box("Error opening stored ROM! Please restart this program.");
@@ -1712,7 +1688,7 @@ index 850689d..750a8bc 100644
                  }
  
                  auto find_it = game_roms.find(current_game.value());
-@@ -753,6 +880,16 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
+@@ -753,6 +882,16 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
                  save_type = game_entry.save_type;
                  ultramodern::init_saving(rdram);
  
@@ -1729,7 +1705,7 @@ index 850689d..750a8bc 100644
                  try {
                      game_entry.entrypoint(rdram, context);
                  } catch (ultramodern::thread_terminated& terminated) {
-@@ -936,12 +1073,13 @@ void recomp::start(const recomp::Configuration& cfg) {
+@@ -936,12 +1075,13 @@ void recomp::start(const recomp::Configuration& cfg) {
      uint8_t* rdram;
      bool alloc_failed;
  #ifdef _WIN32
