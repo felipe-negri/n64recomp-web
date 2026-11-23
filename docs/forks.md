@@ -1531,4 +1531,10 @@ rt64 c229457           RT64_INTERPOLATE_RECT_SCROLLS: a rect whose edges both mo
                        the box opens and closes, and its stats' labels out through their panel's, and each glyph past
                        the scissor was held there and stretched from its other edge, the font page's texels showing
                        through it as vertical slivers in the frames between
+rt64 93c7078           RT64_INTERPOLATE_RECT_SCROLLS: where the frames drew a different number of rects, the runs that
+                       give a rect its own by order compare the glyph too (its texels at one corner or the other each
+                       way), since every glyph of a font page has the same look and a run went on past one that came
+                       or went. Excitebike 64 culls each row of its Rider Select bio as it scrolls out of the box, and
+                       the glyphs after it took the glyph a place along for their own, failed to pair and stepped at
+                       the game's rate while the rest of their lines glided
 ```
