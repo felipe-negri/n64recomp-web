@@ -24,7 +24,7 @@ eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLL
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
 `RT64_REJ_WITHOUT_NEAR_CLIP` (rt64 19014a4, which it turns on too),
 `RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, e6c18c3, which it turns on too), `RT64_RECT_OWN_PIXEL_GRID` (rt64
-f754c0d, 57f3901, which it turns on too),
+f754c0d, 401c02e, which it turns on too),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
@@ -1564,8 +1564,10 @@ rt64 f754c0d           RT64_RECT_OWN_PIXEL_GRID: without Upscale 2D, a texrect s
                        4:3 started partway along a native pixel of that grid, and its first high-res columns took the
                        texel before its first: Excitebike 64's Original Excitebike, 8x8 tiles wrapped at 16 texels,
                        drew a green or black line of each tile's unfilled 16th texel down every tile's left edge
-rt64 57f3901           RT64_RECT_OWN_PIXEL_GRID: a texrect's grid, its native pixel width and where its edges fall in
+rt64 401c02e           RT64_RECT_OWN_PIXEL_GRID: a texrect's grid, its native pixel width and where its edges fall in
                        it packed in one value, goes in the draw's RenderIndices entry, not RasterParams' padding, and
                        RasterPS reads it in a block of its own. Recomps that rewrite the draw loop (Rush 2049) or the
-                       lines beside it in RasterPS (SSSV, WWF No Mercy, Rogue Squadron) didn't take f754c0d's patch
+                       lines beside it in RasterPS (SSSV, WWF No Mercy, Rogue Squadron) didn't take f754c0d's patch.
+                       The pin onto it carries rt64 db68b9d, bbc5ba1 and 28e2fca too, under it on the fork's main,
+                       which come with rows of their own in the PRs that land them
 ```
