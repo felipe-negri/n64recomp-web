@@ -33,8 +33,9 @@ too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Exc
 build turns on), `RECOMPINPUT_SINGLE_PLAYER_UNTIL_ASSIGNED` (RecompFrontend bf01590) and
 `RECOMPINPUT_RECONNECT_PLAYERS` (RecompFrontend 9fc3d68, on with `RECOMPINPUT_PADS_IN_ORDER` too).
 
-Two are off with Emscripten too, on only where a game turns them on, which Mario Party 3 does:
-`RT64_DRAW_LINES` (rt64 73a58f0, 18066b5) and `RT64_FILTER_BY_ALPHA` (rt64 11878b7, 18066b5).
+Three are off with Emscripten too, on only where a game turns them on: `RT64_DRAW_LINES` (rt64 73a58f0, 18066b5) and
+`RT64_FILTER_BY_ALPHA` (rt64 11878b7, 18066b5), which Mario Party 3 turns on, and `RT64_RDP_DECAL_TOLERANCE` (rt64
+bbc5ba1), which Mario Party does.
 
 ## Every commit
 
@@ -1557,4 +1558,10 @@ rt64 6915fcd           RT64_FRAME_DUMP's presents.tsv names the framebuffer each
                        address, a fifth field): the one the present took for the game's own frame, the interpolation
                        target for one between. A frame can draw several and show any one, and a tool took the largest:
                        Mario Golf's credits fill one the window's size and draw the picture into another, 226 rows high
+rt64 bbc5ba1           RT64_RDP_DECAL_TOLERANCE: a decal (ZMODE_DEC) passes within the RDP's depth tolerance of the
+                       surface under it, 2 to 4 times the slope a native pixel (1 to 2 past depth 0x38000, ParaLLEl-RDP's
+                       depth_test.h), not 1 time: Mario Party's Coin Block Blitz puts its ? blocks' shadows 1.1 to 4
+                       times the slope above the grass, and RT64 drew none. Off unless a game turns it on. The pin onto
+                       it carries rt64 f754c0d and db68b9d too, under it on the fork's main, which come with rows of
+                       their own in the PRs that land them
 ```
