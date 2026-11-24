@@ -1570,4 +1570,8 @@ rt64 f1eafa3           RT64_INTERPOLATE_RECT_SCROLLS: a rect drawn from a tile h
                        RAM by the next rider's data: its hash changed with that and with what earlier draws left, so
                        it went unpaired and held still for a game frame's presents, then jumped. Over 16 s of a race
                        at 120 Hz, the small moves it made unpaired wholly on the picture went from 17 to none
+rt64 11ffecc           f1eafa3's sampledHash is defined at the top of fullSyncFramebufferPairTiles and worked out for
+                       every raw TMEM tile, with no argument to uploadTile: the lines at uploadTile's arguments and its
+                       call are what Jet Force Gemini's, Rogue Squadron's and Rush 2's own RT64 change, and their web
+                       patches stopped applying over f1eafa3. Only a rect's is compared, as before
 ```
