@@ -1577,4 +1577,14 @@ rt64 401c02e           RT64_RECT_OWN_PIXEL_GRID: a texrect's grid, its native pi
                        lines beside it in RasterPS (SSSV, WWF No Mercy, Rogue Squadron) didn't take f754c0d's patch.
                        Under it on the fork's main are rt64 db68b9d and 28e2fca, which come with rows of their own in
                        the PRs that land them
+rt64 f1eafa3           RT64_INTERPOLATE_RECT_SCROLLS: a rect drawn from a tile hashed as raw TMEM (all 4096 bytes, as
+                       for a tile masked to 128 by 128) pairs by the hash of what its texcoords sample (sampledHash),
+                       not of all of TMEM. Excitebike 64's place arrow is one, a CI4 tile whose palette is followed in
+                       RAM by the next rider's data: its hash changed with that and with what earlier draws left, so
+                       it went unpaired and held still for a game frame's presents, then jumped. Over 16 s of a race
+                       at 120 Hz, the small moves it made unpaired wholly on the picture went from 17 to none
+rt64 11ffecc           f1eafa3's sampledHash is defined at the top of fullSyncFramebufferPairTiles and worked out for
+                       every raw TMEM tile, with no argument to uploadTile: the lines at uploadTile's arguments and its
+                       call are what Jet Force Gemini's, Rogue Squadron's and Rush 2's own RT64 change, and their web
+                       patches stopped applying over f1eafa3. Only a rect's is compared, as before
 ```
