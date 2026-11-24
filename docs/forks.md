@@ -1557,4 +1557,9 @@ rt64 6915fcd           RT64_FRAME_DUMP's presents.tsv names the framebuffer each
                        address, a fifth field): the one the present took for the game's own frame, the interpolation
                        target for one between. A frame can draw several and show any one, and a tool took the largest:
                        Mario Golf's credits fill one the window's size and draw the picture into another, 226 rows high
+rt64 28e2fca           RT64_INTERPOLATE_RECT_SCROLLS: where three or more paired rects drawn one after another drew the
+                       same picture and more than half moved alike, one that moved more than 3/8 of its side from the
+                       run's middle move is left unpaired: a particle come in the slot of one gone, not one moved.
+                       Excitebike 64's campfire smoke, a column of a dozen and more puffs, slid a puff or two 8 to 19
+                       pixels up or down the column in the frames between, so the column stepped once a game frame
 ```
