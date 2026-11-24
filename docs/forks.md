@@ -8,7 +8,7 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Twenty-nine options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Thirty options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
@@ -23,7 +23,8 @@ eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLL
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
 `RT64_REJ_WITHOUT_NEAR_CLIP` (rt64 19014a4, which it turns on too),
-`RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, e6c18c3, which it turns on too),
+`RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, e6c18c3, which it turns on too), `RT64_RECT_OWN_PIXEL_GRID` (rt64
+f754c0d, 401c02e, which it turns on too),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
@@ -33,8 +34,9 @@ too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Exc
 build turns on), `RECOMPINPUT_SINGLE_PLAYER_UNTIL_ASSIGNED` (RecompFrontend bf01590) and
 `RECOMPINPUT_RECONNECT_PLAYERS` (RecompFrontend 9fc3d68, on with `RECOMPINPUT_PADS_IN_ORDER` too).
 
-Two are off with Emscripten too, on only where a game turns them on, which Mario Party 3 does:
-`RT64_DRAW_LINES` (rt64 73a58f0, 18066b5) and `RT64_FILTER_BY_ALPHA` (rt64 11878b7, 18066b5).
+Three are off with Emscripten too, on only where a game turns them on: `RT64_DRAW_LINES` (rt64 73a58f0, 18066b5) and
+`RT64_FILTER_BY_ALPHA` (rt64 11878b7, 18066b5), which Mario Party 3 turns on, and `RT64_RDP_DECAL_TOLERANCE` (rt64
+bbc5ba1), which Mario Party does.
 
 ## Every commit
 
@@ -1557,6 +1559,39 @@ rt64 6915fcd           RT64_FRAME_DUMP's presents.tsv names the framebuffer each
                        address, a fifth field): the one the present took for the game's own frame, the interpolation
                        target for one between. A frame can draw several and show any one, and a tool took the largest:
                        Mario Golf's credits fill one the window's size and draw the picture into another, 226 rows high
+rt64 bbc5ba1           RT64_RDP_DECAL_TOLERANCE: a decal (ZMODE_DEC) passes within the RDP's depth tolerance of the
+                       surface under it, 2 to 4 times the slope a native pixel (1 to 2 past depth 0x38000, ParaLLEl-RDP's
+                       depth_test.h), not 1 time: Mario Party's Coin Block Blitz puts its ? blocks' shadows 1.1 to 4
+                       times the slope above the grass, and RT64 drew none. Off unless a game turns it on. The pin is
+                       rt64 401c02e, which carries f754c0d, db68b9d, 28e2fca and 401c02e too, after it on the fork's main,
+                       which have rows of their own
+rt64 f754c0d           RT64_RECT_OWN_PIXEL_GRID: without Upscale 2D, a texrect steps its texture a native pixel at a
+                       time from its own left and top edges, its native pixels as wide as its own scale draws them,
+                       not on the screen's grid of square ones. A rect stretched across a picture RT64 draws wider than
+                       4:3 started partway along a native pixel of that grid, and its first high-res columns took the
+                       texel before its first: Excitebike 64's Original Excitebike, 8x8 tiles wrapped at 16 texels,
+                       drew a green or black line of each tile's unfilled 16th texel down every tile's left edge
+rt64 401c02e           RT64_RECT_OWN_PIXEL_GRID: a texrect's grid, its native pixel width and where its edges fall in
+                       it packed in one value, goes in the draw's RenderIndices entry, not RasterParams' padding, and
+                       RasterPS reads it in a block of its own. Recomps that rewrite the draw loop (Rush 2049) or the
+                       lines beside it in RasterPS (SSSV, WWF No Mercy, Rogue Squadron) didn't take f754c0d's patch.
+                       Under it on the fork's main are rt64 db68b9d and 28e2fca, which have rows of their own
+rt64 f1eafa3           RT64_INTERPOLATE_RECT_SCROLLS: a rect drawn from a tile hashed as raw TMEM (all 4096 bytes, as
+                       for a tile masked to 128 by 128) pairs by the hash of what its texcoords sample (sampledHash),
+                       not of all of TMEM. Excitebike 64's place arrow is one, a CI4 tile whose palette is followed in
+                       RAM by the next rider's data: its hash changed with that and with what earlier draws left, so
+                       it went unpaired and held still for a game frame's presents, then jumped. Over 16 s of a race
+                       at 120 Hz, the small moves it made unpaired wholly on the picture went from 17 to none
+rt64 11ffecc           f1eafa3's sampledHash is defined at the top of fullSyncFramebufferPairTiles and worked out for
+                       every raw TMEM tile, with no argument to uploadTile: the lines at uploadTile's arguments and its
+                       call are what Jet Force Gemini's, Rogue Squadron's and Rush 2's own RT64 change, and their web
+                       patches stopped applying over f1eafa3. Only a rect's is compared, as before
+rt64 db68b9d           RT64_INTERPOLATE_RECT_SCROLLS: a rect paired a whole side or more away is passed over for a
+                       nearer look-alike of another size only where that one shows the same texels at one of its
+                       corners on each axis, as the rect cut by the screen's edge does and another glyph of its font
+                       page doesn't. Excitebike 64's Rider Select stats card slides 7 pixels a game frame, its font's r
+                       as wide, and Turbo's r went unpaired for the b beside it, so the frames between drew it over
+                       the next letter and the labels dropped and doubled letters as the card slid
 rt64 28e2fca           RT64_INTERPOLATE_RECT_SCROLLS: where three or more paired rects drawn one after another drew the
                        same picture and more than half moved alike, one that moved more than 3/8 of its side from the
                        run's middle move is left unpaired: a particle come in the slot of one gone, not one moved.
