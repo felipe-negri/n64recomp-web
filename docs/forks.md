@@ -1561,7 +1561,7 @@ rt64 6915fcd           RT64_FRAME_DUMP's presents.tsv names the framebuffer each
 rt64 bbc5ba1           RT64_RDP_DECAL_TOLERANCE: a decal (ZMODE_DEC) passes within the RDP's depth tolerance of the
                        surface under it, 2 to 4 times the slope a native pixel (1 to 2 past depth 0x38000, ParaLLEl-RDP's
                        depth_test.h), not 1 time: Mario Party's Coin Block Blitz puts its ? blocks' shadows 1.1 to 4
-                       times the slope above the grass, and RT64 drew none. Off unless a game turns it on. The pin onto
-                       it carries rt64 f754c0d and db68b9d too, under it on the fork's main, which come with rows of
-                       their own in the PRs that land them
+                       times the slope above the grass, and RT64 drew none. Off unless a game turns it on. The pin is
+                       rt64 401c02e, which carries f754c0d, db68b9d, 28e2fca and 401c02e too, after it on the fork's main,
+                       which come with rows of their own in the PRs that land them
 ```
