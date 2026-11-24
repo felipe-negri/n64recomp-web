@@ -18,7 +18,7 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
 2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, 8868f0d,
 55f42a3, e102336, 602dcd2, 9a1d37a, cf8bba7, ea78fc1, 12aa560, 84d36bd, 1d1a0ee, 3a0fdea,
-53ce431, fbf407f, a75df38, 1a688aa, which it turns on too),
+53ce431, fbf407f, a75df38, 1a688aa, f7b3174, which it turns on too),
 `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES`
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
@@ -1557,4 +1557,9 @@ rt64 6915fcd           RT64_FRAME_DUMP's presents.tsv names the framebuffer each
                        address, a fifth field): the one the present took for the game's own frame, the interpolation
                        target for one between. A frame can draw several and show any one, and a tool took the largest:
                        Mario Golf's credits fill one the window's size and draw the picture into another, 226 rows high
+rt64 f7b3174           RT64_INTERPOLATE_RECT_SCROLLS: a nearer look-alike of another size passes for the rect cut
+                       (rt64 e102336) only where it shows the same texels at a corner on each axis. A font page's
+                       glyphs share a look: Excitebike 64 slides its Rider Select stats card 7 pixels a game frame, the
+                       width of its font's r, and the b beside Turbo's r lay nearer, so the r went unpaired and the
+                       frames between drew it on the next letter, the labels dropping letters as the card slid
 ```
