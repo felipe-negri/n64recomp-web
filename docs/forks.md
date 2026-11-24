@@ -8,7 +8,7 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Twenty-nine options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Thirty options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
@@ -23,7 +23,8 @@ eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLL
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
 `RT64_REJ_WITHOUT_NEAR_CLIP` (rt64 19014a4, which it turns on too),
-`RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, e6c18c3, which it turns on too),
+`RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, e6c18c3, which it turns on too), `RT64_RECT_OWN_PIXEL_GRID` (rt64
+f754c0d, 401c02e, which it turns on too),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
@@ -1564,6 +1565,18 @@ rt64 bbc5ba1           RT64_RDP_DECAL_TOLERANCE: a decal (ZMODE_DEC) passes with
                        times the slope above the grass, and RT64 drew none. Off unless a game turns it on. The pin is
                        rt64 401c02e, which carries f754c0d, db68b9d, 28e2fca and 401c02e too, after it on the fork's main,
                        which come with rows of their own in the PRs that land them
+rt64 f754c0d           RT64_RECT_OWN_PIXEL_GRID: without Upscale 2D, a texrect steps its texture a native pixel at a
+                       time from its own left and top edges, its native pixels as wide as its own scale draws them,
+                       not on the screen's grid of square ones. A rect stretched across a picture RT64 draws wider than
+                       4:3 started partway along a native pixel of that grid, and its first high-res columns took the
+                       texel before its first: Excitebike 64's Original Excitebike, 8x8 tiles wrapped at 16 texels,
+                       drew a green or black line of each tile's unfilled 16th texel down every tile's left edge
+rt64 401c02e           RT64_RECT_OWN_PIXEL_GRID: a texrect's grid, its native pixel width and where its edges fall in
+                       it packed in one value, goes in the draw's RenderIndices entry, not RasterParams' padding, and
+                       RasterPS reads it in a block of its own. Recomps that rewrite the draw loop (Rush 2049) or the
+                       lines beside it in RasterPS (SSSV, WWF No Mercy, Rogue Squadron) didn't take f754c0d's patch.
+                       Under it on the fork's main are rt64 db68b9d and 28e2fca, which come with rows of their own in
+                       the PRs that land them
 rt64 f1eafa3           RT64_INTERPOLATE_RECT_SCROLLS: a rect drawn from a tile hashed as raw TMEM (all 4096 bytes, as
                        for a tile masked to 128 by 128) pairs by the hash of what its texcoords sample (sampledHash),
                        not of all of TMEM. Excitebike 64's place arrow is one, a CI4 tile whose palette is followed in
