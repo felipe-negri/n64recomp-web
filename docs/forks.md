@@ -1564,4 +1564,10 @@ rt64 bbc5ba1           RT64_RDP_DECAL_TOLERANCE: a decal (ZMODE_DEC) passes with
                        times the slope above the grass, and RT64 drew none. Off unless a game turns it on. The pin is
                        rt64 401c02e, which carries f754c0d, db68b9d, 28e2fca and 401c02e too, after it on the fork's main,
                        which come with rows of their own in the PRs that land them
+rt64 f1eafa3           RT64_INTERPOLATE_RECT_SCROLLS: a rect drawn from a tile hashed as raw TMEM (all 4096 bytes, as
+                       for a tile masked to 128 by 128) pairs by the hash of what its texcoords sample (sampledHash),
+                       not of all of TMEM. Excitebike 64's place arrow is one, a CI4 tile whose palette is followed in
+                       RAM by the next rider's data: its hash changed with that and with what earlier draws left, so
+                       it went unpaired and held still for a game frame's presents, then jumped. Over 16 s of a race
+                       at 120 Hz, the small moves it made unpaired wholly on the picture went from 17 to none
 ```
