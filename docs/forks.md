@@ -1559,13 +1559,6 @@ rt64 6915fcd           RT64_FRAME_DUMP's presents.tsv names the framebuffer each
                        address, a fifth field): the one the present took for the game's own frame, the interpolation
                        target for one between. A frame can draw several and show any one, and a tool took the largest:
                        Mario Golf's credits fill one the window's size and draw the picture into another, 226 rows high
-<<<<<<< HEAD
-rt64 db68b9d           RT64_INTERPOLATE_RECT_SCROLLS: a nearer look-alike of another size passes for the rect cut
-                       (rt64 e102336) only where it shows the same texels at a corner on each axis. A font page's
-                       glyphs share a look: Excitebike 64 slides its Rider Select stats card 7 pixels a game frame, the
-                       width of its font's r, and the b beside Turbo's r lay nearer, so the r went unpaired and the
-                       frames between drew it on the next letter, the labels dropping letters as the card slid
-=======
 rt64 bbc5ba1           RT64_RDP_DECAL_TOLERANCE: a decal (ZMODE_DEC) passes within the RDP's depth tolerance of the
                        surface under it, 2 to 4 times the slope a native pixel (1 to 2 past depth 0x38000, ParaLLEl-RDP's
                        depth_test.h), not 1 time: Mario Party's Coin Block Blitz puts its ? blocks' shadows 1.1 to 4
@@ -1594,5 +1587,9 @@ rt64 11ffecc           f1eafa3's sampledHash is defined at the top of fullSyncFr
                        every raw TMEM tile, with no argument to uploadTile: the lines at uploadTile's arguments and its
                        call are what Jet Force Gemini's, Rogue Squadron's and Rush 2's own RT64 change, and their web
                        patches stopped applying over f1eafa3. Only a rect's is compared, as before
->>>>>>> origin/main
+rt64 db68b9d           RT64_INTERPOLATE_RECT_SCROLLS: a nearer look-alike of another size passes for the rect cut
+                       (rt64 e102336) only where it shows the same texels at a corner on each axis. A font page's
+                       glyphs share a look: Excitebike 64 slides its Rider Select stats card 7 pixels a game frame, the
+                       width of its font's r, and the b beside Turbo's r lay nearer, so the r went unpaired and the
+                       frames between drew it on the next letter, the labels dropping letters as the card slid
 ```
