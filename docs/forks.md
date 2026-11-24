@@ -34,8 +34,9 @@ f754c0d, 401c02e, which it turns on too),
 build turns on), `RECOMPINPUT_SINGLE_PLAYER_UNTIL_ASSIGNED` (RecompFrontend bf01590) and
 `RECOMPINPUT_RECONNECT_PLAYERS` (RecompFrontend 9fc3d68, on with `RECOMPINPUT_PADS_IN_ORDER` too).
 
-Two are off with Emscripten too, on only where a game turns them on, which Mario Party 3 does:
-`RT64_DRAW_LINES` (rt64 73a58f0, 18066b5) and `RT64_FILTER_BY_ALPHA` (rt64 11878b7, 18066b5).
+Three are off with Emscripten too, on only where a game turns them on: `RT64_DRAW_LINES` (rt64 73a58f0, 18066b5) and
+`RT64_FILTER_BY_ALPHA` (rt64 11878b7, 18066b5), which Mario Party 3 turns on, and `RT64_RDP_DECAL_TOLERANCE` (rt64
+bbc5ba1), which Mario Party does.
 
 ## Every commit
 
@@ -1558,6 +1559,12 @@ rt64 6915fcd           RT64_FRAME_DUMP's presents.tsv names the framebuffer each
                        address, a fifth field): the one the present took for the game's own frame, the interpolation
                        target for one between. A frame can draw several and show any one, and a tool took the largest:
                        Mario Golf's credits fill one the window's size and draw the picture into another, 226 rows high
+rt64 bbc5ba1           RT64_RDP_DECAL_TOLERANCE: a decal (ZMODE_DEC) passes within the RDP's depth tolerance of the
+                       surface under it, 2 to 4 times the slope a native pixel (1 to 2 past depth 0x38000, ParaLLEl-RDP's
+                       depth_test.h), not 1 time: Mario Party's Coin Block Blitz puts its ? blocks' shadows 1.1 to 4
+                       times the slope above the grass, and RT64 drew none. Off unless a game turns it on. The pin is
+                       rt64 401c02e, which carries f754c0d, db68b9d, 28e2fca and 401c02e too, after it on the fork's main,
+                       which come with rows of their own in the PRs that land them
 rt64 f754c0d           RT64_RECT_OWN_PIXEL_GRID: without Upscale 2D, a texrect steps its texture a native pixel at a
                        time from its own left and top edges, its native pixels as wide as its own scale draws them,
                        not on the screen's grid of square ones. A rect stretched across a picture RT64 draws wider than
@@ -1568,6 +1575,6 @@ rt64 401c02e           RT64_RECT_OWN_PIXEL_GRID: a texrect's grid, its native pi
                        it packed in one value, goes in the draw's RenderIndices entry, not RasterParams' padding, and
                        RasterPS reads it in a block of its own. Recomps that rewrite the draw loop (Rush 2049) or the
                        lines beside it in RasterPS (SSSV, WWF No Mercy, Rogue Squadron) didn't take f754c0d's patch.
-                       The pin onto it carries rt64 db68b9d, bbc5ba1 and 28e2fca too, under it on the fork's main,
-                       which come with rows of their own in the PRs that land them
+                       Under it on the fork's main are rt64 db68b9d and 28e2fca, which come with rows of their own in
+                       the PRs that land them
 ```
