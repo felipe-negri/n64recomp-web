@@ -18,7 +18,7 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
 2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, 8868f0d,
 55f42a3, e102336, 602dcd2, 9a1d37a, cf8bba7, ea78fc1, 12aa560, 84d36bd, 1d1a0ee, 3a0fdea,
-53ce431, fbf407f, a75df38, 1a688aa, db68b9d, which it turns on too),
+53ce431, fbf407f, a75df38, 1a688aa, db68b9d, 28e2fca, which it turns on too),
 `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES`
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
@@ -1564,7 +1564,7 @@ rt64 bbc5ba1           RT64_RDP_DECAL_TOLERANCE: a decal (ZMODE_DEC) passes with
                        depth_test.h), not 1 time: Mario Party's Coin Block Blitz puts its ? blocks' shadows 1.1 to 4
                        times the slope above the grass, and RT64 drew none. Off unless a game turns it on. The pin is
                        rt64 401c02e, which carries f754c0d, db68b9d, 28e2fca and 401c02e too, after it on the fork's main,
-                       which come with rows of their own in the PRs that land them
+                       which have rows of their own
 rt64 f754c0d           RT64_RECT_OWN_PIXEL_GRID: without Upscale 2D, a texrect steps its texture a native pixel at a
                        time from its own left and top edges, its native pixels as wide as its own scale draws them,
                        not on the screen's grid of square ones. A rect stretched across a picture RT64 draws wider than
@@ -1575,8 +1575,7 @@ rt64 401c02e           RT64_RECT_OWN_PIXEL_GRID: a texrect's grid, its native pi
                        it packed in one value, goes in the draw's RenderIndices entry, not RasterParams' padding, and
                        RasterPS reads it in a block of its own. Recomps that rewrite the draw loop (Rush 2049) or the
                        lines beside it in RasterPS (SSSV, WWF No Mercy, Rogue Squadron) didn't take f754c0d's patch.
-                       Under it on the fork's main are rt64 db68b9d and 28e2fca, which come with rows of their own in
-                       the PRs that land them
+                       Under it on the fork's main are rt64 db68b9d and 28e2fca, which have rows of their own
 rt64 f1eafa3           RT64_INTERPOLATE_RECT_SCROLLS: a rect drawn from a tile hashed as raw TMEM (all 4096 bytes, as
                        for a tile masked to 128 by 128) pairs by the hash of what its texcoords sample (sampledHash),
                        not of all of TMEM. Excitebike 64's place arrow is one, a CI4 tile whose palette is followed in
@@ -1592,4 +1591,9 @@ rt64 db68b9d           RT64_INTERPOLATE_RECT_SCROLLS: a nearer look-alike of ano
                        glyphs share a look: Excitebike 64 slides its Rider Select stats card 7 pixels a game frame, the
                        width of its font's r, and the b beside Turbo's r lay nearer, so the r went unpaired and the
                        frames between drew it on the next letter, the labels dropping letters as the card slid
+rt64 28e2fca           RT64_INTERPOLATE_RECT_SCROLLS: where three or more paired rects drawn one after another drew the
+                       same picture and more than half moved alike, one that moved more than 3/8 of its side from the
+                       run's middle move is left unpaired: a particle come in the slot of one gone, not one moved.
+                       Excitebike 64's campfire smoke, a column of a dozen and more puffs, slid a puff or two 8 to 19
+                       pixels up or down the column in the frames between, so the column stepped once a game frame
 ```
