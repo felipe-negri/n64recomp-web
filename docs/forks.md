@@ -24,7 +24,7 @@ eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLL
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
 `RT64_REJ_WITHOUT_NEAR_CLIP` (rt64 19014a4, which it turns on too),
 `RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, e6c18c3, which it turns on too), `RT64_RECT_OWN_PIXEL_GRID` (rt64
-f754c0d, 401c02e, which it turns on too), `RT64_FIX_LR_SPANNING_RECTS` (rt64 4843534, which it turns on
+f754c0d, 401c02e, 602fcd4, which it turns on too), `RT64_FIX_LR_SPANNING_RECTS` (rt64 4843534, which it turns on
 too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
@@ -1604,4 +1604,10 @@ rt64 4843534           RT64_FIX_LR_SPANNING_RECTS: Fix LR with Scissor moves a r
                        dashes under them, and the 0s two rows below the 9s and 7s, which snapped up as the scissor
                        moved. A frame dump of its desktop build drew those glyphs to the scissor's row in the countdown
                        and none of 356 frames did with this; its NES picture, rects in a grid, drew the same
+rt64 602fcd4           RT64_RECT_OWN_PIXEL_GRID: a rect edge on a whole pixel is taken as on it. Where it falls in its
+                       native pixel goes to the shader in 256ths of it, a third of a pixel 3 wide as 0.996 of a pixel,
+                       and the rect's first pixel, whose UV is its first texel's exactly, stepped back that much
+                       sampled the texel before: a rect placed a pixel or two into its native pixel, as one placed
+                       from a side of a picture wider than 4:3 is, showed its texture a texel late. Excitebike 64's
+                       time HUD had a line down the left of each glyph at 1400x720 and none at 960x720
 ```
