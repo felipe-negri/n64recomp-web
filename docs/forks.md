@@ -8,7 +8,7 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Thirty options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Thirty-one options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
@@ -24,7 +24,8 @@ eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLL
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
 `RT64_REJ_WITHOUT_NEAR_CLIP` (rt64 19014a4, which it turns on too),
 `RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, e6c18c3, which it turns on too), `RT64_RECT_OWN_PIXEL_GRID` (rt64
-f754c0d, 401c02e, which it turns on too),
+f754c0d, 401c02e, which it turns on too), `RT64_FIX_LR_SPANNING_RECTS` (rt64 a83f908, which it turns on
+too),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
@@ -1596,4 +1597,12 @@ rt64 28e2fca           RT64_INTERPOLATE_RECT_SCROLLS: where three or more paired
                        run's middle move is left unpaired: a particle come in the slot of one gone, not one moved.
                        Excitebike 64's campfire smoke, a column of a dozen and more puffs, slid a puff or two 8 to 19
                        pixels up or down the column in the frames between, so the column stepped once a game frame
+rt64 a83f908           RT64_FIX_LR_SPANNING_RECTS: Fix LR with Scissor moves a rect's bottom edge onto the scissor's
+                       only for a rect that spans the scissor's width, and its right edge only for one that spans its
+                       height, as a rect a pixel short of filling the screen does. Excitebike 64's Hill Climb scissor
+                       ends a row below its time from the countdown to half a second after GO, and each glyph ending a
+                       pixel above it (the 0s, the e of Time:) was stretched over a row its font page never writes:
+                       dashes under them, and the 0s two rows below the 9s and 7s, which snapped up as the scissor
+                       moved. A frame dump of its desktop build drew those glyphs to the scissor's row in the countdown
+                       and none of 356 frames did with this; its NES picture, rects in a grid, drew the same
 ```
