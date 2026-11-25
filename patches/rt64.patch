@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 602fcd401e99c0a3ca5aee738bc6a98e2e02e268
+rt64: https://github.com/n64hub/rt64-web 30bc272d5a0ae11482ff253ce4b32df065824381
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -11304,7 +11304,7 @@ index 69a82ac..1dd31f7 100644
              dstNorm = builder.addReadWriteStructuredBuffer(9);
              dstVel = builder.addReadWriteStructuredBuffer(10);
 diff --git a/src/render/rt64_framebuffer_renderer.cpp b/src/render/rt64_framebuffer_renderer.cpp
-index 9fae0d4..7ae7026 100644
+index 9fae0d4..420aff5 100644
 --- a/src/render/rt64_framebuffer_renderer.cpp
 +++ b/src/render/rt64_framebuffer_renderer.cpp
 @@ -10,6 +10,7 @@
@@ -11656,7 +11656,7 @@ index 9fae0d4..7ae7026 100644
                              instanceDrawCall.type = InstanceDrawCall::Type::IndexedTriangles;
                              triangles.indexStart = triangles.vertexTestZ ? vertexTestZFaceIndicesStart : call.meshDesc.faceIndicesStart;
                              invRatioScale = projInvRatioScale;
-@@ -1656,6 +1810,77 @@ namespace RT64 {
+@@ -1656,6 +1810,84 @@ namespace RT64 {
                              triangles.screenScale = { viewportRect.width / framebuffer.viewport.width, viewportRect.height / framebuffer.viewport.height };
                              triangles.screenOffset.x = halfPixelOffset.x + ((viewportRect.x + viewportRect.width / 2.0f) - halfViewportSize.x) / halfViewportSize.x;
                              triangles.screenOffset.y = halfPixelOffset.y + (halfViewportSize.y - (viewportRect.y + viewportRect.height / 2.0f)) / halfViewportSize.y;
@@ -11727,14 +11727,21 @@ index 9fae0d4..7ae7026 100644
 +                                    return uint32_t(std::lround(phase * 256.0f)) & 0xFFU;
 +                                };
 +
++                                // The left edge's place in the native pixel is taken on the grid the shader steps, of the
++                                // width written, in whole 256ths of a pixel: the scale's own width is a hair off it (3.000733
++                                // for 3 at 1400x720, from an aspect ratio a little off the window's), and the two grids
++                                // drift apart across the picture, 0.1 of a pixel by x 400, so a rect's pixels were put
++                                // in the native pixel before and took the texel before their own: Excitebike 64's HUD
++                                // glyphs, placed from a side, each showed a texel late, the one before as a line at its left.
 +                                const uint32_t width = uint32_t(std::clamp(std::lround(pixelWidth * 256.0f), 1L, 0xFFFFL));
-+                                renderIndicesVector.back().rectPixelGrid = width | (edgePhase(rectLeft, pixelWidth) << 16U) | (edgePhase(rectTop, pixelHeight) << 24U);
++                                const float gridWidth = float(width) / 256.0f;
++                                renderIndicesVector.back().rectPixelGrid = width | (edgePhase(rectLeft, gridWidth) << 16U) | (edgePhase(rectTop, pixelHeight) << 24U);
 +                            }
 +#                       endif
  
                              if (p.postBlendNoise) {
                                  // Indicate if post blend dither noise should be applied.
-@@ -1683,6 +1908,17 @@ namespace RT64 {
+@@ -1683,6 +1915,17 @@ namespace RT64 {
                              triangles.scissor = viewportScissorIntersection(viewportClip, triangles.scissor);
                          }
                          
@@ -11752,7 +11759,7 @@ index 9fae0d4..7ae7026 100644
                          if (triangles.vertexTestZ && usesViewport) {
                              instanceDrawCallVector[vertexTestZCallIndex].vertexTestZ.indexCount += call.callDesc.triangleCount * 3;
                              vertexTestZFaceIndicesStart += call.callDesc.triangleCount * 3;
-@@ -1749,6 +1985,16 @@ namespace RT64 {
+@@ -1749,6 +1992,16 @@ namespace RT64 {
                      rasterScene.instanceIndices.push_back(instanceIndex);
                  }
  
@@ -11769,7 +11776,7 @@ index 9fae0d4..7ae7026 100644
                  instanceDrawCallVector.push_back(instanceDrawCall);
                  globalCallIndex++;
              }
-@@ -1760,7 +2006,215 @@ namespace RT64 {
+@@ -1760,7 +2013,215 @@ namespace RT64 {
          checkRasterScene(rasterScene);
      }
  
@@ -11986,7 +11993,7 @@ index 9fae0d4..7ae7026 100644
          bool shaderViewRtEnabled = false;
          std::vector<BufferUploader::Upload> shaderUploads = {
              { renderIndicesVector.data(), { 0, renderIndicesVector.size() }, sizeof(interop::RenderIndices), RenderBufferFlag::STORAGE, { }, &renderIndicesBuffer},
-@@ -1816,8 +2270,16 @@ namespace RT64 {
+@@ -1816,8 +2277,16 @@ namespace RT64 {
          }
  #   endif
  
@@ -16319,7 +16326,7 @@ index 205dc4c..2aeed21 100644
      dstNorm[vertexOffsetIndex] = worldNorm;
      dstVel[vertexOffsetIndex] = worldPos - prevWorldPos;
 diff --git a/src/shaders/RasterPS.hlsl b/src/shaders/RasterPS.hlsl
-index e7895c3..e47a7ef 100644
+index e7895c3..6bd3005 100644
 --- a/src/shaders/RasterPS.hlsl
 +++ b/src/shaders/RasterPS.hlsl
 @@ -5,6 +5,7 @@
@@ -16437,7 +16444,7 @@ index e7895c3..e47a7ef 100644
      const float4 vertexColor = renderFlagSmoothShade(rp.flags) ? vertexSmoothColor : float4(vertexFlatColor.rgb, vertexSmoothColor.a);
      const ColorCombiner colorCombiner = { rp.ccL, rp.ccH };
      const bool depthClampNear = renderFlagNoN(rp.flags);
-@@ -89,37 +178,79 @@ LIBRARY_EXPORT bool RasterPS(const RenderParams rp, float4 vertexPosition, float
+@@ -89,37 +178,72 @@ LIBRARY_EXPORT bool RasterPS(const RenderParams rp, float4 vertexPosition, float
      }
  
      if (depthDecal) {
@@ -16507,17 +16514,10 @@ index e7895c3..e47a7ef 100644
 +    // rect: a stretched rect's are wider than tall, and on that grid its first pixels sampled the texel before its
 +    // first. The draw's rectPixelGrid (rt64_render_indices.h) holds the width and where the edges fall in the native
 +    // pixel, 0 for no rect. A pixel belongs to the native pixel its center is in.
-+    // An edge on a whole pixel, as convertViewportRect places a rect's, is taken as on it: in 256ths of a native pixel it
-+    // is written only near it (a third of a pixel 3 wide as 85/256, 0.996 of a pixel), and the rect's first pixel, whose
-+    // UV is its first texel's exactly, stepped back that much sampled the texel before: a rect drawn a pixel or two into
-+    // its native pixel (one placed from a side of a picture wider than 4:3) showed its texture a texel to the right, the
-+    // texel before it at its left as a line down each of Excitebike 64's HUD glyphs.
 +    const uint rectPixelGrid = instanceRenderIndices[RENDER_INDEX].rectPixelGrid;
 +    if (renderFlagRect(rp.flags) && !renderFlagUpscale2D(rp.flags) && ((rectPixelGrid & 0xFFFFU) != 0)) {
 +        const float2 nativePixel = float2(float(rectPixelGrid & 0xFFFFU) / 256.0f, FbParams.resolutionScale.y);
-+        const float2 writtenPhase = float2((rectPixelGrid >> 16U) & 0xFFU, rectPixelGrid >> 24U) / 256.0f * nativePixel;
-+        const float2 wholePhase = round(writtenPhase);
-+        const float2 edgePhase = lerp(writtenPhase, wholePhase, float2(abs(writtenPhase - wholePhase) <= (nativePixel / 512.0f + 1e-4f)));
++        const float2 edgePhase = float2((rectPixelGrid >> 16U) & 0xFFU, rectPixelGrid >> 24U) / 256.0f * nativePixel;
 +        const float2 fromEdge = floor(vertexPosition.xy) - edgePhase;
 +        const float2 inNativePixel = fromEdge - floor((fromEdge + 0.5f) / nativePixel) * nativePixel;
 +        lowResUV = vertexUV - inNativePixel * float2(ddxVertexUV.x, ddyVertexUV.y);
@@ -16527,7 +16527,7 @@ index e7895c3..e47a7ef 100644
      int tileIndex0 = 0;
      int tileIndex1 = 1;
      float lodFraction;
-@@ -128,12 +259,46 @@ LIBRARY_EXPORT bool RasterPS(const RenderParams rp, float4 vertexPosition, float
+@@ -128,12 +252,46 @@ LIBRARY_EXPORT bool RasterPS(const RenderParams rp, float4 vertexPosition, float
          lodScale = FbParams.resolutionScale.y;
      }
      
@@ -16576,7 +16576,7 @@ index e7895c3..e47a7ef 100644
          RDPTile rdpTile = RDPTiles[globalTileIndex];
          if (!renderFlagDynamicTiles(rp.flags)) {
              rdpTile.cms = renderCMS0(rp.flags);
-@@ -141,14 +306,15 @@ LIBRARY_EXPORT bool RasterPS(const RenderParams rp, float4 vertexPosition, float
+@@ -141,14 +299,15 @@ LIBRARY_EXPORT bool RasterPS(const RenderParams rp, float4 vertexPosition, float
              rdpTile.nativeSampler = renderFlagNativeSampler0(rp.flags);
          }
          
@@ -16595,7 +16595,7 @@ index e7895c3..e47a7ef 100644
          RDPTile rdpTile = RDPTiles[globalTileIndex];
          if (!renderFlagDynamicTiles(rp.flags)) {
              rdpTile.cms = oneCycleHardwareBug ? renderCMS0(rp.flags) : renderCMS1(rp.flags);
-@@ -156,12 +322,13 @@ LIBRARY_EXPORT bool RasterPS(const RenderParams rp, float4 vertexPosition, float
+@@ -156,12 +315,13 @@ LIBRARY_EXPORT bool RasterPS(const RenderParams rp, float4 vertexPosition, float
              rdpTile.nativeSampler = oneCycleHardwareBug ? renderFlagNativeSampler0(rp.flags) : renderFlagNativeSampler1(rp.flags);
          }
          
@@ -16612,7 +16612,7 @@ index e7895c3..e47a7ef 100644
      // Color combiner.
      float4 shadeColor = vertexColor;
      float4 combinerColor;
-@@ -254,8 +421,16 @@ LIBRARY_EXPORT bool RasterPS(const RenderParams rp, float4 vertexPosition, float
+@@ -254,8 +414,16 @@ LIBRARY_EXPORT bool RasterPS(const RenderParams rp, float4 vertexPosition, float
          resultColor.a = resultCvg;
      }
      
@@ -16630,7 +16630,7 @@ index e7895c3..e47a7ef 100644
      if (highlightColorUint > 0) {
          float4 highlightColor = RGBA32ToFloat4(highlightColorUint);
          resultColor = lerp(resultColor, highlightColor, highlightColor.a);
-@@ -272,7 +447,7 @@ LIBRARY_EXPORT bool RasterPS(const RenderParams rp, float4 vertexPosition, float
+@@ -272,7 +440,7 @@ LIBRARY_EXPORT bool RasterPS(const RenderParams rp, float4 vertexPosition, float
  
  #if defined(DYNAMIC_RENDER_PARAMS)
  RenderParams getRenderParams() {
@@ -16639,7 +16639,7 @@ index e7895c3..e47a7ef 100644
      return DynamicRenderParams[instanceIndex];
  }
  #elif defined(SPEC_CONSTANT_RENDER_PARAMS)
-@@ -287,13 +462,26 @@ void PSMain(
+@@ -287,13 +455,26 @@ void PSMain(
  #if defined(DYNAMIC_RENDER_PARAMS) || defined(VERTEX_FLAT_COLOR)
      , nointerpolation in float4 vertexFlatColor : COLOR1
  #endif
@@ -16666,7 +16666,7 @@ index e7895c3..e47a7ef 100644
  #if !defined(DYNAMIC_RENDER_PARAMS)
  #if !defined(VERTEX_FLAT_COLOR)
      float4 vertexFlatColor = 0.0f;
-@@ -308,6 +496,11 @@ void PSMain(
+@@ -308,6 +489,11 @@ void PSMain(
      }
  
      pixelColor = resultColor;
