@@ -8,7 +8,7 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Thirty options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Thirty-one options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
@@ -24,7 +24,8 @@ eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLL
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
 `RT64_REJ_WITHOUT_NEAR_CLIP` (rt64 19014a4, which it turns on too),
 `RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, e6c18c3, which it turns on too), `RT64_RECT_OWN_PIXEL_GRID` (rt64
-f754c0d, 401c02e, which it turns on too),
+f754c0d, 401c02e, which it turns on too), `RT64_UPSCALED_RECT_LAST_TEXEL` (rt64 e504e65, which it turns
+on too),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
@@ -1596,4 +1597,12 @@ rt64 28e2fca           RT64_INTERPOLATE_RECT_SCROLLS: where three or more paired
                        run's middle move is left unpaired: a particle come in the slot of one gone, not one moved.
                        Excitebike 64's campfire smoke, a column of a dozen and more puffs, slid a puff or two 8 to 19
                        pixels up or down the column in the frames between, so the column stepped once a game frame
+rt64 e504e65           RT64_UPSCALED_RECT_LAST_TEXEL: a texrect drawn upscaled (Upscale 2D, a scaled one under its
+                       default Scaled Only) is kept to the texels the RDP samples, from its first pixel's to its last's.
+                       Drawn at a high resolution, its last native pixel stepped on toward the texcoords at its far
+                       edge, a pixel's step past the last texel the console samples, and a rect shrunk by stepping over
+                       more texels a pixel reached the next picture on its texture page: Excitebike 64's place in the
+                       top right, its glyphs grown and shrunk as the place changes, drew a white line down its right
+                       and along its bottom for those frames, on the desktop too. In three plays none did with this. The
+                       pin carries rt64 690a188 and 4843534 too, under it on the fork's main, with rows of their own
 ```
