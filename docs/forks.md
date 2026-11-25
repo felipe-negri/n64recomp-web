@@ -24,9 +24,8 @@ eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLL
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
 `RT64_REJ_WITHOUT_NEAR_CLIP` (rt64 19014a4, which it turns on too),
 `RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, e6c18c3, which it turns on too), `RT64_RECT_OWN_PIXEL_GRID` (rt64
-f754c0d, 401c02e, which it turns on too), `RT64_FIX_LR_SPANNING_RECTS` (rt64 a83f908, which it turns on
-too),
-`ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
+f754c0d, 401c02e, which it turns on too), `RT64_FIX_LR_SPANNING_RECTS` (rt64 4843534, which it turns on
+too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
 `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
@@ -1597,7 +1596,7 @@ rt64 28e2fca           RT64_INTERPOLATE_RECT_SCROLLS: where three or more paired
                        run's middle move is left unpaired: a particle come in the slot of one gone, not one moved.
                        Excitebike 64's campfire smoke, a column of a dozen and more puffs, slid a puff or two 8 to 19
                        pixels up or down the column in the frames between, so the column stepped once a game frame
-rt64 a83f908           RT64_FIX_LR_SPANNING_RECTS: Fix LR with Scissor moves a rect's bottom edge onto the scissor's
+rt64 4843534           RT64_FIX_LR_SPANNING_RECTS: Fix LR with Scissor moves a rect's bottom edge onto the scissor's
                        only for a rect that spans the scissor's width, and its right edge only for one that spans its
                        height, as a rect a pixel short of filling the screen does. Excitebike 64's Hill Climb scissor
                        ends a row below its time from the countdown to half a second after GO, and each glyph ending a
