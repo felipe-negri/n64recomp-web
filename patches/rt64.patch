@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web a83f9083e7a8d09e38add60d9fbb31c1f0251180
+rt64: https://github.com/n64hub/rt64-web 4843534c02553396c058845bd3c1de892fa23d7d
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -3800,7 +3800,7 @@ index 5c3c4d2..cba893c 100644
  
          uint32_t rdramUsed;
 diff --git a/src/hle/rt64_game_frame.cpp b/src/hle/rt64_game_frame.cpp
-index 87392d0..2a39a8d 100644
+index 87392d0..ef29f5c 100644
 --- a/src/hle/rt64_game_frame.cpp
 +++ b/src/hle/rt64_game_frame.cpp
 @@ -2,6 +2,9 @@
@@ -3891,7 +3891,7 @@ index 87392d0..2a39a8d 100644
          bool valid = false;
  
          float computeDifference() const {
-@@ -207,50 +267,1584 @@ namespace RT64 {
+@@ -207,50 +267,1808 @@ namespace RT64 {
                  totalDiff += orientationDifference * OrientationDiffScale;
              }
  
@@ -4761,11 +4761,219 @@ index 87392d0..2a39a8d 100644
 +            curOwn[c] = ((c < head) && (c != p)) ? prevRects.size() : p;
 +        }
 +
-+        // Every rect that drew the same place pairs first, so one that stayed put never pairs with a look-alike that moved.
 +        thread_local std::vector<size_t> curFound;
 +        curFound.assign(curRects.size(), prevRects.size());
++
++        // A row of tiles: eight or more textured rects of one size and scale drawn one after another, each beginning
++        // where the one before ends, on one line, as a tile map is drawn (a 2D game's scrolling background, a rect per
++        // tile of its name table). The game scrolls the row whole, so it pairs whole, first and before anything else:
++        // with the row the frame before drew on the same line at the same tile size, shifted by the one step less than
++        // a tile either way that leaves the fewest of the tiles the two rows share on a tile of another look
++        // (sameTextures), where most of them are on one of the same look. A tile map is the same few tiles over and
++        // over (a track's dirt, a crowd), and as the scroll crossed a tile's width the rect in a tile's place in the
++        // order (its own) or the nearest look-alike was the tile beside it: Excitebike 64's Original Excitebike draws
++        // its playfield a row of 8 pixel tiles at a time, scrolled 1 to 5 pixels a game frame, and the frames between
++        // slid a tile 5 pixels back where its row moved 3 forward, or left a row unpaired, held still while the rows
++        // above and below it slid, so the playfield wobbled and shimmered as it scrolled. By the fewest left over, not
++        // the most matched: a row 31 tiles long in one frame and 32 in the next shares a tile more one way than the
++        // other, and a row of one tile throughout went that way, a tile's width off the rows around it. Where both
++        // steps leave as few (a row of one tile throughout), the step most of the frame's decided rows of that tile
++        // size took decides, or else the smaller; a row whose two steps are half a tile each way and tie stays to the
++        // passes below. A tile of the row on no tile of its look (one just come in at the screen's edge, or changed)
++        // has no pair, and is still drawn the row's step from where it is, so it comes in with the row (rowMoves,
++        // below).
++        thread_local std::vector<bool> curInRow;
++        thread_local std::vector<int32_t> curRowMove;
++        curInRow.assign(curRects.size(), false);
++        curRowMove.assign(curRects.size(), 0);
++        if (!untextured) {
++            struct TileRow {
++                size_t first;
++                size_t count;
++            };
++
++            auto rowsOf = [](const std::vector<RectCall> &rects, std::vector<TileRow> &rows) {
++                const size_t MinRowTiles = 8;
++                rows.clear();
++                size_t start = 0;
++                while (start < rects.size()) {
++                    size_t end = start + 1;
++                    while (end < rects.size()) {
++                        const DrawCall &a = *rects[end - 1].call;
++                        const DrawCall &b = *rects[end].call;
++                        if ((b.gameRect.ulx != a.gameRect.lrx) || (b.gameRect.uly != a.gameRect.uly) || (b.gameRect.lry != a.gameRect.lry) ||
++                            ((b.gameRect.lrx - b.gameRect.ulx) != (a.gameRect.lrx - a.gameRect.ulx)) || (b.rectDsdx != a.rectDsdx) || (b.rectDtdy != a.rectDtdy))
++                        {
++                            break;
++                        }
++
++                        end++;
++                    }
++
++                    const DrawCall &first = *rects[start].call;
++                    if (((end - start) >= MinRowTiles) && (first.gameRect.lrx > first.gameRect.ulx) && (first.gameRect.lry > first.gameRect.uly)) {
++                        rows.push_back({ start, end - start });
++                    }
++
++                    start = end;
++                }
++            };
++
++            thread_local std::vector<TileRow> curRows;
++            thread_local std::vector<TileRow> prevRows;
++            rowsOf(curRects, curRows);
++            rowsOf(prevRects, prevRows);
++
++            // By row of this frame: its row of the frame before, its two steps (in quarter pixels, the frame before's
++            // place less this one's) and how many tiles each puts on a tile of the same look, of how many shared.
++            struct RowPair {
++                size_t prevRow;
++                int32_t step[2];
++                size_t same[2];
++                size_t shared[2];
++                int chosen;
++            };
++
++            thread_local std::vector<RowPair> rowPairs;
++            rowPairs.clear();
++            const size_t NoRow = SIZE_MAX;
++            for (const TileRow &row : curRows) {
++                const DrawCall &cFirst = *curRects[row.first].call;
++                const int32_t width = cFirst.gameRect.lrx - cFirst.gameRect.ulx;
++                const int32_t cUl = cFirst.gameRect.ulx;
++                const int32_t cLr = cUl + width * int32_t(row.count);
++                RowPair pair = { NoRow, { 0, 0 }, { 0, 0 }, { 0, 0 }, -1 };
++                int32_t bestOverlap = 0;
++                for (size_t q = 0; q < prevRows.size(); q++) {
++                    const DrawCall &pFirst = *prevRects[prevRows[q].first].call;
++                    const int32_t pUl = pFirst.gameRect.ulx;
++                    const int32_t pLr = pUl + width * int32_t(prevRows[q].count);
++                    const int32_t overlap = std::min(cLr, pLr) - std::max(cUl, pUl);
++                    if ((pFirst.gameRect.uly != cFirst.gameRect.uly) || (pFirst.gameRect.lry != cFirst.gameRect.lry) ||
++                        ((pFirst.gameRect.lrx - pFirst.gameRect.ulx) != width) || (pFirst.rectDsdx != cFirst.rectDsdx) || (pFirst.rectDtdy != cFirst.rectDtdy) ||
++                        (overlap <= bestOverlap))
++                    {
++                        continue;
++                    }
++
++                    bestOverlap = overlap;
++                    pair.prevRow = q;
++                }
++
++                if (pair.prevRow != NoRow) {
++                    const TileRow &prevRow = prevRows[pair.prevRow];
++                    const int32_t pUl = prevRects[prevRow.first].call->gameRect.ulx;
++                    const int32_t forward = (((pUl - cUl) % width) + width) % width;
++                    pair.step[0] = forward;
++                    pair.step[1] = forward - width;
++                    for (int s = 0; s < ((forward == 0) ? 1 : 2); s++) {
++                        for (size_t i = 0; i < row.count; i++) {
++                            const int32_t at = cUl + width * int32_t(i) + pair.step[s] - pUl;
++                            const int32_t j = at / width;
++                            if ((at < 0) || (j >= int32_t(prevRow.count))) {
++                                continue;
++                            }
++
++                            pair.shared[s]++;
++                            pair.same[s] += sameTextures(*curRects[row.first + i].call, *prevRects[prevRow.first + j].call) ? 1 : 0;
++                        }
++                    }
++
++                    const bool both = (forward != 0);
++                    const bool decided0 = (pair.same[0] * 2) > pair.shared[0];
++                    const bool decided1 = both && ((pair.same[1] * 2) > pair.shared[1]);
++                    const size_t off0 = pair.shared[0] - pair.same[0];
++                    const size_t off1 = pair.shared[1] - pair.same[1];
++                    if (decided0 && (!decided1 || (off0 < off1))) {
++                        pair.chosen = 0;
++                    }
++                    else if (decided1 && (!decided0 || (off1 < off0))) {
++                        pair.chosen = 1;
++                    }
++                    else if (decided0 && decided1) {
++                        pair.chosen = 2; // A tie, decided below.
++                    }
++                }
++
++                rowPairs.push_back(pair);
++            }
++
++            // A tie takes the step most rows of its tile size decided on took, or else the smaller.
++            for (size_t k = 0; k < curRows.size(); k++) {
++                RowPair &pair = rowPairs[k];
++                if (pair.chosen != 2) {
++                    continue;
++                }
++
++                const DrawCall &cFirst = *curRects[curRows[k].first].call;
++                const int32_t width = cFirst.gameRect.lrx - cFirst.gameRect.ulx;
++                size_t votes[2] = { 0, 0 };
++                for (size_t m = 0; m < curRows.size(); m++) {
++                    const RowPair &other = rowPairs[m];
++                    const DrawCall &oFirst = *curRects[curRows[m].first].call;
++                    if ((other.chosen != 0) && (other.chosen != 1)) {
++                        continue;
++                    }
++
++                    if ((oFirst.gameRect.lrx - oFirst.gameRect.ulx) != width) {
++                        continue;
++                    }
++
++                    const int32_t step = other.step[other.chosen];
++                    votes[0] += (step == pair.step[0]) ? 1 : 0;
++                    votes[1] += (step == pair.step[1]) ? 1 : 0;
++                }
++
++                if (votes[0] != votes[1]) {
++                    pair.chosen = (votes[0] > votes[1]) ? 0 : 1;
++                }
++                else if (abs(pair.step[0]) != abs(pair.step[1])) {
++                    pair.chosen = (abs(pair.step[0]) < abs(pair.step[1])) ? 0 : 1;
++                }
++                else {
++                    pair.chosen = -1;
++                }
++            }
++
++            for (size_t k = 0; k < curRows.size(); k++) {
++                const RowPair &pair = rowPairs[k];
++                if ((pair.chosen != 0) && (pair.chosen != 1)) {
++                    continue;
++                }
++
++                const TileRow &row = curRows[k];
++                const TileRow &prevRow = prevRows[pair.prevRow];
++                const DrawCall &cFirst = *curRects[row.first].call;
++                const int32_t width = cFirst.gameRect.lrx - cFirst.gameRect.ulx;
++                const int32_t cUl = cFirst.gameRect.ulx;
++                const int32_t pUl = prevRects[prevRow.first].call->gameRect.ulx;
++                const int32_t step = pair.step[pair.chosen];
++                for (size_t i = 0; i < row.count; i++) {
++                    const size_t r = row.first + i;
++                    curInRow[r] = true;
++                    curRowMove[r] = step;
++                    const int32_t at = cUl + width * int32_t(i) + step - pUl;
++                    const int32_t j = at / width;
++                    if ((at < 0) || (j >= int32_t(prevRow.count))) {
++                        continue;
++                    }
++
++                    const size_t p = prevRow.first + size_t(j);
++                    if (!prevUsed[p] && sameTextures(*curRects[r].call, *prevRects[p].call)) {
++                        curFound[r] = p;
++                        prevUsed[p] = true;
++                    }
++                }
++            }
++        }
++
++        // Every rect that drew the same place pairs first, so one that stayed put never pairs with a look-alike that moved.
 +        size_t searchStart = 0;
 +        for (size_t r = 0; r < curRects.size(); r++) {
++            if (curInRow[r]) {
++                continue;
++            }
++
 +            const size_t own = curOwn[r];
 +            if (own < prevRects.size()) {
 +                const DrawCall &ownCall = *prevRects[own].call;
@@ -4801,7 +5009,7 @@ index 87392d0..2a39a8d 100644
 +        }
 +
 +        for (size_t r = 0; r < curRects.size(); r++) {
-+            if (curFound[r] < prevRects.size()) {
++            if ((curFound[r] < prevRects.size()) || curInRow[r]) {
 +                continue;
 +            }
 +
@@ -4877,7 +5085,7 @@ index 87392d0..2a39a8d 100644
 +        }
 +
 +        for (size_t r = 0; (r < curRects.size()) && !untextured; r++) {
-+            if (curFound[r] < prevRects.size()) {
++            if ((curFound[r] < prevRects.size()) || curInRow[r]) {
 +                continue;
 +            }
 +
@@ -4907,7 +5115,7 @@ index 87392d0..2a39a8d 100644
 +        thread_local std::vector<bool> curScaled;
 +        curScaled.assign(curRects.size(), false);
 +        for (size_t r = 0; (r < curRects.size()) && !untextured; r++) {
-+            if (curFound[r] < prevRects.size()) {
++            if ((curFound[r] < prevRects.size()) || curInRow[r]) {
 +                continue;
 +            }
 +
@@ -5002,7 +5210,7 @@ index 87392d0..2a39a8d 100644
 +
 +                    if ((alike * 2) > n) {
 +                        for (size_t r : runPaired) {
-+                            if (strays(r)) {
++                            if (strays(r) && !curInRow[r]) {
 +                                curFound[r] = prevRects.size();
 +                            }
 +                        }
@@ -5104,7 +5312,7 @@ index 87392d0..2a39a8d 100644
 +            curAlone.assign(curRects.size(), false);
 +            for (size_t r = 0; r < curRects.size(); r++) {
 +                const size_t root = rootOf(r);
-+                if ((curFound[r] == prevRects.size()) || (lineUnpaired[root] == 0)) {
++                if ((curFound[r] == prevRects.size()) || (lineUnpaired[root] == 0) || curInRow[r]) {
 +                    continue;
 +                }
 +
@@ -5144,6 +5352,22 @@ index 87392d0..2a39a8d 100644
 +                    curScaled[r] = false;
 +                }
 +            }
++        }
++
++        // A tile of a row of tiles that paired with no tile of its look (above) is drawn the row's step from where it
++        // is, so it comes in, or changes, sliding with the row; its texels are this frame's.
++        for (size_t r = 0; r < curRects.size(); r++) {
++            if (!curInRow[r] || (curFound[r] < prevRects.size()) || (curRowMove[r] == 0)) {
++                continue;
++            }
++
++            const DrawCall &curCall = *curRects[r].call;
++            if (workloadMap.rectMoves.size() <= curCall.callIndex) {
++                workloadMap.rectMoves.resize(curCall.callIndex + 1, hlslpp::float4(0.0f, 0.0f, 0.0f, 0.0f));
++            }
++
++            const float move = float(curRowMove[r]) / 4.0f;
++            workloadMap.rectMoves[curCall.callIndex] = hlslpp::float4(move, 0.0f, move, 0.0f);
 +        }
 +
 +        // By a rect's index, the texcoords its upper left moved by from the frame before when its texture slides by
@@ -5276,7 +5500,7 @@ index 87392d0..2a39a8d 100644
 +            };
 +
 +            bool replaced = false;
-+            if (moved && !untextured && (prevCall.gameRect.uly == curCall.gameRect.uly)) {
++            if (moved && !untextured && !curInRow[r] && (prevCall.gameRect.uly == curCall.gameRect.uly)) {
 +                bool placeTaken = false;
 +                for (size_t k = 0; (k < prevRects.size()) && !placeTaken; k++) {
 +                    const DrawCall &placeCall = *prevRects[k].call;
@@ -5510,7 +5734,7 @@ index 87392d0..2a39a8d 100644
  
      void GameFrame::match(RenderWorker *worker, WorkloadQueue &workloadQueue, const GameFrame &prevFrame, BufferUploader *velocityUploader, bool &velocityUploaderUsed, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed) {
          tileInterpolationUsed = false;
-@@ -260,17 +1854,50 @@ namespace RT64 {
+@@ -260,17 +2078,50 @@ namespace RT64 {
          thread_local std::unordered_map<uint32_t, ModifiedBuffers> workloadsModified;
          workloadsModified.clear();
  
@@ -5567,7 +5791,7 @@ index 87392d0..2a39a8d 100644
              const Workload &prevWorkload = workloadQueue.workloads[workloadMap.prevWorkloadIndex];
              workloadMap.viewProjections.clear();
              workloadMap.viewProjections.resize(curWorkload.drawData.viewProjTransforms.size());
-@@ -290,7 +1917,7 @@ namespace RT64 {
+@@ -290,7 +2141,7 @@ namespace RT64 {
              buildTransformIdMap(curWorkload, curWorkload.transformIdMap, curWorkload.transformIgnoredIds);
  
              // Retrieve the matching maps for the current and previous workload.
@@ -5576,7 +5800,7 @@ index 87392d0..2a39a8d 100644
              const GameFrameMap::WorkloadMap *prevWorkloadMap = nullptr;
              if (prevFrame.matched && prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex].mapped) {
                  prevWorkloadMap = &prevFrame.frameMap.workloads[workloadMap.prevWorkloadIndex];
-@@ -316,7 +1943,7 @@ namespace RT64 {
+@@ -316,7 +2167,7 @@ namespace RT64 {
              }
  
              if (!modifiedBuffers.empty()) {
@@ -5585,7 +5809,7 @@ index 87392d0..2a39a8d 100644
              }
  
              // Any transforms tagged with the empty ID will be instantly marked as used and skipped.
-@@ -343,6 +1970,14 @@ namespace RT64 {
+@@ -343,6 +2194,14 @@ namespace RT64 {
                  const hlslpp::float4x4 &curProjTransform = curWorkload.drawData.projTransforms[curProj.transformsIndex];
                  for (uint32_t j = 0; j < prevScenes.size(); j++) {
                      const GameIndices::Projection prevFirstProj = prevScenes[j].projections[0];
@@ -5600,7 +5824,7 @@ index 87392d0..2a39a8d 100644
                      const Workload &prevWorkload = workloadQueue.workloads[prevFirstProj.workloadIndex];
                      const FramebufferPair &prevFbPair = prevWorkload.fbPairs[prevFirstProj.fbPairIndex];
                      const Projection &prevProj = prevFbPair.projections[prevFirstProj.projectionIndex];
-@@ -356,6 +1991,40 @@ namespace RT64 {
+@@ -356,6 +2215,40 @@ namespace RT64 {
              prevScenesMatched.clear();
              curScenesMatched.resize(curScenes.size());
              prevScenesMatched.resize(prevScenes.size());
@@ -5641,7 +5865,7 @@ index 87392d0..2a39a8d 100644
              std::stable_sort(matchCandidates.begin(), matchCandidates.end());
              for (const MatchCandidate &candidate : matchCandidates) {
                  if (curScenesMatched[candidate.curIndex]) {
-@@ -396,6 +2065,20 @@ namespace RT64 {
+@@ -396,6 +2289,20 @@ namespace RT64 {
          else {
              velocityUploaderUsed = false;
          }
@@ -5662,7 +5886,7 @@ index 87392d0..2a39a8d 100644
      }
  
      void GameFrame::matchScene(WorkloadQueue &workloadQueue, const GameFrame &prevFrame, const GameScene &curScene, const GameScene &prevScene, std::unordered_map<uint32_t, ModifiedBuffers> &workloadsModified, bool &tileInterpolationUsed, bool &lookAtInterpolationUsed) {
-@@ -403,8 +2086,10 @@ namespace RT64 {
+@@ -403,8 +2310,10 @@ namespace RT64 {
              return;
          }
  
@@ -5675,7 +5899,7 @@ index 87392d0..2a39a8d 100644
          curCallHashMap.clear();
          prevCallHashMap.clear();
  
-@@ -423,6 +2108,12 @@ namespace RT64 {
+@@ -423,6 +2332,12 @@ namespace RT64 {
              firstPrevWorkloadMap = &prevFrame.frameMap.workloads[firstPrevProjIndices.workloadIndex];
          }
  
@@ -5688,7 +5912,7 @@ index 87392d0..2a39a8d 100644
          // Build a multimap with all potential compatibilities between draw calls in the projections.
          uint32_t mappedViewProjIndex = UINT32_MAX;
          for (uint32_t p = 0; p < curScene.projections.size(); p++) {
-@@ -478,6 +2169,40 @@ namespace RT64 {
+@@ -478,6 +2393,40 @@ namespace RT64 {
                  }
                  else {
                      viewProjMap.mapped = (curProjGroup.matrixId == G_EX_ID_AUTO);
@@ -5729,7 +5953,7 @@ index 87392d0..2a39a8d 100644
                  }
  
                  if (viewProjMap.mapped) {
-@@ -509,69 +2234,163 @@ namespace RT64 {
+@@ -509,69 +2458,163 @@ namespace RT64 {
              buildCallHashMap(p, prevWorkload, prevProj, prevCallHashMap);
          }
  
@@ -5939,7 +6163,7 @@ index 87392d0..2a39a8d 100644
          }
  
          // Compute all the differences between transforms and insert them into a vector that will be sorted according to the differences.
-@@ -592,6 +2411,72 @@ namespace RT64 {
+@@ -592,6 +2635,72 @@ namespace RT64 {
              }
          }
  
@@ -6012,7 +6236,7 @@ index 87392d0..2a39a8d 100644
          ModifiedBuffers modifiedBuffers;
          std::stable_sort(matchCandidates.begin(), matchCandidates.end());
          for (const MatchCandidate candidate : matchCandidates) {
-@@ -606,6 +2491,243 @@ namespace RT64 {
+@@ -606,6 +2715,243 @@ namespace RT64 {
              matchTransform(firstCurWorkload, firstPrevWorkload, firstCurWorkloadMap, firstPrevWorkloadMap, candidate.curIndex, candidate.prevIndex, modifiedBuffers);
          }
  
@@ -6256,7 +6480,7 @@ index 87392d0..2a39a8d 100644
          if (!modifiedBuffers.empty()) {
              workloadsModified[firstCurProjIndices.workloadIndex].merge(modifiedBuffers);
          }
-@@ -669,17 +2791,160 @@ namespace RT64 {
+@@ -669,17 +3015,160 @@ namespace RT64 {
              const bool wrappedUlt = (curTile.cmt == G_TX_WRAP) && (modulo(integerUlt, curTile.maskt * 4) == modulo(expectedUlt, curTile.maskt * 4));
              const bool wrappedLrs = (curTile.cms == G_TX_WRAP) && (modulo(integerLrs, curTile.masks * 4) == modulo(expectedLrs, curTile.masks * 4));
              const bool wrappedLrt = (curTile.cmt == G_TX_WRAP) && (modulo(integerLrt, curTile.maskt * 4) == modulo(expectedLrt, curTile.maskt * 4));
@@ -6422,7 +6646,7 @@ index 87392d0..2a39a8d 100644
          }
  
          // Check for look at matches.
-@@ -727,6 +2992,18 @@ namespace RT64 {
+@@ -727,6 +3216,18 @@ namespace RT64 {
          curTransformMap.mapped = true;
          curWorkloadMap.prevTransformsMapped[prevTransformIndex] = true;
  
@@ -6441,7 +6665,7 @@ index 87392d0..2a39a8d 100644
          uint64_t curVertexHash = 0;
          uint64_t prevVertexHash = 0;
          uint32_t curVertexIndex = curWorkload.drawData.worldTransformVertexIndices[curTransformIndex];
-@@ -782,9 +3059,78 @@ namespace RT64 {
+@@ -782,9 +3283,78 @@ namespace RT64 {
  
              modifiedBuffers.texcoordVelocity = true;
          }
@@ -6521,7 +6745,7 @@ index 87392d0..2a39a8d 100644
          for (uint32_t c = 0; c < proj.gameCallCount; c++) {
              const GameCall &call = proj.gameCalls[c];
              uint32_t matrixIdHash = 0;
-@@ -802,7 +3148,7 @@ namespace RT64 {
+@@ -802,7 +3372,7 @@ namespace RT64 {
                  doTileMatching = doTileMatching || (group.tileInterpolation == G_EX_COMPONENT_AUTO);
              }
  
