@@ -1624,12 +1624,12 @@ rt64 e504e65           RT64_UPSCALED_RECT_LAST_TEXEL: a texrect drawn upscaled (
 rt64 619443c           RT64_RECT_OWN_PIXEL_GRID: where a rect's left edge falls in its native pixel is taken on the
                        grid the shader steps, of the width written in whole 256ths of a pixel, not on the scale's own
                        width, a hair off it (3.000733 for 3 at 1400x720, from an aspect ratio a little off the
-                       window's), and the phase and the width are rounded up, with two 256ths and a quarter more, so
-                       each of the grid's lines is just past its place: a native pixel takes the texel at its first
-                       line, a whole texel on a rect drawn a texel a pixel, and a line a hair before it took the texel
-                       before. The two grids drifted 0.1 of a pixel apart by x 400: Excitebike 64's time HUD, placed
-                       from a side of a picture wider than 4:3, showed each glyph a texel late, the one before as a
-                       line down its left, at 1400x720 and none at 960x720. Rounded to the nearest 256th, or up by
-                       less, an edge's line fell before it in some tiles, and Original Excitebike's NES picture at
-                       4096x2160 lost or doubled a column in its letters
+                       window's), with the width rounded up and each edge's line put 1 to 2 256ths of a native pixel
+                       past it: a native pixel takes the texel at its first line, a whole texel on a rect drawn a
+                       texel a pixel, so a line a hair before its place takes the texel before and one too far past
+                       it the texel after. The two grids drifted 0.1 of a pixel apart by x 400: Excitebike 64's time
+                       HUD, placed from a side of a picture wider than 4:3, showed each glyph a texel late, the one
+                       before as a line down its left, at 1400x720 and none at 960x720. Original Excitebike's NES
+                       picture at 4096x2160, in tiles starting on whole pixels, drew right with lines 0.4 to 2.6
+                       256ths past: 0.33 past lost or doubled a column in its letters, and 2.67 past did too
 ```
