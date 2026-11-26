@@ -35,9 +35,9 @@ f754c0d, 401c02e, a9ac524, which it turns on too), `RT64_FIX_LR_SPANNING_RECTS` 
 build turns on), `RECOMPINPUT_SINGLE_PLAYER_UNTIL_ASSIGNED` (RecompFrontend bf01590) and
 `RECOMPINPUT_RECONNECT_PLAYERS` (RecompFrontend 9fc3d68, on with `RECOMPINPUT_PADS_IN_ORDER` too).
 
-Three are off with Emscripten too, on only where a game turns them on: `RT64_DRAW_LINES` (rt64 73a58f0, 18066b5) and
-`RT64_FILTER_BY_ALPHA` (rt64 11878b7, 18066b5), which Mario Party 3 turns on, and `RT64_RDP_DECAL_TOLERANCE` (rt64
-bbc5ba1), which Mario Party does.
+Four are off with Emscripten too, on only where a game turns them on: `RT64_DRAW_LINES` (rt64 73a58f0, 18066b5) and
+`RT64_FILTER_BY_ALPHA` (rt64 11878b7, 18066b5), which Mario Party 3 turns on, `RT64_RDP_DECAL_TOLERANCE` (rt64
+bbc5ba1), which Mario Party does, and `RT64_SLERP_CAMERA_ROTATION` (rt64 bfdb651), which Turok 2 does.
 
 ## Every commit
 
@@ -1633,4 +1633,10 @@ rt64 a9ac524           RT64_RECT_OWN_PIXEL_GRID: a rect's native pixels step fro
                        Original Excitebike's NES picture at 4096x2160 doubled four columns of its title's letters on
                        one row and drew five a column late, against 960x720 and 1280x960, where a native pixel is a
                        whole number of the screen's; with this each column is where theirs is.
+rt64 bfdb651           RT64_SLERP_CAMERA_ROTATION, off on every build, Emscripten's too, for a game to turn on: a
+                       view no matrix group decomposes is turned between two game frames by a slerp of its rotations
+                       and its eye lerped, not lerped a component at a time, which shrinks what the rotations have
+                       apart by the cosine of half their angle in the frames between: Turok 2 looking up and turning
+                       drew those 0.18 px (of 640) sideways off the line between the game's own, snapping back each
+                       game frame, and 0.00 with it; 0.25 px vertically at eye level, 0.04 with it
 ```
