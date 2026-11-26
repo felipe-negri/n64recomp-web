@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web e504e651473bddcce32955e365ff4ae27c18b511
+rt64: https://github.com/n64hub/rt64-web 619443c6baa4b576dbeba422da1a254c5e70467c
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -11314,7 +11314,7 @@ index 69a82ac..1dd31f7 100644
              dstNorm = builder.addReadWriteStructuredBuffer(9);
              dstVel = builder.addReadWriteStructuredBuffer(10);
 diff --git a/src/render/rt64_framebuffer_renderer.cpp b/src/render/rt64_framebuffer_renderer.cpp
-index 9fae0d4..2d17a25 100644
+index 9fae0d4..bd7117c 100644
 --- a/src/render/rt64_framebuffer_renderer.cpp
 +++ b/src/render/rt64_framebuffer_renderer.cpp
 @@ -10,6 +10,7 @@
@@ -11666,7 +11666,7 @@ index 9fae0d4..2d17a25 100644
                              instanceDrawCall.type = InstanceDrawCall::Type::IndexedTriangles;
                              triangles.indexStart = triangles.vertexTestZ ? vertexTestZFaceIndicesStart : call.meshDesc.faceIndicesStart;
                              invRatioScale = projInvRatioScale;
-@@ -1656,6 +1810,107 @@ namespace RT64 {
+@@ -1656,6 +1810,126 @@ namespace RT64 {
                              triangles.screenScale = { viewportRect.width / framebuffer.viewport.width, viewportRect.height / framebuffer.viewport.height };
                              triangles.screenOffset.x = halfPixelOffset.x + ((viewportRect.x + viewportRect.width / 2.0f) - halfViewportSize.x) / halfViewportSize.x;
                              triangles.screenOffset.y = halfPixelOffset.y + (halfViewportSize.y - (viewportRect.y + viewportRect.height / 2.0f)) / halfViewportSize.y;
@@ -11731,14 +11731,33 @@ index 9fae0d4..2d17a25 100644
 +                                const float pixelHeight = p.resolutionScale.y;
 +                                const float rectLeft = (triangles.screenOffset.x - halfPixelOffset.x - triangles.screenScale.x + 1.0f) * halfViewportSize.x;
 +                                const float rectTop = (1.0f - (triangles.screenOffset.y - halfPixelOffset.y) - triangles.screenScale.y) * halfViewportSize.y;
++                                // A native pixel's texel is the one at its first line, where the RDP's coordinate is a
++                                // whole texel on a rect drawn a texel a pixel, so a line a hair before its place takes the
++                                // texel before for the whole native pixel. Each line is put just past its place: the phase
++                                // is rounded up and two 256ths and a quarter more are added, as a rect's own coordinates
++                                // put its texel's start a few hundredths of a pixel past the line (on a grid only
++                                // 0.25 to 1.25 256ths past, Original Excitebike's letters at 4096x2160 still took the
++                                // texel before in some tiles; its NES picture drew right 1.6 to 3.4 256ths past), and the
++                                // width is rounded up too, so the grid's lines move further past theirs across the rect,
++                                // never before them.
 +                                auto edgePhase = [](float edge, float period) {
 +                                    float phase = std::fmod(edge, period) / period;
 +                                    phase = (phase < 0.0f) ? (phase + 1.0f) : phase;
-+                                    return uint32_t(std::lround(phase * 256.0f)) & 0xFFU;
++                                    return uint32_t(std::ceil(phase * 256.0f + 2.25f)) & 0xFFU;
 +                                };
 +
-+                                const uint32_t width = uint32_t(std::clamp(std::lround(pixelWidth * 256.0f), 1L, 0xFFFFL));
-+                                renderIndicesVector.back().rectPixelGrid = width | (edgePhase(rectLeft, pixelWidth) << 16U) | (edgePhase(rectTop, pixelHeight) << 24U);
++                                // The left edge's place in the native pixel is taken on the grid the shader steps, of the
++                                // width written, in whole 256ths of a pixel: the scale's own width is a hair off it (3.000733
++                                // for 3 at 1400x720, from an aspect ratio a little off the window's), and the two grids
++                                // drift apart across the picture, 0.1 of a pixel by x 400, so a rect's pixels were put
++                                // in the native pixel before and took the texel before their own: Excitebike 64's HUD
++                                // glyphs, placed from a side, each showed a texel late, the one before as a line at its
++                                // left. Rounded to the nearest 256th, an edge's line fell 0.02 of a pixel before it about
++                                // half the time: the NES picture in Excitebike 64's Original Excitebike at 4096x2160,
++                                // drawn in tiles starting on whole pixels, lost or doubled a column in its letters.
++                                const uint32_t width = uint32_t(std::clamp(std::lround(std::ceil(pixelWidth * 256.0f)), 1L, 0xFFFFL));
++                                const float gridWidth = float(width) / 256.0f;
++                                renderIndicesVector.back().rectPixelGrid = width | (edgePhase(rectLeft, gridWidth) << 16U) | (edgePhase(rectTop, pixelHeight) << 24U);
 +                            }
 +#                       endif
 +
@@ -11774,7 +11793,7 @@ index 9fae0d4..2d17a25 100644
  
                              if (p.postBlendNoise) {
                                  // Indicate if post blend dither noise should be applied.
-@@ -1683,6 +1938,17 @@ namespace RT64 {
+@@ -1683,6 +1957,17 @@ namespace RT64 {
                              triangles.scissor = viewportScissorIntersection(viewportClip, triangles.scissor);
                          }
                          
@@ -11792,7 +11811,7 @@ index 9fae0d4..2d17a25 100644
                          if (triangles.vertexTestZ && usesViewport) {
                              instanceDrawCallVector[vertexTestZCallIndex].vertexTestZ.indexCount += call.callDesc.triangleCount * 3;
                              vertexTestZFaceIndicesStart += call.callDesc.triangleCount * 3;
-@@ -1749,6 +2015,16 @@ namespace RT64 {
+@@ -1749,6 +2034,16 @@ namespace RT64 {
                      rasterScene.instanceIndices.push_back(instanceIndex);
                  }
  
@@ -11809,7 +11828,7 @@ index 9fae0d4..2d17a25 100644
                  instanceDrawCallVector.push_back(instanceDrawCall);
                  globalCallIndex++;
              }
-@@ -1760,7 +2036,215 @@ namespace RT64 {
+@@ -1760,7 +2055,215 @@ namespace RT64 {
          checkRasterScene(rasterScene);
      }
  
@@ -12026,7 +12045,7 @@ index 9fae0d4..2d17a25 100644
          bool shaderViewRtEnabled = false;
          std::vector<BufferUploader::Upload> shaderUploads = {
              { renderIndicesVector.data(), { 0, renderIndicesVector.size() }, sizeof(interop::RenderIndices), RenderBufferFlag::STORAGE, { }, &renderIndicesBuffer},
-@@ -1816,8 +2300,16 @@ namespace RT64 {
+@@ -1816,8 +2319,16 @@ namespace RT64 {
          }
  #   endif
  
