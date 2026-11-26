@@ -24,7 +24,7 @@ eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLL
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
 `RT64_REJ_WITHOUT_NEAR_CLIP` (rt64 19014a4, which it turns on too),
 `RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, e6c18c3, which it turns on too), `RT64_RECT_OWN_PIXEL_GRID` (rt64
-f754c0d, 401c02e, which it turns on too), `RT64_FIX_LR_SPANNING_RECTS` (rt64 4843534),
+f754c0d, 401c02e, a9ac524, which it turns on too), `RT64_FIX_LR_SPANNING_RECTS` (rt64 4843534),
 `RT64_UPSCALED_RECT_LAST_TEXEL` (rt64 e504e65, which it turns on too),
 `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
@@ -1620,5 +1620,17 @@ rt64 e504e65           RT64_UPSCALED_RECT_LAST_TEXEL: a texrect drawn upscaled (
                        edge, a pixel's step past the last texel the console samples, and a rect shrunk by stepping over
                        more texels a pixel reached the next picture on its texture page: Excitebike 64's place in the
                        top right, its glyphs grown and shrunk as the place changes, drew a white line down its right
-                       and along its bottom for those frames, on the desktop too. In five plays none did with this
+                       and along its bottom for those frames, on the desktop too. In five plays none did with this.
+rt64 a9ac524           RT64_RECT_OWN_PIXEL_GRID: a rect's native pixels step from its own first texcoords by its
+                       dsdx and dtdy, as the RDP steps them, not on a grid of the screen's pixels: a pixel takes the
+                       texcoords of the native pixel whose span of them its center is in. A rect is placed on whole
+                       pixels of the screen, so it is drawn a little wider or narrower than its scale makes it (a
+                       42-pixel tile at 12.8 a native pixel drawn 538 wide), and the scale itself is a hair off any
+                       256th (3.000733 for 3 at 1400x720): a grid of screen pixels drifted from the rect's texture,
+                       and a native pixel whose line fell a hair early took the texel before. Excitebike 64's time
+                       HUD, placed from a side of a picture wider than 4:3, showed each glyph a texel late, the one
+                       before as a line down its left, at 1400x720 and none at 960x720; with this none at either.
+                       Original Excitebike's NES picture at 4096x2160 doubled four columns of its title's letters on
+                       one row and drew five a column late, against 960x720 and 1280x960, where a native pixel is a
+                       whole number of the screen's; with this each column is where theirs is.
 ```
