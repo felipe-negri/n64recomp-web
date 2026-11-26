@@ -24,7 +24,7 @@ eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLL
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
 `RT64_REJ_WITHOUT_NEAR_CLIP` (rt64 19014a4, which it turns on too),
 `RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, e6c18c3, which it turns on too), `RT64_RECT_OWN_PIXEL_GRID` (rt64
-f754c0d, 401c02e, 30bc272, which it turns on too), `RT64_FIX_LR_SPANNING_RECTS` (rt64 4843534, which it turns on
+f754c0d, 401c02e, e45f7ce, which it turns on too), `RT64_FIX_LR_SPANNING_RECTS` (rt64 4843534, which it turns on
 too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
@@ -1604,11 +1604,15 @@ rt64 4843534           RT64_FIX_LR_SPANNING_RECTS: Fix LR with Scissor moves a r
                        dashes under them, and the 0s two rows below the 9s and 7s, which snapped up as the scissor
                        moved. A frame dump of its desktop build drew those glyphs to the scissor's row in the countdown
                        and none of 356 frames did with this; its NES picture, rects in a grid, drew the same
-rt64 30bc272           RT64_RECT_OWN_PIXEL_GRID: where a rect's left edge falls in its native pixel is taken on the
-                       grid the shader steps, of the width written in whole 256ths of a pixel, not on the scale's own width, a hair
-                       off it (3.000733 for 3 at 1400x720, from an aspect ratio a little off the window's). The two grids drift
-                       apart across the picture, 0.1 of a pixel by x 400, and a rect's pixels there were put in the native pixel
-                       before and took the texel before their own: Excitebike 64's time HUD, placed from a side of a picture wider
-                       than 4:3, showed each glyph a texel late, the one before as a line down its left, at 1400x720 and none at
-                       960x720
+rt64 e45f7ce           RT64_RECT_OWN_PIXEL_GRID: where a rect's left edge falls in its native pixel is taken on the
+                       grid the shader steps, of the width written in whole 256ths of a pixel, not on the scale's own
+                       width, a hair off it (3.000733 for 3 at 1400x720, from an aspect ratio a little off the
+                       window's), and the phase and the width are rounded up, so each of the grid's lines is on or just
+                       past its place: a native pixel takes the texel at its first line, a whole texel on a rect drawn
+                       a texel a pixel, and a line a hair before it took the texel before. The two grids drifted 0.1
+                       of a pixel apart by x 400: Excitebike 64's time HUD, placed from a side of a picture wider than
+                       4:3, showed each glyph a texel late, the one before as a line down its left, at 1400x720 and
+                       none at 960x720. Rounded to the nearest 256th, an edge's line fell 0.02 of a pixel before it
+                       about half the time, and Original Excitebike's NES picture at 4096x2160 lost or doubled a column
+                       in its letters
 ```
