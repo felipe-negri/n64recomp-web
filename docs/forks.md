@@ -1639,4 +1639,7 @@ rt64 bfdb651           RT64_SLERP_CAMERA_ROTATION, off on every build, Emscripte
                        apart by the cosine of half their angle in the frames between: Turok 2 looking up and turning
                        drew those 0.18 px (of 640) sideways off the line between the game's own, snapping back each
                        game frame, and 0.00 with it; 0.25 px vertically at eye level, 0.04 with it
+rt64 b486953           the same turn with its own copy of the eye's math, called after the interpolateProjection line,
+                       so it leaves RT64_INTERPOLATE_CAMERA_EYE's #if and the two lerps' lines as they were: Rogue
+                       Squadron's and Conker's own rt64 changes meet those, and the patch didn't merge into them
 ```
