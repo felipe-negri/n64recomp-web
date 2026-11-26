@@ -1,0 +1,52 @@
+{
+  "_": "Ports que o scripts/port.sh sabe montar, pela SHA-1 da ROM (.z64, big-endian). repo/commit: o port web do jogo; prep: como a ROM vira a entrada do recompilador (hub/port.py); tools: compilar N64Recomp/RSPRecomp/OfflineModRecomp do runtime na raiz; recomp: comandos rodados na raiz do checkout; rom_dest: onde o runtime guarda a ROM no HOME da página (.config/<program id>/<game id>.z64).",
+  "games": {
+    "d6133ace5afaa0882cf214cf88daba39e266c078": {
+      "title": "The Legend of Zelda: Majora's Mask (USA)",
+      "repo": "https://github.com/n64hub/Zelda64Recomp-web",
+      "commit": "665db5a9f45e7a7e5da791969176dc8eba7d328a",
+      "target": "Zelda64Recompiled",
+      "prep": {
+        "mm_decompress": "mm.us.rev1.rom_uncompressed.z64"
+      },
+      "tools": true,
+      "recomp": [
+        [
+          "./N64Recomp",
+          "us.rev1.toml"
+        ],
+        [
+          "./RSPRecomp",
+          "aspMain.us.rev1.toml"
+        ],
+        [
+          "./RSPRecomp",
+          "njpgdspMain.us.rev1.toml"
+        ]
+      ],
+      "cmake": [
+        "-DPATCHES_C_COMPILER=clang",
+        "-DPATCHES_LD=ld.lld"
+      ],
+      "rom_dest": ".config/Zelda64Recompiled/mm.n64.us.1.0.z64"
+    },
+    "9bef1128717f958171a4afac3ed78ee2bb4e86ce": {
+      "title": "Super Mario 64 (USA)",
+      "repo": "https://github.com/n64hub/super-mario-64-recomp",
+      "commit": "0daea3f9b7d9059df8b658d8616e41e08bef5a4d",
+      "target": "SuperMario64Recompiled",
+      "prep": {
+        "copy": "roms/sm64.us.z64"
+      },
+      "recomp": [
+        [
+          "bash",
+          "tools/recompile.sh",
+          "-DCMAKE_C_COMPILER=clang",
+          "-DCMAKE_CXX_COMPILER=clang++"
+        ]
+      ],
+      "rom_dest": ".config/SuperMario64Recompiled/sm64.n64.us.1.0.z64"
+    }
+  }
+}

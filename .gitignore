@@ -5,3 +5,8 @@
 
 # A play's shots, which play_page.mjs writes where it runs: they go in no commit.
 /*.png
+
+# Recompendium: ferramentas e checkouts dos ports (scripts/setup.sh, scripts/port.sh)
+/tools/emsdk/
+/tools/cargo/
+/work/
