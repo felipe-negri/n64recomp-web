@@ -1,4 +1,4 @@
-rt64: https://github.com/n64hub/rt64-web 7ab160a9ba3d27f8edfac8ff432b3ba09d1e9936
+rt64: https://github.com/n64hub/rt64-web 959e05283f646dbbb7eca6dc0dcc8a169bf7618a
 on upstream 5473732a822a4423b5696e7cb18fecc425a59875 (tools/export_patches.sh)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -11314,7 +11314,7 @@ index 69a82ac..1dd31f7 100644
              dstNorm = builder.addReadWriteStructuredBuffer(9);
              dstVel = builder.addReadWriteStructuredBuffer(10);
 diff --git a/src/render/rt64_framebuffer_renderer.cpp b/src/render/rt64_framebuffer_renderer.cpp
-index 9fae0d4..b63facb 100644
+index 9fae0d4..f09c6c7 100644
 --- a/src/render/rt64_framebuffer_renderer.cpp
 +++ b/src/render/rt64_framebuffer_renderer.cpp
 @@ -10,6 +10,7 @@
@@ -11666,7 +11666,7 @@ index 9fae0d4..b63facb 100644
                              instanceDrawCall.type = InstanceDrawCall::Type::IndexedTriangles;
                              triangles.indexStart = triangles.vertexTestZ ? vertexTestZFaceIndicesStart : call.meshDesc.faceIndicesStart;
                              invRatioScale = projInvRatioScale;
-@@ -1656,6 +1810,103 @@ namespace RT64 {
+@@ -1656,6 +1810,109 @@ namespace RT64 {
                              triangles.screenScale = { viewportRect.width / framebuffer.viewport.width, viewportRect.height / framebuffer.viewport.height };
                              triangles.screenOffset.x = halfPixelOffset.x + ((viewportRect.x + viewportRect.width / 2.0f) - halfViewportSize.x) / halfViewportSize.x;
                              triangles.screenOffset.y = halfPixelOffset.y + (halfViewportSize.y - (viewportRect.y + viewportRect.height / 2.0f)) / halfViewportSize.y;
@@ -11719,22 +11719,28 @@ index 9fae0d4..b63facb 100644
 +                            }
 +#                       endif
 +#                       if RT64_RECT_OWN_PIXEL_GRID
-+                            // The rect's texture steps a native pixel at a time from its own left and top edges, where
-+                            // the lines above draw it, as the RDP steps it from the rect's corner (RasterPS.hlsl). Its
-+                            // native pixel is as wide as its scale makes it: a rect stretched across a picture wider than
-+                            // 4:3 has them wider than tall, and on the screen's grid, as wide as tall, its first pixels
-+                            // sampled before its first texel, which a wrapped tile reads from its other side. Its left
-+                            // and top edges in pixels and its native pixel's width as they are, not rounded: a width in
-+                            // 256ths of a pixel, the scale's own a hair off it (3.000733 for 3 at 1400x720, from an aspect
-+                            // ratio a little off the window's), drifted from the rect's lines across the picture, 0.1 of
-+                            // a pixel by x 400, so Excitebike 64's HUD glyphs, placed from a side, each showed a texel late,
-+                            // the one before as a line at its left, and Original Excitebike's NES picture at 4096x2160
-+                            // lost or doubled a column in its letters in some of its tiles.
++                            // The rect's texture steps a native pixel at a time from its own first texcoords, as the RDP
++                            // steps it from the rect's corner (RasterPS.hlsl): its texcoords at its first pixel and its
++                            // dsdx and dtdy in texels (a copy rect's already a quarter of the game's, RDP::drawTexRect).
++                            // On the screen's grid, a rect stretched across a picture wider than 4:3 sampled before its
++                            // first texel, which a wrapped tile reads from its other side. On a grid of the scale's
++                            // width, its texels drifted from where the rect draws them, placed on whole pixels
++                            // (convertViewportRect) and so a pixel wider or narrower than the scale makes it: Excitebike
++                            // 64's HUD glyphs at 1400x720 each showed a texel late, the one before as a line at its left,
++                            // and Original Excitebike's NES picture at 4096x2160 lost or doubled a column in its letters
++                            // in some of its tiles.
 +                            {
-+                                interop::RenderIndices &gridIndices = renderIndicesVector.back();
-+                                gridIndices.rectGridLeft = (triangles.screenOffset.x - halfPixelOffset.x - triangles.screenScale.x + 1.0f) * halfViewportSize.x;
-+                                gridIndices.rectGridTop = (1.0f - (triangles.screenOffset.y - halfPixelOffset.y) - triangles.screenScale.y) * halfViewportSize.y;
-+                                gridIndices.rectGridWidth = invRatioScale * p.resolutionScale.x;
++                                const uint32_t gridCycleType = call.callDesc.otherMode.cycleType();
++                                if ((call.callDesc.triangleCount == 2) && (gridCycleType != G_CYC_FILL) &&
++                                    ((size_t(call.meshDesc.rawVertexStart) + 6) * 2 <= drawData.triTcFloats.size()))
++                                {
++                                    const float *rectTc = &drawData.triTcFloats[size_t(call.meshDesc.rawVertexStart) * 2];
++                                    interop::RenderIndices &gridIndices = renderIndicesVector.back();
++                                    gridIndices.rectGridU = rectTc[0];
++                                    gridIndices.rectGridV = rectTc[1];
++                                    gridIndices.rectGridStepU = float(call.callDesc.rectDsdx) / 1024.0f;
++                                    gridIndices.rectGridStepV = float(call.callDesc.rectDtdy) / 1024.0f;
++                                }
 +                            }
 +#                       endif
 +
@@ -11770,7 +11776,7 @@ index 9fae0d4..b63facb 100644
  
                              if (p.postBlendNoise) {
                                  // Indicate if post blend dither noise should be applied.
-@@ -1683,6 +1934,17 @@ namespace RT64 {
+@@ -1683,6 +1940,17 @@ namespace RT64 {
                              triangles.scissor = viewportScissorIntersection(viewportClip, triangles.scissor);
                          }
                          
@@ -11788,7 +11794,7 @@ index 9fae0d4..b63facb 100644
                          if (triangles.vertexTestZ && usesViewport) {
                              instanceDrawCallVector[vertexTestZCallIndex].vertexTestZ.indexCount += call.callDesc.triangleCount * 3;
                              vertexTestZFaceIndicesStart += call.callDesc.triangleCount * 3;
-@@ -1749,6 +2011,16 @@ namespace RT64 {
+@@ -1749,6 +2017,16 @@ namespace RT64 {
                      rasterScene.instanceIndices.push_back(instanceIndex);
                  }
  
@@ -11805,7 +11811,7 @@ index 9fae0d4..b63facb 100644
                  instanceDrawCallVector.push_back(instanceDrawCall);
                  globalCallIndex++;
              }
-@@ -1760,7 +2032,215 @@ namespace RT64 {
+@@ -1760,7 +2038,215 @@ namespace RT64 {
          checkRasterScene(rasterScene);
      }
  
@@ -12022,7 +12028,7 @@ index 9fae0d4..b63facb 100644
          bool shaderViewRtEnabled = false;
          std::vector<BufferUploader::Upload> shaderUploads = {
              { renderIndicesVector.data(), { 0, renderIndicesVector.size() }, sizeof(interop::RenderIndices), RenderBufferFlag::STORAGE, { }, &renderIndicesBuffer},
-@@ -1816,8 +2296,16 @@ namespace RT64 {
+@@ -1816,8 +2302,16 @@ namespace RT64 {
          }
  #   endif
  
@@ -16355,7 +16361,7 @@ index 205dc4c..2aeed21 100644
      dstNorm[vertexOffsetIndex] = worldNorm;
      dstVel[vertexOffsetIndex] = worldPos - prevWorldPos;
 diff --git a/src/shaders/RasterPS.hlsl b/src/shaders/RasterPS.hlsl
-index e7895c3..eb95b9d 100644
+index e7895c3..b7330f5 100644
 --- a/src/shaders/RasterPS.hlsl
 +++ b/src/shaders/RasterPS.hlsl
 @@ -5,6 +5,7 @@
@@ -16539,22 +16545,22 @@ index e7895c3..eb95b9d 100644
 +
 +#if defined(RECT_OWN_PIXEL_GRID)
 +    // RT64_RECT_OWN_PIXEL_GRID (on with WGSL): a texrect's low resolution UV steps a native pixel at a time from the
-+    // rect's own left and top edges, not on the screen's grid above, each native pixel as wide as the renderer drew the
-+    // rect: a stretched rect's are wider than tall, and on that grid its first pixels sampled the texel before its
-+    // first. The draw's render indices (rt64_render_indices.h) hold its edges and the width, 0 for no rect, and the
-+    // grid steps from the edges themselves: stepped from the screen's corner, a width a hair off the renderer's drifted
-+    // from the rect's own lines across the screen. A pixel belongs to the native pixel its center is in, and takes
-+    // the UV at that native pixel's first line, a whole texel on a rect drawn a texel a pixel, moved a 64th of a texel
-+    // on: the interpolated UV there is a hair before it, up to a hundredth of a texel at 4096x2160, and rounded to a
-+    // 128th (TextureSampler.hlsli) took the texel before for the whole native pixel. A 64th stays short of the next
-+    // texel from any of the RDP's coordinates on a rect, its starts in 32nds of a texel.
++    // rect's own first texcoords, as the RDP steps them from the rect's corner, not on the screen's grid above: a pixel
++    // takes the texcoords its native pixel starts at, the rect's first and a whole number of its steps (its dsdx and
++    // dtdy), the native pixel being the one whose span of texcoords the pixel's center is in. So the native pixels
++    // are as wide as the renderer drew the rect, which is placed on whole pixels of the screen: a stretched rect's are
++    // wider than tall, and on the screen's grid its first pixels sampled the texel before its first, and a rect drawn
++    // a pixel wider or narrower than its scale makes it (537.6 rounded to 538 at 12.8 a native pixel) had its texels
++    // drift off a grid stepped at the scale's width, a column lost or doubled across it. The draw's render indices
++    // (rt64_render_indices.h) hold the first texcoords and the steps, 0 for no rect; an axis that doesn't step keeps
++    // the first.
 +    const RenderIndices gridIndices = instanceRenderIndices[RENDER_INDEX];
-+    if (renderFlagRect(rp.flags) && !renderFlagUpscale2D(rp.flags) && (gridIndices.rectGridWidth > 0.0f)) {
-+        const float2 nativePixel = float2(gridIndices.rectGridWidth, FbParams.resolutionScale.y);
-+        const float2 fromEdge = floor(vertexPosition.xy) - float2(gridIndices.rectGridLeft, gridIndices.rectGridTop);
-+        const float2 inNativePixel = fromEdge - floor((fromEdge + 0.5f) / nativePixel) * nativePixel;
-+        const float2 texelStep = float2(ddxVertexUV.x, ddyVertexUV.y);
-+        lowResUV = vertexUV - inNativePixel * texelStep + sign(texelStep) / 64.0f;
++    const float2 gridStep = float2(gridIndices.rectGridStepU, gridIndices.rectGridStepV);
++    if (renderFlagRect(rp.flags) && !renderFlagUpscale2D(rp.flags) && any(gridStep != 0.0f)) {
++        const float2 gridOrigin = float2(gridIndices.rectGridU, gridIndices.rectGridV);
++        const float2 centerUV = vertexUV + 0.5f * (ddxVertexUV + ddyVertexUV);
++        const float2 safeStep = gridStep + float2(gridStep == 0.0f);
++        lowResUV = gridOrigin + floor((centerUV - gridOrigin) / safeStep) * gridStep;
 +    }
 +#endif
 +
@@ -17527,25 +17533,27 @@ index 56e0301..8f52990 100644
  #endif
 \ No newline at end of file
 diff --git a/src/shared/rt64_render_indices.h b/src/shared/rt64_render_indices.h
-index 7719939..6fd3b54 100644
+index 7719939..24df0d5 100644
 --- a/src/shared/rt64_render_indices.h
 +++ b/src/shared/rt64_render_indices.h
-@@ -15,6 +15,33 @@ namespace interop {
+@@ -15,6 +15,35 @@ namespace interop {
          uint rdpTileIndex;
          uint rdpTileCount;
          uint highlightColor;
-+        // RT64_RECT_OWN_PIXEL_GRID: a texrect's left and top edges on the screen and its native pixel's width, in pixels;
-+        // a width of 0 for every other draw, and in every build without the option, whose shaders don't read it
-+        // (RasterPS.hlsl). In every build all the same, so that a shader compiled without the option reads the block at
-+        // its stride.
++        // RT64_RECT_OWN_PIXEL_GRID: a texrect's texcoords at its first pixel and their steps a native pixel, its dsdx and
++        // dtdy in texels; steps of 0 for every other draw, and in every build without the option, whose shaders don't
++        // read them (RasterPS.hlsl). In every build all the same, so that a shader compiled without the option reads the
++        // block at its stride.
 +#ifdef HLSL_CPU
-+        float rectGridLeft = 0.0f;
-+        float rectGridTop = 0.0f;
-+        float rectGridWidth = 0.0f;
++        float rectGridU = 0.0f;
++        float rectGridV = 0.0f;
++        float rectGridStepU = 0.0f;
++        float rectGridStepV = 0.0f;
 +#else
-+        float rectGridLeft;
-+        float rectGridTop;
-+        float rectGridWidth;
++        float rectGridU;
++        float rectGridV;
++        float rectGridStepU;
++        float rectGridStepV;
 +#endif
 +        // RT64_UPSCALED_RECT_LAST_TEXEL: the box of texcoords a texrect drawn upscaled samples, from its first pixel's to
 +        // its last's on the RDP (RasterPS.hlsl); a max below its min for every other draw, and in every build without
