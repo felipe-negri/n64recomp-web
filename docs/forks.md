@@ -8,7 +8,7 @@ moves `forks.txt` onto it.
 
 ## Options off on a desktop build
 
-Thirty-one options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
+Thirty-two options are off on a desktop build, on with Emscripten, and settable natively, each by the commit that adds it:
 `RT64_FLIPPED_RECT_HIGH_RES` (rt64 fe91344), `RT64_UNEVEN_FRAME_RATES` (rt64 179adb8), `RT64_GAME_FRAME_WORKLOADS` (rt64
 bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 `RT64_SCISSOR_INSIDE_FRAMEBUFFER` (rt64 cad03e4), `RT64_SKIP_COLLAPSED_MATCHES` (rt64 f6a01be),
@@ -18,14 +18,15 @@ bce5e11), `RT64_INTERPOLATE_CAMERA_EYE` (rt64 2c4230e),
 eda3964, 8314128, 21ed4b9, which it turns on too), `RT64_INTERPOLATE_RECT_SCROLLS` (rt64 566092b, c7a0ac4, 54e47fb,
 2d2db0c, d798d28, a17b46a, 952d327, 1ac724a, 0571b69, 55cb360, c8742c7, 8868f0d,
 55f42a3, e102336, 602dcd2, 9a1d37a, cf8bba7, ea78fc1, 12aa560, 84d36bd, 1d1a0ee, 3a0fdea,
-53ce431, fbf407f, a75df38, 1a688aa, db68b9d, 28e2fca, which it turns on too),
+53ce431, fbf407f, a75df38, 1a688aa, db68b9d, 28e2fca, 690a188, which it turns on too),
 `RT64_EXPAND_SCREEN_VERTICES` (rt64 91a3cca, e81b6e4, 1682468, which it turns on too), `RT64_INTERPOLATE_SCREEN_VERTICES`
 (rt64 9ef2024, a86c053, ff78e32, which it turns on too), `RT64_TILE_COPY_TMEM_FALLBACK` (rt64 5e93849, which it turns on
 too), `RT64_HASH_FILLED_FRAMEBUFFERS` (rt64 5e192d2, bf5c70d, 1ff931b, which Excitebike 64's desktop build turns on),
 `RT64_REJ_WITHOUT_NEAR_CLIP` (rt64 19014a4, which it turns on too),
 `RT64_MOVE_UNPAIRED_WITH_CAMERA` (rt64 7cec4af, e6c18c3, which it turns on too), `RT64_RECT_OWN_PIXEL_GRID` (rt64
-f754c0d, 401c02e, e45f7ce, which it turns on too), `RT64_FIX_LR_SPANNING_RECTS` (rt64 4843534, which it turns on
-too), `ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
+f754c0d, 401c02e, 619443c, which it turns on too), `RT64_FIX_LR_SPANNING_RECTS` (rt64 4843534),
+`RT64_UPSCALED_RECT_LAST_TEXEL` (rt64 e504e65, which it turns on too),
+`ULTRAMODERN_LIBULTRA_THREAD_STOP` (N64ModernRuntime 0df8334),
 `ULTRAMODERN_HOLD_BLOCKED_MESSAGES` (N64ModernRuntime 66539ab), `ULTRAMODERN_LOADS_WAIT_FOR_DISPLAY_LISTS`
 (N64ModernRuntime bf96a62), `ULTRAMODERN_RSP_TASKS_COPIED` (N64ModernRuntime 0ec6c51),
 `ULTRAMODERN_SCREEN_UPDATE_AFTER_VI` (N64ModernRuntime c700131),
@@ -1596,23 +1597,39 @@ rt64 28e2fca           RT64_INTERPOLATE_RECT_SCROLLS: where three or more paired
                        run's middle move is left unpaired: a particle come in the slot of one gone, not one moved.
                        Excitebike 64's campfire smoke, a column of a dozen and more puffs, slid a puff or two 8 to 19
                        pixels up or down the column in the frames between, so the column stepped once a game frame
+rt64 690a188           RT64_INTERPOLATE_RECT_SCROLLS: a row of texture rects at one y pairs whole, at the one step that
+                       leaves the fewest of the tiles the two frames' rows share on a tile of another look, before the
+                       passes by order and by nearest. Excitebike 64's NES Excitebike draws its playfield as a row of
+                       8x8 tiles, each with a texture of its own, and those passes paired a tile with a neighbour of
+                       the same look a tile over: a band of the track stepped back and forth by a tile in the frames
+                       between and its lane dividers shimmered (tiles off their row's step in 699 of 2249 frames
+                       before, 51 after).
 rt64 4843534           RT64_FIX_LR_SPANNING_RECTS: Fix LR with Scissor moves a rect's bottom edge onto the scissor's
                        only for a rect that spans the scissor's width, and its right edge only for one that spans its
                        height, as a rect a pixel short of filling the screen does. Excitebike 64's Hill Climb scissor
                        ends a row below its time from the countdown to half a second after GO, and each glyph ending a
                        pixel above it (the 0s, the e of Time:) was stretched over a row its font page never writes:
-                       dashes under them, and the 0s two rows below the 9s and 7s, which snapped up as the scissor
-                       moved. A frame dump of its desktop build drew those glyphs to the scissor's row in the countdown
-                       and none of 356 frames did with this; its NES picture, rects in a grid, drew the same
-rt64 e45f7ce           RT64_RECT_OWN_PIXEL_GRID: where a rect's left edge falls in its native pixel is taken on the
+                       dashes under them. Its NES Excitebike's playfield, a row of 8x8 tiles scrolling under the
+                       scissor's right edge, had its last tile drawn 9 pixels wide and then 7 as that tile's edge
+                       passed within a pixel of the scissor's, its edges paired a pixel apart, so the frames between
+                       drew it stretched and the picture's right edge shimmered (about 11000 tiles in 766 of 2258
+                       frames of a frame dump; none with this).
+rt64 e504e65           RT64_UPSCALED_RECT_LAST_TEXEL: a texrect drawn upscaled (Upscale 2D, a scaled one under its
+                       default Scaled Only) is kept to the texels the RDP samples, from its first pixel's to its last's.
+                       Drawn at a high resolution, its last native pixel stepped on toward the texcoords at its far
+                       edge, a pixel's step past the last texel the console samples, and a rect shrunk by stepping over
+                       more texels a pixel reached the next picture on its texture page: Excitebike 64's place in the
+                       top right, its glyphs grown and shrunk as the place changes, drew a white line down its right
+                       and along its bottom for those frames, on the desktop too. In five plays none did with this
+rt64 619443c           RT64_RECT_OWN_PIXEL_GRID: where a rect's left edge falls in its native pixel is taken on the
                        grid the shader steps, of the width written in whole 256ths of a pixel, not on the scale's own
                        width, a hair off it (3.000733 for 3 at 1400x720, from an aspect ratio a little off the
-                       window's), and the phase and the width are rounded up, so each of the grid's lines is on or just
-                       past its place: a native pixel takes the texel at its first line, a whole texel on a rect drawn
-                       a texel a pixel, and a line a hair before it took the texel before. The two grids drifted 0.1
-                       of a pixel apart by x 400: Excitebike 64's time HUD, placed from a side of a picture wider than
-                       4:3, showed each glyph a texel late, the one before as a line down its left, at 1400x720 and
-                       none at 960x720. Rounded to the nearest 256th, an edge's line fell 0.02 of a pixel before it
-                       about half the time, and Original Excitebike's NES picture at 4096x2160 lost or doubled a column
-                       in its letters
+                       window's), and the phase and the width are rounded up, with two 256ths and a quarter more, so
+                       each of the grid's lines is just past its place: a native pixel takes the texel at its first
+                       line, a whole texel on a rect drawn a texel a pixel, and a line a hair before it took the texel
+                       before. The two grids drifted 0.1 of a pixel apart by x 400: Excitebike 64's time HUD, placed
+                       from a side of a picture wider than 4:3, showed each glyph a texel late, the one before as a
+                       line down its left, at 1400x720 and none at 960x720. Rounded to the nearest 256th, or up by
+                       less, an edge's line fell before it in some tiles, and Original Excitebike's NES picture at
+                       4096x2160 lost or doubled a column in its letters
 ```
