@@ -85,15 +85,24 @@ def main(name, rom_path):
         run(["cmake", "-P", "lib/N64Recomp-browser/patches/apply.cmake", "lib"], cwd=src, quiet=True)
 
     env = emsdk_env(emsdk)
+    (src / ".rom.z64").write_bytes(rom)  # a ROM como .z64, para comandos que a pedem ({rom})
+    if game.get("pip"):  # dependências Python do port (ex.: rabbitizer) num venv do checkout, no PATH
+        venv = src / ".venv"
+        if not (venv / "bin/python3").exists():
+            run([sys.executable, "-m", "venv", str(venv)], quiet=True)
+            run([str(venv / "bin/pip"), "install", "-q", *game["pip"]], quiet=True)
+        env["PATH"] = f"{venv / 'bin'}:{env['PATH']}"
+    sub = lambda cmd: [a.replace("{rom}", str(src / ".rom.z64")) for a in cmd]
     if game.get("script"):  # o port tem o próprio build web (patches, recompilação e Emscripten): roda ele
         step(4, "rodando o build web do próprio port")
         env = dict(env, PATH=f"{naga.parent}:{env['PATH']}")
-        (src / ".rom.z64").write_bytes(rom)
-        run([a.replace("{rom}", str(src / ".rom.z64")) for a in game["script"]], cwd=src, env=env, quiet=True)
+        run(sub(game["script"]), cwd=src, env=env, quiet=True)
         step(5, "build web concluído")
         build = src / game["out"]
     else:
         step(4, "recompilando o código do jogo (N64Recomp)")
+        for cmd in game.get("pre", []):  # antes das ferramentas (ex.: os patches do próprio port)
+            run(sub(cmd), cwd=src, env=env, quiet=True)
         if game.get("tools"):  # N64Recomp/RSPRecomp/OfflineModRecomp do runtime já com patch, na raiz do checkout
             tools_dir = src / "lib/N64ModernRuntime/N64Recomp"
             tools_build = tools_dir / "build"
@@ -105,7 +114,7 @@ def main(name, rom_path):
                 if (tools_build / tool).exists():
                     shutil.copy2(tools_build / tool, src / tool)
         for cmd in game.get("recomp", []):
-            run(cmd, cwd=src, quiet=True)
+            run(sub(cmd), cwd=src, env=env, quiet=True)
 
         step(5, "compilando para WebAssembly (demora: ~30-60 min no primeiro build)")
         build = src / "build-web"

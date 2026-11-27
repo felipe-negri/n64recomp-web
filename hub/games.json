@@ -1,5 +1,5 @@
 {
-  "_": "Ports que o scripts/port.sh sabe montar, pela SHA-1 da ROM (.z64, big-endian). repo/commit: o port web do jogo; prep: como a ROM vira a entrada do recompilador (hub/port.py); tools: compilar N64Recomp/RSPRecomp/OfflineModRecomp do runtime na raiz; recomp: comandos rodados na raiz do checkout; browser_patches: aplicar os patches do N64Recomp-browser em lib/ (os ports do próprio n64hub aplicam os seus no CMake); script/out: o port tem build web próprio ({rom} = a ROM), que deixa a página em <out>/<target>.html; rom_dest: onde o runtime guarda a ROM no HOME da página (.config/<program id>/<game id>.z64).",
+  "_": "Ports que o scripts/port.sh sabe montar, pela SHA-1 da ROM (.z64, big-endian). repo/commit: o port web do jogo; prep: como a ROM vira a entrada do recompilador (hub/port.py); pip: pacotes Python num venv; pre: comandos antes das ferramentas; tools: compilar N64Recomp/RSPRecomp/OfflineModRecomp do runtime na raiz; recomp: comandos rodados na raiz do checkout; browser_patches: aplicar os patches do N64Recomp-browser em lib/ (os ports do próprio n64hub aplicam os seus no CMake); script/out: o port tem build web próprio ({rom} = a ROM), que deixa a página em <out>/<target>.html; rom_dest: onde o runtime guarda a ROM no HOME da página (.config/<program id>/<game id>.z64).",
   "games": {
     "d6133ace5afaa0882cf214cf88daba39e266c078": {
       "title": "The Legend of Zelda: Majora's Mask (USA)",
@@ -343,6 +343,32 @@
         "{rom}"
       ],
       "out": "web-build/build-web"
+    },
+    "999047f07cec931ffbdcc7b33b8502ef602807ee": {
+      "title": "Mario Tennis (USA)",
+      "repo": "https://github.com/n64hub/MarioTennisRecomp-web",
+      "commit": "8980715d49bab1278fbe231344bc95996c8ae12a",
+      "target": "MarioTennisRecompiled",
+      "pip": [
+        "rabbitizer==1.16.2"
+      ],
+      "pre": [
+        [
+          "cmake",
+          "-P",
+          "lib-patches/apply.cmake",
+          "lib"
+        ]
+      ],
+      "tools": true,
+      "recomp": [
+        [
+          "sh",
+          "tools/recompile.sh",
+          "{rom}"
+        ]
+      ],
+      "rom_dest": ".config/MarioTennisRecompiled/mt.n64.us.z64"
     }
   }
 }
