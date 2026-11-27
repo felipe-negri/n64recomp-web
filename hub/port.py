@@ -81,32 +81,39 @@ def main(name, rom_path):
             (src / dest).write_bytes(rom)
         else:
             sys.exit(f"prep desconhecido: {kind}")
-    (src / ".rom.z64").unlink(missing_ok=True)
     if game.get("browser_patches"):
         run(["cmake", "-P", "lib/N64Recomp-browser/patches/apply.cmake", "lib"], cwd=src, quiet=True)
 
-    step(4, "recompilando o código do jogo (N64Recomp)")
-    if game.get("tools"):  # N64Recomp/RSPRecomp/OfflineModRecomp do runtime já com patch, na raiz do checkout
-        tools_dir = src / "lib/N64ModernRuntime/N64Recomp"
-        tools_build = tools_dir / "build"
-        if not (tools_build / "N64Recomp").exists():
-            run(["cmake", "-S", str(tools_dir), "-B", str(tools_build), "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
-                 "-DCMAKE_C_COMPILER=clang", "-DCMAKE_CXX_COMPILER=clang++"], quiet=True)
-            run(["cmake", "--build", str(tools_build), "--target", "N64Recomp", "RSPRecomp", "OfflineModRecomp"], quiet=True)
-        for tool in ("N64Recomp", "RSPRecomp", "OfflineModRecomp"):
-            shutil.copy2(tools_build / tool, src / tool)
-    for cmd in game["recomp"]:
-        run(cmd, cwd=src, quiet=True)
-
-    step(5, "compilando para WebAssembly (demora: ~30-60 min no primeiro build)")
     env = emsdk_env(emsdk)
-    build = src / "build-web"
-    if not (build / "build.ninja").exists():
-        run(["embuilder", "build", "sdl2-mt", "freetype-legacysjlj"], env=env, quiet=True)
-        run(["emcmake", "cmake", "-S", ".", "-B", "build-web", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
-             f"-DRT64_NAGA_EXECUTABLE={naga}", f"-DCMAKE_EXE_LINKER_FLAGS=--pre-js={ROOT / 'hub/hub_rom.js'}",
-             *game.get("cmake", [])], cwd=src, env=env, quiet=True)
-    run(["cmake", "--build", "build-web", "--target", game["target"]], cwd=src, env=env, quiet=True)
+    if game.get("script"):  # o port tem o próprio build web (patches, recompilação e Emscripten): roda ele
+        step(4, "rodando o build web do próprio port")
+        env = dict(env, PATH=f"{naga.parent}:{env['PATH']}", LDFLAGS=f"--pre-js={ROOT / 'hub/hub_rom.js'}")
+        (src / ".rom.z64").write_bytes(rom)
+        run([a.replace("{rom}", str(src / ".rom.z64")) for a in game["script"]], cwd=src, env=env, quiet=True)
+        step(5, "build web concluído")
+        build = src / game["out"]
+    else:
+        step(4, "recompilando o código do jogo (N64Recomp)")
+        if game.get("tools"):  # N64Recomp/RSPRecomp/OfflineModRecomp do runtime já com patch, na raiz do checkout
+            tools_dir = src / "lib/N64ModernRuntime/N64Recomp"
+            tools_build = tools_dir / "build"
+            if not (tools_build / "N64Recomp").exists():
+                run(["cmake", "-S", str(tools_dir), "-B", str(tools_build), "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
+                     "-DCMAKE_C_COMPILER=clang", "-DCMAKE_CXX_COMPILER=clang++"], quiet=True)
+                run(["cmake", "--build", str(tools_build), "--target", "N64Recomp", "RSPRecomp", "OfflineModRecomp"], quiet=True)
+            for tool in ("N64Recomp", "RSPRecomp", "OfflineModRecomp"):
+                shutil.copy2(tools_build / tool, src / tool)
+        for cmd in game.get("recomp", []):
+            run(cmd, cwd=src, quiet=True)
+
+        step(5, "compilando para WebAssembly (demora: ~30-60 min no primeiro build)")
+        build = src / "build-web"
+        if not (build / "build.ninja").exists():
+            run(["embuilder", "build", "sdl2-mt", "freetype-legacysjlj"], env=env, quiet=True)
+            run(["emcmake", "cmake", "-S", ".", "-B", "build-web", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
+                 f"-DRT64_NAGA_EXECUTABLE={naga}", f"-DCMAKE_EXE_LINKER_FLAGS=--pre-js={ROOT / 'hub/hub_rom.js'}",
+                 *game.get("cmake", [])], cwd=src, env=env, quiet=True)
+        run(["cmake", "--build", "build-web", "--target", game["target"]], cwd=src, env=env, quiet=True)
 
     step(6, "publicando")
     shutil.rmtree(out, ignore_errors=True)
@@ -118,6 +125,7 @@ def main(name, rom_path):
             shutil.copy2(build / f, out / f)
     (out / "rom.z64").write_bytes(rom)  # a página guarda a ROM no IndexedDB na 1ª visita (hub_rom.js)
     (out / "hub-rom.json").write_text(json.dumps({"rom": "rom.z64", "dest": game["rom_dest"], "sha1": sha1}))
+    (src / ".rom.z64").unlink(missing_ok=True)
     print(f"pronto: {out}", flush=True)
 
 

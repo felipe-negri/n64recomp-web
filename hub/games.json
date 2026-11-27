@@ -1,5 +1,5 @@
 {
-  "_": "Ports que o scripts/port.sh sabe montar, pela SHA-1 da ROM (.z64, big-endian). repo/commit: o port web do jogo; prep: como a ROM vira a entrada do recompilador (hub/port.py); tools: compilar N64Recomp/RSPRecomp/OfflineModRecomp do runtime na raiz; recomp: comandos rodados na raiz do checkout; browser_patches: aplicar os patches do N64Recomp-browser em lib/ (os ports do próprio n64hub aplicam os seus no CMake); rom_dest: onde o runtime guarda a ROM no HOME da página (.config/<program id>/<game id>.z64).",
+  "_": "Ports que o scripts/port.sh sabe montar, pela SHA-1 da ROM (.z64, big-endian). repo/commit: o port web do jogo; prep: como a ROM vira a entrada do recompilador (hub/port.py); tools: compilar N64Recomp/RSPRecomp/OfflineModRecomp do runtime na raiz; recomp: comandos rodados na raiz do checkout; browser_patches: aplicar os patches do N64Recomp-browser em lib/ (os ports do próprio n64hub aplicam os seus no CMake); script/out: o port tem build web próprio ({rom} = a ROM), que deixa a página em <out>/<target>.html; rom_dest: onde o runtime guarda a ROM no HOME da página (.config/<program id>/<game id>.z64).",
   "games": {
     "d6133ace5afaa0882cf214cf88daba39e266c078": {
       "title": "The Legend of Zelda: Majora's Mask (USA)",
@@ -228,6 +228,58 @@
         ]
       ],
       "rom_dest": ".config/Turok3Recompiled/turok3.n64.us.z64"
+    },
+    "af1a89e12b638b8d82cc4c085c8e01d4cba03fb3": {
+      "title": "Banjo-Tooie (USA)",
+      "repo": "https://github.com/n64hub/BanjoTooieRecompiled-web",
+      "commit": "ce7b5bf515bb628065bf2f1254ae7317a0b9ed6a",
+      "target": "BanjoTooieRecompiled",
+      "script": [
+        "bash",
+        "tools/build_web.sh",
+        "{rom}"
+      ],
+      "out": "build-web",
+      "rom_dest": ".config/BanjoTooieRecompiled/bt.n64.us.1.0.z64"
+    },
+    "493ced9008dbe932d6e91179b68e8630cf23a023": {
+      "title": "Jet Force Gemini (USA)",
+      "repo": "https://github.com/n64hub/JetForceGemini-Recomp-web",
+      "commit": "9c19fa6e2fb2a699a75b8dcbe30fe10a4b651476",
+      "target": "JetForceGeminiRecompiled",
+      "script": [
+        "bash",
+        "tools/build_web.sh",
+        "{rom}"
+      ],
+      "out": "web-build/build-web",
+      "rom_dest": ".config/JetForceGeminiRecompiled/jfg-us.z64"
+    },
+    "01b0a31b1accc18061e8c85f6c5edf0dbd79f097": {
+      "title": "Rush 2: Extreme Racing USA (USA)",
+      "repo": "https://github.com/n64hub/rush2recompiled-web",
+      "commit": "bb56909aa1b7c3edf304916156dae33c45413bdf",
+      "target": "Rush2Recompiled",
+      "script": [
+        "bash",
+        "tools/build_web.sh",
+        "{rom}"
+      ],
+      "out": "build-web",
+      "rom_dest": ".config/Rush2Recompiled/rush2.n64.us.z64"
+    },
+    "91cee3d096f4a76644d8b35b9aead6448909abd1": {
+      "title": "WWF No Mercy (USA, Rev 1)",
+      "repo": "https://github.com/n64hub/WWFNoMercyRecomp-web",
+      "commit": "25e654092acba452785de994519d8042569ac99c",
+      "target": "NoMercyRecompiled",
+      "script": [
+        "bash",
+        "tools/build_web.sh",
+        "{rom}"
+      ],
+      "out": "build-web",
+      "rom_dest": ".config/NoMercyRecompiled/wwf.nomercy.us.z64"
     }
   }
 }
