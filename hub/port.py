@@ -97,6 +97,7 @@ def main(name, rom_path):
             run([sys.executable, "-m", "venv", str(venv)], quiet=True)
             run([str(venv / "bin/pip"), "install", "-q", *game["pip"]], quiet=True)
         env["PATH"] = f"{venv / 'bin'}:{env['PATH']}"
+    env.update(game.get("env", {}))  # variáveis que o port pede (ex.: rodar o script fora do Docker dele)
     sub = lambda cmd: [a.replace("{rom}", str(src / ".rom.z64")) for a in cmd]
     if game.get("script"):  # o port tem o próprio build web (patches, recompilação e Emscripten): roda ele
         step(4, "rodando o build web do próprio port")

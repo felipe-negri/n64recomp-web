@@ -434,6 +434,22 @@
         "-DPATCHES_LD=ld.lld"
       ],
       "rom_dest": ".config/DK64Recompiled/DK64.z64"
+    },
+    "e5ab4d226c08d22f68a2edcc48870203e67454b8": {
+      "title": "Beetle Adventure Racing! (USA)",
+      "repo": "https://github.com/n64hub/BeetleRecomp-web",
+      "commit": "59aa729680893e538a8c419f5bda206fb74c6833",
+      "target": "BeetleRecomp",
+      "env": {
+        "BEETLE_WEB_IMAGE": "1"
+      },
+      "script": [
+        "bash",
+        "tools/build_web.sh",
+        "{rom}"
+      ],
+      "out": "build-web",
+      "rom_dest": ".config/BeetleRecomp/bar.n64.us.z64"
     }
   }
 }
