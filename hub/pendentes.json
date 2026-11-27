@@ -1,0 +1,102 @@
+{
+  "_": "Ports conhecidos cujo build falha no commit fixado (o script do próprio port não aplica os patches); fora de games.json até alguém acertar.",
+  "games": {
+    "493ced9008dbe932d6e91179b68e8630cf23a023": {
+      "title": "Jet Force Gemini (USA)",
+      "repo": "https://github.com/n64hub/JetForceGemini-Recomp-web",
+      "commit": "9c19fa6e2fb2a699a75b8dcbe30fe10a4b651476",
+      "target": "JetForceGeminiRecompiled",
+      "script": [
+        "bash",
+        "tools/build_web.sh",
+        "{rom}"
+      ],
+      "out": "web-build/build-web",
+      "rom_dest": ".config/JetForceGeminiRecompiled/jfg-us.z64",
+      "motivo": "rt64.patch do port não aplica sobre os patches do N64Recomp-browser fixado"
+    },
+    "91cee3d096f4a76644d8b35b9aead6448909abd1": {
+      "title": "WWF No Mercy (USA, Rev 1)",
+      "repo": "https://github.com/n64hub/WWFNoMercyRecomp-web",
+      "commit": "25e654092acba452785de994519d8042569ac99c",
+      "target": "NoMercyRecompiled",
+      "script": [
+        "bash",
+        "tools/build_web.sh",
+        "{rom}"
+      ],
+      "out": "build-web",
+      "rom_dest": ".config/NoMercyRecompiled/wwf.nomercy.us.z64",
+      "motivo": "apply.cmake --since: conflito entre a mudança do port e a do N64Recomp-browser fixado"
+    },
+    "79cd1166c365e5809dec9b62e6d40d6032d5db3a": {
+      "title": "1080° Snowboarding (Japan, USA)",
+      "repo": "https://github.com/n64hub/1080-Snowboarding-recomp-web",
+      "commit": "f45211e9d357897a1f07594047acd807153f6ace",
+      "target": "1080SnowboardingRecompiled",
+      "script": [
+        "bash",
+        "tools/build_web.sh",
+        "{rom}"
+      ],
+      "out": "build-web",
+      "rom_dest": ".config/1080SnowboardingRecompiled/1080snowboarding.n64.us.z64",
+      "motivo": "apply.cmake --since: conflito (rt64_game_frame/state/workload_queue)"
+    },
+    "edc7c49cc568c045fe48be0d18011c30f393cbaf": {
+      "title": "Pokémon Snap (USA)",
+      "repo": "https://github.com/n64hub/Snap64Recomp-web",
+      "commit": "26334dd2457fbd1605ad08da2ebc0e0220c78cc1",
+      "target": "Snap64Recomp",
+      "script": [
+        "bash",
+        "tools/build_web.sh",
+        "{rom}"
+      ],
+      "out": "build-web",
+      "motivo": "apply.cmake --since: conflito (rt64)"
+    },
+    "3542d5597c8a56ea8f5c63bceae97a24c4c08d58": {
+      "title": "Star Wars Episode I: Racer (USA)",
+      "repo": "https://github.com/n64hub/racer-web",
+      "commit": "b7d69febac271e0c3cef0e2a106323d08267f719",
+      "target": "SWE1Racer",
+      "script": [
+        "bash",
+        "tools/build_web.sh",
+        "{rom}"
+      ],
+      "out": "web-build/build-web",
+      "motivo": "patch do port em rt64_vi.cpp não aplica"
+    },
+    "508dfc2d4caa42b6f6de5263d0aed5e44ac7966a": {
+      "title": "Wave Race 64 (USA, Rev 1)",
+      "repo": "https://github.com/n64hub/wave-race-64-recomp-web",
+      "commit": "550af4d92ee1721985288ecb871a8d6729501245",
+      "target": "WaveRace64Recomp",
+      "pre": [
+        [
+          "bash",
+          "tools/web_patch.sh"
+        ],
+        [
+          "bash",
+          "tools/wsl_setup_splat.sh"
+        ]
+      ],
+      "recomp": [
+        [
+          "bash",
+          "tools/wsl_build_recompiler.sh"
+        ],
+        [
+          "python3",
+          "tools/generate_game.py",
+          "{rom}"
+        ]
+      ],
+      "rom_dest": ".local/share/WaveRace64Recomp/wr64.us.rev1.z64",
+      "motivo": "patch rt64-water do port não aplica"
+    }
+  }
+}
