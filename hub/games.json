@@ -280,6 +280,32 @@
       ],
       "out": "build-web",
       "rom_dest": ".config/NoMercyRecompiled/wwf.nomercy.us.z64"
+    },
+    "579c48e211ae952530ffc8738709f078d5dd215e": {
+      "title": "Mario Kart 64 (USA)",
+      "repo": "https://github.com/n64hub/MarioKart64Recomp-web",
+      "commit": "acc72c1568540fcc2f94f49e638b59c7aa6b40dc",
+      "target": "MarioKart64Recompiled",
+      "prep": {
+        "copy": "mk64.us.z64"
+      },
+      "browser_patches": true,
+      "tools": true,
+      "recomp": [
+        [
+          "./N64Recomp",
+          "us.toml"
+        ],
+        [
+          "./RSPRecomp",
+          "aspMain.us.toml"
+        ]
+      ],
+      "cmake": [
+        "-DPATCHES_C_COMPILER=clang",
+        "-DPATCHES_LD=ld.lld"
+      ],
+      "rom_dest": ".config/MarioKart64Recompiled/mk64.us.z64"
     }
   }
 }

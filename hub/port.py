@@ -100,9 +100,10 @@ def main(name, rom_path):
             if not (tools_build / "N64Recomp").exists():
                 run(["cmake", "-S", str(tools_dir), "-B", str(tools_build), "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
                      "-DCMAKE_C_COMPILER=clang", "-DCMAKE_CXX_COMPILER=clang++"], quiet=True)
-                run(["cmake", "--build", str(tools_build), "--target", "N64Recomp", "RSPRecomp", "OfflineModRecomp"], quiet=True)
+                run(["cmake", "--build", str(tools_build)], quiet=True)  # o alvo chama N64Recomp ou N64RecompCLI, conforme a versão
             for tool in ("N64Recomp", "RSPRecomp", "OfflineModRecomp"):
-                shutil.copy2(tools_build / tool, src / tool)
+                if (tools_build / tool).exists():
+                    shutil.copy2(tools_build / tool, src / tool)
         for cmd in game.get("recomp", []):
             run(cmd, cwd=src, quiet=True)
 
