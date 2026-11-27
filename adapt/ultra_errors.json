@@ -1,0 +1,302 @@
+{
+"1": {
+"osCreateThread": 3
+},
+"2": {
+"osCreateThread": 3
+},
+"3": {
+"osStartThread": 1
+},
+"4": {
+"osSetThreadPri": 2
+},
+"5": {
+"osCreateMesgQueue": 3
+},
+"6": {
+"osSendMesg": 3
+},
+"7": {
+"osJamMesg": 3
+},
+"8": {
+"osRecvMesg": 3
+},
+"9": {
+"osSetEventMesg": 3
+},
+"14": {
+"osAiSetFrequency": 1
+},
+"15": {
+"osAiSetNextBuffer": 2
+},
+"16": {
+"osAiSetNextBuffer": 2
+},
+"17": {
+"osDpSetNextBuffer": 2
+},
+"18": {
+"osDpSetNextBuffer": 2
+},
+"19": {
+"__osPiRawReadIo": 2,
+"__osEPiRawReadIo": 3
+},
+"20": {
+"__osEPiRawWriteIo": 3,
+"__osPiRawWriteIo": 2
+},
+"21": {
+"__osPiRawStartDma": 4,
+"__osEPiRawStartDma": 5
+},
+"22": {
+"__osPiRawStartDma": 4,
+"__osEPiRawStartDma": 5
+},
+"23": {
+"__osPiRawStartDma": 4,
+"__osEPiRawStartDma": 5
+},
+"24": {
+"__osPiRawStartDma": 4,
+"__osEPiRawStartDma": 5
+},
+"25": {
+"__osPiRawStartDma": 4,
+"__osEPiRawStartDma": 5
+},
+"26": {
+"osEPiReadIo": 3,
+"osPiReadIo": 2
+},
+"27": {
+"osPiWriteIo": 2,
+"osEPiWriteIo": 3
+},
+"28": {
+"osPiStartDma": 7,
+"osEPiStartDma": 3
+},
+"29": {
+"osPiStartDma": 7,
+"osEPiStartDma": 3
+},
+"30": {
+"osPiStartDma": 7,
+"osEPiStartDma": 3
+},
+"31": {
+"osPiStartDma": 7,
+"osEPiStartDma": 3
+},
+"32": {
+"osPiStartDma": 7,
+"osEPiStartDma": 3
+},
+"33": {
+"osPiStartDma": 7,
+"osEPiStartDma": 3
+},
+"34": {
+"osPiStartDma": 7,
+"osEPiStartDma": 3
+},
+"35": {
+"osCreatePiManager": 4
+},
+"36": {
+"osViGetCurrentMode": 0
+},
+"37": {
+"osViGetCurrentFramebuffer": 0
+},
+"38": {
+"osViGetNextFramebuffer": 0
+},
+"39": {
+"osViSetXScale": 1
+},
+"40": {
+"osViSetXScale": 1
+},
+"41": {
+"osViSetYScale": 1
+},
+"42": {
+"osViSetYScale": 1
+},
+"43": {
+"osViSetSpecialFeatures": 1
+},
+"44": {
+"osViSetSpecialFeatures": 1
+},
+"45": {
+"osViSetMode": 1
+},
+"46": {
+"osViSetEvent": 3
+},
+"47": {
+"osViSwapBuffer": 1
+},
+"48": {
+"osViSwapBuffer": 1
+},
+"49": {
+"osCreateViManager": 1
+},
+"50": {
+"osCreateRegion": 4
+},
+"51": {
+"osCreateRegion": 4
+},
+"52": {
+"osMalloc": 1
+},
+"53": {
+"osFree": 2
+},
+"54": {
+"osFree": 2
+},
+"55": {
+"osGetRegionBufCount": 1
+},
+"56": {
+"osGetRegionBufSize": 1
+},
+"57": {
+"osSpTaskLoad": 1
+},
+"58": {
+"osSpTaskLoad": 1
+},
+"59": {
+"osSpTaskLoad": 1
+},
+"60": {
+"osSpTaskLoad": 1
+},
+"61": {
+"osProfileInit": 2
+},
+"62": {
+"osProfileInit": 2
+},
+"63": {
+"osProfileInit": 2
+},
+"64": {
+"osProfileInit": 2
+},
+"65": {
+"osProfileInit": 2
+},
+"66": {
+"osProfileStart": 1
+},
+"67": {
+"osProfileStart": 1
+},
+"68": {
+"osProfileStop": 0
+},
+"69": {
+"osProfileStop": 0
+},
+"73": {
+"osWriteHost": 2
+},
+"74": {
+"osGetTime": 0
+},
+"75": {
+"osSetTime": 1
+},
+"76": {
+"osSetTimer": 5
+},
+"77": {
+"osStopTimer": 1
+},
+"106": {
+"alSynAllocVoice": 3
+},
+"110": {
+"alSndpSetSound": 2
+},
+"111": {
+"alSndpSetPriority": 3
+},
+"112": {
+"alSndpSetPitch": 2,
+"alSndpSetPan": 2,
+"alSndpSetVol": 2,
+"alSndpSetFXMix": 2
+},
+"114": {
+"alSeqNew": 3
+},
+"115": {
+"alSeqNew": 3
+},
+"116": {
+"alSeqNew": 3
+},
+"117": {
+"alSeqNew": 3
+},
+"118": {
+"alSeqNew": 3
+},
+"119": {
+"alSeqNextEvent": 2
+},
+"120": {
+"alSeqNextEvent": 2,
+"__alCSeqGetTrackEvent": 3
+},
+"121": {
+"__CSPHandleMIDIMsg": 2,
+"__handleMIDIMsg": 2
+},
+"122": {
+"__CSPHandleMIDIMsg": 2,
+"__handleMIDIMsg": 2
+},
+"123": {
+"__unmapVoice": 2
+},
+"124": {
+"alEvtqPostEvent": 3
+},
+"125": {
+"alHeapDBAlloc": 5
+},
+"126": {
+"alHeapCheck": 1
+},
+"127": {
+"alHeapCheck": 1
+},
+"128": {
+"__alCSeqGetTrackEvent": 3
+},
+"130": {
+"__CSPVoiceHandler": 1
+},
+"131": {
+"alSeqNextEvent": 2,
+"alCSeqNextEvent": 2
+},
+"133": {
+"_loadOutputBuffer": 5,
+"_loadBuffer": 5
+}
+}

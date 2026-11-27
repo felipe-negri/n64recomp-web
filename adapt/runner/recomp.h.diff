@@ -1,0 +1,21 @@
+--- /mnt/jogos/n64-web/work/super-mario-64-recomp-0daea3f9b7d9/lib/N64ModernRuntime/N64Recomp/include/recomp.h	2026-11-26 19:49:50.585647298 -0300
++++ runner/lib/N64ModernRuntime/N64Recomp/include/recomp.h	2026-11-27 10:39:26.721246676 -0300
+@@ -105,6 +105,18 @@
+ 
+ static inline uint32_t recomp_rdram_offset(gpr address) {
+     uint32_t a = (uint32_t)address;
++#ifdef RECOMP_MMIO_WINDOW
++    // N64 adaptativo: os registradores do RCP (0xA4000000-0xA4FFFFFF) caem na janela, onde o runtime mantém valores
++    // plausíveis (adapt_mmio.cpp), para código de libultra não reconhecido que lê o hardware direto.
++    // KSEG1 (0xA0000000-0xBFFFFFFF, sem cache): RDRAM no mesmo lugar que pela KSEG0; registradores do RCP no começo
++    // da janela; o resto (cartucho, flash, SRAM pelo PI) num rascunho dentro dela, nunca no heap do wasm.
++    if ((a & 0xE0000000u) == 0xA0000000u) {
++        uint32_t p = a & 0x1FFFFFFFu;
++        if (p < 0x00800000u) return p;
++        if ((p & 0xFF000000u) == 0x04000000u) return RECOMP_KUSEG_WINDOW_BASE + (p & 0x00FFFFFFu);
++        return RECOMP_KUSEG_WINDOW_BASE + 0x00800000u + (p & 0x007FFFFFu);
++    }
++#endif
+     return (a & 0x80000000u) ? a - 0x80000000u : RECOMP_KUSEG_WINDOW_BASE + (a & (RECOMP_KUSEG_WINDOW_SIZE - 1));
+ }
+ 
