@@ -1,5 +1,5 @@
 --- /mnt/jogos/n64-web/work/super-mario-64-recomp-0daea3f9b7d9/CMakeLists.txt	2026-11-26 19:47:44.771001438 -0300
-+++ runner/CMakeLists.txt	2026-11-27 10:37:20.200691658 -0300
++++ /mnt/jogos/n64-web/adapt/runner/CMakeLists.txt	2026-11-27 13:06:42.099564476 -0300
 @@ -85,6 +85,10 @@
  # are built on, with its patches/ applied if tools/build_n64recomp.sh hasn't already. The desktop build takes them too:
  # the code the patched N64Recomp writes uses the patched recomp.h (RECOMP_TAIL_CALL), and the web support in them is
@@ -11,7 +11,16 @@
  include(${CMAKE_SOURCE_DIR}/lib/N64Recomp-browser/patches/apply.cmake)
  n64recomp_browser_apply_patches(${CMAKE_SOURCE_DIR}/lib)
  
-@@ -160,6 +164,9 @@
+@@ -147,6 +151,8 @@
+     ${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/N64Recomp/include
+ )
+ 
++# N64 adaptativo: todos os erros do código gerado de uma vez (a descoberta junta funções a partir deles).
++target_compile_options(RecompiledFuncs PRIVATE -ferror-limit=0)
+ file(GLOB FUNC_C_SOURCES ${CMAKE_SOURCE_DIR}/RecompiledFuncs/*.c)
+ file(GLOB FUNC_CXX_SOURCES ${CMAKE_SOURCE_DIR}/RecompiledFuncs/*.cpp)
+ target_sources(RecompiledFuncs PRIVATE ${FUNC_C_SOURCES} ${FUNC_CXX_SOURCES})
+@@ -160,6 +166,9 @@
  set(PATCHES_LD ld.lld CACHE STRING "ld.lld, for patches/")
  
  if (SM64_PATCHES)
@@ -21,7 +30,7 @@
      add_library(PatchesLib STATIC)
  
      target_compile_options(PatchesLib PRIVATE
-@@ -221,6 +228,7 @@
+@@ -221,6 +230,7 @@
  target_sources(SuperMario64Recompiled PRIVATE
      ${CMAKE_SOURCE_DIR}/src/main/main.cpp
      ${CMAKE_SOURCE_DIR}/src/main/register_overlays.cpp
@@ -29,7 +38,7 @@
      ${CMAKE_SOURCE_DIR}/src/game/config.cpp
      ${CMAKE_SOURCE_DIR}/src/game/recomp_api.cpp
      ${CMAKE_SOURCE_DIR}/src/game/hires_font.cpp
-@@ -398,6 +406,8 @@
+@@ -398,6 +408,8 @@
      # The page (lib/N64Recomp-browser/frontend), with the menus' fonts and icons and the controller mappings in its .data
      # file. No ROM: the player picks theirs in the launcher, and it stays in the browser.
      n64recomp_browser_frontend_page(SuperMario64Recompiled)

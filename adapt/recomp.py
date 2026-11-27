@@ -29,14 +29,45 @@ def main(rom, game, runner, n64recomp, rsprecomp, sigs, ucode_lib):
     if __import__("os").environ.get("ADAPT_TRACE"):  # rastreio: primeira entrada de cada função no console (trace.h)
         cfg.write_text(cfg.read_text().replace("[input]\n", "[input]\ntrace_mode = true\n", 1))
     stubs = []
-    for _ in range(200):
+    if (game / "stubs.txt").exists():  # stubs de voltas anteriores: só os que ainda existem (nome ou endereço no syms)
+        syms = re.findall(r'name = "([^"]+)", vram = 0x([0-9A-F]+)', (game / "syms.toml").read_text())
+        names = {n for n, _ in syms}
+        for st in (game / "stubs.txt").read_text().split():
+            m = re.search(r"([0-9A-F]{8})$", st)
+            hit = [st] if st in names else [n for n, v in syms if m and v.upper() == m[1]]
+            stubs += [h for h in hit if h not in stubs]
+    if stubs:
+        cfg.write_text(re.sub(r"stubs = \[.*?\]", "stubs = [" + ", ".join(f'"{s}"' for s in stubs) + "]", cfg.read_text(), flags=re.S))
+    for _ in range(1500):
         if run([n64recomp, "game.toml"], game, game / "recomp.log") == 0:
             break
         log = (game / "recomp.log").read_text(errors="replace")
         bad = re.search(r"Error recompiling (\S+)", log)
         if not bad:
             sys.exit("N64Recomp falhou sem dizer a função:\n" + log[-2000:])
-        stubs.append(bad[1])
+        name = bad[1]
+        st = re.fullmatch(r"static_\d+_([0-9A-F]{8})", name)
+        if st and name not in (game / "syms.toml").read_text():
+            # função que o N64Recomp achou sozinho (sem entrada no syms): vira entrada (extra.txt) e stub pelo nosso nome
+            with open(game / "extra.txt", "a") as f:
+                f.write(f"0x{st[1]}\n")
+            with open(game / "stubs.txt", "a") as f:
+                f.write(f"func_{st[1]}\n")
+            subprocess.run([sys.executable, str(HERE / "gen_syms.py"), rom, str(game), sigs, str(rt)], check=True,
+                           stdout=subprocess.DEVNULL)
+            if __import__("os").environ.get("ADAPT_TRACE"):
+                cfg.write_text(cfg.read_text().replace("[input]\n", "[input]\ntrace_mode = true\n", 1))
+            syms = re.findall(r'name = "([^"]+)", vram = 0x([0-9A-F]+)', (game / "syms.toml").read_text())
+            stubs = [n for n, v in syms if v.upper() == st[1]] + stubs
+            cfg.write_text(re.sub(r"stubs = \[.*?\]", "stubs = [" + ", ".join(f'"{x}"' for x in stubs) + "]", cfg.read_text(), flags=re.S))
+            continue
+        if name not in (game / "syms.toml").read_text():  # nome interno do N64Recomp (static_N_ADDR): volta ao do syms
+            m = re.search(r"([0-9A-F]{8})$", name)
+            cand = re.findall(rf'name = "([^"]+)", vram = 0x{m[1]}' if m else r"$^", (game / "syms.toml").read_text())
+            name = next((c for c in cand if c not in stubs), name)
+        if name in stubs:
+            sys.exit(f"N64Recomp insiste em {bad[1]} mesmo com stub")
+        stubs.append(name)
         text = cfg.read_text()
         cfg.write_text(re.sub(r"stubs = \[.*?\]", "stubs = [" + ", ".join(f'"{s}"' for s in stubs) + "]", text, flags=re.S))
     else:

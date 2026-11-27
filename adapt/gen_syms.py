@@ -92,6 +92,22 @@ def args_stored(code, base, start):
     return len(seen)
 
 
+def merge_spans(spans, pairs):
+    """spans: [(vram, tamanho, nome)] em ordem. pairs: (origem, destino) de desvios que saíram da função (o C não compila:
+    "undeclared label"). Junta tudo entre a função da origem e a do destino numa função só."""
+    spans = sorted(spans)
+    for src, dst in pairs:
+        idx = lambda x: next((i for i, (v, sz, _) in enumerate(spans) if v <= x < v + sz), None)
+        i, j = idx(src), idx(dst)
+        if i is None or j is None or i == j:
+            continue
+        i, j = min(i, j), max(i, j)
+        v = spans[i][0]
+        end = spans[j][0] + spans[j][1]
+        spans[i:j + 1] = [(v, end - v, spans[i][2])]
+    return spans
+
+
 def runtime_names(rt):
     """Funções da libultra que o N64Recomp troca por <nome>_recomp (reimplemented_funcs) e as que o runtime tem de fato.
     Uma que ele troca e o runtime não tem fica com o nome genérico: o código do jogo é recompilado como qualquer outro."""
@@ -117,12 +133,50 @@ def main(rom, out, sigs, rt):
     yaml = next(p for p in out.glob("*.yaml"))
     text = yaml.read_text()
     (e_rom, e_vram), (m_rom, m_vram, m_end) = segments(text)
+    # Overlays: blocos de código fora do principal, com o vram descoberto por votação (overlays.py), viram segmentos
+    # de código no yaml antes do split.
+    data = Path(rom).read_bytes()
+    import overlays as ovl_mod
+    tail = re.search(r"\n  - type: bin\n    start: (0x[0-9A-Fa-f]+)\n    follows_vram: main\n.*", text, re.S)
+    ovls = []
+    if tail:
+        bin_start = int(tail[1], 16)
+        main_hi = m_vram + (bin_start - m_rom) + 0x200000  # principal + bss (folga)
+        ovls = ovl_mod.find(data, bin_start, (m_vram, main_hi))
+        # DMAs que a execução viu (dmas.txt: rom destino tamanho) dão as seções exatas: trocam os blocos estimados
+        dmas = []
+        if (out / "dmas.txt").exists():
+            for l in (out / "dmas.txt").read_text().splitlines():
+                p = l.split()
+                if len(p) == 3:
+                    r, v, n = (int(x, 16) for x in p)
+                    v |= 0x80000000
+                    if r >= bin_start and not (m_vram <= v < main_hi) and data[r:r + n].count(ovl_mod.JR_RA) >= 3:
+                        dmas.append((r, r + n, v, 0))
+        if dmas:
+            exact, seen = [], set()
+            for d in sorted(dmas):
+                if d[0] in seen or any(e[0] < d[1] and d[0] < e[1] for e in exact):
+                    continue
+                seen.add(d[0]); exact.append(d)
+            ovls = sorted(exact + [o for o in ovls if not any(e[0] < o[1] and o[0] < e[1] for e in exact)])
+        segs, pos = [], bin_start
+        for a, b, base, _ in ovls:
+            if a > pos:
+                segs.append(f"  - [0x{pos:X}, bin]")
+            segs += [f"  - name: ovl_{a:X}", "    type: code", f"    start: 0x{a:X}", f"    vram: 0x{base:08X}",
+                     "    subsegments:", f"      - [0x{a:X}, asm]"]
+            pos = b
+        if pos < len(data):
+            segs.append(f"  - [0x{pos:X}, bin]")
+        segs.append(f"  - [0x{len(data):X}]")
+        text = text[:tail.start()] + "\n" + "\n".join(segs) + "\n"
+        yaml.write_text(text)
     subprocess.run([py, "-m", "splat", "split", yaml.name], cwd=out, check=True, stdout=subprocess.DEVNULL)
 
     asm = (out / "asm" / f"{m_rom:X}.s").read_text()
     funcs = [(n, int(s, 16)) for n, s in re.findall(r"^nonmatching (\S+), (0x[0-9A-Fa-f]+)", asm, re.M)]
     addr = {n: int(n.split("_")[-1], 16) for n, _ in funcs if re.fullmatch(r"func_[0-9A-F]{8}", n)}
-    data = Path(rom).read_bytes()
     code = data[m_rom:m_end]
     found = scan(load_sigs(sigs), code, m_vram, [a - m_vram for a in addr.values()])
 
@@ -130,7 +184,8 @@ def main(rom, out, sigs, rt):
     # descoberta escreve a partir de "Failed to find function at". Cada uma corta a função que a contém.
     extra = out / "extra.txt"
     if extra.exists():
-        cuts = sorted({int(x, 16) for x in extra.read_text().split()})
+        all_cuts = sorted({int(x, 16) for x in extra.read_text().split()})
+        cuts = [c for c in all_cuts if m_vram <= c < m_vram + (m_end - m_rom)]
         spans = sorted((addr[n], n, size) for n, size in funcs if n in addr)
         new = []
         for start, n, size in spans:
@@ -146,6 +201,14 @@ def main(rom, out, sigs, rt):
                 new.append((nm, min(x for x in starts if x > c) - c))
                 addr[nm] = c
         funcs = new
+    if not extra.exists():
+        all_cuts = []
+    merges = []
+    if (out / "merge.txt").exists():
+        merges = [tuple(int(x, 16) for x in l.split()) for l in (out / "merge.txt").read_text().splitlines() if l.strip()]
+    if merges:
+        spans = merge_spans([(addr[n], sz, n) for n, sz in funcs if n in addr], merges)
+        funcs = [(n, sz) for _, sz, n in spans]
     found.update(by_error_codes(code, m_vram, addr, found))
     reimpl, impl = runtime_names(rt)
     entries, names = [], set()
@@ -170,6 +233,34 @@ def main(rom, out, sigs, rt):
         "[[section]]", 'name = ".main"', f"rom = 0x{m_rom:08X}", f"vram = 0x{m_vram:08X}", f"size = 0x{m_end - m_rom:X}", "",
         "functions = [", *entries, "]", "",
     ]
+    for a, b, base, _ in ovls:
+        f = out / "asm" / f"{a:X}.s"
+        if not f.exists():
+            continue
+        # em overlay o spimdisasm nem sempre põe o tamanho: vai até o próximo rótulo (função ou dado)
+        txt = f.read_text()
+        heads = list(re.finditer(r"^nonmatching ([A-Za-z]+)_([0-9A-F]{8})\b", txt, re.M))
+        # um rótulo de função cujo corpo tem instrução inválida é dado que o spimdisasm leu como código: fica de fora
+        bad = {int(m[2], 16) for m, nxt in zip(heads, heads[1:] + [None])
+               if m[1] == "func" and "invalid instruction" in txt[m.end():nxt.start() if nxt else len(txt)]}
+        labels = sorted((int(m[2], 16), "data" if int(m[2], 16) in bad else m[1]) for m in heads)
+        ends = [v for v, _ in labels[1:]] + [base + (b - a)]
+        spans = [(v, e - v, f"func_{v:08X}_ovl{a:X}") for (v, k), e in zip(labels, ends) if k == "func" and e > v]
+        for c in all_cuts:  # entradas que a execução revelou dentro deste overlay
+            if base <= c < base + (b - a) and not any(v == c for v, _, _ in spans):
+                inside = [(v, sz, n) for v, sz, n in spans if v < c < v + sz]
+                if inside:
+                    v, sz, n = inside[0]
+                    spans.remove(inside[0])
+                    spans += [(v, c - v, n), (c, v + sz - c, f"func_{c:08X}_ovl{a:X}")]
+                else:
+                    nxt = min([v for v, _, _ in spans if v > c] + [base + (b - a)])
+                    spans.append((c, nxt - c, f"func_{c:08X}_ovl{a:X}"))
+        spans = merge_spans(spans, merges)
+        fl = [f'    {{ name = "{n}", vram = 0x{v:08X}, size = 0x{sz:X} }},' for v, sz, n in spans]
+        if fl:
+            toml += ["[[section]]", f'name = ".ovl_{a:X}"', f"rom = 0x{a:08X}", f"vram = 0x{base:08X}",
+                     f"size = 0x{b - a:X}", "", "functions = [", *fl, "]", ""]
     (out / "syms.toml").write_text("\n".join(toml))
     (out / "game.toml").write_text("\n".join([
         "[input]", f"entrypoint = 0x{e_vram:08X}", 'symbols_file_path = "syms.toml"', 'rom_file_path = "rom.z64"',
