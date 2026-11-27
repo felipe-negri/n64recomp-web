@@ -408,6 +408,32 @@
         ]
       ],
       "rom_dest": ".local/share/Pilotwings64Recomp/pilotwings64.us.z64"
+    },
+    "cf806ff2603640a748fca5026ded28802f1f4a50": {
+      "title": "Donkey Kong 64 (USA)",
+      "repo": "https://github.com/n64hub/Donkey-Kong-64-Recompiled-web",
+      "commit": "eb7fcdca830f6d8a6494f3ee31e7d6640f31c883",
+      "target": "DK64Recompiled",
+      "prep": {
+        "dk64_decompress": "donkeykong64.decompressed.us.z64"
+      },
+      "browser_patches": true,
+      "tools": true,
+      "recomp": [
+        [
+          "./N64Recomp",
+          "us.toml"
+        ],
+        [
+          "./RSPRecomp",
+          "n_aspMain.toml"
+        ]
+      ],
+      "cmake": [
+        "-DPATCHES_C_COMPILER=clang",
+        "-DPATCHES_LD=ld.lld"
+      ],
+      "rom_dest": ".config/DK64Recompiled/DK64.z64"
     }
   }
 }

@@ -76,6 +76,9 @@ def main(name, rom_path):
         if kind == "mm_decompress":
             (src / ".rom.z64").write_bytes(rom)
             run([sys.executable, str(ROOT / "hub/mm_decompress.py"), str(src / ".rom.z64"), str(src / dest)], quiet=True)
+        elif kind == "dk64_decompress":
+            (src / ".rom.z64").write_bytes(rom)
+            run([sys.executable, str(ROOT / "hub/dk64_decompress.py"), str(src / ".rom.z64"), str(src / dest)], quiet=True)
         elif kind == "copy":
             (src / dest).parent.mkdir(parents=True, exist_ok=True)
             (src / dest).write_bytes(rom)
