@@ -154,7 +154,9 @@ def main(rom, out, sigs, rt):
         if vram is None:  # nome que o splat já deu (main etc.): pega o endereço pelo glabel seguido do código
             continue
         name = found.get(vram, (None, n))[1]
-        if name in reimpl and name not in impl:
+        # Só ficam os nomes que o N64Recomp troca pelo runtime (ou ignora) e que o runtime tem de fato. Os demais
+        # (abs, fabsf, inflateInit_...) batem com a libc do host e o código do jogo é recompilado como qualquer outro.
+        if name not in reimpl or name not in impl:
             name = n
         if name in names and not (name in reimpl and name in impl):  # a mesma função da lib em duas versões
             name = f"{name}_{vram:08X}"  # (as que o runtime troca podem repetir: todas viram a dele)

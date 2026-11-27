@@ -7,6 +7,7 @@ rom="$1"; game="$2"; rounds="${3:-8}"
 A=/mnt/jogos/n64-web/adapt; Z=/mnt/jogos/n64-web/work/Zelda64Recomp-web-665db5a9f45e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source /mnt/jogos/n64-web/emsdk/emsdk_env.sh > /dev/null 2>&1
+exec 9> "$A/runner.lock"; flock 9  # o runner é um só: uma descoberta por vez
 for i in $(seq 1 "$rounds"); do
   echo "== volta $i"
   "$A/.venv/bin/python" "$HERE/recomp.py" "$rom" "$game" "$A/runner" "$Z/N64Recomp" "$Z/RSPRecomp" \
