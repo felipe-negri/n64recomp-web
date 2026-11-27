@@ -482,6 +482,19 @@
         ]
       ],
       "rom_dest": ".config/Rush2049Recompiled/rush2049.n64.us.z64"
+    },
+    "458ac754cd8e08c46f4c5c9204192ecde84a179d": {
+      "title": "Tony Hawk's Pro Skater 2 (USA)",
+      "repo": "https://github.com/n64hub/THPS2-64Recomp-web",
+      "commit": "1eed24edb96914c35ab46548416cdddf6dd40ffd",
+      "target": "thps2_recomp",
+      "script": [
+        "bash",
+        "tools/build_web.sh",
+        "{rom}"
+      ],
+      "out": "decomp/thps2/recomp-host/build/web",
+      "rom_dest": ".config/THPS2-64Recomp/thps2.n64.us.z64"
     }
   }
 }
