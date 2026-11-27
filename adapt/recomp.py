@@ -39,9 +39,26 @@ def main(rom, game, runner, n64recomp, rsprecomp, sigs, ucode_lib):
     if stubs:
         cfg.write_text(re.sub(r"stubs = \[.*?\]", "stubs = [" + ", ".join(f'"{s}"' for s in stubs) + "]", cfg.read_text(), flags=re.S))
     for _ in range(1500):
+        shutil.rmtree(game / "RecompiledFuncs", ignore_errors=True)  # o N64Recomp não apaga arquivos de mapas antigos
         if run([n64recomp, "game.toml"], game, game / "recomp.log") == 0:
             break
         log = (game / "recomp.log").read_text(errors="replace")
+        # desvio para fora da função: a divisão estava errada, junta (merge.txt); jal para endereço sem função: vira
+        # entrada (extra.txt). Os dois regeram o syms; o resto vira stub.
+        br = re.search(r"Unhandled branch in \S+ at 0x([0-9A-Fa-f]+) to 0x([0-9A-Fa-f]+)", log)
+        nj = re.search(r"No function found for jal target: 0x([0-9A-Fa-f]+)", log)
+        fix = (game / "merge.txt", f"0x{br[1]} 0x{br[2]}") if br else (game / "extra.txt", f"0x{nj[1]}") if nj else None
+        if fix and fix[1] not in (fix[0].read_text() if fix[0].exists() else ""):
+            with open(fix[0], "a") as f:
+                f.write(fix[1] + "\n")
+            subprocess.run([sys.executable, str(HERE / "gen_syms.py"), rom, str(game), sigs, str(rt)], check=True,
+                           stdout=subprocess.DEVNULL)
+            if __import__("os").environ.get("ADAPT_TRACE"):
+                cfg.write_text(cfg.read_text().replace("[input]\n", "[input]\ntrace_mode = true\n", 1))
+            names = set(re.findall(r'name = "([^"]+)"', (game / "syms.toml").read_text()))
+            stubs = [x for x in stubs if x in names]
+            cfg.write_text(re.sub(r"stubs = \[.*?\]", "stubs = [" + ", ".join(f'"{x}"' for x in stubs) + "]", cfg.read_text(), flags=re.S))
+            continue
         bad = re.search(r"Error recompiling (\S+)", log)
         if not bad:
             sys.exit("N64Recomp falhou sem dizer a função:\n" + log[-2000:])

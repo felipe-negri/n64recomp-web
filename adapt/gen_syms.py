@@ -233,29 +233,16 @@ def main(rom, out, sigs, rt):
         "[[section]]", 'name = ".main"', f"rom = 0x{m_rom:08X}", f"vram = 0x{m_vram:08X}", f"size = 0x{m_end - m_rom:X}", "",
         "functions = [", *entries, "]", "",
     ]
+    import flow
+    main_ws = flow.words(data, m_rom, m_end - m_rom)
     for a, b, base, _ in ovls:
-        f = out / "asm" / f"{a:X}.s"
-        if not f.exists():
-            continue
-        # em overlay o spimdisasm nem sempre põe o tamanho: vai até o próximo rótulo (função ou dado)
-        txt = f.read_text()
-        heads = list(re.finditer(r"^nonmatching ([A-Za-z]+)_([0-9A-F]{8})\b", txt, re.M))
-        # um rótulo de função cujo corpo tem instrução inválida é dado que o spimdisasm leu como código: fica de fora
-        bad = {int(m[2], 16) for m, nxt in zip(heads, heads[1:] + [None])
-               if m[1] == "func" and "invalid instruction" in txt[m.end():nxt.start() if nxt else len(txt)]}
-        labels = sorted((int(m[2], 16), "data" if int(m[2], 16) in bad else m[1]) for m in heads)
-        ends = [v for v, _ in labels[1:]] + [base + (b - a)]
-        spans = [(v, e - v, f"func_{v:08X}_ovl{a:X}") for (v, k), e in zip(labels, ends) if k == "func" and e > v]
-        for c in all_cuts:  # entradas que a execução revelou dentro deste overlay
-            if base <= c < base + (b - a) and not any(v == c for v, _, _ in spans):
-                inside = [(v, sz, n) for v, sz, n in spans if v < c < v + sz]
-                if inside:
-                    v, sz, n = inside[0]
-                    spans.remove(inside[0])
-                    spans += [(v, c - v, n), (c, v + sz - c, f"func_{c:08X}_ovl{a:X}")]
-                else:
-                    nxt = min([v for v, _, _ in spans if v > c] + [base + (b - a)])
-                    spans.append((c, nxt - c, f"func_{c:08X}_ovl{a:X}"))
+        # funções pelo fluxo a partir das entradas (jal e ponteiros do próprio overlay e do principal, mais as que a
+        # execução revelou): o que não é alcançado é dado e fica fora
+        n = b - a
+        ent = flow.entries_from_code(flow.words(data, a, n), base, base, base + n)
+        ent |= flow.entries_from_code(main_ws, m_vram, base, base + n)
+        ent |= {c for c in all_cuts if base <= c < base + n}
+        spans = [(v, sz, f"func_{v:08X}_ovl{a:X}") for v, sz in flow.functions(data, a, base, n, ent)]
         spans = merge_spans(spans, merges)
         fl = [f'    {{ name = "{n}", vram = 0x{v:08X}, size = 0x{sz:X} }},' for v, sz, n in spans]
         if fl:

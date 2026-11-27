@@ -38,7 +38,10 @@ PY
 )
     if [ -z "$m" ]; then grep -E "error" "$game/build.log" | head -5; exit 1; fi
     echo "$m" | grep -v '^stub ' | tee -a "$game/merge.txt"
-    echo "$m" | grep '^stub ' | awk '{print $2}' | tee -a "$game/stubs.txt"; continue
+    echo "$m" | grep '^stub ' | awk '{print $2}' | tee -a "$game/stubs.txt"
+    # função que só o N64Recomp conhecia (static_N_ADDR): vira entrada do mapa, para o stub pegar pelo nosso nome
+    echo "$m" | grep -oE '^stub static_[0-9]+_[0-9A-F]{8}' | sed -E 's/.*_([0-9A-F]{8})$/0x\1/' >> "$game/extra.txt"
+    continue
   fi
   hash=$(grep -oE "0x[0-9a-f]{16}" "$A/runner/include/adapt_game.h" | head -1 | cut -c3-)
   rm -rf "$game/page" && mkdir -p "$game/page" && B="$A/runner/build-web"
