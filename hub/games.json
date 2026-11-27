@@ -450,6 +450,38 @@
       ],
       "out": "build-web",
       "rom_dest": ".config/BeetleRecomp/bar.n64.us.z64"
+    },
+    "3f99351d7bb61656614bdb2aa1a90cfe55d1922c": {
+      "title": "San Francisco Rush 2049 (USA)",
+      "repo": "https://github.com/n64hub/rush-2049-recomp",
+      "commit": "9e18f900887d39df8cdc51a2cd903dee904fab9b",
+      "target": "Rush2049Recompiled",
+      "pip": [
+        "spimdisasm",
+        "rabbitizer",
+        "numpy"
+      ],
+      "pre": [
+        [
+          "bash",
+          "tools/apply_runtime_patches.sh"
+        ],
+        [
+          "python",
+          "-I",
+          "tools/extract.py",
+          "{rom}"
+        ]
+      ],
+      "recomp": [
+        [
+          "bash",
+          "tools/recompile.sh",
+          "-DCMAKE_C_COMPILER=clang",
+          "-DCMAKE_CXX_COMPILER=clang++"
+        ]
+      ],
+      "rom_dest": ".config/Rush2049Recompiled/rush2049.n64.us.z64"
     }
   }
 }
