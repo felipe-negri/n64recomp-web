@@ -1,5 +1,5 @@
 {
-  "_": "Ports que o scripts/port.sh sabe montar, pela SHA-1 da ROM (.z64, big-endian). repo/commit: o port web do jogo; prep: como a ROM vira a entrada do recompilador (hub/port.py); tools: compilar N64Recomp/RSPRecomp/OfflineModRecomp do runtime na raiz; recomp: comandos rodados na raiz do checkout; rom_dest: onde o runtime guarda a ROM no HOME da página (.config/<program id>/<game id>.z64).",
+  "_": "Ports que o scripts/port.sh sabe montar, pela SHA-1 da ROM (.z64, big-endian). repo/commit: o port web do jogo; prep: como a ROM vira a entrada do recompilador (hub/port.py); tools: compilar N64Recomp/RSPRecomp/OfflineModRecomp do runtime na raiz; recomp: comandos rodados na raiz do checkout; browser_patches: aplicar os patches do N64Recomp-browser em lib/ (os ports do próprio n64hub aplicam os seus no CMake); rom_dest: onde o runtime guarda a ROM no HOME da página (.config/<program id>/<game id>.z64).",
   "games": {
     "d6133ace5afaa0882cf214cf88daba39e266c078": {
       "title": "The Legend of Zelda: Majora's Mask (USA)",
@@ -28,7 +28,8 @@
         "-DPATCHES_C_COMPILER=clang",
         "-DPATCHES_LD=ld.lld"
       ],
-      "rom_dest": ".config/Zelda64Recompiled/mm.n64.us.1.0.z64"
+      "rom_dest": ".config/Zelda64Recompiled/mm.n64.us.1.0.z64",
+      "browser_patches": true
     },
     "9bef1128717f958171a4afac3ed78ee2bb4e86ce": {
       "title": "Super Mario 64 (USA)",
@@ -47,6 +48,186 @@
         ]
       ],
       "rom_dest": ".config/SuperMario64Recompiled/sm64.n64.us.1.0.z64"
+    },
+    "5f658e88ffa9de23cba6986a8fd3d3a90d7b4340": {
+      "title": "F-Zero X (USA)",
+      "repo": "https://github.com/n64hub/f-zero-x-recomp",
+      "commit": "18962a5e98b8894e324060d07a7633b4fa98cdc3",
+      "target": "FZeroXRecompiled",
+      "prep": {
+        "copy": "roms/fzerox.us.z64"
+      },
+      "recomp": [
+        [
+          "bash",
+          "tools/recompile.sh",
+          "-DCMAKE_C_COMPILER=clang",
+          "-DCMAKE_CXX_COMPILER=clang++"
+        ]
+      ],
+      "rom_dest": ".config/FZeroXRecompiled/fzerox.n64.us.1.0.z64"
+    },
+    "1159bd56730094bfc71be30113e1cfc8bacf34f3": {
+      "title": "Mario Party (USA)",
+      "repo": "https://github.com/n64hub/mario-party-recomp",
+      "commit": "d8b5cd0848bb075207bba76d5812c41817c3026a",
+      "target": "MarioPartyRecompiled",
+      "prep": {
+        "copy": "roms/marioparty.us.z64"
+      },
+      "recomp": [
+        [
+          "bash",
+          "tools/recompile.sh",
+          "-DCMAKE_C_COMPILER=clang",
+          "-DCMAKE_CXX_COMPILER=clang++"
+        ]
+      ],
+      "rom_dest": ".config/MarioPartyRecompiled/marioparty.n64.us.1.0.z64"
+    },
+    "166eda1c05670d337e2c3f15a5db528ae1e5d6e3": {
+      "title": "Mario Party 2 (USA)",
+      "repo": "https://github.com/n64hub/mario-party-2-recomp",
+      "commit": "da793c3d33a6d607fc0877187d0cf13046e48925",
+      "target": "MarioParty2Recompiled",
+      "prep": {
+        "copy": "roms/marioparty2.us.z64"
+      },
+      "recomp": [
+        [
+          "bash",
+          "tools/recompile.sh",
+          "-DCMAKE_C_COMPILER=clang",
+          "-DCMAKE_CXX_COMPILER=clang++"
+        ]
+      ],
+      "rom_dest": ".config/MarioParty2Recompiled/marioparty2.n64.us.1.0.z64"
+    },
+    "6beb80ff822b96bcf85dcdb512e8b2b7969d8259": {
+      "title": "Mario Party 3 (USA)",
+      "repo": "https://github.com/n64hub/mario-party-3-recomp",
+      "commit": "392811a8933c1516fea8d6f559cd7ad05e6bb599",
+      "target": "MarioParty3Recompiled",
+      "prep": {
+        "copy": "roms/marioparty3.us.z64"
+      },
+      "recomp": [
+        [
+          "bash",
+          "tools/recompile.sh",
+          "-DCMAKE_C_COMPILER=clang",
+          "-DCMAKE_CXX_COMPILER=clang++"
+        ]
+      ],
+      "rom_dest": ".config/MarioParty3Recompiled/marioparty3.n64.us.1.0.z64"
+    },
+    "3837f44cda784b466c9a2d99df70d77c322b97a0": {
+      "title": "Paper Mario (USA)",
+      "repo": "https://github.com/n64hub/paper-mario-recomp",
+      "commit": "60e43be3086d6bd24f9b2f4c45aa49c61725a53a",
+      "target": "PaperMarioRecompiled",
+      "prep": {
+        "copy": "roms/papermario.us.z64"
+      },
+      "recomp": [
+        [
+          "bash",
+          "tools/recompile.sh",
+          "-DCMAKE_C_COMPILER=clang",
+          "-DCMAKE_CXX_COMPILER=clang++"
+        ]
+      ],
+      "rom_dest": ".config/PaperMarioRecompiled/papermario.n64.us.1.0.z64"
+    },
+    "e2c4e7a905b29529b49a1619a401fe699224829b": {
+      "title": "Mario Golf (USA)",
+      "repo": "https://github.com/n64hub/mario-golf-recomp",
+      "commit": "b1dc89618bfc337d61a00763d176f0fd6dee818b",
+      "target": "MarioGolfRecompiled",
+      "prep": {
+        "copy": "roms/mariogolf64.us.z64"
+      },
+      "recomp": [
+        [
+          "bash",
+          "tools/recompile.sh",
+          "-DCMAKE_C_COMPILER=clang",
+          "-DCMAKE_CXX_COMPILER=clang++"
+        ]
+      ],
+      "rom_dest": ".config/MarioGolfRecompiled/mariogolf64.n64.us.1.0.z64"
+    },
+    "50558356b059ad3fbaf5fe95380512b9dceaaf52": {
+      "title": "Rayman 2: The Great Escape (USA)",
+      "repo": "https://github.com/n64hub/rayman-2-recomp",
+      "commit": "b00425b27156e0814bc0b0e9d617e54ca65dda45",
+      "target": "Rayman2Recompiled",
+      "prep": {
+        "copy": "roms/rayman2.us.z64"
+      },
+      "recomp": [
+        [
+          "bash",
+          "tools/recompile.sh",
+          "-DCMAKE_C_COMPILER=clang",
+          "-DCMAKE_CXX_COMPILER=clang++"
+        ]
+      ],
+      "rom_dest": ".config/Rayman2Recompiled/rayman2.n64.us.1.0.z64"
+    },
+    "e31a7567d408c890065029ba537f830765b17d94": {
+      "title": "Donald Duck: Goin' Quackers (USA)",
+      "repo": "https://github.com/n64hub/donald-duck-goin-quackers-recomp",
+      "commit": "321c636d287204cc2c0d4fa3f2d416634b5cc3bd",
+      "target": "GoinQuackersRecompiled",
+      "prep": {
+        "copy": "roms/ddgq.us.z64"
+      },
+      "recomp": [
+        [
+          "bash",
+          "tools/recompile.sh",
+          "-DCMAKE_C_COMPILER=clang",
+          "-DCMAKE_CXX_COMPILER=clang++"
+        ]
+      ],
+      "rom_dest": ".config/GoinQuackersRecompiled/ddgq.n64.us.1.0.z64"
+    },
+    "c2fac422af135409c1b38569b309f9d452c81c35": {
+      "title": "Excitebike 64 (USA, Rev 1)",
+      "repo": "https://github.com/n64hub/excitebike-64-recomp",
+      "commit": "12f2940bf7e67835684a53636533623d6f496acd",
+      "target": "Excitebike64Recompiled",
+      "prep": {
+        "copy": "roms/excitebike64.us.z64"
+      },
+      "recomp": [
+        [
+          "bash",
+          "tools/recompile.sh",
+          "-DCMAKE_C_COMPILER=clang",
+          "-DCMAKE_CXX_COMPILER=clang++"
+        ]
+      ],
+      "rom_dest": ".config/Excitebike64Recompiled/excitebike64.n64.us.1.1.z64"
+    },
+    "a2e0a28dc0d3a48c7c02cb9e4c4b38fe04b2d436": {
+      "title": "Turok 3: Shadow of Oblivion (USA)",
+      "repo": "https://github.com/n64hub/turok-3-recomp",
+      "commit": "f2788fdda553e84584d78a8140095e60847da608",
+      "target": "Turok3Recompiled",
+      "prep": {
+        "copy": "roms/turok3.us.z64"
+      },
+      "recomp": [
+        [
+          "bash",
+          "tools/recompile.sh",
+          "-DCMAKE_C_COMPILER=clang",
+          "-DCMAKE_CXX_COMPILER=clang++"
+        ]
+      ],
+      "rom_dest": ".config/Turok3Recompiled/turok3.n64.us.z64"
     }
   }
 }

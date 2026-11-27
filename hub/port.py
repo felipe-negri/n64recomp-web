@@ -71,7 +71,7 @@ def main(name, rom_path):
         run(["git", "checkout", "-q", game["commit"]], cwd=src)
         run(["git", "submodule", "update", "-q", "--init", "--recursive", "--jobs", "8"], cwd=src)
 
-    step(3, "preparando a ROM e aplicando os patches web")
+    step(3, "preparando a ROM")
     for kind, dest in game.get("prep", {}).items():
         if kind == "mm_decompress":
             (src / ".rom.z64").write_bytes(rom)
@@ -82,7 +82,8 @@ def main(name, rom_path):
         else:
             sys.exit(f"prep desconhecido: {kind}")
     (src / ".rom.z64").unlink(missing_ok=True)
-    run(["cmake", "-P", "lib/N64Recomp-browser/patches/apply.cmake", "lib"], cwd=src, quiet=True)
+    if game.get("browser_patches"):
+        run(["cmake", "-P", "lib/N64Recomp-browser/patches/apply.cmake", "lib"], cwd=src, quiet=True)
 
     step(4, "recompilando o código do jogo (N64Recomp)")
     if game.get("tools"):  # N64Recomp/RSPRecomp/OfflineModRecomp do runtime já com patch, na raiz do checkout
