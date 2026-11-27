@@ -241,8 +241,12 @@
       ],
       "out": "build-web",
       "rom_dest": ".config/BanjoTooieRecompiled/bt.n64.us.1.0.z64",
-      "pip": [
-        "rabbitizer"
+      "pre": [
+        [
+          "bash",
+          "-c",
+          "[ -x build/venv/bin/python3 ] && build/venv/bin/python3 -c 'import rabbitizer' 2>/dev/null && exit 0; rm -rf build/venv && python3 -m venv --system-site-packages build/venv && { build/venv/bin/python3 -c 'import rabbitizer' 2>/dev/null || build/venv/bin/pip install -q rabbitizer; }"
+        ]
       ]
     },
     "01b0a31b1accc18061e8c85f6c5edf0dbd79f097": {

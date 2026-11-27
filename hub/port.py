@@ -102,6 +102,8 @@ def main(name, rom_path):
     if game.get("script"):  # o port tem o próprio build web (patches, recompilação e Emscripten): roda ele
         step(4, "rodando o build web do próprio port")
         env = dict(env, PATH=f"{naga.parent}:{env['PATH']}")
+        for cmd in game.get("pre", []):
+            run(sub(cmd), cwd=src, env=env, quiet=True)
         run(sub(game["script"]), cwd=src, env=env, quiet=True)
         step(5, "build web concluído")
         build = src / game["out"]
