@@ -1,5 +1,5 @@
 {
-  "_": "Ports que o scripts/port.sh sabe montar, pela SHA-1 da ROM (.z64, big-endian). repo/commit: o port web do jogo; prep: como a ROM vira a entrada do recompilador (hub/port.py); pip: pacotes Python num venv; pre: comandos antes das ferramentas; tools: compilar N64Recomp/RSPRecomp/OfflineModRecomp do runtime na raiz; recomp: comandos rodados na raiz do checkout; browser_patches: aplicar os patches do N64Recomp-browser em lib/ (os ports do próprio n64hub aplicam os seus no CMake); script/out: o port tem build web próprio ({rom} = a ROM), que deixa a página em <out>/<target>.html; rom_dest: onde o runtime guarda a ROM no HOME da página (.config/<program id>/<game id>.z64).",
+  "_": "Ports que o scripts/port.sh sabe montar, pela SHA-1 da ROM (.z64, big-endian). repo/commit: o port web do jogo; prep: como a ROM vira a entrada do recompilador (hub/port.py); pip: pacotes Python num venv; pre: comandos antes das ferramentas; tools: compilar N64Recomp/RSPRecomp/OfflineModRecomp do runtime na raiz; recomp: comandos rodados na raiz do checkout; browser_patches: aplicar os patches do N64Recomp-browser em lib/ (os ports do próprio n64hub aplicam os seus no CMake); script/out: o port tem build web próprio ({rom} = a ROM), que deixa a página em <out>/<target>.html; web_src/out: pasta do CMakeLists.txt da página e do build web (padrão . e build-web); rom_dest: onde o runtime guarda a ROM no HOME da página (.config/<program id>/<game id>.z64).",
   "games": {
     "d6133ace5afaa0882cf214cf88daba39e266c078": {
       "title": "The Legend of Zelda: Majora's Mask (USA)",
@@ -369,6 +369,22 @@
         ]
       ],
       "rom_dest": ".config/MarioTennisRecompiled/mt.n64.us.z64"
+    },
+    "4cbadd3c4e0729dec46af64ad018050eada4f47a": {
+      "title": "Conker's Bad Fur Day (USA)",
+      "repo": "https://github.com/n64hub/CBFD-Recompiled-web",
+      "commit": "729ee17681f56d6510babe9d980f735717809d5d",
+      "target": "ConkerRecomp",
+      "recomp": [
+        [
+          "sh",
+          "build.sh",
+          "{rom}"
+        ]
+      ],
+      "web_src": "host",
+      "out": "host/build-web",
+      "rom_dest": ".config/ConkerRecompiled/conker.n64.us.1.0.z64"
     }
   }
 }

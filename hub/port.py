@@ -117,13 +117,14 @@ def main(name, rom_path):
             run(sub(cmd), cwd=src, env=env, quiet=True)
 
         step(5, "compilando para WebAssembly (demora: ~30-60 min no primeiro build)")
-        build = src / "build-web"
+        web_src = src / game.get("web_src", ".")  # onde está o CMakeLists.txt da página
+        build = src / game.get("out", "build-web")
         if not (build / "build.ninja").exists():
             run(["embuilder", "build", "sdl2-mt", "freetype-legacysjlj"], env=env, quiet=True)
-            run(["emcmake", "cmake", "-S", ".", "-B", "build-web", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
+            run(["emcmake", "cmake", "-S", str(web_src), "-B", str(build), "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
                  f"-DRT64_NAGA_EXECUTABLE={naga}",
                  *game.get("cmake", [])], cwd=src, env=env, quiet=True)
-        run(["cmake", "--build", "build-web", "--target", game["target"]], cwd=src, env=env, quiet=True)
+        run(["cmake", "--build", str(build), "--target", game["target"]], cwd=src, env=env, quiet=True)
 
     step(6, "publicando")
     shutil.rmtree(out, ignore_errors=True)
