@@ -131,7 +131,8 @@ def main(name, rom_path):
         if (build / f).exists():
             shutil.copy2(build / f, out / f)
     (out / "rom.z64").write_bytes(rom)  # a página guarda a ROM no IndexedDB na 1ª visita (hub_rom.js)
-    (out / "hub-rom.json").write_text(json.dumps({"rom": "rom.z64", "dest": game["rom_dest"], "sha1": sha1}))
+    if game.get("rom_dest"):  # sem rom_dest (launcher próprio do port), o jogador escolhe a ROM no Load ROM da página
+        (out / "hub-rom.json").write_text(json.dumps({"rom": "rom.z64", "dest": game["rom_dest"], "sha1": sha1}))
     (src / ".rom.z64").unlink(missing_ok=True)
     print(f"pronto: {out}", flush=True)
 

@@ -306,6 +306,43 @@
         "-DPATCHES_LD=ld.lld"
       ],
       "rom_dest": ".config/MarioKart64Recompiled/mk64.us.z64"
+    },
+    "79cd1166c365e5809dec9b62e6d40d6032d5db3a": {
+      "title": "1080° Snowboarding (Japan, USA)",
+      "repo": "https://github.com/n64hub/1080-Snowboarding-recomp-web",
+      "commit": "f45211e9d357897a1f07594047acd807153f6ace",
+      "target": "1080SnowboardingRecompiled",
+      "script": [
+        "bash",
+        "tools/build_web.sh",
+        "{rom}"
+      ],
+      "out": "build-web",
+      "rom_dest": ".config/1080SnowboardingRecompiled/1080snowboarding.n64.us.z64"
+    },
+    "edc7c49cc568c045fe48be0d18011c30f393cbaf": {
+      "title": "Pokémon Snap (USA)",
+      "repo": "https://github.com/n64hub/Snap64Recomp-web",
+      "commit": "26334dd2457fbd1605ad08da2ebc0e0220c78cc1",
+      "target": "Snap64Recomp",
+      "script": [
+        "bash",
+        "tools/build_web.sh",
+        "{rom}"
+      ],
+      "out": "build-web"
+    },
+    "3542d5597c8a56ea8f5c63bceae97a24c4c08d58": {
+      "title": "Star Wars Episode I: Racer (USA)",
+      "repo": "https://github.com/n64hub/racer-web",
+      "commit": "b7d69febac271e0c3cef0e2a106323d08267f719",
+      "target": "SWE1Racer",
+      "script": [
+        "bash",
+        "tools/build_web.sh",
+        "{rom}"
+      ],
+      "out": "web-build/build-web"
     }
   }
 }
