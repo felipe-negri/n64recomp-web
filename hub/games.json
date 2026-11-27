@@ -385,6 +385,92 @@
       "web_src": "host",
       "out": "host/build-web",
       "rom_dest": ".config/ConkerRecompiled/conker.n64.us.1.0.z64"
+    },
+    "abe01e4aeb033b6c0836819f549c791b26cfde83": {
+      "title": "GoldenEye 007 (USA)",
+      "repo": "https://github.com/n64hub/GoldenEye64Recomp-web",
+      "commit": "7928cfe03e77deee5b3c02b7a9ded12f81f72bdc",
+      "target": "GoldenRecomp",
+      "prep": {
+        "copy": "baserom.u.z64"
+      },
+      "recomp": [
+        [
+          "bash",
+          "build_linux.sh"
+        ]
+      ],
+      "cmake": [
+        "-DPATCHES_C_COMPILER=clang",
+        "-DPATCHES_LD=ld.lld"
+      ],
+      "rom_dest": ".config/GoldenRecomp/ge007.n64.us.z64"
+    },
+    "ec771aedf54ee1b214c25404fb4ec51cfd43191a": {
+      "title": "Pilotwings 64 (USA)",
+      "repo": "https://github.com/n64hub/pilotwings-64-recomp-web",
+      "commit": "cb1b4f65c1f6acda73e7d9d8a3903580eadb181a",
+      "target": "Pilotwings64Recomp",
+      "pre": [
+        [
+          "python3",
+          "tools/patch_all.py"
+        ],
+        [
+          "cmake",
+          "-P",
+          "lib/N64Recomp-browser/patches/apply.cmake",
+          "rt64",
+          "lib/RT64"
+        ],
+        [
+          "cmake",
+          "-P",
+          "lib/N64Recomp-browser/patches/apply.cmake",
+          "plume",
+          "lib/RT64/src/contrib/plume"
+        ],
+        [
+          "cmake",
+          "-P",
+          "lib/N64Recomp-browser/patches/apply.cmake",
+          "hlslpp",
+          "lib/RT64/src/contrib/hlslpp"
+        ],
+        [
+          "cmake",
+          "-P",
+          "lib/N64Recomp-browser/patches/apply.cmake",
+          "N64ModernRuntime",
+          "lib/N64ModernRuntime"
+        ],
+        [
+          "cmake",
+          "-P",
+          "lib/N64Recomp-browser/patches/apply.cmake",
+          "N64Recomp",
+          "lib/N64ModernRuntime/N64Recomp"
+        ],
+        [
+          "cmake",
+          "-P",
+          "lib/N64Recomp-browser/patches/apply.cmake",
+          "RecompFrontend",
+          "lib/RecompFrontend"
+        ]
+      ],
+      "recomp": [
+        [
+          "bash",
+          "tools/wsl_build_recompiler.sh"
+        ],
+        [
+          "python3",
+          "tools/generate_game.py",
+          "{rom}"
+        ]
+      ],
+      "rom_dest": ".local/share/Pilotwings64Recomp/pilotwings64.us.z64"
     }
   }
 }

@@ -4,7 +4,7 @@
 usage: port.py <nome> <rom>
 Acha o port pela SHA-1 da ROM em hub/games.json, faz checkout do repo do port no commit fixado, prepara a ROM,
 aplica os patches do N64Recomp-browser, recompila o código e compila com Emscripten, e publica em build/web-<nome>/.
-Ambiente: EMSDK (padrão tools/emsdk), NAGA (padrão tools/cargo/bin/naga), N64_WORK (padrão work/, checkouts e builds
+Ambiente: N64_EXTRA_PATH (pastas a mais no PATH), EMSDK (padrão tools/emsdk), NAGA (padrão tools/cargo/bin/naga), N64_WORK (padrão work/, checkouts e builds
 por jogo; ficam para o próximo build do mesmo jogo ser incremental)."""
 import hashlib, json, os, shutil, subprocess, sys
 from pathlib import Path
@@ -85,6 +85,8 @@ def main(name, rom_path):
         run(["cmake", "-P", "lib/N64Recomp-browser/patches/apply.cmake", "lib"], cwd=src, quiet=True)
 
     env = emsdk_env(emsdk)
+    if os.environ.get("N64_EXTRA_PATH"):  # ferramentas do host fora do PATH (ex.: binutils MIPS, xdelta3)
+        env["PATH"] = f"{os.environ['N64_EXTRA_PATH']}:{env['PATH']}"
     (src / ".rom.z64").write_bytes(rom)  # a ROM como .z64, para comandos que a pedem ({rom})
     if game.get("pip"):  # dependências Python do port (ex.: rabbitizer) num venv do checkout, no PATH
         venv = src / ".venv"
