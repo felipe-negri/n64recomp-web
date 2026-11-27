@@ -240,7 +240,10 @@
         "{rom}"
       ],
       "out": "build-web",
-      "rom_dest": ".config/BanjoTooieRecompiled/bt.n64.us.1.0.z64"
+      "rom_dest": ".config/BanjoTooieRecompiled/bt.n64.us.1.0.z64",
+      "pip": [
+        "rabbitizer"
+      ]
     },
     "01b0a31b1accc18061e8c85f6c5edf0dbd79f097": {
       "title": "Rush 2: Extreme Racing USA (USA)",
