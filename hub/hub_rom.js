@@ -1,7 +1,8 @@
-// Linked with --pre-js by scripts/port.sh: a page built for a Recompendium instance finds the player's ROM beside it
-// (hub-rom.json names the file and where the runtime keeps a stored ROM, HOME/.config/<program id>/<game id>.z64), so
-// the launcher offers Start Game with no Load ROM. A page with no hub-rom.json beside it is the upstream page as is.
-// It runs after persistent_home.js has read HOME in from IndexedDB, and fetches the ROM only when HOME has none.
+// Posto inline no fim do <body> da página por hub/port.py: a página montada para uma instância do Recompendium acha a
+// ROM do jogador ao lado dela (hub-rom.json diz o arquivo e onde o runtime guarda uma ROM, HOME/.config/<program id>/
+// <game id>.z64), e o launcher já abre com Start Game. Sem hub-rom.json ao lado, a página fica como a original.
+// Roda depois que persistent_home.js leu o HOME do IndexedDB, e só baixa a ROM quando o HOME não tem uma. FS e
+// add/removeRunDependency são globais do .js do Emscripten (build sem MODULARIZE), já definidos quando o preRun roda.
 if (typeof document !== 'undefined') {
   Module['preRun'] = [].concat(Module['preRun'] || []);
   Module['preRun'].push(() => {

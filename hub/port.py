@@ -87,7 +87,7 @@ def main(name, rom_path):
     env = emsdk_env(emsdk)
     if game.get("script"):  # o port tem o próprio build web (patches, recompilação e Emscripten): roda ele
         step(4, "rodando o build web do próprio port")
-        env = dict(env, PATH=f"{naga.parent}:{env['PATH']}", LDFLAGS=f"--pre-js={ROOT / 'hub/hub_rom.js'}")
+        env = dict(env, PATH=f"{naga.parent}:{env['PATH']}")
         (src / ".rom.z64").write_bytes(rom)
         run([a.replace("{rom}", str(src / ".rom.z64")) for a in game["script"]], cwd=src, env=env, quiet=True)
         step(5, "build web concluído")
@@ -111,7 +111,7 @@ def main(name, rom_path):
         if not (build / "build.ninja").exists():
             run(["embuilder", "build", "sdl2-mt", "freetype-legacysjlj"], env=env, quiet=True)
             run(["emcmake", "cmake", "-S", ".", "-B", "build-web", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
-                 f"-DRT64_NAGA_EXECUTABLE={naga}", f"-DCMAKE_EXE_LINKER_FLAGS=--pre-js={ROOT / 'hub/hub_rom.js'}",
+                 f"-DRT64_NAGA_EXECUTABLE={naga}",
                  *game.get("cmake", [])], cwd=src, env=env, quiet=True)
         run(["cmake", "--build", "build-web", "--target", game["target"]], cwd=src, env=env, quiet=True)
 
@@ -119,7 +119,13 @@ def main(name, rom_path):
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
     t = game["target"]
-    shutil.copy2(build / f"{t}.html", out / "index.html")
+    # hub_rom.js entra inline no fim do <body>: roda depois do `var Module = {...}` da página e antes do .js do jogo,
+    # que a página só acrescenta ao DOM (assíncrono). Assim serve a qualquer port, sem mexer no link.
+    html = (build / f"{t}.html").read_text()
+    if "</body>" not in html:
+        sys.exit(f"{t}.html sem </body>: não sei onde pôr o hub_rom.js")
+    hub = (ROOT / "hub/hub_rom.js").read_text()
+    (out / "index.html").write_text(html.replace("</body>", f"<script>{hub}</script></body>", 1))
     for f in (f"{t}.js", f"{t}.wasm", f"{t}.data", "coi_serviceworker.js"):
         if (build / f).exists():
             shutil.copy2(build / f, out / f)
