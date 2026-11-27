@@ -1,5 +1,5 @@
 --- /mnt/jogos/n64-web/work/super-mario-64-recomp-0daea3f9b7d9/lib/N64ModernRuntime/N64Recomp/include/recomp.h	2026-11-26 19:49:50.585647298 -0300
-+++ runner/lib/N64ModernRuntime/N64Recomp/include/recomp.h	2026-11-27 10:39:26.721246676 -0300
++++ /mnt/jogos/n64-web/adapt/runner/lib/N64ModernRuntime/N64Recomp/include/recomp.h	2026-11-27 11:32:02.569157193 -0300
 @@ -105,6 +105,18 @@
  
  static inline uint32_t recomp_rdram_offset(gpr address) {
@@ -18,4 +18,15 @@
 +#endif
      return (a & 0x80000000u) ? a - 0x80000000u : RECOMP_KUSEG_WINDOW_BASE + (a & (RECOMP_KUSEG_WINDOW_SIZE - 1));
  }
+ 
+@@ -116,6 +128,10 @@
+ #define MEM_W(offset, reg) \
+     (*(int32_t*)(rdram + RECOMP_RDRAM_OFFSET(((reg) + (offset)))))
+ 
++// lwu (o gerador emite MEM_WU e o recomp.h não definia): a palavra sem extensão de sinal.
++#define MEM_WU(offset, reg) \
++    (*(uint32_t*)(rdram + RECOMP_RDRAM_OFFSET(((reg) + (offset)))))
++
+ #define MEM_H(offset, reg) \
+     (*(int16_t*)(rdram + RECOMP_RDRAM_OFFSET(((reg) + (offset)) ^ 2)))
  
