@@ -159,6 +159,7 @@ def adaptive(name, rom, sha1, emsdk, naga, work, out):
     """Sem port pronto para esta ROM: o N64 adaptativo (adapt/), que monta o mapa do jogo sozinho e descobre em execução
     o que falta (overlays, funções por ponteiro, microcódigos), recompilando até não aparecer nada novo."""
     print(f"sem port pronto (sha1 {sha1}): modo adaptativo", flush=True)
+    print("== experimental", flush=True)  # o hub marca o build como Experimental
     env = dict(os.environ, N64_WORK=str(work), EMSDK=str(emsdk), NAGA=str(naga))
     step(2, "preparando as ferramentas do modo adaptativo (só na primeira vez)")
     run(["bash", str(ROOT / "adapt/setup.sh")], env=env, quiet=True)
