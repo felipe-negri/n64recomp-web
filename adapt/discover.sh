@@ -22,6 +22,7 @@ for i in $(seq 1 "$rounds"); do
     "$HERE/ucode_lib.json" | tail -2 || exit 1
   if [ ! -f "$RUNNER/build-web/build.ninja" ]; then  # primeira vez: configura o build web do runner
     # os ports do Emscripten que o RecompFrontend/RmlUi pedem (num emsdk novo não estão no cache)
+    rm -rf "$RUNNER/build-web"  # um configure que falhou deixa NOTFOUND no cache
     embuilder build sdl2-mt freetype-legacysjlj > "$game/embuilder.log" 2>&1 || { tail -20 "$game/embuilder.log"; exit 1; }
     (cd "$RUNNER" && emcmake cmake -S . -B build-web -G Ninja -DCMAKE_BUILD_TYPE=Release -DRT64_NAGA_EXECUTABLE="$NAGA_BIN" \
       -DSM64_PATCHES=OFF > "$game/configure.log" 2>&1) || { tail -20 "$game/configure.log"; exit 1; }
