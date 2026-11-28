@@ -10,3 +10,4 @@
 /tools/emsdk/
 /tools/cargo/
 /work/
+__pycache__/
