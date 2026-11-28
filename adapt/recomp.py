@@ -45,7 +45,7 @@ def main(rom, game, runner, n64recomp, rsprecomp, sigs, ucode_lib):
         log = (game / "recomp.log").read_text(errors="replace")
         # desvio para fora da função: a divisão estava errada, junta (merge.txt); jal para endereço sem função: vira
         # entrada (extra.txt). Os dois regeram o syms; o resto vira stub.
-        br = re.search(r"Unhandled branch in \S+ at 0x([0-9A-Fa-f]+) to 0x([0-9A-Fa-f]+)", log)
+        br = re.search(r"Unhandled branch in (?!static_)\S+ at 0x([0-9A-Fa-f]+) to 0x([0-9A-Fa-f]+)", log)
         nj = re.search(r"No function found for jal target: 0x([0-9A-Fa-f]+)", log)
         fix = (game / "merge.txt", f"0x{br[1]} 0x{br[2]}") if br else (game / "extra.txt", f"0x{nj[1]}") if nj else None
         if fix and fix[1] not in (fix[0].read_text() if fix[0].exists() else ""):
@@ -64,6 +64,29 @@ def main(rom, game, runner, n64recomp, rsprecomp, sigs, ucode_lib):
             sys.exit("N64Recomp falhou sem dizer a função:\n" + log[-2000:])
         name = bad[1]
         st = re.fullmatch(r"static_\d+_([0-9A-F]{8})", name)
+        extra_txt = (game / "extra.txt").read_text() if (game / "extra.txt").exists() else ""
+        if st and f"0x{st[1]}" in extra_txt:
+            # já virou entrada e voltou (função com duas entradas que o merge junta de novo): stub de quem a contém
+            a = int(st[1], 16)
+            if (game / "merge.txt").exists():  # um merge que juntou esta entrada de volta com a vizinha é desfeito
+                ml = (game / "merge.txt").read_text().splitlines()
+                keep = [l for l in ml if not (len(l.split()) == 2 and
+                        min(int(x, 16) for x in l.split()) - 0x400 <= a <= max(int(x, 16) for x in l.split()) + 0x400)]
+                if keep != ml:
+                    (game / "merge.txt").write_text("\n".join(keep) + ("\n" if keep else ""))
+                    subprocess.run([sys.executable, str(HERE / "gen_syms.py"), rom, str(game), sigs, str(rt)],
+                                   check=True, stdout=subprocess.DEVNULL)
+                    if __import__("os").environ.get("ADAPT_TRACE"):
+                        cfg.write_text(cfg.read_text().replace("[input]\n", "[input]\ntrace_mode = true\n", 1))
+            fl = re.findall(r'name = "([^"]+)", vram = 0x([0-9A-F]+), size = 0x([0-9A-F]+)', (game / "syms.toml").read_text())
+            cont = [n for n, v, sz in fl if int(v, 16) == a] or \
+                   [n for n, v, sz in fl if int(v, 16) <= a < int(v, 16) + int(sz, 16)]
+            new_stubs = [c for c in cont if c not in stubs]
+            if not new_stubs:
+                sys.exit(f"não sei resolver {name}")
+            stubs += new_stubs
+            cfg.write_text(re.sub(r"stubs = \[.*?\]", "stubs = [" + ", ".join(f'"{x}"' for x in stubs) + "]", cfg.read_text(), flags=re.S))
+            continue
         if st and name not in (game / "syms.toml").read_text():
             # função que o N64Recomp achou sozinho (sem entrada no syms): vira entrada (extra.txt) e stub pelo nosso nome
             with open(game / "extra.txt", "a") as f:

@@ -59,7 +59,7 @@ def main(name, rom_path):
     sha1 = hashlib.sha1(rom).hexdigest()
     game = games.get(sha1)
     if not game:
-        sys.exit(f"nenhum port conhecido para esta ROM (sha1 {sha1})")
+        return adaptive(name, rom, sha1, emsdk, naga, work, out)
     print(f"{game['title']} (sha1 {sha1})", flush=True)
 
     step(2, "baixando o port " + game["repo"].rsplit("/", 1)[1])
@@ -152,6 +152,32 @@ def main(name, rom_path):
     if game.get("rom_dest"):  # sem rom_dest (launcher próprio do port), o jogador escolhe a ROM no Load ROM da página
         (out / "hub-rom.json").write_text(json.dumps({"rom": "rom.z64", "dest": game["rom_dest"], "sha1": sha1}))
     (src / ".rom.z64").unlink(missing_ok=True)
+    print(f"pronto: {out}", flush=True)
+
+
+def adaptive(name, rom, sha1, emsdk, naga, work, out):
+    """Sem port pronto para esta ROM: o N64 adaptativo (adapt/), que monta o mapa do jogo sozinho e descobre em execução
+    o que falta (overlays, funções por ponteiro, microcódigos), recompilando até não aparecer nada novo."""
+    print(f"sem port pronto (sha1 {sha1}): modo adaptativo", flush=True)
+    env = dict(os.environ, N64_WORK=str(work), EMSDK=str(emsdk), NAGA=str(naga))
+    step(2, "preparando as ferramentas do modo adaptativo (só na primeira vez)")
+    run(["bash", str(ROOT / "adapt/setup.sh")], env=env, quiet=True)
+    game = work / "adapt-games" / sha1[:12]
+    game.mkdir(parents=True, exist_ok=True)
+    (game / ".rom.z64").write_bytes(rom)
+    step(3, "recompilando e descobrindo o jogo em execução (várias voltas; pode levar de 10 a 60 min)")
+    with open(game / "discover.log", "a") as log:
+        subprocess.run(["bash", str(ROOT / "adapt/discover.sh"), str(game / ".rom.z64"), str(game),
+                        os.environ.get("ADAPT_ROUNDS", "6")], env=env, stdout=log, stderr=subprocess.STDOUT,
+                       stdin=subprocess.DEVNULL)
+    page = game / "page"
+    if not (page / "index.html").exists():
+        sys.exit(f"o modo adaptativo não conseguiu montar a página (veja {game}/discover.log)")
+    step(4, "descoberta concluída")
+    step(5, "página montada")
+    step(6, "publicando")
+    shutil.rmtree(out, ignore_errors=True)
+    shutil.copytree(page, out)
     print(f"pronto: {out}", flush=True)
 
 
